@@ -2,6 +2,7 @@ import {
   AssetIdSchema,
   BoardIdSchema,
   ElementIdSchema,
+  FOUNDATION_CONTROL_TYPES,
   ProjectIdSchema,
   type AssetReference,
   type Board,
@@ -56,7 +57,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
   elementsById: {
     [DOCUMENT_FIXTURE_IDS.group]: {
       id: DOCUMENT_FIXTURE_IDS.group,
-      controlType: 'foundation.group',
+      controlType: FOUNDATION_CONTROL_TYPES.group,
       frame: { x: -20, y: 12.5, width: 320, height: 180 },
       locked: false,
       properties: { label: 'Container', nested: { state: 'normal' } },
@@ -66,7 +67,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
     },
     [DOCUMENT_FIXTURE_IDS.child]: {
       id: DOCUMENT_FIXTURE_IDS.child,
-      controlType: 'foundation.rectangle',
+      controlType: FOUNDATION_CONTROL_TYPES.rectangle,
       frame: { x: 16, y: 24, width: 120, height: 48 },
       locked: false,
       properties: { opacity: 0.75, tags: ['example', true, null] },

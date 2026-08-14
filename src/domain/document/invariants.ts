@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 
+import { getControlSpec } from '../controls/control-spec';
 import type { ElementId } from './ids';
 import type { ProjectDocumentShape } from './schema';
 
@@ -115,6 +116,26 @@ const validateElementReferences = (document: ProjectDocumentShape, addIssue: Add
   }
 };
 
+const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: AddIssue): void => {
+  for (const [elementKey, element] of Object.entries(document.elementsById)) {
+    const spec = getControlSpec(element.controlType);
+    if (spec === undefined) {
+      addIssue(
+        ['elementsById', elementKey, 'controlType'],
+        `Unknown control type '${element.controlType}'.`,
+      );
+      continue;
+    }
+
+    if (!spec.canOwnChildren && element.childIds.length > 0) {
+      addIssue(
+        ['elementsById', elementKey, 'childIds'],
+        `Control type '${element.controlType}' cannot own child elements.`,
+      );
+    }
+  }
+};
+
 const validateOwnership = (document: ProjectDocumentShape, addIssue: AddIssue): void => {
   const ownersByElement = new Map<ElementId, string[]>();
 
@@ -210,6 +231,7 @@ export const addProjectDocumentInvariantIssues = (
 
   validateOrderedBoards(document, addIssue);
   validateMapIdentity(document, addIssue);
+  validateControlCapabilities(document, addIssue);
   validateElementReferences(document, addIssue);
   validateOwnership(document, addIssue);
   validateAcyclicElementTree(document, addIssue);

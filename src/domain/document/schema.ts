@@ -4,7 +4,7 @@ import { AssetIdSchema, BoardIdSchema, ElementIdSchema, ProjectIdSchema } from '
 
 export const PROJECT_DOCUMENT_SCHEMA_VERSION = 1 as const;
 
-const NameSchema = z.string().trim().min(1).max(120);
+export const DocumentTitleSchema = z.string().trim().min(1).max(120);
 const PropertyKeySchema = z
   .string()
   .regex(/^[a-z][a-zA-Z0-9._-]{0,63}$/u, 'Expected a safe property key.')
@@ -85,7 +85,8 @@ export const AssetReferenceSchema = z
 export const ControlTypeIdSchema = z
   .string()
   .max(80)
-  .regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/u, 'Expected a namespaced lowercase control type.');
+  .regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/u, 'Expected a namespaced lowercase control type.')
+  .brand<'ControlTypeId'>();
 
 export const ElementNodeSchema = z
   .strictObject({
@@ -103,7 +104,7 @@ export const ElementNodeSchema = z
 export const BoardSchema = z
   .strictObject({
     id: BoardIdSchema,
-    name: NameSchema,
+    name: DocumentTitleSchema,
     note: BoardNoteSchema,
     childIds: z.array(ElementIdSchema).readonly(),
   })
@@ -113,7 +114,7 @@ export const ProjectDocumentShapeSchema = z
   .strictObject({
     schemaVersion: z.literal(PROJECT_DOCUMENT_SCHEMA_VERSION),
     id: ProjectIdSchema,
-    name: NameSchema,
+    name: DocumentTitleSchema,
     boardIds: z.array(BoardIdSchema).readonly(),
     boardsById: z.record(BoardIdSchema, BoardSchema).readonly(),
     elementsById: z.record(ElementIdSchema, ElementNodeSchema).readonly(),

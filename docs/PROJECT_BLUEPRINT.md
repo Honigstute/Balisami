@@ -213,6 +213,8 @@ Derived values such as selection bounds, enabled commands, inspector mixed value
 
 All document mutations use typed commands with validation, apply, inverse/restore information, and human-readable labels. Commands include create/delete, set properties, move/resize, reorder, group/ungroup, board operations, and asset operations.
 
+`dispatchDocumentCommand` is the public mutation boundary. It runtime-validates command input, returns the original document reference for failures and semantic no-ops, and returns a frozen structurally shared revision plus a validated inverse for changes. Each candidate is checked against the authoritative project invariants before it can escape the dispatcher; unchanged maps and records retain identity for fine-grained selectors and rendering.
+
 A gesture owns transient preview state and commits exactly one command on completion. Escape or pointer cancellation restores the start snapshot. Text entry and repeated keyboard nudges may coalesce within explicit time/identity rules. Undo/redo restores exact document state and never stores renderer objects.
 
 History uses monotonically distinct state identifiers rather than a loose dirty boolean. A save captures both a document snapshot and its state identifier; only that identifier becomes the saved state when the asynchronous write succeeds. Edits made while saving therefore remain dirty, while undoing exactly back to a saved state becomes clean.
@@ -277,6 +279,8 @@ The registry is the primary extension boundary and must be established before ca
 - Optional accessibility label and export behavior.
 
 The palette, quick add, inspector, serialization validator, thumbnail service, and renderer consume this same record. Adding a normal control must not require editing parallel type switches elsewhere.
+
+M2 begins with the deliberately narrow `ControlSpec` subset needed to validate persisted structure: stable type identity and whether a control can own children. Its only entries are the foundation group and rectangle placeholders. M8 expands this same registry contract with rendering and authoring metadata; it does not introduce a competing registry.
 
 Reusable scene primitives include text, rough rectangle, line, ellipse, icon, image, list/table, container chrome, selection-safe padding, and seeded sketch stroke. Reusable inspector primitives include number pair, segmented choice, checkbox, select, color, slider, text style, link, icon search, help, and mixed-value handling.
 

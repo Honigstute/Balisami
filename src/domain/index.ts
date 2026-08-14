@@ -1,4 +1,32 @@
 export {
+  MAX_COMMAND_VALIDATION_ISSUES,
+  dispatchDocumentCommand,
+  type DocumentCommandError,
+  type DocumentCommandFailureCode,
+  type DocumentCommandResult,
+} from './commands/dispatcher';
+export {
+  CreateBoardCommandSchema,
+  DOCUMENT_COMMAND_TYPES,
+  DeleteBoardCommandSchema,
+  DocumentCommandSchema,
+  RenameBoardCommandSchema,
+  ReorderBoardCommandSchema,
+  SetBoardNoteCommandSchema,
+  type CreateBoardCommand,
+  type DeleteBoardCommand,
+  type DocumentCommand,
+  type RenameBoardCommand,
+  type ReorderBoardCommand,
+  type SetBoardNoteCommand,
+} from './commands/schema';
+export {
+  FOUNDATION_CONTROL_TYPES,
+  getControlSpec,
+  listControlSpecs,
+  type ControlSpec,
+} from './controls/control-spec';
+export {
   AssetIdSchema,
   BoardIdSchema,
   ElementIdSchema,
@@ -13,6 +41,7 @@ export {
   BoardNoteSchema,
   BoardSchema,
   ControlTypeIdSchema,
+  DocumentTitleSchema,
   ElementLinkSchema,
   ElementNodeSchema,
   JsonValueSchema,

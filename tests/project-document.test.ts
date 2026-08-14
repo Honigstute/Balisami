@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MAX_DOCUMENT_VALIDATION_ISSUES,
+  FOUNDATION_CONTROL_TYPES,
   parseProjectDocument,
   type AssetId,
   type BoardId,
@@ -132,6 +133,25 @@ describe('project document schema', () => {
 
     expect(paths).toContain(`elementsById.${mismatchedElementKey}.id`);
     expect(paths).toContain(`assetsById.${mismatchedAssetKey}.id`);
+  });
+
+  it('rejects unknown controls and child ownership by leaf controls', () => {
+    const unknownControl = createValidProjectDocumentInput();
+    getElement(unknownControl, DOCUMENT_FIXTURE_IDS.child).controlType = 'foundation.unknown';
+
+    const unknownResult = expectFailure(unknownControl);
+    expect(issuePaths(unknownResult)).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.child}.controlType`,
+    );
+
+    const illegalContainer = createValidProjectDocumentInput();
+    getElement(illegalContainer, DOCUMENT_FIXTURE_IDS.group).controlType =
+      FOUNDATION_CONTROL_TYPES.rectangle;
+
+    const containerResult = expectFailure(illegalContainer);
+    expect(issuePaths(containerResult)).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.group}.childIds`,
+    );
   });
 
   it('rejects duplicate board and child ordering entries', () => {
