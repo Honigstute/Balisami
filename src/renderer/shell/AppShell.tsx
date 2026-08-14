@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import {
@@ -7,17 +7,28 @@ import {
   SHELL_REGIONS,
   type ShellRegion,
 } from '../../shared/shell-layout';
+import { AppNoticeCenter } from '../design/AppNoticeCenter';
+import { NoticeCenterStore } from '../design/notice-center';
+import { RegionErrorBoundary } from '../design/RegionErrorBoundary';
 import { FoundationMark, Icon, type IconName } from './Icon';
 import { PaneResizeHandle } from './PaneResizeHandle';
 import { useShellPreferences } from './use-shell-preferences';
 
 export type StatusTone = 'problem' | 'quiet' | 'ready';
 
+export interface AppShellRegionContent {
+  readonly canvas?: ReactNode;
+  readonly inspector?: ReactNode;
+  readonly navigator?: ReactNode;
+  readonly shelf?: ReactNode;
+}
+
 interface AppShellProps {
   readonly projectName?: string;
   readonly projectOverlay?: ReactNode;
   readonly projectProbeState?: { readonly attributeName: string; readonly value: string };
   readonly quickAddShortcut: string;
+  readonly regionContent?: AppShellRegionContent;
   readonly statusLabel: string;
   readonly statusScope?: string;
   readonly statusTone: StatusTone;
@@ -67,10 +78,12 @@ export const AppShell = ({
   projectOverlay,
   projectProbeState,
   quickAddShortcut,
+  regionContent = {},
   statusLabel,
   statusScope = 'Foundation · local-first',
   statusTone,
 }: AppShellProps) => {
+  const [noticeStore] = useState(() => new NoticeCenterStore());
   const shell = useShellPreferences();
   const navigatorTrackWidth = shell.preferences.navigator.collapsed
     ? DESIGN_TOKENS.shell.collapsedPaneWidth
@@ -158,10 +171,20 @@ export const AppShell = ({
         aria-label="Control library"
         className="control-shelf"
       >
-        <LibraryPlaceholders />
-        <button aria-label="More controls" className="icon-button" disabled>
-          <Icon name="more" />
-        </button>
+        <RegionErrorBoundary
+          noticeStore={noticeStore}
+          regionKey="shelf"
+          regionName="Control library"
+        >
+          {regionContent.shelf ?? (
+            <>
+              <LibraryPlaceholders />
+              <button aria-label="More controls" className="icon-button" disabled>
+                <Icon name="more" />
+              </button>
+            </>
+          )}
+        </RegionErrorBoundary>
       </section>
 
       <aside
@@ -195,15 +218,23 @@ export const AppShell = ({
             </button>
           </div>
         </div>
-        <div className="panel-empty panel-empty--navigator">
-          <div aria-hidden="true" className="empty-thumbnail">
-            <span />
-            <span />
-            <span />
-          </div>
-          <strong>No wireframes yet</strong>
-          <p>The document model will create and order them here.</p>
-        </div>
+        <RegionErrorBoundary
+          noticeStore={noticeStore}
+          regionKey="navigator"
+          regionName="Wireframes navigator"
+        >
+          {regionContent.navigator ?? (
+            <div className="panel-empty panel-empty--navigator">
+              <div aria-hidden="true" className="empty-thumbnail">
+                <span />
+                <span />
+                <span />
+              </div>
+              <strong>No wireframes yet</strong>
+              <p>The document model will create and order them here.</p>
+            </div>
+          )}
+        </RegionErrorBoundary>
       </aside>
 
       <main
@@ -212,20 +243,25 @@ export const AppShell = ({
         className="canvas-viewport"
         data-testid="canvas-viewport"
       >
-        <div className="canvas-empty">
-          <div aria-hidden="true" className="canvas-empty__frame">
-            <span className="canvas-empty__handle canvas-empty__handle--top-left" />
-            <span className="canvas-empty__handle canvas-empty__handle--top-right" />
-            <span className="canvas-empty__handle canvas-empty__handle--bottom-left" />
-            <span className="canvas-empty__handle canvas-empty__handle--bottom-right" />
-            <span className="canvas-empty__line" />
-            <span className="canvas-empty__button" />
-          </div>
-          <h1>Built for quick thinking</h1>
-          <p>
-            The canvas, selection model, and smart guides attach here without changing the shell.
-          </p>
-        </div>
+        <RegionErrorBoundary noticeStore={noticeStore} regionKey="canvas" regionName="Canvas">
+          {regionContent.canvas ?? (
+            <div className="canvas-empty">
+              <div aria-hidden="true" className="canvas-empty__frame">
+                <span className="canvas-empty__handle canvas-empty__handle--top-left" />
+                <span className="canvas-empty__handle canvas-empty__handle--top-right" />
+                <span className="canvas-empty__handle canvas-empty__handle--bottom-left" />
+                <span className="canvas-empty__handle canvas-empty__handle--bottom-right" />
+                <span className="canvas-empty__line" />
+                <span className="canvas-empty__button" />
+              </div>
+              <h1>Built for quick thinking</h1>
+              <p>
+                The canvas, selection model, and smart guides attach here without changing the
+                shell.
+              </p>
+            </div>
+          )}
+        </RegionErrorBoundary>
       </main>
 
       <aside
@@ -248,25 +284,33 @@ export const AppShell = ({
             <Icon name="chevron" />
           </button>
         </div>
-        <div className="inspector-scroll">
-          <section className="inspector-section">
-            <h3>Nothing selected</h3>
-            <p>Select an element on the canvas to edit its position, size, and appearance.</p>
-          </section>
-          <section className="inspector-section inspector-section--notes">
-            <div className="inspector-section__heading">
-              <h3>Notes</h3>
-              <span>Board</span>
-            </div>
-            <div className="notes-placeholder">Notes will stay with the active wireframe.</div>
-          </section>
-        </div>
-        <div className="inspector-footer">
-          <span>Alternate versions</span>
-          <button aria-label="Add alternate version" className="icon-button" disabled>
-            <span aria-hidden="true">+</span>
-          </button>
-        </div>
+        <RegionErrorBoundary noticeStore={noticeStore} regionKey="inspector" regionName="Inspector">
+          {regionContent.inspector ?? (
+            <>
+              <div className="inspector-scroll">
+                <section className="inspector-section">
+                  <h3>Nothing selected</h3>
+                  <p>Select an element on the canvas to edit its position, size, and appearance.</p>
+                </section>
+                <section className="inspector-section inspector-section--notes">
+                  <div className="inspector-section__heading">
+                    <h3>Notes</h3>
+                    <span>Board</span>
+                  </div>
+                  <div className="notes-placeholder">
+                    Notes will stay with the active wireframe.
+                  </div>
+                </section>
+              </div>
+              <div className="inspector-footer">
+                <span>Alternate versions</span>
+                <button aria-label="Add alternate version" className="icon-button" disabled>
+                  <span aria-hidden="true">+</span>
+                </button>
+              </div>
+            </>
+          )}
+        </RegionErrorBoundary>
       </aside>
 
       <PaneResizeHandle
@@ -286,7 +330,8 @@ export const AppShell = ({
         pane="inspector"
       />
 
-      <div aria-live="polite" className="overlay-root" id="overlay-root">
+      <div className="overlay-root" id="overlay-root">
+        <AppNoticeCenter store={noticeStore} />
         {projectOverlay}
       </div>
     </div>

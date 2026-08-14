@@ -49,9 +49,21 @@ describe('fixed shell geometry contract', () => {
     );
   });
 
+  it('supports platform-native title chrome without introducing a renderer offset', () => {
+    const rectangles = getExpectedShellRegionRects(1024, 648);
+
+    expect(rectangles[SHELL_REGIONS.root].height).toBe(648);
+    expect(rectangles[SHELL_REGIONS.canvas]).toEqual({
+      x: 224,
+      y: 180,
+      width: 480,
+      height: 468,
+    });
+  });
+
   it('rejects invalid and unsupported viewport dimensions', () => {
-    expect(() => getExpectedShellRegionRects(1023, 680)).toThrow(RangeError);
-    expect(() => getExpectedShellRegionRects(1024, 679)).toThrow(RangeError);
+    expect(() => getExpectedShellRegionRects(959, 680)).toThrow(RangeError);
+    expect(() => getExpectedShellRegionRects(1024, 599)).toThrow(RangeError);
     expect(() => getExpectedShellRegionRects(Number.NaN, 680)).toThrow(RangeError);
     expect(() =>
       getExpectedShellRegionRects(1024, 680, {

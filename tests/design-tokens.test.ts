@@ -26,6 +26,15 @@ describe('visual token contract', () => {
     expect(DESIGN_TOKENS.shell.inspectorWidth).toBeLessThanOrEqual(
       DESIGN_TOKENS.shell.inspectorMaxWidth,
     );
+    expect(DESIGN_TOKENS.shell.minViewportWidth).toBeGreaterThan(
+      DESIGN_TOKENS.shell.navigatorMaxWidth + DESIGN_TOKENS.shell.inspectorMaxWidth,
+    );
+    expect(DESIGN_TOKENS.shell.minViewportHeight).toBeGreaterThan(
+      DESIGN_TOKENS.shell.commandBarHeight +
+        DESIGN_TOKENS.shell.statusBarHeight +
+        DESIGN_TOKENS.shell.categoryBarHeight +
+        DESIGN_TOKENS.shell.controlShelfHeight,
+    );
 
     const globalLayers = [
       DESIGN_TOKENS.layer.canvasOverlay,

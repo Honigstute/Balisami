@@ -51,10 +51,12 @@ export const getExpectedShellRegionRects = (
   if (
     !Number.isFinite(viewportWidth) ||
     !Number.isFinite(viewportHeight) ||
-    viewportWidth < DESIGN_TOKENS.shell.minWindowWidth ||
-    viewportHeight < DESIGN_TOKENS.shell.minWindowHeight
+    viewportWidth < DESIGN_TOKENS.shell.minViewportWidth ||
+    viewportHeight < DESIGN_TOKENS.shell.minViewportHeight
   ) {
-    throw new RangeError('Shell geometry requires finite dimensions at or above the minimum size.');
+    throw new RangeError(
+      'Shell geometry requires finite dimensions at or above the minimum content viewport.',
+    );
   }
 
   const isValidPaneWidth = (width: number, min: number, max: number): boolean =>

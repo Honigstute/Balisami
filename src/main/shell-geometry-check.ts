@@ -127,35 +127,58 @@ const assertRect = (
 
 const measureAndAssert = async (
   window: BrowserWindow,
-  expectedWidth: number,
-  expectedHeight: number,
+  expectedWindowWidth: number,
+  expectedWindowHeight: number,
 ): Promise<void> => {
-  window.setContentSize(expectedWidth, expectedHeight, false);
+  window.setSize(expectedWindowWidth, expectedWindowHeight, false);
   let measured: MeasuredShellGeometry | undefined;
+  let stableViewportSamples = 0;
+  let priorViewportKey: string | undefined;
   for (let attempt = 0; attempt < MAX_LAYOUT_SETTLE_ATTEMPTS; attempt += 1) {
     await waitForLayout(window);
     measured = parseMeasuredGeometry(
       await window.webContents.executeJavaScript(createMeasurementScript(), true),
     );
-    if (measured?.viewportWidth === expectedWidth && measured.viewportHeight === expectedHeight) {
+    const [windowWidth, windowHeight] = window.getSize();
+    const viewportKey =
+      measured === undefined
+        ? undefined
+        : `${String(measured.viewportWidth)}x${String(measured.viewportHeight)}`;
+    stableViewportSamples =
+      viewportKey !== undefined && viewportKey === priorViewportKey ? stableViewportSamples + 1 : 1;
+    priorViewportKey = viewportKey;
+    if (
+      windowWidth === expectedWindowWidth &&
+      windowHeight === expectedWindowHeight &&
+      measured !== undefined &&
+      stableViewportSamples >= 2
+    ) {
       break;
     }
   }
   if (measured === undefined) {
     throw new Error('Packaged shell returned malformed viewport geometry.');
   }
-  if (measured.viewportWidth !== expectedWidth || measured.viewportHeight !== expectedHeight) {
+  const [windowWidth, windowHeight] = window.getSize();
+  if (windowWidth !== expectedWindowWidth || windowHeight !== expectedWindowHeight) {
     throw new Error(
-      `Packaged shell did not settle at ${String(expectedWidth)}x${String(expectedHeight)} CSS px (received ${String(measured.viewportWidth)}x${String(measured.viewportHeight)}).`,
+      `Packaged native window did not settle at ${String(expectedWindowWidth)}x${String(expectedWindowHeight)} (received ${String(windowWidth)}x${String(windowHeight)}).`,
     );
   }
-  const expected = getExpectedShellRegionRects(expectedWidth, expectedHeight, measured.paneWidths);
+  if (stableViewportSamples < 2) {
+    throw new Error('Packaged shell viewport did not reach two identical committed layouts.');
+  }
+  const expected = getExpectedShellRegionRects(
+    measured.viewportWidth,
+    measured.viewportHeight,
+    measured.paneWidths,
+  );
   for (const region of SHELL_REGION_NAMES) {
     assertRect(region, measured.regions[region], expected[region]);
   }
 };
 
-/** Verifies fixed shell anchors at the minimum and normal desktop content sizes. */
+/** Verifies fixed shell anchors at minimum and normal native window sizes. */
 export const verifyPackagedShellGeometry = async (window: BrowserWindow): Promise<void> => {
   await measureAndAssert(
     window,
