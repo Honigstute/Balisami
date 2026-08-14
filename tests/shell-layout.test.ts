@@ -3,9 +3,31 @@
 import { describe, expect, it } from 'vitest';
 
 import { DESIGN_TOKENS } from '../src/shared/design-tokens';
-import { SHELL_REGIONS, getExpectedShellRegionRects } from '../src/shared/shell-layout';
+import {
+  SHELL_REGIONS,
+  getBoundedNormalWindowSize,
+  getExpectedShellRegionRects,
+} from '../src/shared/shell-layout';
 
 describe('fixed shell geometry contract', () => {
+  it('bounds the normal review window to the available native work area', () => {
+    expect(getBoundedNormalWindowSize({ width: 2560, height: 1440 })).toEqual({
+      width: 1440,
+      height: 900,
+    });
+    expect(getBoundedNormalWindowSize({ width: 1440, height: 680 })).toEqual({
+      width: 1440,
+      height: 680,
+    });
+    expect(getBoundedNormalWindowSize({ width: 800, height: 500 })).toEqual({
+      width: 1024,
+      height: 680,
+    });
+    expect(() => getBoundedNormalWindowSize({ width: Number.NaN, height: 900 })).toThrow(
+      RangeError,
+    );
+  });
+
   it('derives every minimum-viewport region from shared tokens', () => {
     const rectangles = getExpectedShellRegionRects(
       DESIGN_TOKENS.shell.minWindowWidth,

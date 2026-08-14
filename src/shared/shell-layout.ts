@@ -34,7 +34,29 @@ export interface ShellPaneWidths {
   readonly navigatorWidth: number;
 }
 
+export interface ShellWindowSize {
+  readonly height: number;
+  readonly width: number;
+}
+
 const freezeRect = (rect: ShellRegionRect): ShellRegionRect => Object.freeze(rect);
+
+/** Chooses the normal smoke/review size without exceeding the host display work area. */
+export const getBoundedNormalWindowSize = (workArea: ShellWindowSize): ShellWindowSize => {
+  if (!Number.isFinite(workArea.width) || !Number.isFinite(workArea.height)) {
+    throw new RangeError('Display work-area dimensions must be finite.');
+  }
+  return Object.freeze({
+    height: Math.max(
+      DESIGN_TOKENS.shell.minWindowHeight,
+      Math.min(DESIGN_TOKENS.shell.initialWindowHeight, Math.floor(workArea.height)),
+    ),
+    width: Math.max(
+      DESIGN_TOKENS.shell.minWindowWidth,
+      Math.min(DESIGN_TOKENS.shell.initialWindowWidth, Math.floor(workArea.width)),
+    ),
+  });
+};
 
 /**
  * Expected border boxes for the fixed shell tracks. Packaged geometry checks

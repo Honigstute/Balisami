@@ -1,10 +1,11 @@
-import type { BrowserWindow } from 'electron';
+import { screen, type BrowserWindow } from 'electron';
 
 import { DESIGN_TOKENS } from '../shared/design-tokens';
 import {
   SHELL_LAYOUT_ATTRIBUTES,
   SHELL_REGION_ATTRIBUTE,
   SHELL_REGIONS,
+  getBoundedNormalWindowSize,
   getExpectedShellRegionRects,
   type ShellPaneWidths,
   type ShellRegion,
@@ -185,9 +186,8 @@ export const verifyPackagedShellGeometry = async (window: BrowserWindow): Promis
     DESIGN_TOKENS.shell.minWindowWidth,
     DESIGN_TOKENS.shell.minWindowHeight,
   );
-  await measureAndAssert(
-    window,
-    DESIGN_TOKENS.shell.initialWindowWidth,
-    DESIGN_TOKENS.shell.initialWindowHeight,
+  const normalSize = getBoundedNormalWindowSize(
+    screen.getDisplayMatching(window.getBounds()).workAreaSize,
   );
+  await measureAndAssert(window, normalSize.width, normalSize.height);
 };
