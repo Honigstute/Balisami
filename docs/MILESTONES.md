@@ -198,13 +198,13 @@ Completion evidence (2026-08-14):
 - The final local gate passes 41 files / 236 tests, zero high-severity runtime audit findings, packaging, Electron fuse readback, ordinary smoke, all nine packaged visual launches, real create/edit/save/close/reopen, and forced-crash ordinary-launch recovery; the prior 531-byte user project remains byte-identical.
 - [Push quality run 31831856599](https://github.com/Honigstute/Balisami/actions/runs/31831856599) and independent [PR quality run 31831862197](https://github.com/Honigstute/Balisami/actions/runs/31831862197) passed commit `037e456` on native macOS 26 arm64 and Windows 2025 x64. Both hosts completed source, package, fuse, smoke, nine-state visual, real project-workflow, and crash-recovery gates. The uploaded semantic and 100/125/150/200% artifacts were inspected at native resolution on both platforms with stable tracks, bundled-font metrics, internal inspector overflow, and non-reflowing overlays.
 
-### [~] M5 — Viewport, coordinate system, pan, zoom, and scene layers
+### [x] M5 — Viewport, coordinate system, pan, zoom, and scene layers
 
 Depends on: M2, M4
 
 Objective: provide a deterministic, high-performance workspace before object editing.
 
-Current progress (2026-08-14):
+Completion evidence (2026-08-14):
 
 - The first pure editor coordinate module defines incompatible branded client, viewport, world, and device points/vectors/rectangles plus validated viewport bounds, device scale, zoom, and immutable camera transforms. Browser client offsets are converted exactly once; pan remains in viewport CSS pixels; world geometry stays floating-point and no conversion rounds model values.
 - One explicit 10–400% zoom policy distinguishes strict persisted/session transform validation from clamped user requests. World↔viewport, client↔viewport, viewport↔device, vector, and rectangle conversions share the same contract; translating pan and changing zoom around a viewport anchor return frozen values without mutating inputs.
@@ -220,6 +220,7 @@ Current progress (2026-08-14):
 - The active-board scene adapter now flattens canonical nested ownership once into derived world bounds, renders only the existing foundation rectangle control, and restores `childIds` stacking after spatial lookup. Its keyed SVG presenter reuses unchanged DOM nodes, regenerates a seeded path only when geometry changes, applies order-only changes without geometry churn, and mounts/unmounts overscanned items imperatively as the external camera moves; React does not render individual document nodes.
 - A dedicated packaged-production performance mode validates a fixed 1,000-rectangle document for a real ten-second pan/zoom run. It wraps the browser animation-frame scheduler to measure camera publication plus visibility query and SVG work, measures input-to-final-listener latency, observes long tasks and keyed DOM additions/removals, and uses a React Profiler around the entire canvas to reject any motion-driven commit. The native harness strictly parses one bounded renderer result, enforces p95 frame work ≤16.7 ms, maximum frame work ≤50 ms, p95 input latency ≤50 ms, minimum sample count, exact duration, and zero React commits, then stores per-platform JSON with the ordinary CI artifacts.
 - Seventy-eight focused viewport/scene cases include 10,000 deterministic seeded coordinate round trips, framing normalization and resize invariants, 1,000 raw camera updates coalesced into one publication, cursor-anchor preservation, platform shortcut resolution, explicit command availability, keyboard isolation, camera bounds, cancel-safe pointer paths, deterministic sketch goldens, spatial-index failure/oversize cases, fixed 1,000/5,000-element source-level performance fixtures, nested world bounds, incremental scene reconciliation, canonical stacking, keyed DOM reuse, culling, and strict performance-result validation. The full local 56-file/316-test source gate, package, fuse readback, ordinary smoke, eleven-launch packaged visual matrix, create/edit/save/close/reopen workflow, and forced-crash ordinary-launch recovery all pass. The latest local packaged 10.03-second run measured 599 camera frames, 0.70 ms p95/1.90 ms maximum camera work, 18.60 ms p95 input-to-visible latency, zero long tasks, and zero React commits. The deterministic native scene and open zoom-menu artifacts were reviewed at original resolution with crisp seeded outlines, aligned command labels/shortcuts, explicit disabled state, and unchanged shell anchors. The first camera/scene slice also passed [push run 31833568347](https://github.com/Honigstute/Balisami/actions/runs/31833568347) and independent [PR run 31833593703](https://github.com/Honigstute/Balisami/actions/runs/31833593703) on native macOS 26 arm64 and Windows 2025 x64.
+- The final command slice passed [push run 31837546787](https://github.com/Honigstute/Balisami/actions/runs/31837546787) and independent [PR run 31837549667](https://github.com/Honigstute/Balisami/actions/runs/31837549667) at commit `ed0332a` on native macOS 26 arm64 and Windows 2025 x64. Both operating systems passed source, package, fuse, smoke, eleven-state visual, project workflow, crash recovery, and ten-second performance gates. The PR artifacts were inspected at original resolution: platform shortcut labels and menu columns remain aligned with identical shell anchors. macOS measured 0.50 ms p95 frame work and 22.10 ms p95 input latency; Windows measured 0.60 ms and 16.60 ms respectively, with zero long tasks and zero React commits on both.
 
 Deliverables:
 
@@ -235,7 +236,7 @@ Exit gate:
 - Zoom retains the point beneath the cursor; no jump occurs during resize or pane toggle.
 - Ten-second pan/zoom runs meet the 1,000-element frame budget without React/global-store updates per raw pointer event.
 
-### [ ] M6 — Selection, gestures, hit testing, and transforms
+### [~] M6 — Selection, gestures, hit testing, and transforms
 
 Depends on: M5
 
@@ -417,4 +418,4 @@ Exit gate:
 
 ## Next action
 
-Push the completed viewport command slice and require the full source, packaged, visual, recovery, project-workflow, and ten-second performance gates on native macOS arm64 and Windows x64. Inspect both operating-system zoom-menu artifacts and performance results; only then close M5 and activate M6 selection work. Fit Selection remains disabled until M6 owns selection.
+Start M6 with pure, durable selection and gesture contracts before adding transform UI: define session-only selected/primary IDs, explicit interaction states and cancellation rules, and topmost hit testing that combines the existing spatial index with canonical stacking. Prove click, Shift-toggle, empty-space clearing, overlap order, locked-item behavior, and Escape leave the document/history untouched before mounting fixed-screen selection bounds or enabling Fit Selection.
