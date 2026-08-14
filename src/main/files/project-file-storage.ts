@@ -113,6 +113,11 @@ const syncParentDirectory = async (directoryPath: string): Promise<void> => {
 
 export const readProjectArchiveFile = async (
   filePath: unknown,
+): Promise<ReadProjectArchiveResult> => readBoundedFile(filePath, MAX_PROJECT_ARCHIVE_BYTES);
+
+export const readBoundedFile = async (
+  filePath: unknown,
+  maxBytes: number,
 ): Promise<ReadProjectArchiveResult> => {
   if (!isValidAbsoluteFilePath(filePath)) {
     return fail({
@@ -141,11 +146,7 @@ export const readProjectArchiveFile = async (
         message: 'The selected project path is not a regular file.',
       });
     }
-    if (
-      !Number.isSafeInteger(metadata.size) ||
-      metadata.size < 0 ||
-      metadata.size > MAX_PROJECT_ARCHIVE_BYTES
-    ) {
+    if (!Number.isSafeInteger(metadata.size) || metadata.size < 0 || metadata.size > maxBytes) {
       return fail({
         code: 'file-too-large',
         message: 'The selected project file exceeds the supported size limit.',
@@ -170,6 +171,13 @@ export const readProjectArchiveFile = async (
 export const writeProjectArchiveFileAtomically = async (
   targetPath: unknown,
   input: unknown,
+): Promise<WriteProjectArchiveResult> =>
+  writeBoundedFileAtomically(targetPath, input, MAX_PROJECT_ARCHIVE_BYTES);
+
+export const writeBoundedFileAtomically = async (
+  targetPath: unknown,
+  input: unknown,
+  maxBytes: number,
 ): Promise<WriteProjectArchiveResult> => {
   if (!isValidAbsoluteFilePath(targetPath)) {
     return fail({
@@ -183,7 +191,7 @@ export const writeProjectArchiveFileAtomically = async (
       message: 'Project file output must be provided as binary data.',
     });
   }
-  if (input.byteLength > MAX_PROJECT_ARCHIVE_BYTES) {
+  if (input.byteLength > maxBytes) {
     return fail({
       code: 'file-too-large',
       message: 'The project file exceeds the supported size limit.',

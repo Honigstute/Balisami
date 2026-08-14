@@ -353,6 +353,19 @@ restores it, and a failed restore preserves and reports both old/new recovery pa
 are never moved aside, ordinary failed writes clean their temporary file, and backup cleanup failure
 is a successful-save warning rather than a false loss report.
 
+Recovery lives only under Electron `userData/recovery-v1/<projectId>`. It does not reuse the user-save
+token flow: a frozen recovery capture contains the current document reference and history state ID
+without changing dirty state, pending saves, or coalescing. Each accepted recovery point consists of
+an immutable content-addressed `snapshots/<sha256>.zip` plus a strict, canonical, at-most-64-KiB
+`current.json` pointer containing state/time/source metadata, archive length, and digest. The archive
+is written and flushed first; the pointer advances atomically last. A crash before pointer promotion
+therefore leaves the prior recovery current, while a crash after promotion selects the new verified
+snapshot. Recognized orphans are cleaned without deleting the currently referenced digest, cleanup
+is bounded to the project recovery directory, and corrupt pointer/source evidence is preserved rather
+than silently overwritten. Loading verifies pointer schema, project identity, byte length, SHA-256,
+archive limits, and the full project codec before exposing a document. The optional chosen-file path
+is metadata only; recovery never reads from or writes to it.
+
 Rules:
 
 - Parse untrusted project files with runtime schemas and size limits.
