@@ -131,7 +131,7 @@ Use Electron with TypeScript, React, and Vite. Electron is selected because both
 
 Use the operating system's standard window frame initially. A custom title bar adds platform-specific dragging, traffic-light, snap-layout, accessibility, and full-screen complexity without improving the editor foundation.
 
-The M1 toolchain is pinned rather than ranged:
+The foundation toolchain is pinned rather than ranged:
 
 | Tool           | Version |
 | -------------- | ------: |
@@ -143,6 +143,7 @@ The M1 toolchain is pinned rather than ranged:
 | React          |  19.2.8 |
 | Vite           |   7.3.6 |
 | TypeScript     |   6.0.3 |
+| Zod            |   4.4.3 |
 
 `package.json`, `package-lock.json`, and `.nvmrc` are authoritative for executable versions. Electron Forge still labels its Vite plugin experimental, so its exact version is pinned and upgrades require a verified package/build/smoke cycle on macOS and Windows. Vite 7 is intentional: Forge 7's integration still emits deprecated Rollup options under Vite 8.
 
@@ -188,7 +189,11 @@ Circular imports and renderer imports from `main` or Node built-ins fail CI.
 
 The normalized model contains `Project`, ordered `Board` records, `ElementNode` records, content-addressed assets, symbols/components, links, notes, and alternates. Every record has a stable identifier. Every stored number and enum is validated and finite.
 
+`ProjectDocumentSchema` is the authoritative runtime structure, while `parseProjectDocument` is the public untrusted-input boundary. It returns stable field paths and caps surfaced issues so one malformed document cannot create an error-message storm. Cross-record ownership, ordering, identity, link, asset, and cycle rules are validated with the shape rather than repaired silently.
+
 Each board or group owns one ordered `childIds` list. That list alone defines parent membership and stacking order; parent indexes and z-order values are derived at runtime and are never persisted as competing copies.
+
+The M2 read contract derives an `ElementLocation` index from those lists, containing only owner and sibling index. Commands may carry the same discriminated board/element owner value, but nodes never persist it. Ordered record selectors return the canonical board/element records, and selection-ready world bounds accumulate ancestor frame origins from local geometry. These indexes and bounds are disposable and must be rebuilt from the document after a revision.
 
 An element contains identity, `controlType`, local world-space geometry, lock state, and control properties. Child geometry is local to its owning container; world bounds are derived. Defaults come from the control registry and are materialized or normalized at one defined boundary.
 
@@ -210,9 +215,17 @@ Derived values such as selection bounds, enabled commands, inspector mixed value
 
 All document mutations use typed commands with validation, apply, inverse/restore information, and human-readable labels. Commands include create/delete, set properties, move/resize, reorder, group/ungroup, board operations, and asset operations.
 
+`dispatchDocumentCommand` is the public mutation boundary. It runtime-validates command input, returns the original document reference for failures and semantic no-ops, and returns a frozen structurally shared revision plus a validated inverse for changes. Each candidate is checked against the authoritative project invariants before it can escape the dispatcher; unchanged maps and records retain identity for fine-grained selectors and rendering.
+
+Foundation element commands cover insertion, childless deletion, sibling order, complete JSON-safe property replacement, and local-frame geometry. Insertions are initially childless and deletion rejects containers with children; M7 grouping commands will own subtree/group semantics instead of embedding an implicit recursive policy in basic CRUD. Command-availability selectors expose the same current order and child constraints to UI surfaces without persisting enabled flags.
+
 A gesture owns transient preview state and commits exactly one command on completion. Escape or pointer cancellation restores the start snapshot. Text entry and repeated keyboard nudges may coalesce within explicit time/identity rules. Undo/redo restores exact document state and never stores renderer objects.
 
 History uses monotonically distinct state identifiers rather than a loose dirty boolean. A save captures both a document snapshot and its state identifier; only that identifier becomes the saved state when the asynchronous write succeeds. Edits made while saving therefore remain dirty, while undoing exactly back to a saved state becomes clean.
+
+`DocumentHistoryState` is an immutable session value containing the current document, bounded undo/redo entry stacks, current/saved/next state identities, and in-flight save identities. New branches never reuse abandoned IDs. Undo and redo replay the same validated command boundary and restore the entry's prior or subsequent state ID; a failed or unexpected no-op replay leaves the complete history unchanged and reports corruption.
+
+Multi-command transactions apply to a temporary document and either commit one entry or expose no partial result. Semantic no-ops are omitted. Coalescing requires an explicit stable key from the interaction owner, never occurs across an undo branch, and is blocked when the current state is saved or captured by an in-flight save. This keeps async save snapshots reachable and gives input/gesture code deterministic grouping without time-dependent behavior in the domain layer.
 
 ## 6. Viewport and interaction engine
 
@@ -274,6 +287,8 @@ The registry is the primary extension boundary and must be established before ca
 - Optional accessibility label and export behavior.
 
 The palette, quick add, inspector, serialization validator, thumbnail service, and renderer consume this same record. Adding a normal control must not require editing parallel type switches elsewhere.
+
+M2 begins with the deliberately narrow `ControlSpec` subset needed to validate persisted structure: stable type identity and whether a control can own children. Its only entries are the foundation group and rectangle placeholders. M8 expands this same registry contract with rendering and authoring metadata; it does not introduce a competing registry.
 
 Reusable scene primitives include text, rough rectangle, line, ellipse, icon, image, list/table, container chrome, selection-safe padding, and seeded sketch stroke. Reusable inspector primitives include number pair, segmented choice, checkbox, select, color, slider, text style, link, icon search, help, and mixed-value handling.
 
@@ -458,6 +473,7 @@ A feature is done only when:
 | D-009 | Pin the Forge Vite integration exactly                     | Contain the migration risk of Forge's experimental Vite plugin                                                      | Accepted                                  |
 | D-010 | Temporarily accept Forge's dev-only `extract-zip` advisory | No patched upstream release exists; production dependency audit is clean and packaging input is trusted/checksummed | Temporary; review every dependency update |
 | D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored    | Accepted                                  |
+| D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts   | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 

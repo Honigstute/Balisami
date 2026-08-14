@@ -1,6 +1,134 @@
-/**
- * M2 introduces the validated project document and command dispatcher here.
- * Keeping the boundary present in M1 lets import rules protect it from the
- * first implementation commit.
- */
-export {};
+export {
+  MAX_COMMAND_VALIDATION_ISSUES,
+  dispatchDocumentCommand,
+  type DocumentCommandError,
+  type DocumentCommandFailureCode,
+  type DocumentCommandResult,
+} from './commands/dispatcher';
+export {
+  BoardCommandSchema,
+  CreateBoardCommandSchema,
+  CreateElementCommandSchema,
+  DOCUMENT_COMMAND_TYPES,
+  DeleteBoardCommandSchema,
+  DeleteElementCommandSchema,
+  DocumentCommandSchema,
+  ElementCommandSchema,
+  RenameBoardCommandSchema,
+  ReorderBoardCommandSchema,
+  ReorderElementCommandSchema,
+  SetBoardNoteCommandSchema,
+  SetElementFrameCommandSchema,
+  SetElementPropertiesCommandSchema,
+  type BoardCommand,
+  type CreateBoardCommand,
+  type CreateElementCommand,
+  type DeleteBoardCommand,
+  type DeleteElementCommand,
+  type DocumentCommand,
+  type ElementCommand,
+  type RenameBoardCommand,
+  type ReorderBoardCommand,
+  type ReorderElementCommand,
+  type SetBoardNoteCommand,
+  type SetElementFrameCommand,
+  type SetElementPropertiesCommand,
+} from './commands/schema';
+export {
+  FOUNDATION_CONTROL_TYPES,
+  getControlSpec,
+  listControlSpecs,
+  type ControlSpec,
+} from './controls/control-spec';
+export {
+  AssetIdSchema,
+  BoardIdSchema,
+  ElementIdSchema,
+  ProjectIdSchema,
+  type AssetId,
+  type BoardId,
+  type ElementId,
+  type ProjectId,
+} from './document/ids';
+export { ElementOwnerSchema, type ElementOwner } from './document/owner';
+export {
+  createElementLocationIndex,
+  selectBoardCommandAvailability,
+  selectBoardRootElements,
+  selectElementCommandAvailability,
+  selectElementLocation,
+  selectElementWorldBounds,
+  selectOrderedBoards,
+  selectOrderedChildren,
+  selectOwnerChildIds,
+  selectSelectionWorldBounds,
+  type BoardCommandAvailability,
+  type ElementCommandAvailability,
+  type ElementLocation,
+  type ElementLocationIndex,
+} from './document/selectors';
+export {
+  AssetReferenceSchema,
+  BoardNoteSchema,
+  BoardSchema,
+  ControlTypeIdSchema,
+  DocumentTitleSchema,
+  ElementLinkSchema,
+  ElementNodeSchema,
+  ElementPropertiesSchema,
+  JsonValueSchema,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
+  WorldRectSchema,
+  type AssetReference,
+  type Board,
+  type BoardNote,
+  type ControlTypeId,
+  type ElementLink,
+  type ElementNode,
+  type ElementProperties,
+  type JsonValue,
+  type WorldRect,
+} from './document/schema';
+export {
+  MAX_DOCUMENT_VALIDATION_ISSUES,
+  ProjectDocumentSchema,
+  parseProjectDocument,
+  type DocumentValidationIssue,
+  type ProjectDocument,
+  type ProjectDocumentParseResult,
+} from './document/validation';
+export {
+  DEFAULT_HISTORY_LIMIT,
+  MAX_HISTORY_LIMIT,
+  MAX_HISTORY_TRANSACTION_COMMANDS,
+  canRedoDocumentHistory,
+  canUndoDocumentHistory,
+  createDocumentHistory,
+  isDocumentHistoryDirty,
+  selectRedoLabel,
+  selectUndoLabel,
+  type CreateDocumentHistoryOptions,
+  type DocumentHistoryState,
+  type HistoryEntry,
+  type HistoryOperationError,
+  type HistoryOperationErrorCode,
+  type HistoryOperationResult,
+  type HistoryStateId,
+  type HistoryTransactionOptions,
+} from './history/model';
+export {
+  dispatchHistoryCommand,
+  dispatchHistoryTransaction,
+  redoDocumentHistory,
+  undoDocumentHistory,
+} from './history/operations';
+export {
+  beginDocumentHistorySave,
+  completeDocumentHistorySave,
+  failDocumentHistorySave,
+  type BeginHistorySaveResult,
+  type HistorySaveError,
+  type HistorySaveErrorCode,
+  type HistorySaveSnapshot,
+  type ResolveHistorySaveResult,
+} from './history/save-state';
