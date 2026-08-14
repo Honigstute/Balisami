@@ -313,8 +313,7 @@ Guides are ephemeral overlays and never export or enter history. Align/distribut
 
 The project file is a portable container with a manifest, versioned project JSON, and deduplicated assets. Exact extension/name is decided before public alpha; internal code does not depend on marketing naming.
 
-The version-1 logical container contract is deliberately independent of its eventual extension and
-physical archive adapter:
+The version-1 logical container contract is deliberately independent of its eventual extension:
 
 | Entry                    | Contract                                                                                                                           |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -334,6 +333,15 @@ constants. Decode errors distinguish invalid envelopes/entries, invalid UTF-8, m
 JSON, unsupported formats, older versions without a migration, newer versions, invalid documents,
 and missing/unexpected/damaged assets. A physical container reader must enforce compressed-input and
 expansion limits before handing this same logical entry set to the codec.
+
+The physical version-1 container is a deterministic ZIP archive produced asynchronously with the
+exactly pinned, zero-dependency `fflate` adapter. JSON entries use DEFLATE level 6; digest-named assets
+use ZIP store mode because supported images are normally compressed already. Entries use fixed DOS
+epoch metadata (1980-01-01), neutral OS/attribute fields, and logical entry order, so the same project
+produces byte-identical archives on macOS and Windows. The complete archive is capped at the logical
+256 MiB ceiling plus a bounded 512-byte-per-entry/64-KiB ZIP-overhead allowance. Before inflate, the
+reader checks archive size, entry count, path allowlist, duplicates, each declared expanded size, and
+the declared expanded total; the logical codec then revalidates the materialized entries and content.
 
 Rules:
 
@@ -497,6 +505,7 @@ A feature is done only when:
 | D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored      | Accepted                                  |
 | D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts     | Accepted                                  |
 | D-013 | Brand-neutral deterministic v1 logical file entries        | Keep schema, assets, tests, and future archive adapters stable while the public product name and extension can change | Accepted                                  |
+| D-014 | Pinned asynchronous `fflate` ZIP adapter                   | Produce portable deterministic archives without blocking the renderer or implementing security-sensitive ZIP logic    | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 

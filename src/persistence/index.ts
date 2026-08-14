@@ -1,5 +1,15 @@
 /** Native filesystem access remains owned by the main process. */
 export {
+  MAX_PROJECT_ARCHIVE_BYTES,
+  decodeProjectFileArchive,
+  encodeProjectFileArchive,
+  type DecodeProjectFileArchiveResult,
+  type EncodeProjectFileArchiveResult,
+  type ProjectArchiveError,
+  type ProjectArchiveErrorCode,
+  type ProjectFileOperationError,
+} from './project-file/archive';
+export {
   MAX_PROJECT_ASSET_BYTES,
   MAX_PROJECT_DOCUMENT_BYTES,
   MAX_PROJECT_FILE_ENTRY_COUNT,

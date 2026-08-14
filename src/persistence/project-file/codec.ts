@@ -5,6 +5,7 @@ import {
   type DocumentValidationIssue,
   type ProjectDocument,
 } from '../../domain';
+import { copyBytes, isUint8Array } from './binary';
 import {
   decodeBoundedJson,
   encodeCanonicalJson,
@@ -94,18 +95,12 @@ const fail = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** `instanceof` is intentionally avoided because bytes may cross JavaScript realms. */
-const isUint8Array = (value: unknown): value is Uint8Array =>
-  ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === '[object Uint8Array]';
-
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
-
-const copyBytes = (bytes: Uint8Array): Uint8Array => Uint8Array.from(bytes);
 
 const createEntry = (path: string, bytes: Uint8Array): ProjectFileEntry =>
   Object.freeze({ path, bytes: copyBytes(bytes) });
 
-const getEntryByteLimit = (path: string): number | undefined => {
+export const getProjectFileEntryByteLimit = (path: string): number | undefined => {
   if (path === PROJECT_FILE_ENTRY_PATHS.manifest) {
     return MAX_PROJECT_MANIFEST_BYTES;
   }
@@ -152,7 +147,7 @@ const validateEnvelope = (
       });
     }
 
-    const byteLimit = getEntryByteLimit(candidate.path);
+    const byteLimit = getProjectFileEntryByteLimit(candidate.path);
     if (byteLimit === undefined) {
       return fail({
         code: 'unexpected-entry',
@@ -277,7 +272,7 @@ const validateEncodedSize = (
   path: string,
   bytes: Uint8Array,
 ): { readonly ok: true } | { readonly ok: false; readonly error: ProjectFileCodecError } => {
-  const maxBytes = getEntryByteLimit(path);
+  const maxBytes = getProjectFileEntryByteLimit(path);
   if (maxBytes !== undefined && bytes.byteLength > maxBytes) {
     return fail({
       code: 'entry-too-large',

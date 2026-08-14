@@ -130,11 +130,12 @@ Current progress (2026-08-14):
 - The brand-neutral version-1 logical envelope fixes `manifest.json`, canonical `project.json`, and content-addressed raw asset entries without coupling the domain to a product name, extension, or archive library. Equivalent JSON sorts keys recursively, preserves array order, uses two-space indentation, and ends with one newline.
 - Decode treats every envelope as untrusted: exact entry shapes and paths, duplicate/missing entries, per-entry and total byte limits, fatal UTF-8, malformed/truncated JSON, nesting/value complexity, strict manifest fields, file-format compatibility, domain invariants, asset length, and SHA-256 are checked before a project is accepted.
 - Asset bytes are copied at both boundaries and identical digests occupy one logical entry while retaining separate asset IDs in the document. Failures use typed, actionable error codes and never return a partial document or asset map.
-- Eleven focused codec tests pass inside the full 14-file/82-test suite, covering deterministic round trips, non-canonical input, older/newer/wrong formats, corruption, truncation, hostile limits, entry errors, asset deduplication/integrity, and mutation isolation.
+- A pinned, zero-dependency asynchronous ZIP adapter produces fixed-metadata archives: JSON is compressed, already-compressed digest assets are stored, and entry order/timestamps/attributes are deterministic. ZIP metadata is preflighted for path, duplicates, count, per-entry expansion, and total expansion before decompression.
+- Seventeen focused persistence tests pass inside the full 15-file/88-test suite. Alongside logical corruption/integrity coverage, physical tests verify exact immutable v1 golden bytes, standard ZIP interoperability, malformed/truncated archives, path traversal rejection, compressed expansion limits, a 10,003-entry hostile archive, and asynchronous input isolation.
 
 Exact next action:
 
-- Add the bounded deterministic physical-container adapter and immutable version-1 golden fixtures, then route its decoded entry set through the existing codec. Keep extension selection and Electron filesystem I/O out of that slice.
+- Add explicit sequential version routing around the immutable version-1 golden, then implement main-process read/open and atomic write primitives against archive bytes. Keep extension selection, dialogs, autosave, and renderer UI out of that filesystem slice.
 
 ### [ ] M4 — Stable application shell and design system
 
