@@ -3,9 +3,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  normalizeViewportFramingRequest,
   VIEWPORT_FRAMING_POLICY,
   reframeViewportOnResize,
   resolveViewportFraming,
+  viewportFramingRequestsEqual,
 } from '../src/renderer/editor/viewport-framing';
 import {
   VIEWPORT_NUMERIC_POLICY,
@@ -21,6 +23,25 @@ const expectClose = (actual: number, expected: number): void => {
 };
 
 describe('viewport framing policy', () => {
+  it('normalizes derived framing inputs for stable camera-state comparison', () => {
+    const bounds = createWorldRect(-20, 40, 800, 500);
+    const normalized = normalizeViewportFramingRequest({ bounds, kind: 'fit' });
+
+    expect(normalized).toEqual({
+      bounds,
+      kind: 'fit',
+      padding: VIEWPORT_FRAMING_POLICY.defaultPadding,
+    });
+    expect(viewportFramingRequestsEqual(normalized, { bounds, kind: 'fit' })).toBe(true);
+    expect(viewportFramingRequestsEqual(normalized, { bounds, kind: 'width' })).toBe(false);
+    expect(
+      viewportFramingRequestsEqual(normalized, {
+        bounds: createWorldRect(-20, 40, 801, 500),
+        kind: 'fit',
+      }),
+    ).toBe(false);
+  });
+
   it('fits world bounds on both axes with stable viewport-pixel padding', () => {
     const framed = resolveViewportFraming(
       createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),

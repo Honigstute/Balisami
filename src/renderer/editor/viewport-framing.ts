@@ -4,6 +4,7 @@ import {
   createViewportTransform,
   createViewportVector,
   createViewportZoom,
+  createWorldRect,
   setViewportZoomAtPoint,
   translateViewport,
   type ViewportSize,
@@ -14,6 +15,8 @@ import {
 export const VIEWPORT_FRAMING_POLICY = Object.freeze({
   defaultPadding: 48,
 });
+
+export const MANUAL_VIEWPORT_FRAMING = Object.freeze({ kind: 'manual' as const });
 
 export type ViewportFramingRequest =
   | { readonly kind: 'actual' }
@@ -30,6 +33,59 @@ const getPadding = (request: Extract<ViewportFramingRequest, { readonly bounds: 
     throw new RangeError('Viewport framing padding must be finite and non-negative.');
   }
   return padding;
+};
+
+export const normalizeViewportFramingRequest = (
+  request: ViewportFramingRequest,
+): ViewportFramingRequest => {
+  switch (request.kind) {
+    case 'actual':
+      return Object.freeze({ kind: 'actual' });
+    case 'manual':
+      return MANUAL_VIEWPORT_FRAMING;
+    case 'fit':
+    case 'selection':
+    case 'width':
+      return Object.freeze({
+        bounds: createWorldRect(
+          request.bounds.x,
+          request.bounds.y,
+          request.bounds.width,
+          request.bounds.height,
+        ),
+        kind: request.kind,
+        padding: getPadding(request),
+      });
+  }
+};
+
+export const viewportFramingRequestsEqual = (
+  first: ViewportFramingRequest,
+  second: ViewportFramingRequest,
+): boolean => {
+  if (first === second) {
+    return true;
+  }
+  const normalizedFirst = normalizeViewportFramingRequest(first);
+  const normalizedSecond = normalizeViewportFramingRequest(second);
+  if (normalizedFirst.kind !== normalizedSecond.kind) {
+    return false;
+  }
+  if (
+    normalizedFirst.kind === 'manual' ||
+    normalizedFirst.kind === 'actual' ||
+    normalizedSecond.kind === 'manual' ||
+    normalizedSecond.kind === 'actual'
+  ) {
+    return true;
+  }
+  return (
+    normalizedFirst.padding === normalizedSecond.padding &&
+    normalizedFirst.bounds.x === normalizedSecond.bounds.x &&
+    normalizedFirst.bounds.y === normalizedSecond.bounds.y &&
+    normalizedFirst.bounds.width === normalizedSecond.bounds.width &&
+    normalizedFirst.bounds.height === normalizedSecond.bounds.height
+  );
 };
 
 const frameBounds = (

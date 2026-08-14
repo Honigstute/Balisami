@@ -77,7 +77,7 @@ export const ViewportScene = ({
       }
       const viewport = createViewportSize(rect.width, rect.height);
       if (hasMeasuredViewport) {
-        camera.scheduleViewportResize(viewport, { kind: 'manual' });
+        camera.scheduleViewportResize(viewport);
       } else {
         camera.scheduleViewportMeasurement(viewport);
         hasMeasuredViewport = true;

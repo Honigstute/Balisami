@@ -12,7 +12,9 @@ import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
 import { DocumentScene } from '../editor/DocumentScene';
 import { ViewportScene } from '../editor/ViewportScene';
+import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
+import { createWorldRect } from '../editor/viewport-transform';
 import { AppShell } from '../shell/AppShell';
 import { AppButton } from './AppButton';
 import { AppScroller } from './AppEmptyState';
@@ -29,6 +31,7 @@ import { NoticeCenterStore } from './notice-center';
 
 interface VisualConformanceFixtureProps {
   readonly fixture: VisualFixtureName;
+  readonly platform: 'darwin' | 'win32';
   readonly quickAddShortcut: string;
   readonly runtimeLabel: string;
 }
@@ -141,6 +144,19 @@ const SceneFixture = () => {
           document={fixture.document}
         />
       }
+    />
+  );
+};
+
+const ViewportZoomFixture = ({ platform }: { readonly platform: 'darwin' | 'win32' }) => {
+  const camera = useViewportCameraStore();
+  const [boardBounds] = useState(() => createWorldRect(0, 0, 1_200, 800));
+  return (
+    <ViewportZoomControls
+      boardBounds={boardBounds}
+      camera={camera}
+      defaultMenuOpen
+      platform={platform}
     />
   );
 };
@@ -279,6 +295,7 @@ const ModalFixture = () => (
 
 export const VisualConformanceFixture = ({
   fixture,
+  platform,
   quickAddShortcut,
   runtimeLabel,
 }: VisualConformanceFixtureProps) => {
@@ -300,6 +317,8 @@ export const VisualConformanceFixture = ({
     ) : fixture === 'modal' ? (
       <ModalFixture />
     ) : undefined;
+  const viewportControls =
+    fixture === 'viewportZoom' ? <ViewportZoomFixture platform={platform} /> : undefined;
 
   return (
     <AppShell
@@ -311,6 +330,7 @@ export const VisualConformanceFixture = ({
       statusScope={runtimeLabel}
       statusTone="quiet"
       usePersistedLayout={false}
+      {...(viewportControls === undefined ? {} : { viewportControls })}
     />
   );
 };

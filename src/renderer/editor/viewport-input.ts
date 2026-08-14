@@ -1,4 +1,5 @@
 import type { ViewportCameraStore } from './viewport-camera-store';
+import type { ViewportFramingRequest } from './viewport-framing';
 import {
   clientPointToViewport,
   createClientPoint,
@@ -30,6 +31,7 @@ export type ViewportWheelAction =
   | { readonly deltaX: number; readonly deltaY: number; readonly kind: 'pan' };
 
 interface ActivePan {
+  readonly startFraming: ViewportFramingRequest;
   readonly pointerId: number;
   readonly startClientX: number;
   readonly startClientY: number;
@@ -198,6 +200,7 @@ export class ViewportInputController {
     this.#camera.flushPending();
     this.#activePan = Object.freeze({
       pointerId: event.pointerId,
+      startFraming: this.#camera.getFramingSnapshot(),
       startClientX: event.clientX,
       startClientY: event.clientY,
       startTransform: this.#camera.getTransformSnapshot(),
@@ -284,7 +287,7 @@ export class ViewportInputController {
       return;
     }
     this.#activePan = undefined;
-    this.#camera.scheduleTransform(activePan.startTransform);
+    this.#camera.scheduleTransform(activePan.startTransform, activePan.startFraming);
     this.#camera.flushPending();
     if (this.#root.hasPointerCapture?.(activePan.pointerId)) {
       this.#root.releasePointerCapture?.(activePan.pointerId);

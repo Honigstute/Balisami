@@ -1,4 +1,11 @@
-import { reframeViewportOnResize, type ViewportFramingRequest } from './viewport-framing';
+import {
+  MANUAL_VIEWPORT_FRAMING,
+  normalizeViewportFramingRequest,
+  reframeViewportOnResize,
+  resolveViewportFraming,
+  viewportFramingRequestsEqual,
+  type ViewportFramingRequest,
+} from './viewport-framing';
 import {
   clampViewportZoom,
   setViewportZoomAtPoint,
@@ -18,6 +25,7 @@ export interface AnimationFrameScheduler {
 
 export interface ViewportCameraSnapshot {
   readonly deviceScale: DeviceScale;
+  readonly framing: ViewportFramingRequest;
   readonly revision: number;
   readonly transform: ViewportTransform;
   readonly viewport: ViewportSize;
@@ -32,6 +40,7 @@ export interface ViewportCameraStoreOptions {
 
 interface PendingCameraState {
   readonly deviceScale: DeviceScale;
+  readonly framing: ViewportFramingRequest;
   readonly transform: ViewportTransform;
   readonly viewport: ViewportSize;
 }
@@ -44,16 +53,18 @@ const viewportSizesEqual = (first: ViewportSize, second: ViewportSize): boolean 
   first === second || (first.width === second.width && first.height === second.height);
 
 const cameraStatesEqual = (
-  first: Pick<ViewportCameraSnapshot, 'deviceScale' | 'transform' | 'viewport'>,
+  first: Pick<ViewportCameraSnapshot, 'deviceScale' | 'framing' | 'transform' | 'viewport'>,
   second: PendingCameraState,
 ): boolean =>
   first.deviceScale === second.deviceScale &&
+  viewportFramingRequestsEqual(first.framing, second.framing) &&
   transformsEqual(first.transform, second.transform) &&
   viewportSizesEqual(first.viewport, second.viewport);
 
 const freezeSnapshot = (revision: number, state: PendingCameraState): ViewportCameraSnapshot =>
   Object.freeze({
     deviceScale: state.deviceScale,
+    framing: state.framing,
     revision,
     transform: state.transform,
     viewport: state.viewport,
@@ -82,6 +93,7 @@ export class ViewportCameraStore {
     this.#scheduler = options.scheduler;
     this.#snapshot = freezeSnapshot(0, {
       deviceScale: options.initialDeviceScale,
+      framing: MANUAL_VIEWPORT_FRAMING,
       transform: options.initialTransform,
       viewport: options.initialViewport,
     });
@@ -91,7 +103,11 @@ export class ViewportCameraStore {
 
   getDeviceScaleSnapshot = (): DeviceScale => this.#snapshot.deviceScale;
 
+  getFramingSnapshot = (): ViewportFramingRequest => this.#snapshot.framing;
+
   getTransformSnapshot = (): ViewportTransform => this.#snapshot.transform;
+
+  getZoomSnapshot = (): ViewportZoom => this.#snapshot.transform.zoom;
 
   getViewportSnapshot = (): ViewportSize => this.#snapshot.viewport;
 
@@ -101,26 +117,45 @@ export class ViewportCameraStore {
     return () => this.#listeners.delete(listener);
   };
 
-  scheduleTransform(transform: ViewportTransform): void {
+  scheduleTransform(
+    transform: ViewportTransform,
+    framing: ViewportFramingRequest = MANUAL_VIEWPORT_FRAMING,
+  ): void {
     const base = this.#getPendingOrCurrent();
-    this.#schedule({ deviceScale: base.deviceScale, transform, viewport: base.viewport });
+    this.#schedule({
+      deviceScale: base.deviceScale,
+      framing: normalizeViewportFramingRequest(framing),
+      transform,
+      viewport: base.viewport,
+    });
   }
 
   scheduleDeviceScale(deviceScale: DeviceScale): void {
     const base = this.#getPendingOrCurrent();
-    this.#schedule({ deviceScale, transform: base.transform, viewport: base.viewport });
+    this.#schedule({
+      deviceScale,
+      framing: base.framing,
+      transform: base.transform,
+      viewport: base.viewport,
+    });
   }
 
   /** Records the first measured viewport without inventing a resize camera delta. */
   scheduleViewportMeasurement(viewport: ViewportSize): void {
     const base = this.#getPendingOrCurrent();
-    this.#schedule({ deviceScale: base.deviceScale, transform: base.transform, viewport });
+    this.#schedule({
+      deviceScale: base.deviceScale,
+      framing: base.framing,
+      transform: base.transform,
+      viewport,
+    });
   }
 
   scheduleZoomAtPoint(zoom: ViewportZoom, anchor: ViewportPoint): void {
     const base = this.#getPendingOrCurrent();
     this.#schedule({
       deviceScale: base.deviceScale,
+      framing: MANUAL_VIEWPORT_FRAMING,
       transform: setViewportZoomAtPoint(base.transform, zoom, anchor),
       viewport: base.viewport,
     });
@@ -134,6 +169,7 @@ export class ViewportCameraStore {
     const base = this.#getPendingOrCurrent();
     this.#schedule({
       deviceScale: base.deviceScale,
+      framing: MANUAL_VIEWPORT_FRAMING,
       transform: setViewportZoomAtPoint(
         base.transform,
         clampViewportZoom(base.transform.zoom * factor),
@@ -148,16 +184,29 @@ export class ViewportCameraStore {
     const base = this.#getPendingOrCurrent();
     this.#schedule({
       deviceScale: base.deviceScale,
+      framing: MANUAL_VIEWPORT_FRAMING,
       transform: translateViewport(base.transform, delta),
       viewport: base.viewport,
     });
   }
 
-  scheduleViewportResize(viewport: ViewportSize, request: ViewportFramingRequest): void {
+  scheduleFraming(requestInput: ViewportFramingRequest): void {
+    const base = this.#getPendingOrCurrent();
+    const framing = normalizeViewportFramingRequest(requestInput);
+    this.#schedule({
+      deviceScale: base.deviceScale,
+      framing,
+      transform: resolveViewportFraming(base.transform, base.viewport, framing),
+      viewport: base.viewport,
+    });
+  }
+
+  scheduleViewportResize(viewport: ViewportSize): void {
     const base = this.#getPendingOrCurrent();
     this.#schedule({
       deviceScale: base.deviceScale,
-      transform: reframeViewportOnResize(base.transform, base.viewport, viewport, request),
+      framing: base.framing,
+      transform: reframeViewportOnResize(base.transform, base.viewport, viewport, base.framing),
       viewport,
     });
   }

@@ -11,6 +11,7 @@ import {
 import {
   countRenderableBoardElements,
   DocumentSceneModel,
+  getRenderableBoardWorldBounds,
 } from '../src/renderer/editor/document-scene-model';
 import {
   createViewportSize,
@@ -72,6 +73,10 @@ describe('document scene model', () => {
         .map((item) => item.id),
     ).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.child]);
     expect(countRenderableBoardElements(document, DOCUMENT_FIXTURE_IDS.board)).toBe(2);
+    expect(getRenderableBoardWorldBounds(document, DOCUMENT_FIXTURE_IDS.board)).toEqual(
+      createWorldRect(-4, 36.5, 284, 123.5),
+    );
+    expect(getRenderableBoardWorldBounds(document, undefined)).toBeUndefined();
   });
 
   it('reuses unchanged item geometry and updates only the changed rectangle revision', () => {

@@ -10,9 +10,13 @@ import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
-import { countRenderableBoardElements } from '../editor/document-scene-model';
+import {
+  countRenderableBoardElements,
+  getRenderableBoardWorldBounds,
+} from '../editor/document-scene-model';
 import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
+import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
@@ -20,11 +24,12 @@ const getPlatformLabel = (platform: 'darwin' | 'win32'): string =>
   platform === 'darwin' ? 'macOS' : 'Windows';
 
 interface ProjectWorkspaceProps {
+  readonly platform: 'darwin' | 'win32';
   readonly quickAddShortcut: string;
   readonly runtimeLabel: string;
 }
 
-const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
+const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
   const camera = useViewportCameraStore();
   const query = new URLSearchParams(window.location.search);
   const packagedProbeEnabled =
@@ -40,6 +45,11 @@ const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspacePr
   const document = view.history?.document;
   const hasRenderableElements = useMemo(
     () => document !== undefined && countRenderableBoardElements(document, firstBoardId) > 0,
+    [document, firstBoardId],
+  );
+  const boardBounds = useMemo(
+    () =>
+      document === undefined ? undefined : getRenderableBoardWorldBounds(document, firstBoardId),
     [document, firstBoardId],
   );
   const firstBoardNote =
@@ -99,6 +109,9 @@ const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspacePr
       statusLabel={view.statusLabel}
       statusScope={runtimeLabel}
       statusTone={view.statusTone}
+      viewportControls={
+        <ViewportZoomControls boardBounds={boardBounds} camera={camera} platform={platform} />
+      }
     />
   );
 };
@@ -169,11 +182,18 @@ export const App = () => {
     return (
       <VisualConformanceFixture
         fixture={visualFixture}
+        platform={platform}
         quickAddShortcut={quickAddShortcut}
         runtimeLabel={runtimeLabel}
       />
     );
   }
 
-  return <ProjectWorkspace quickAddShortcut={quickAddShortcut} runtimeLabel={runtimeLabel} />;
+  return (
+    <ProjectWorkspace
+      platform={platform}
+      quickAddShortcut={quickAddShortcut}
+      runtimeLabel={runtimeLabel}
+    />
+  );
 };

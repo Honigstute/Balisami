@@ -13,6 +13,7 @@ import {
   createViewportSize,
   createViewportPoint,
   createViewportTransform,
+  createWorldRect,
   viewportPointToWorld,
 } from '../src/renderer/editor/viewport-transform';
 
@@ -175,6 +176,33 @@ describe('viewport scene layers', () => {
     expect(root).toHaveAttribute('data-pan-state', 'ready');
     fireEvent.keyUp(window, { code: 'Space' });
     expect(root).toHaveAttribute('data-pan-state', 'idle');
+    store.dispose();
+  });
+
+  it('restores both transform and active fit mode when a pan is cancelled', () => {
+    mockViewportBounds();
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const view = render(<ViewportScene camera={store} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    scheduler.flushNext();
+    store.scheduleFraming({ bounds: createWorldRect(0, 0, 1_000, 500), kind: 'fit' });
+    scheduler.flushNext();
+    const startTransform = store.getTransformSnapshot();
+    const startFraming = store.getFramingSnapshot();
+
+    fireEvent.keyDown(root, { code: 'Space' });
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 17 });
+    fireEvent.pointerMove(root, { clientX: 180, clientY: 145, pointerId: 17 });
+    scheduler.flushNext();
+    expect(store.getFramingSnapshot()).toEqual({ kind: 'manual' });
+
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(store.getTransformSnapshot()).toBe(startTransform);
+    expect(store.getFramingSnapshot()).toEqual(startFraming);
     store.dispose();
   });
 

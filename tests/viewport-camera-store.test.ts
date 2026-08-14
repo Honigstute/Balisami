@@ -13,6 +13,7 @@ import {
   createViewportTransform,
   createViewportVector,
   createViewportZoom,
+  createWorldRect,
   viewportPointToWorld,
 } from '../src/renderer/editor/viewport-transform';
 
@@ -131,7 +132,7 @@ describe('viewport camera store', () => {
     const scheduler = new TestAnimationFrameScheduler();
     const store = createStore(scheduler);
     store.scheduleTransform(createViewportTransform({ panX: 100, panY: 50, zoom: 1.5 }));
-    store.scheduleViewportResize(createViewportSize(1_200, 700), { kind: 'manual' });
+    store.scheduleViewportResize(createViewportSize(1_200, 700));
     scheduler.flushNext();
 
     expect(store.getSnapshot()).toMatchObject({
@@ -139,6 +140,61 @@ describe('viewport camera store', () => {
       transform: { pan: { x: 200, y: 100 }, zoom: 1.5 },
       viewport: { width: 1_200, height: 700 },
     });
+  });
+
+  it('retains fit intent and recomputes it from canonical bounds after resize', () => {
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const bounds = createWorldRect(0, 0, 1_000, 1_000);
+
+    store.scheduleFraming({ bounds, kind: 'fit' });
+    scheduler.flushNext();
+    expect(store.getSnapshot()).toMatchObject({
+      framing: { bounds, kind: 'fit', padding: 48 },
+      transform: { pan: { x: 248, y: 48 }, zoom: 0.504 },
+    });
+
+    store.scheduleViewportResize(createViewportSize(1_400, 800));
+    scheduler.flushNext();
+    expect(store.getSnapshot()).toMatchObject({
+      framing: { bounds, kind: 'fit', padding: 48 },
+      transform: { pan: { x: 348, y: 48 }, zoom: 0.704 },
+      viewport: { height: 800, width: 1_400 },
+    });
+  });
+
+  it('switches derived framing back to manual when the user navigates', () => {
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+
+    store.scheduleFraming({ kind: 'actual' });
+    scheduler.flushNext();
+    expect(store.getFramingSnapshot()).toEqual({ kind: 'actual' });
+
+    store.scheduleTranslation(createViewportVector(20, -10));
+    scheduler.flushNext();
+    expect(store.getFramingSnapshot()).toEqual({ kind: 'manual' });
+    expect(store.getTransformSnapshot().pan).toMatchObject({ x: 20, y: -10 });
+  });
+
+  it('does not republish an equivalent normalized framing request', () => {
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const listener = vi.fn();
+    const bounds = createWorldRect(-100, 50, 400, 300);
+    store.subscribe(listener);
+
+    store.scheduleFraming({ bounds, kind: 'fit' });
+    scheduler.flushNext();
+    expect(listener).toHaveBeenCalledOnce();
+
+    store.scheduleFraming({
+      bounds: createWorldRect(-100, 50, 400, 300),
+      kind: 'fit',
+      padding: 48,
+    });
+    expect(scheduler.callbacks.size).toBe(0);
+    expect(listener).toHaveBeenCalledOnce();
   });
 
   it('publishes semantic changes only and preserves selector snapshot identity between frames', () => {

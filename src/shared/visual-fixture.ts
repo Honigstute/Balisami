@@ -3,6 +3,7 @@ import visualFixtureContract from '../../visual-fixture-contract.json';
 export const VISUAL_FIXTURE_NAMES = Object.freeze([
   'default',
   'scene',
+  'viewportZoom',
   'controls',
   'feedback',
   'tooltip',

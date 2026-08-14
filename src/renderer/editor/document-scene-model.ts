@@ -93,6 +93,28 @@ export const countRenderableBoardElements = (
   boardId: BoardId | undefined,
 ): number => deriveBoardSceneItems(document, boardId).length;
 
+export const getRenderableBoardWorldBounds = (
+  document: ProjectDocument,
+  boardId: BoardId | undefined,
+): WorldRect | undefined => {
+  const items = deriveBoardSceneItems(document, boardId);
+  const first = items[0];
+  if (first === undefined) {
+    return undefined;
+  }
+  let left = first.bounds.x;
+  let top = first.bounds.y;
+  let right = first.bounds.x + first.bounds.width;
+  let bottom = first.bounds.y + first.bounds.height;
+  for (const item of items.slice(1)) {
+    left = Math.min(left, item.bounds.x);
+    top = Math.min(top, item.bounds.y);
+    right = Math.max(right, item.bounds.x + item.bounds.width);
+    bottom = Math.max(bottom, item.bounds.y + item.bounds.height);
+  }
+  return createWorldRect(left, top, right - left, bottom - top);
+};
+
 /** Incrementally reconciles render geometry while leaving document state immutable. */
 export class DocumentSceneModel {
   readonly #index = new WorldSpatialIndex<ElementId>();

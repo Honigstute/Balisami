@@ -34,6 +34,7 @@ interface AppShellProps {
   readonly statusScope?: string;
   readonly statusTone: StatusTone;
   readonly usePersistedLayout?: boolean;
+  readonly viewportControls?: ReactNode;
 }
 
 const categories = [
@@ -47,13 +48,37 @@ const categories = [
   'Markup',
 ] as const;
 
-const toolbarActions: ReadonlyArray<{ readonly label: string; readonly icon: IconName }> = [
+const toolbarActionsBeforeViewport: ReadonlyArray<{
+  readonly label: string;
+  readonly icon: IconName;
+}> = [
   { label: 'Undo', icon: 'undo' },
   { label: 'Redo', icon: 'redo' },
+];
+
+const defaultViewportActions: ReadonlyArray<{
+  readonly label: string;
+  readonly icon: IconName;
+}> = [
   { label: 'Zoom out', icon: 'zoomOut' },
   { label: 'Zoom in', icon: 'zoomIn' },
-  { label: 'Present', icon: 'presentation' },
 ];
+
+const toolbarActionsAfterViewport: ReadonlyArray<{
+  readonly label: string;
+  readonly icon: IconName;
+}> = [{ label: 'Present', icon: 'presentation' }];
+
+const DisabledToolbarActions = ({
+  actions,
+}: {
+  readonly actions: ReadonlyArray<{ readonly label: string; readonly icon: IconName }>;
+}) =>
+  actions.map(({ icon, label }) => (
+    <button aria-label={label} className="icon-button icon-button--dark" disabled key={label}>
+      <Icon name={icon} />
+    </button>
+  ));
 
 const shellRegion = (region: ShellRegion): Readonly<Record<string, string>> =>
   Object.freeze({ [SHELL_REGION_ATTRIBUTE]: region });
@@ -85,6 +110,7 @@ export const AppShell = ({
   statusScope = 'Foundation · local-first',
   statusTone,
   usePersistedLayout = true,
+  viewportControls,
 }: AppShellProps) => {
   const [noticeStore] = useState(() => new NoticeCenterStore());
   const shell = useShellPreferences(usePersistedLayout);
@@ -123,16 +149,9 @@ export const AppShell = ({
         </div>
 
         <div aria-label="Editor actions" className="command-bar__actions" role="toolbar">
-          {toolbarActions.map(({ icon, label }) => (
-            <button
-              aria-label={label}
-              className="icon-button icon-button--dark"
-              disabled
-              key={label}
-            >
-              <Icon name={icon} />
-            </button>
-          ))}
+          <DisabledToolbarActions actions={toolbarActionsBeforeViewport} />
+          {viewportControls ?? <DisabledToolbarActions actions={defaultViewportActions} />}
+          <DisabledToolbarActions actions={toolbarActionsAfterViewport} />
         </div>
 
         <div className="quick-add" role="search">
