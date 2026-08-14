@@ -225,7 +225,7 @@ export class ViewportInputController {
     if (event.code !== 'Space' || event.repeat || isEditableTarget(event.target)) {
       return;
     }
-    if (this.#selectionInteraction?.getSnapshot().kind === 'pressed') {
+    if ((this.#selectionInteraction?.getSnapshot().kind ?? 'idle') !== 'idle') {
       return;
     }
     event.preventDefault();
@@ -296,7 +296,10 @@ export class ViewportInputController {
       const position = this.#getSelectionPosition(event);
       if (
         position !== undefined &&
-        this.#selectionInteraction?.updatePress(event.pointerId, position)
+        this.#selectionInteraction?.updatePress(event.pointerId, {
+          ...position,
+          shiftKey: event.shiftKey,
+        })
       ) {
         event.preventDefault();
         this.#updateSelectionState();
@@ -313,7 +316,10 @@ export class ViewportInputController {
       const position = this.#getSelectionPosition(event);
       if (
         position !== undefined &&
-        this.#selectionInteraction?.completePress(event.pointerId, position)
+        this.#selectionInteraction?.completePress(event.pointerId, {
+          ...position,
+          shiftKey: event.shiftKey,
+        })
       ) {
         event.preventDefault();
         if (this.#root.hasPointerCapture?.(event.pointerId)) {
@@ -356,8 +362,7 @@ export class ViewportInputController {
   #handleWheel = (event: WheelEvent): void => {
     if (
       this.#activePan !== undefined ||
-      this.#selectionInteraction?.getSnapshot().kind === 'pressed' ||
-      this.#selectionInteraction?.getSnapshot().kind === 'marquee'
+      (this.#selectionInteraction?.getSnapshot().kind ?? 'idle') !== 'idle'
     ) {
       event.preventDefault();
       return;

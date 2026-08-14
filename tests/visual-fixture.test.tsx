@@ -57,6 +57,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=popover')).toBe('popover');
     expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
     expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
+    expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
     expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
     expect(getRequestedVisualFixture('?visualFixture=viewportSelectionZoom')).toBe(
@@ -97,6 +98,19 @@ describe('visual conformance fixture contract', () => {
     expect(overlay).not.toHaveAttribute('display', 'none');
     expect(overlay).toHaveAttribute('data-selection-count', '1');
     expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(4);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders a transient move without changing canonical scene geometry or shell layout', () => {
+    const view = renderFixture('move');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '308');
+    expect(outline).toHaveAttribute('y', '332');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

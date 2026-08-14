@@ -531,6 +531,10 @@ p {
   cursor: crosshair;
 }
 
+.editor-viewport[data-selection-state='moving'] {
+  cursor: move;
+}
+
 .editor-viewport:focus-visible {
   outline: calc(var(--border-width) * 2) solid var(--color-accent-strong);
   outline-offset: calc(var(--border-width) * -2);

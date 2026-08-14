@@ -149,6 +149,33 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('publishes one history entry for an explicit multi-command transaction', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+
+    const result = session.dispatchTransaction(
+      [
+        setBoardNote('Moved together'),
+        {
+          type: DOCUMENT_COMMAND_TYPES.renameBoard,
+          boardId: DOCUMENT_FIXTURE_IDS.board,
+          name: 'Renamed together',
+        },
+      ],
+      { label: 'Compound edit' },
+    );
+
+    expect(result).toMatchObject({ changed: true, ok: true });
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(1);
+    expect(session.getSnapshot().history?.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ type: 'board.set-note' }, { type: 'board.rename' }],
+      label: 'Compound edit',
+    });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+  });
+
   it('waits for an explicit opaque recovery choice before creating a new history', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);

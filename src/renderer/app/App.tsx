@@ -15,6 +15,8 @@ import {
   DocumentSceneModel,
   getRenderableBoardWorldBounds,
 } from '../editor/document-scene-model';
+import { captureMoveTargets } from '../editor/move-geometry';
+import { MoveInteraction } from '../editor/move-interaction';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
@@ -22,6 +24,7 @@ import { SelectionStore } from '../editor/selection-store';
 import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
+import { createBrowserAnimationFrameScheduler } from '../editor/viewport-camera-store';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
@@ -36,16 +39,6 @@ interface ProjectWorkspaceProps {
 
 const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
   const camera = useViewportCameraStore();
-  const [editor] = useState(() => {
-    const model = new DocumentSceneModel();
-    const selection = new SelectionStore();
-    const selectionInteraction = new SelectionInteraction(selection, {
-      listSelectableIds: () => model.listSelectableItemIds(),
-      queryHitStack: (point) => model.queryHitStack(point).map((item) => item.id),
-      querySelectionRegion: (bounds, mode) => model.querySelectionRegion(bounds, mode),
-    });
-    return Object.freeze({ model, selection, selectionInteraction });
-  });
   const query = new URLSearchParams(window.location.search);
   const packagedProbeEnabled =
     query.get(projectWorkflowProbeContract.queryKey) === projectWorkflowProbeContract.queryValue;
@@ -56,6 +49,37 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     ...(packagedRecoveryRestore ? { packagedRecoveryRestore: true } : {}),
   });
   const { session, view } = project;
+  const [editor] = useState(() => {
+    const model = new DocumentSceneModel();
+    const selection = new SelectionStore();
+    const moveInteraction = new MoveInteraction(
+      {
+        capture: (targetIds) => {
+          const currentDocument = session.getSnapshot().history?.document;
+          return currentDocument === undefined
+            ? undefined
+            : captureMoveTargets(currentDocument, targetIds);
+        },
+        commit: (commands) => {
+          const result = session.dispatchTransaction(commands, {
+            label: commands.length === 1 ? 'Move element' : 'Move elements',
+          });
+          return result?.ok === true && result.changed;
+        },
+      },
+      createBrowserAnimationFrameScheduler(),
+    );
+    const selectionInteraction = new SelectionInteraction(
+      selection,
+      {
+        listSelectableIds: () => model.listSelectableItemIds(),
+        queryHitStack: (point) => model.queryHitStack(point).map((item) => item.id),
+        querySelectionRegion: (bounds, mode) => model.querySelectionRegion(bounds, mode),
+      },
+      moveInteraction,
+    );
+    return Object.freeze({ model, moveInteraction, selection, selectionInteraction });
+  });
   const firstBoardId = view.history?.document.boardIds[0];
   const document = view.history?.document;
   const hasRenderableElements = useMemo(
@@ -128,6 +152,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                       <SelectionOverlay
                         camera={camera}
                         model={editor.model}
+                        moveInteraction={editor.moveInteraction}
                         selection={editor.selection}
                       />
                       <MarqueeOverlay interaction={editor.selectionInteraction} />
@@ -144,6 +169,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                       camera={camera}
                       document={document}
                       model={editor.model}
+                      moveInteraction={editor.moveInteraction}
                     />
                   ),
                 }

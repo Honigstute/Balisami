@@ -97,7 +97,7 @@ describe('marquee overlay', () => {
       worldPoint: createWorldPoint(180, 170),
     };
     interaction.beginPress({ altKey: false, pointerId: 1, shiftKey: false, ...start });
-    interaction.updatePress(1, containedEnd);
+    interaction.updatePress(1, { ...containedEnd, shiftKey: false });
 
     expect(group).not.toHaveAttribute('display');
     expect(group).toHaveAttribute('data-marquee-mode', 'contained');

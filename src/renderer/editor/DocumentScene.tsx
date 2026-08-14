@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 
 import type { BoardId, ElementId, ProjectDocument } from '../../domain';
 import type { DocumentSceneItem, DocumentSceneModel } from './document-scene-model';
+import type { MoveInteraction, MoveInteractionSnapshot } from './move-interaction';
 import type { ViewportCameraStore } from './viewport-camera-store';
 
 interface DocumentSceneProps {
@@ -9,6 +10,7 @@ interface DocumentSceneProps {
   readonly camera: ViewportCameraStore;
   readonly document: ProjectDocument;
   readonly model: DocumentSceneModel;
+  readonly moveInteraction?: MoveInteraction;
 }
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
@@ -16,6 +18,7 @@ const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 class DocumentScenePresenter {
   readonly #elementsById = new Map<ElementId, SVGGElement>();
   readonly #root: SVGGElement;
+  #moveSnapshot: MoveInteractionSnapshot | undefined;
   #visibleOrder: readonly ElementId[] = Object.freeze([]);
 
   constructor(root: SVGGElement) {
@@ -24,6 +27,7 @@ class DocumentScenePresenter {
 
   clear(): void {
     this.#elementsById.clear();
+    this.#moveSnapshot = undefined;
     this.#visibleOrder = Object.freeze([]);
     this.#root.replaceChildren();
   }
@@ -50,6 +54,32 @@ class DocumentScenePresenter {
       }
     }
     this.#visibleOrder = Object.freeze(nextOrder);
+    this.#applyMovePreview();
+  }
+
+  setMovePreview(snapshot: MoveInteractionSnapshot | undefined): void {
+    const previousIds =
+      this.#moveSnapshot?.kind === 'moving' ? this.#moveSnapshot.affectedIds : Object.freeze([]);
+    this.#moveSnapshot = snapshot;
+    const nextIds =
+      snapshot?.kind === 'moving' ? new Set(snapshot.affectedIds) : new Set<ElementId>();
+    for (const id of previousIds) {
+      if (!nextIds.has(id)) {
+        this.#elementsById.get(id)?.removeAttribute('transform');
+      }
+    }
+    this.#applyMovePreview();
+  }
+
+  #applyMovePreview(): void {
+    const snapshot = this.#moveSnapshot;
+    if (snapshot?.kind !== 'moving') {
+      return;
+    }
+    const transform = `translate(${String(snapshot.delta.x)} ${String(snapshot.delta.y)})`;
+    for (const id of snapshot.affectedIds) {
+      this.#elementsById.get(id)?.setAttribute('transform', transform);
+    }
   }
 
   #createElement(id: ElementId): SVGGElement {
@@ -82,7 +112,13 @@ class DocumentScenePresenter {
 }
 
 /** Imperative keyed scene updates keep camera motion outside React's render path. */
-export const DocumentScene = ({ activeBoardId, camera, document, model }: DocumentSceneProps) => {
+export const DocumentScene = ({
+  activeBoardId,
+  camera,
+  document,
+  model,
+  moveInteraction,
+}: DocumentSceneProps) => {
   const rootRef = useRef<SVGGElement | null>(null);
   const presenterRef = useRef<DocumentScenePresenter | undefined>(undefined);
 
@@ -114,6 +150,12 @@ export const DocumentScene = ({ activeBoardId, camera, document, model }: Docume
     syncVisibleItems();
     return camera.subscribe(syncVisibleItems);
   }, [camera, syncVisibleItems]);
+
+  useLayoutEffect(() => {
+    const apply = (): void => presenterRef.current?.setMovePreview(moveInteraction?.getSnapshot());
+    apply();
+    return moveInteraction?.subscribe(apply);
+  }, [moveInteraction]);
 
   return <g data-scene-content="document-elements" ref={rootRef} />;
 };

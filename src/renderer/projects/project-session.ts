@@ -3,7 +3,7 @@ import {
   completeDocumentHistorySave,
   createDocumentHistory,
   createEmptyProjectDocument,
-  dispatchHistoryCommand,
+  dispatchHistoryTransaction,
   failDocumentHistorySave,
   isDocumentHistoryDirty,
   parseProjectDocument,
@@ -346,6 +346,13 @@ export class ProjectSession {
     input: unknown,
     options: HistoryTransactionOptions = {},
   ): HistoryOperationResult | undefined {
+    return this.dispatchTransaction([input], options);
+  }
+
+  dispatchTransaction(
+    inputs: readonly unknown[],
+    options: HistoryTransactionOptions = {},
+  ): HistoryOperationResult | undefined {
     const history = this.#history;
     if (
       history === undefined ||
@@ -355,7 +362,7 @@ export class ProjectSession {
     ) {
       return undefined;
     }
-    const result = dispatchHistoryCommand(history, input, options);
+    const result = dispatchHistoryTransaction(history, inputs, options);
     if (result.ok && result.changed) {
       this.#history = result.history;
       this.#lastProblem = undefined;

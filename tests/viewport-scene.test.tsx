@@ -6,7 +6,9 @@ import { ViewportEmptyState, ViewportScene } from '../src/renderer/editor/Viewpo
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from '../src/renderer/editor/scene-layers';
 import { SelectionInteraction } from '../src/renderer/editor/selection-interaction';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
-import { ElementIdSchema } from '../src/domain';
+import { ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
+import { MoveInteraction } from '../src/renderer/editor/move-interaction';
+import type { MoveTargetCapture } from '../src/renderer/editor/move-geometry';
 import {
   ViewportCameraStore,
   type AnimationFrameScheduler,
@@ -21,6 +23,16 @@ import {
 } from '../src/renderer/editor/viewport-transform';
 
 const SELECTABLE_ID = ElementIdSchema.parse('element_viewportselect');
+
+const MOVE_CAPTURE: MoveTargetCapture = Object.freeze({
+  affectedIds: Object.freeze([SELECTABLE_ID]),
+  targets: Object.freeze([
+    Object.freeze({
+      frame: Object.freeze({ x: 10, y: 20, width: 100, height: 50 }),
+      id: SELECTABLE_ID,
+    }),
+  ]),
+});
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
   readonly callbacks = new Map<number, (timestamp: number) => void>();
@@ -372,6 +384,78 @@ describe('viewport scene layers', () => {
     view.unmount();
     expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
     expect(selection.getSnapshot()).toBe(before);
+    store.dispose();
+  });
+
+  it('routes move modifiers and every cancellation path through the same pointer owner', () => {
+    mockViewportBounds();
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const moveScheduler = new TestAnimationFrameScheduler();
+    const store = createStore(cameraScheduler);
+    const commits: (readonly SetElementFrameCommand[])[] = [];
+    const move = new MoveInteraction(
+      {
+        capture: () => MOVE_CAPTURE,
+        commit: (commands) => {
+          commits.push(commands);
+          return true;
+        },
+      },
+      moveScheduler,
+    );
+    const selection = new SelectionStore();
+    selection.selectOnly(SELECTABLE_ID);
+    const interaction = new SelectionInteraction(
+      selection,
+      {
+        listSelectableIds: () => [SELECTABLE_ID],
+        queryHitStack: () => [SELECTABLE_ID],
+        querySelectionRegion: () => [],
+      },
+      move,
+    );
+    const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    cameraScheduler.flushNext();
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 41 });
+    fireEvent.pointerMove(root, { clientX: 140, clientY: 115, pointerId: 41 });
+    expect(root).toHaveAttribute('data-selection-state', 'moving');
+    expect(move.getSnapshot()).toMatchObject({ delta: { x: 40, y: 15 }, kind: 'moving' });
+    const transformBeforeWheel = store.getTransformSnapshot();
+    fireEvent.wheel(root, { clientX: 140, clientY: 115, deltaMode: 0, deltaY: 100 });
+    expect(store.getTransformSnapshot()).toBe(transformBeforeWheel);
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    expect(move.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(commits).toHaveLength(0);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 42 });
+    fireEvent.pointerMove(root, { clientX: 130, clientY: 170, pointerId: 42, shiftKey: true });
+    expect(move.getSnapshot()).toMatchObject({ delta: { x: 0, y: 70 }, kind: 'moving' });
+    fireEvent.lostPointerCapture(root, { pointerId: 42 });
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    expect(move.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(commits).toHaveLength(0);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 43 });
+    fireEvent.pointerMove(root, { clientX: 130, clientY: 170, pointerId: 43, shiftKey: true });
+    fireEvent.pointerUp(root, { clientX: 130, clientY: 170, pointerId: 43, shiftKey: true });
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    expect(commits).toEqual([
+      [
+        {
+          type: 'element.set-frame',
+          elementId: SELECTABLE_ID,
+          frame: { x: 10, y: 90, width: 100, height: 50 },
+        },
+      ],
+    ]);
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+    expect(moveScheduler.callbacks.size).toBe(0);
     store.dispose();
   });
 });

@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { DocumentSceneModel } from './document-scene-model';
+import type { MoveInteraction } from './move-interaction';
 import { getSceneSelectionWorldBounds } from './selection-bounds';
 import type { SelectionStore } from './selection-store';
 import type { ViewportCameraStore } from './viewport-camera-store';
@@ -10,13 +11,19 @@ import { worldRectToViewport } from './viewport-transform';
 interface SelectionOverlayProps {
   readonly camera: ViewportCameraStore;
   readonly model: DocumentSceneModel;
+  readonly moveInteraction?: MoveInteraction;
   readonly selection: SelectionStore;
 }
 
 const HANDLE_SIZE = DESIGN_TOKENS.space[2];
 
 /** Fixed-screen selection geometry; camera publications never enter React. */
-export const SelectionOverlay = ({ camera, model, selection }: SelectionOverlayProps) => {
+export const SelectionOverlay = ({
+  camera,
+  model,
+  moveInteraction,
+  selection,
+}: SelectionOverlayProps) => {
   const groupRef = useRef<SVGGElement | null>(null);
 
   useLayoutEffect(() => {
@@ -31,7 +38,12 @@ export const SelectionOverlay = ({ camera, model, selection }: SelectionOverlayP
     }
 
     const apply = (): void => {
-      const worldBounds = getSceneSelectionWorldBounds(model, selection.getSnapshot().selectedIds);
+      const moveSnapshot = moveInteraction?.getSnapshot();
+      const worldBounds = getSceneSelectionWorldBounds(
+        model,
+        selection.getSnapshot().selectedIds,
+        moveSnapshot?.kind === 'moving' ? moveSnapshot : undefined,
+      );
       if (worldBounds === undefined) {
         group.setAttribute('display', 'none');
         group.dataset.selectionCount = '0';
@@ -67,13 +79,15 @@ export const SelectionOverlay = ({ camera, model, selection }: SelectionOverlayP
     apply();
     const unsubscribeCamera = camera.subscribe(apply);
     const unsubscribeModel = model.subscribe(apply);
+    const unsubscribeMove = moveInteraction?.subscribe(apply);
     const unsubscribeSelection = selection.subscribe(apply);
     return () => {
       unsubscribeCamera();
       unsubscribeModel();
+      unsubscribeMove?.();
       unsubscribeSelection();
     };
-  }, [camera, model, selection]);
+  }, [camera, model, moveInteraction, selection]);
 
   return (
     <g data-selection-count="0" data-selection-overlay="bounds" display="none" ref={groupRef}>

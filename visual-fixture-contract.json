@@ -6,6 +6,7 @@
     "default",
     "scene",
     "selection",
+    "move",
     "marquee",
     "viewportZoom",
     "viewportSelectionZoom",

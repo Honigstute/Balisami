@@ -1,9 +1,17 @@
 import { render } from '@testing-library/react';
+import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { parseProjectDocument, type ProjectDocument } from '../src/domain';
+import {
+  ElementIdSchema,
+  FOUNDATION_CONTROL_TYPES,
+  parseProjectDocument,
+  type ProjectDocument,
+} from '../src/domain';
 import { DocumentScene } from '../src/renderer/editor/DocumentScene';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
+import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
+import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import { ViewportScene } from '../src/renderer/editor/ViewportScene';
 import {
   ViewportCameraStore,
@@ -13,6 +21,7 @@ import {
   createDeviceScale,
   createViewportSize,
   createViewportTransform,
+  createWorldPoint,
 } from '../src/renderer/editor/viewport-transform';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
@@ -48,6 +57,28 @@ const parseFixture = (childX = 16): ProjectDocument => {
   const result = parseProjectDocument(input);
   if (!result.ok) {
     throw new Error('Document scene test fixture is invalid.');
+  }
+  return result.value;
+};
+
+const OTHER_ID = ElementIdSchema.parse('element_sceneother');
+
+const parseMovePreviewFixture = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.childIds.push(OTHER_ID);
+  input.elementsById[OTHER_ID] = {
+    id: OTHER_ID,
+    controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+    frame: { x: 180, y: 24, width: 100, height: 48 },
+    locked: false,
+    properties: {},
+    childIds: [],
+    assetIds: [],
+    link: null,
+  };
+  const result = parseProjectDocument(input);
+  if (!result.ok) {
+    throw new Error('Move preview scene fixture is invalid.');
   }
   return result.value;
 };
@@ -118,6 +149,96 @@ describe('document SVG scene', () => {
     camera.scheduleTransform(createViewportTransform({ panX: -10_000, panY: -10_000, zoom: 1 }));
     scheduler.flushNext();
     expect(view.container.querySelector(selector)).toBeNull();
+    camera.dispose();
+  });
+
+  it('translates only affected keyed nodes during a move preview without React rerenders', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const moveScheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler: cameraScheduler,
+    });
+    const document = parseMovePreviewFixture();
+    const model = new DocumentSceneModel();
+    const move = new MoveInteraction(
+      {
+        capture: (ids) => captureMoveTargets(document, ids),
+        commit: () => false,
+      },
+      moveScheduler,
+    );
+    let sceneRenderCount = 0;
+    const CountedScene = () => {
+      const renders = useRef(0);
+      renders.current += 1;
+      sceneRenderCount = renders.current;
+      return (
+        <DocumentScene
+          activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+          camera={camera}
+          document={document}
+          model={model}
+          moveInteraction={move}
+        />
+      );
+    };
+    const view = render(<ViewportScene camera={camera} worldChildren={<CountedScene />} />);
+    cameraScheduler.flushNext();
+    const moved = view.container.querySelector<SVGGElement>(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const unrelated = view.container.querySelector<SVGGElement>(
+      `[data-scene-element-id="${OTHER_ID}"]`,
+    );
+    if (moved === null || unrelated === null) {
+      throw new Error('Move preview scene elements did not mount.');
+    }
+    const movedPath = moved.querySelector('path')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedRevision = unrelated.dataset.sceneRevision;
+
+    move.begin({
+      pointerId: 4,
+      shiftKey: false,
+      startWorldPoint: createWorldPoint(0, 0),
+      targetIds: [DOCUMENT_FIXTURE_IDS.child],
+      worldPoint: createWorldPoint(10, 5),
+    });
+    for (let index = 1; index <= 500; index += 1) {
+      move.update({
+        pointerId: 4,
+        shiftKey: false,
+        worldPoint: createWorldPoint(index / 10, index / 20),
+      });
+    }
+    expect(moveScheduler.callbacks.size).toBe(1);
+    moveScheduler.flushNext();
+
+    expect(moved).toHaveAttribute('transform', 'translate(50 25)');
+    expect(moved.querySelector('path')?.getAttribute('d')).toBe(movedPath);
+    expect(unrelated).not.toHaveAttribute('transform');
+    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
+    expect(sceneRenderCount).toBe(1);
+
+    move.cancel(4);
+    expect(moved).not.toHaveAttribute('transform');
+    expect(unrelated).not.toHaveAttribute('transform');
+    expect(sceneRenderCount).toBe(1);
     camera.dispose();
   });
 });

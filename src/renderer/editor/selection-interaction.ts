@@ -1,5 +1,6 @@
 import type { ElementId } from '../../domain';
 import type { DocumentSceneSelectionRegionMode } from './document-scene-model';
+import type { MoveInteraction } from './move-interaction';
 import type { SelectionSnapshot, SelectionStore } from './selection-store';
 import {
   createWorldRect,
@@ -26,6 +27,10 @@ export interface SelectionPointerPosition {
   readonly worldPoint: WorldPoint;
 }
 
+export interface SelectionPointerUpdate extends SelectionPointerPosition {
+  readonly shiftKey: boolean;
+}
+
 export interface SelectionPressInput extends SelectionPointerPosition {
   readonly altKey: boolean;
   readonly pointerId: number;
@@ -37,6 +42,10 @@ export type SelectionInteractionSnapshot =
   | {
       readonly clickEligible: boolean;
       readonly kind: 'pressed';
+      readonly pointerId: number;
+    }
+  | {
+      readonly kind: 'moving';
       readonly pointerId: number;
     }
   | {
@@ -72,7 +81,13 @@ interface ActiveMarquee {
   readonly startWorldPoint: WorldPoint;
 }
 
-type ActiveSelectionGesture = ActiveMarquee | ActivePressed;
+interface ActiveMoving {
+  readonly kind: 'moving';
+  readonly pointerId: number;
+  readonly selectionAtPress: SelectionSnapshot;
+}
+
+type ActiveSelectionGesture = ActiveMarquee | ActiveMoving | ActivePressed;
 
 const IDLE_SNAPSHOT: SelectionInteractionSnapshot = Object.freeze({ kind: 'idle' });
 
@@ -110,40 +125,51 @@ const createMarqueeWorldBounds = (first: WorldPoint, second: WorldPoint): WorldR
   );
 };
 
-const toPublicSnapshot = (gesture: ActiveSelectionGesture): SelectionInteractionSnapshot =>
-  gesture.kind === 'pressed'
-    ? Object.freeze({
-        clickEligible: gesture.clickEligible,
-        kind: 'pressed',
-        pointerId: gesture.pointerId,
-      })
-    : Object.freeze({
-        currentViewportPoint: gesture.currentViewportPoint,
-        kind: 'marquee',
-        mode: gesture.mode,
-        pointerId: gesture.pointerId,
-        previewIds: gesture.previewIds,
-        startViewportPoint: gesture.startViewportPoint,
-      });
+const toPublicSnapshot = (gesture: ActiveSelectionGesture): SelectionInteractionSnapshot => {
+  if (gesture.kind === 'pressed') {
+    return Object.freeze({
+      clickEligible: gesture.clickEligible,
+      kind: 'pressed',
+      pointerId: gesture.pointerId,
+    });
+  }
+  if (gesture.kind === 'moving') {
+    return Object.freeze({ kind: 'moving', pointerId: gesture.pointerId });
+  }
+  return Object.freeze({
+    currentViewportPoint: gesture.currentViewportPoint,
+    kind: 'marquee',
+    mode: gesture.mode,
+    pointerId: gesture.pointerId,
+    previewIds: gesture.previewIds,
+    startViewportPoint: gesture.startViewportPoint,
+  });
+};
 
 const copyUniqueIds = (ids: readonly ElementId[]): readonly ElementId[] =>
   Object.freeze([...new Set(ids)]);
 
 /**
- * Session-only selection gesture authority. Click and marquee previews never
- * receive document/history mutation APIs, and completed selection scope
- * changes remain outside persistent history.
+ * Pointer gesture authority for selection scope and move promotion. Click and
+ * marquee remain session-only; raw move updates stay in the delegated
+ * transient authority and only completion may cross its command boundary.
  */
 export class SelectionInteraction {
   readonly #geometry: SelectionInteractionGeometry;
   readonly #listeners = new Set<() => void>();
+  readonly #move: MoveInteraction | undefined;
   readonly #selection: SelectionStore;
   #activeGesture: ActiveSelectionGesture | undefined;
   #snapshot: SelectionInteractionSnapshot = IDLE_SNAPSHOT;
 
-  constructor(selection: SelectionStore, geometry: SelectionInteractionGeometry) {
+  constructor(
+    selection: SelectionStore,
+    geometry: SelectionInteractionGeometry,
+    move?: MoveInteraction,
+  ) {
     this.#selection = selection;
     this.#geometry = geometry;
+    this.#move = move;
   }
 
   getSnapshot = (): SelectionInteractionSnapshot => this.#snapshot;
@@ -173,7 +199,7 @@ export class SelectionInteraction {
     return true;
   }
 
-  updatePress(pointerId: number, position: SelectionPointerPosition): boolean {
+  updatePress(pointerId: number, position: SelectionPointerUpdate): boolean {
     const gesture = this.#activeGesture;
     if (gesture === undefined || gesture.pointerId !== pointerId) {
       return false;
@@ -182,10 +208,22 @@ export class SelectionInteraction {
       this.#setActiveGesture(this.#updateMarquee(gesture, position));
       return true;
     }
+    if (gesture.kind === 'moving') {
+      return (
+        this.#move?.update({
+          pointerId,
+          shiftKey: position.shiftKey,
+          worldPoint: position.worldPoint,
+        }) ?? false
+      );
+    }
     if (!exceedsClickMovementThreshold(gesture.startViewportPoint, position.viewportPoint)) {
       return true;
     }
     if (gesture.hitStack.length > 0) {
+      if (this.#beginMove(gesture, position)) {
+        return true;
+      }
       if (gesture.clickEligible) {
         this.#setActiveGesture(Object.freeze({ ...gesture, clickEligible: false }));
       }
@@ -206,13 +244,27 @@ export class SelectionInteraction {
     return true;
   }
 
-  completePress(pointerId: number, position: SelectionPointerPosition): boolean {
+  completePress(pointerId: number, position: SelectionPointerUpdate): boolean {
     if (!this.updatePress(pointerId, position)) {
       return false;
     }
     const gesture = this.#activeGesture;
     if (gesture === undefined) {
       return false;
+    }
+    if (gesture.kind === 'moving') {
+      // Release gesture ownership before the synchronous document commit can
+      // reconcile the scene and notify cancellation observers.
+      this.#setActiveGesture(undefined);
+      const completion = this.#move?.complete({
+        pointerId,
+        shiftKey: position.shiftKey,
+        worldPoint: position.worldPoint,
+      });
+      if (completion === false || completion === 'failed' || completion === undefined) {
+        this.#restoreSelection(gesture.selectionAtPress);
+      }
+      return true;
     }
     this.#setActiveGesture(undefined);
     if (gesture.kind === 'marquee') {
@@ -227,6 +279,10 @@ export class SelectionInteraction {
     const gesture = this.#activeGesture;
     if (gesture === undefined || (pointerId !== undefined && gesture.pointerId !== pointerId)) {
       return false;
+    }
+    if (gesture.kind === 'moving') {
+      this.#move?.cancel(gesture.pointerId);
+      this.#restoreSelection(gesture.selectionAtPress);
     }
     this.#setActiveGesture(undefined);
     return true;
@@ -270,6 +326,40 @@ export class SelectionInteraction {
     this.#selection.replace([...selectedIds, hitId], hitId);
   }
 
+  #beginMove(gesture: ActivePressed, position: SelectionPointerUpdate): boolean {
+    const hitId = this.#resolveClickHit(gesture);
+    if (hitId === undefined || this.#move === undefined) {
+      return false;
+    }
+    const selectedIds = gesture.selectionAtPress.selectedIds;
+    const targetIds = selectedIds.includes(hitId)
+      ? selectedIds
+      : gesture.shiftKey
+        ? [...selectedIds, hitId]
+        : [hitId];
+    this.#selection.replace(targetIds, hitId);
+    if (
+      !this.#move.begin({
+        pointerId: gesture.pointerId,
+        shiftKey: position.shiftKey,
+        startWorldPoint: gesture.startWorldPoint,
+        targetIds,
+        worldPoint: position.worldPoint,
+      })
+    ) {
+      this.#restoreSelection(gesture.selectionAtPress);
+      return false;
+    }
+    this.#setActiveGesture(
+      Object.freeze({
+        kind: 'moving',
+        pointerId: gesture.pointerId,
+        selectionAtPress: gesture.selectionAtPress,
+      }),
+    );
+    return true;
+  }
+
   #commitMarquee(gesture: ActiveMarquee): void {
     if (!gesture.shiftKey) {
       this.#selection.replace(gesture.previewIds);
@@ -297,6 +387,10 @@ export class SelectionInteraction {
         ? -1
         : gesture.hitStack.indexOf(gesture.selectionAtPress.primaryId);
     return gesture.hitStack[(currentIndex + 1) % gesture.hitStack.length];
+  }
+
+  #restoreSelection(snapshot: SelectionSnapshot): void {
+    this.#selection.replace(snapshot.selectedIds, snapshot.primaryId);
   }
 
   #setActiveGesture(gesture: ActiveSelectionGesture | undefined): void {

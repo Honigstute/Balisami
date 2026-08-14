@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { parseProjectDocument, type ProjectDocument } from '../src/domain';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
+import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
+import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import { SelectionOverlay } from '../src/renderer/editor/SelectionOverlay';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import {
@@ -14,6 +16,7 @@ import {
   createDeviceScale,
   createViewportSize,
   createViewportTransform,
+  createWorldPoint,
 } from '../src/renderer/editor/viewport-transform';
 import { ViewportScene } from '../src/renderer/editor/ViewportScene';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
@@ -73,14 +76,30 @@ describe('selection overlay', () => {
       scheduler,
     });
     const model = new DocumentSceneModel();
-    model.reconcile(parseFixture(), DOCUMENT_FIXTURE_IDS.board);
+    const document = parseFixture();
+    model.reconcile(document, DOCUMENT_FIXTURE_IDS.board);
     const selection = new SelectionStore();
+    const moveScheduler = new TestAnimationFrameScheduler();
+    const move = new MoveInteraction(
+      {
+        capture: (ids) => captureMoveTargets(document, ids),
+        commit: () => false,
+      },
+      moveScheduler,
+    );
     let overlayRenderCount = 0;
     const CountedOverlay = () => {
       const renders = useRef(0);
       renders.current += 1;
       overlayRenderCount = renders.current;
-      return <SelectionOverlay camera={camera} model={model} selection={selection} />;
+      return (
+        <SelectionOverlay
+          camera={camera}
+          model={model}
+          moveInteraction={move}
+          selection={selection}
+        />
+      );
     };
     const view = render(<ViewportScene camera={camera} interactionChildren={<CountedOverlay />} />);
     scheduler.flushNext();
@@ -108,6 +127,24 @@ describe('selection overlay', () => {
     expect(outline).toHaveAttribute('width', '240');
     expect(outline).toHaveAttribute('height', '96');
     expect([...handles].every((handle) => handle.getAttribute('width') === '8')).toBe(true);
+    expect(overlayRenderCount).toBe(1);
+
+    move.begin({
+      pointerId: 8,
+      shiftKey: false,
+      startWorldPoint: createWorldPoint(0, 0),
+      targetIds: [DOCUMENT_FIXTURE_IDS.child],
+      worldPoint: createWorldPoint(15, -5),
+    });
+    expect(outline).toHaveAttribute('x', '32');
+    expect(outline).toHaveAttribute('y', '58');
+    expect(outline).toHaveAttribute('width', '240');
+    expect([...handles].every((handle) => handle.getAttribute('width') === '8')).toBe(true);
+    expect(overlayRenderCount).toBe(1);
+
+    move.cancel(8);
+    expect(outline).toHaveAttribute('x', '2');
+    expect(outline).toHaveAttribute('y', '68');
     expect(overlayRenderCount).toBe(1);
     camera.dispose();
   });

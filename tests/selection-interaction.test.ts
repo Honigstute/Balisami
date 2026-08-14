@@ -56,7 +56,9 @@ const beginAndComplete = (
       ...position,
     }),
   ).toBe(true);
-  expect(interaction.completePress(7, position)).toBe(true);
+  expect(interaction.completePress(7, { ...position, shiftKey: options.shiftKey ?? false })).toBe(
+    true,
+  );
 };
 
 describe('selection interaction', () => {
@@ -79,7 +81,7 @@ describe('selection interaction', () => {
       kind: 'pressed',
       pointerId: 7,
     });
-    expect(interaction.completePress(7, firstPosition)).toBe(true);
+    expect(interaction.completePress(7, { ...firstPosition, shiftKey: false })).toBe(true);
     expect(selection.getSnapshot().selectedIds).toEqual([FIRST_ID]);
 
     beginAndComplete(interaction, 120, { shiftKey: true });
@@ -130,24 +132,24 @@ describe('selection interaction', () => {
     const containedEnd = createPosition(90, 80);
     interaction.beginPress({ altKey: false, pointerId: 1, shiftKey: false, ...start });
 
-    expect(interaction.updatePress(1, containedEnd)).toBe(true);
+    expect(interaction.updatePress(1, { ...containedEnd, shiftKey: false })).toBe(true);
     expect(interaction.getSnapshot()).toMatchObject({
       kind: 'marquee',
       mode: 'contained',
       previewIds: [FIRST_ID],
     });
-    expect(interaction.completePress(1, containedEnd)).toBe(true);
+    expect(interaction.completePress(1, { ...containedEnd, shiftKey: false })).toBe(true);
     expect(selection.getSnapshot().selectedIds).toEqual([FIRST_ID]);
 
     const intersectingEnd = createPosition(10, 90);
     interaction.beginPress({ altKey: false, pointerId: 2, shiftKey: false, ...start });
-    interaction.updatePress(2, intersectingEnd);
+    interaction.updatePress(2, { ...intersectingEnd, shiftKey: false });
     expect(interaction.getSnapshot()).toMatchObject({
       kind: 'marquee',
       mode: 'intersecting',
       previewIds: [SECOND_ID, THIRD_ID],
     });
-    interaction.completePress(2, intersectingEnd);
+    interaction.completePress(2, { ...intersectingEnd, shiftKey: false });
     expect(selection.getSnapshot().selectedIds).toEqual([SECOND_ID, THIRD_ID]);
     expect(querySelectionRegion).toHaveBeenCalledWith(expect.anything(), 'intersecting');
   });
@@ -165,8 +167,8 @@ describe('selection interaction', () => {
     const start = createPosition(0, 0);
     const end = createPosition(20, 20);
     interaction.beginPress({ altKey: false, pointerId: 4, shiftKey: true, ...start });
-    interaction.updatePress(4, end);
-    interaction.completePress(4, end);
+    interaction.updatePress(4, { ...end, shiftKey: true });
+    interaction.completePress(4, { ...end, shiftKey: true });
     expect(selection.getSnapshot()).toMatchObject({
       primaryId: THIRD_ID,
       selectedIds: [FIRST_ID, SECOND_ID, THIRD_ID],
@@ -174,7 +176,7 @@ describe('selection interaction', () => {
 
     const beforeCancel = selection.getSnapshot();
     interaction.beginPress({ altKey: false, pointerId: 5, shiftKey: false, ...start });
-    interaction.updatePress(5, end);
+    interaction.updatePress(5, { ...end, shiftKey: false });
     expect(interaction.cancelPress(5)).toBe(true);
     expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
     expect(selection.getSnapshot()).toBe(beforeCancel);
@@ -196,7 +198,7 @@ describe('selection interaction', () => {
     const end = createPosition(20, 40, -50, 5);
 
     interaction.beginPress({ altKey: false, pointerId: 6, shiftKey: false, ...start });
-    interaction.completePress(6, end);
+    interaction.completePress(6, { ...end, shiftKey: false });
     expect(querySelectionRegion).toHaveBeenCalledOnce();
   });
 
@@ -210,9 +212,9 @@ describe('selection interaction', () => {
     const end = createPosition(10 + movement, 10, 120, 0);
     interaction.beginPress({ altKey: false, pointerId: 3, shiftKey: false, ...start });
 
-    expect(interaction.updatePress(3, end)).toBe(true);
+    expect(interaction.updatePress(3, { ...end, shiftKey: false })).toBe(true);
     expect(interaction.getSnapshot()).toMatchObject({ clickEligible: false, kind: 'pressed' });
-    expect(interaction.completePress(3, end)).toBe(true);
+    expect(interaction.completePress(3, { ...end, shiftKey: false })).toBe(true);
     expect(selection.getSnapshot()).toBe(before);
   });
 
@@ -250,7 +252,7 @@ describe('selection interaction', () => {
     const start = createPosition(0, 0, -1, -1);
     const end = createPosition(20, 20, 20, 20);
     interaction.beginPress({ altKey: false, pointerId: 8, shiftKey: false, ...start });
-    interaction.updatePress(8, end);
+    interaction.updatePress(8, { ...end, shiftKey: false });
     interaction.cancelPress(8);
 
     expect(history.document).toBe(documentBefore);
@@ -266,8 +268,8 @@ describe('selection interaction', () => {
 
     expect(interaction.beginPress(input)).toBe(true);
     expect(interaction.beginPress({ ...input, pointerId: 2 })).toBe(false);
-    expect(interaction.updatePress(2, position)).toBe(false);
-    expect(interaction.completePress(2, position)).toBe(false);
+    expect(interaction.updatePress(2, { ...position, shiftKey: false })).toBe(false);
+    expect(interaction.completePress(2, { ...position, shiftKey: false })).toBe(false);
     interaction.cancelPress();
     expect(() => interaction.beginPress({ ...input, pointerId: -1 })).toThrow(RangeError);
     expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
