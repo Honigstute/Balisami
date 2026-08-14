@@ -28,6 +28,7 @@ describe('visual conformance fixture contract', () => {
   it('keeps the external harness registry exact and rejects malformed invocations', () => {
     expect(isVisualFixtureContractSynchronized()).toBe(true);
     expect(visualFixtureContract.fixtures).toEqual(VISUAL_FIXTURE_NAMES);
+    expect(visualFixtureContract.displayScales).toEqual([1, 1.25, 1.5, 2]);
     expect(parseVisualFixtureInvocation([], visualFixtureContract.argumentPrefix)).toEqual({
       kind: 'none',
     });

@@ -12,6 +12,21 @@ const contract = JSON.parse(
 
 if (
   typeof contract.argumentPrefix !== 'string' ||
+  typeof contract.displayScaleArgumentPrefix !== 'string' ||
+  !contract.displayScaleArgumentPrefix.startsWith('--') ||
+  !Array.isArray(contract.displayScales) ||
+  contract.displayScales.length < 2 ||
+  !contract.displayScales.every(
+    (scale) =>
+      typeof scale === 'number' &&
+      Number.isFinite(scale) &&
+      scale >= 1 &&
+      scale <= 2 &&
+      Number.isInteger(scale * 100),
+  ) ||
+  new Set(contract.displayScales).size !== contract.displayScales.length ||
+  contract.displayScales[0] !== 1 ||
+  contract.displayScales.at(-1) !== 2 ||
   !Array.isArray(contract.fixtures) ||
   contract.fixtures.length === 0 ||
   !contract.fixtures.every((fixture) => typeof fixture === 'string' && fixture.length > 0) ||
@@ -34,10 +49,14 @@ const visualDirectory = path.join(packageRoot, 'visual');
 await rm(visualDirectory, { force: true, recursive: true });
 await mkdir(visualDirectory, { recursive: true });
 
-const runFixture = async (fixture) => {
-  const child = spawn(executable, [`${contract.argumentPrefix}${fixture}`], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+const runFixture = async (fixture, artifactSuffix = '', additionalArguments = []) => {
+  const child = spawn(
+    executable,
+    [`${contract.argumentPrefix}${fixture}`, ...additionalArguments],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
   let standardOutput = '';
   let standardError = '';
   child.stdout.setEncoding('utf8');
@@ -93,7 +112,7 @@ const runFixture = async (fixture) => {
   }
   const screenshotPath = path.join(
     visualDirectory,
-    `${process.platform}-${process.arch}-${fixture}.png`,
+    `${process.platform}-${process.arch}-${fixture}${artifactSuffix}.png`,
   );
   await copyFile(temporaryScreenshotPath, screenshotPath);
   await rm(temporaryScreenshotPath, { force: true });
@@ -102,7 +121,18 @@ const runFixture = async (fixture) => {
 
 const screenshots = [];
 for (const fixture of contract.fixtures) {
-  screenshots.push(await runFixture(fixture));
+  const additionalArguments =
+    fixture === 'default'
+      ? [`${contract.displayScaleArgumentPrefix}${String(contract.displayScales[0])}`]
+      : [];
+  screenshots.push(await runFixture(fixture, '', additionalArguments));
+}
+for (const scale of contract.displayScales.slice(1)) {
+  screenshots.push(
+    await runFixture('default', `-scale-${String(Math.round(scale * 100))}`, [
+      `${contract.displayScaleArgumentPrefix}${String(scale)}`,
+    ]),
+  );
 }
 
 process.stdout.write(
