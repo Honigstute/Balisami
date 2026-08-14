@@ -432,6 +432,16 @@ waits for any active write, and conditionally clears the exact known pointer. Cl
 warning because the project/recovery safety decision has already completed. User-file saves are
 serialized per session, and close refuses to race an active user-file save.
 
+The packaged crash-recovery acceptance probe uses two launches of the real binary and an external
+process owner. Its writer saves a prior user project, applies one edit through document history,
+waits until the production scheduler/journal can read that exact state, and then waits without
+calling a close or shutdown path. The harness kills that process forcibly, snapshots the prior file
+bytes, and relaunches the binary. The verifier discovers and restores the exact pointer through the
+public lifecycle, confirms the restored session has no authorized save destination, and proves the
+prior file is still byte-identical. The test-only writer is confined after real-path resolution to
+an initially empty, contract-named directory beneath the operating system temp root; it cannot be
+pointed at ordinary project or user-data directories.
+
 Rules:
 
 - Parse untrusted project files with runtime schemas and size limits.
@@ -443,7 +453,7 @@ Rules:
 - Preserve the failed source file when migration or parsing fails.
 - Content-address assets and generate thumbnails/previews as disposable caches.
 
-Save status occupies a reserved shell location and does not shift the layout. The application restores unsaved work after a simulated crash as an acceptance test.
+Save status occupies a reserved shell location and does not shift the layout. The application restores unsaved work after a forcibly terminated packaged process as an acceptance test on macOS and Windows.
 
 ## 10. Visual system and layout stability
 

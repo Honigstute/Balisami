@@ -48,6 +48,9 @@ jobs:
       - name: Smoke-test packaged application
         run: npm run smoke:packaged
 
+      - name: Verify packaged forced-crash recovery
+        run: npm run verify:recovery:packaged
+
       - name: Upload rendered smoke screenshot
         uses: actions/upload-artifact@v7
         with:

@@ -1,12 +1,23 @@
 import { app, BrowserWindow, session } from 'electron';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
+import recoveryProbeContract from '../../recovery-probe-contract.json';
 import smokeTestContract from '../../smoke-test-contract.json';
 import { registerDesktopIpc } from './ipc';
 import { createAppLogger, installProcessErrorLogging, type AppLogger } from './logging';
 import { installNavigationPolicy } from './navigation-policy';
 import { APP_ENTRY_URL, installAppProtocol, registerAppScheme } from './protocol';
+import {
+  preparePackagedRecoveryProbe,
+  verifyPackagedRecoveryProbe,
+} from './recovery/recovery-packaged-probe';
+import {
+  authorizeRecoveryProbeRoot,
+  parseRecoveryProbeInvocation,
+  type RecoveryProbeInvocation,
+} from './recovery/recovery-probe-contract';
 import { configureSessionSecurity } from './security';
 import { captureSmokeScreenshot } from './smoke-test';
 import { StartupHealthMonitor } from './startup-health';
@@ -14,6 +25,9 @@ import { installWindowDiagnostics, type WindowProblem } from './window-diagnosti
 import { createMainWindowOptions } from './window-options';
 
 const isSmokeTest = process.argv.includes(smokeTestContract.argument);
+const recoveryProbeInvocation = parseRecoveryProbeInvocation(process.argv, recoveryProbeContract);
+const isRecoveryProbe = recoveryProbeInvocation.kind !== 'none';
+const isAutomatedTest = isSmokeTest || isRecoveryProbe;
 
 registerAppScheme();
 app.enableSandbox();
@@ -70,8 +84,62 @@ const runSmokeTest = async (window: BrowserWindow): Promise<void> => {
   app.exit(0);
 };
 
+const writeStandardOutputLine = (line: string): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
+    process.stdout.write(`${line}\n`, (error) => {
+      if (error === null || error === undefined) {
+        resolve();
+      } else {
+        reject(error);
+      }
+    });
+  });
+
+const waitForForcedTermination = (): Promise<never> =>
+  new Promise<never>(() => {
+    setInterval(() => undefined, 60_000);
+  });
+
+const runRecoveryProbe = async (
+  invocation: Extract<RecoveryProbeInvocation, { readonly kind: 'probe' }>,
+): Promise<void> => {
+  if (invocation.mode === 'write') {
+    await preparePackagedRecoveryProbe(invocation.root, invocation.contract.userFileName);
+    await writeStandardOutputLine(invocation.contract.writerReadyMarker);
+    await waitForForcedTermination();
+  }
+
+  await verifyPackagedRecoveryProbe(invocation.root, invocation.contract.userFileName);
+  await writeStandardOutputLine(invocation.contract.verificationMarker);
+  app.exit(0);
+};
+
 const startApplication = async (): Promise<void> => {
+  if (recoveryProbeInvocation.kind === 'invalid') {
+    throw new Error(recoveryProbeInvocation.message);
+  }
+  let activeRecoveryProbe: Extract<RecoveryProbeInvocation, { readonly kind: 'probe' }> | undefined;
+  if (recoveryProbeInvocation.kind === 'probe') {
+    const root = authorizeRecoveryProbeRoot(
+      recoveryProbeInvocation.root,
+      tmpdir(),
+      recoveryProbeInvocation.contract.rootNamePrefix,
+      recoveryProbeInvocation.mode === 'write',
+    );
+    if (root === undefined) {
+      throw new Error('The recovery probe root is not an authorized temporary directory.');
+    }
+    activeRecoveryProbe = Object.freeze({ ...recoveryProbeInvocation, root });
+    // The external harness creates this isolated path before launch. Setting it
+    // before ready prevents a packaged probe from touching normal user data.
+    app.setPath('userData', root);
+  }
   await app.whenReady();
+
+  if (activeRecoveryProbe !== undefined) {
+    await runRecoveryProbe(activeRecoveryProbe);
+    return;
+  }
 
   logger = await createAppLogger(app.getPath('logs'), app.getPath('home'));
   installProcessErrorLogging(logger, () => app.exit(1));
@@ -100,7 +168,7 @@ const startApplication = async (): Promise<void> => {
 };
 
 void startApplication().catch((error: unknown) => {
-  if (logger === undefined || isSmokeTest) {
+  if (logger === undefined || isAutomatedTest) {
     process.stderr.write(`Balsamic failed to start: ${String(error)}\n`);
   }
   if (logger !== undefined) {
