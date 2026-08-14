@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M1 active
+Status: M2 active
 Last reviewed: 2026-08-14
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -34,7 +34,7 @@ Exit gate:
 - A new developer can identify the source of truth for every major subsystem without chat history.
 - No implementation milestone depends on an undocumented ownership or coordinate decision.
 
-### [~] M1 — Cross-platform application skeleton and guardrails
+### [x] M1 — Cross-platform application skeleton and guardrails
 
 Depends on: M0
 
@@ -55,16 +55,16 @@ Exit gate:
 - Type/lint/test/package/smoke checks pass with no uncaught errors or unexpected production console noise.
 - Renderer cannot access filesystem or arbitrary IPC.
 
-Current evidence (2026-08-14):
+Completion evidence (2026-08-14):
 
-- macOS arm64: `npm run verify`, `npm run package`, and `npm run smoke:packaged` pass. The packaged shell was also inspected in the running app; all fixed regions were present without clipping, modal errors, or shell movement.
-- Packaged smoke now waits for a trusted renderer-ready IPC acknowledgement after React mounts and runtime IPC succeeds, then enforces a quiet stabilization interval. Load/preload failures, renderer crashes/unresponsiveness, console warnings/errors, stderr output, timeout, an empty screenshot, or a malformed acknowledgement fail the run. Each CI host uploads its rendered window for review.
+- [Quality run 31805206981](https://github.com/Honigstute/Balisami/actions/runs/31805206981) passed on native macOS 26 arm64 and Windows 2025 x64 hosts. Both jobs installed from the lockfile, verified source, packaged the application, read back Electron fuses, launched the packaged binary, and uploaded a rendered smoke screenshot.
+- The uploaded `balsamic-smoke-macos-26-arm64` and `balsamic-smoke-windows-2025-x64` artifacts were reviewed at original resolution. Both show the same fixed shell geometry without clipping, error UI, or selection-driven movement. The visible runtime state is fully hydrated and platform-correct: `macOS · arm64 · v0.1.0 · Packaged` with `⌘ K`, and `Windows · x64 · v0.1.0 · Packaged` with `Ctrl K`.
+- Packaged smoke waits for a trusted renderer-ready IPC acknowledgement only after runtime IPC succeeds, fonts settle, and the committed UI crosses two animation frames. Load/preload failures, renderer crashes/unresponsiveness, console warnings/errors, stderr output, timeout, an empty screenshot, or a malformed acknowledgement fail the run. Each CI host uploads its rendered window for review.
 - A strict post-package hook configures every Electron 43 fuse, and a separate readback check verifies the native binary rather than trusting build configuration. macOS arm64 and cross-packaged Windows x64 both pass; `RunAsNode`, `NODE_OPTIONS`, CLI inspection, and extra `file://` privileges are disabled, while ASAR integrity and ASAR-only loading are enabled.
-- Source verification currently covers formatting, lint, 23-file dependency-boundary enforcement, strict TypeScript, 24 tests, and a production-dependency audit with zero vulnerabilities.
-- Windows x64 cross-packaging from macOS produces a valid PE32+ `Balsamic.exe` with the expected fuse wire. The Windows 2025 x64 CI job is configured to install, verify, package, read back fuses, launch the packaged executable, and upload its rendered screenshot, but it has not run on a Windows host yet. M1 remains active and M2 must not start until that native result and a Windows visual check pass.
-- Exact next action: run `.github/workflows/quality.yml` on a hosted repository, review the Windows artifact/shortcut rendering, then record the run URL and either close M1 or fix the native failure.
+- Source verification covers formatting, lint, 24-file dependency-boundary enforcement, strict TypeScript, 25 tests, and a production-dependency audit with zero vulnerabilities. Repository line endings are fixed to LF through `.gitattributes`, so macOS and Windows enforce the same formatting result.
+- Local macOS verification independently passes `npm run verify`, `npm run package`, `npm run verify:fuses`, and `npm run smoke:packaged`. Cross-packaged Windows x64 independently produces a valid PE32+ `Balsamic.exe` and passes fuse readback before the native CI launch.
 
-### [ ] M2 — Document model, commands, selectors, and undo/redo
+### [~] M2 — Document model, commands, selectors, and undo/redo
 
 Depends on: M1
 
@@ -331,4 +331,4 @@ Exit gate:
 
 ## Next action
 
-Run `.github/workflows/quality.yml` from a hosted repository, inspect the Windows x64 artifact on the Windows runner, and record the run URL. If the native package, renderer-ready smoke, and Windows visual/shortcut review pass, close M1 and activate M2; otherwise keep M1 active and fix the observed platform failure first.
+Define M2's runtime schema primitives and canonical normalized document types in `src/domain`, beginning with project, board, element, geometry, notes, links, stable IDs, and the single authoritative child-order representation. Add valid/invalid fixtures and invariant tests before exposing any mutation API.
