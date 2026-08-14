@@ -50,6 +50,7 @@ export {
   type ElementId,
   type ProjectId,
 } from './document/ids';
+export { createEmptyProjectDocument, type EmptyProjectDocumentInput } from './document/factory';
 export { ElementOwnerSchema, type ElementOwner } from './document/owner';
 export {
   createElementLocationIndex,
@@ -104,6 +105,8 @@ export {
   canRedoDocumentHistory,
   canUndoDocumentHistory,
   createDocumentHistory,
+  createHistorySaveTokenId,
+  createHistoryStateId,
   isDocumentHistoryDirty,
   selectRedoLabel,
   selectUndoLabel,

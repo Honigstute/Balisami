@@ -43,6 +43,7 @@ export const DESIGN_TOKENS = {
     minWindowHeight: 680,
     canvasEmptyWidth: 456,
     canvasCopyWidth: 384,
+    projectDialogWidth: 560,
   },
   control: {
     height: 24,
@@ -102,6 +103,7 @@ export const DESIGN_TOKEN_CSS_VARIABLES = {
   '--shell-min-height': px(DESIGN_TOKENS.shell.minWindowHeight),
   '--canvas-empty-width': px(DESIGN_TOKENS.shell.canvasEmptyWidth),
   '--canvas-copy-width': px(DESIGN_TOKENS.shell.canvasCopyWidth),
+  '--project-dialog-width': px(DESIGN_TOKENS.shell.projectDialogWidth),
   '--control-height': px(DESIGN_TOKENS.control.height),
   '--border-width': px(DESIGN_TOKENS.control.borderWidth),
   '--icon-size': px(DESIGN_TOKENS.control.iconSize),

@@ -1,0 +1,14 @@
+{
+  "processTimeoutMs": 30000,
+  "rendererQueryKey": "recovery-probe",
+  "rendererQueryValue": "restore",
+  "rendererStateAttribute": "data-recovery-probe-state",
+  "rootArgumentPrefix": "--recovery-probe-root=",
+  "rootNamePrefix": "balsamic-packaged-recovery-",
+  "terminationTimeoutMs": 5000,
+  "userFileName": "accepted-user-project.probe",
+  "verificationMarker": "BALSAMIC_RECOVERY_VERIFIED",
+  "verifyArgument": "--recovery-probe-verify",
+  "writerReadyMarker": "BALSAMIC_RECOVERY_DURABLE",
+  "writeArgument": "--recovery-probe-write"
+}

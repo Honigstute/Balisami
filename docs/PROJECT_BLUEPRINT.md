@@ -313,6 +313,162 @@ Guides are ephemeral overlays and never export or enter history. Align/distribut
 
 The project file is a portable container with a manifest, versioned project JSON, and deduplicated assets. Exact extension/name is decided before public alpha; internal code does not depend on marketing naming.
 
+The version-1 logical container contract is deliberately independent of its eventual extension:
+
+| Entry                    | Contract                                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest.json`          | Canonical JSON with technical format ID `wireframe-project`, file-format version `1`, and the fixed document/asset entry locations |
+| `project.json`           | The runtime-validated `ProjectDocument` in canonical JSON                                                                          |
+| `assets/sha256/<digest>` | Raw bytes named by their lowercase 64-character SHA-256 digest; multiple asset IDs with identical bytes share one entry            |
+
+Canonical JSON recursively sorts object keys, preserves array order, uses two-space indentation, and
+ends with one newline. The codec copies binary input/output and orders metadata first, followed by
+asset entries in lexical digest order. This makes equivalent documents deterministic without making
+the domain model aware of archive or marketing details.
+
+The initial uncompressed input limits are 10,002 entries, 64 KiB for the manifest, 32 MiB for project
+JSON, 64 MiB per asset, and 256 MiB total. Parsed JSON is additionally capped at 64 nesting levels and
+250,000 values before domain validation. These are codec-owned security limits, not document or UI
+constants. Decode errors distinguish invalid envelopes/entries, invalid UTF-8, malformed or truncated
+JSON, unsupported formats, older versions without a migration, newer versions, invalid documents,
+and missing/unexpected/damaged assets. A physical container reader must enforce compressed-input and
+expansion limits before handing this same logical entry set to the codec.
+
+The physical version-1 container is a deterministic ZIP archive produced asynchronously with the
+exactly pinned, zero-dependency `fflate` adapter. JSON entries use DEFLATE level 6; digest-named assets
+use ZIP store mode because supported images are normally compressed already. Entries use fixed DOS
+epoch metadata (1980-01-01), neutral OS/attribute fields, and logical entry order, so the same project
+produces byte-identical archives on macOS and Windows. The complete archive is capped at the logical
+256 MiB ceiling plus a bounded 512-byte-per-entry/64-KiB ZIP-overhead allowance. Before inflate, the
+reader checks archive size, entry count, path allowlist, duplicates, each declared expanded size, and
+the declared expanded total; the logical codec then revalidates the materialized entries and content.
+
+Main-process reads open one file descriptor, reject non-files and oversized metadata before
+allocation, and accept bytes only when a fixed-size read plus one-byte probe proves the file did not
+change mid-read. Saves validate and encode the complete archive before touching the destination,
+write a randomly named exclusive sibling temporary file, loop through partial writes, flush and close
+it, then replace the destination. POSIX uses atomic rename plus parent-directory fsync. If Windows
+rejects replace-on-rename, the prior regular file moves to a unique sibling backup; a failed promotion
+restores it, and a failed restore preserves and reports both old/new recovery paths. Non-file targets
+are never moved aside, ordinary failed writes clean their temporary file, and backup cleanup failure
+is a successful-save warning rather than a false loss report.
+
+Recovery lives only under Electron `userData/recovery-v1/<projectId>`. It does not reuse the user-save
+token flow: a frozen recovery capture contains the current document reference and history state ID
+without changing dirty state, pending saves, or coalescing. Each accepted recovery point consists of
+an immutable content-addressed `snapshots/<sha256>.zip` plus a strict, canonical, at-most-64-KiB
+`current.json` pointer containing state/time/source metadata, archive length, and digest. The archive
+is written and flushed first; the pointer advances atomically last. A crash before pointer promotion
+therefore leaves the prior recovery current, while a crash after promotion selects the new verified
+snapshot. Recognized orphans are cleaned without deleting the currently referenced digest, cleanup
+is bounded to the project recovery directory, and corrupt pointer/source evidence is preserved rather
+than silently overwritten. Loading verifies pointer schema, project identity, byte length, SHA-256,
+archive limits, and the full project codec before exposing a document. The optional chosen-file path
+is metadata only; recovery never reads from or writes to it.
+
+Startup discovery streams at most 1,000 entries from `recovery-v1`, reports at most 50 isolated
+issues, and reads only each strict pointer plus the referenced archive's regular-file metadata. It
+does not inflate every archive merely to build a chooser; the full length, digest, ZIP, envelope,
+document, and asset checks run only when a recovery is selected. Per-project orphan cleanup inspects
+at most 128 snapshot-directory entries. Exceeding either limit is a typed refusal, never an unbounded
+scan or a partial deletion.
+
+Recovery points are retained until an explicit accepted action clears them. Clear requires the exact
+pointer identity observed by the caller and is serialized with writes for that project; a newer or
+different pointer wins and remains untouched. Clearing removes the pointer first, then only its
+recognized digest archive and empty directories. Missing points are idempotent, unrecognized files
+and corrupt evidence are preserved, and post-pointer cleanup failures are successful-clear warnings.
+
+One main-process autosave scheduler exists per open project. It captures immutable document/state
+identity and copies asset bytes at schedule time, waits 750 ms after the latest edit, keeps only the
+latest pending state, and allows only one journal write in flight. A state/file-path identity already
+durable or currently writing is not duplicated. Failed writes remain available for one explicit
+flush or a later edit but never self-loop into an error storm. Normal shutdown stops new schedules,
+waits for the active write, and flushes the latest pending state; an explicit discard mode cancels
+only work that has not begun. Archive encoding and filesystem work remain in the main process.
+
+One `ProjectLifecycleController` exists per editor window and permits only one active persistence
+session. It validates new documents, opens user files through the bounded codec, discovers recovery
+metadata, restores only the exact pointer the user selected, and rejects a stale selection if the
+pointer changes before load. History and live document mutation remain in the renderer/domain layer;
+the controller retains only project identity, chosen file path, save-in-progress state, recovery
+identity, and the scheduler. Starting another project always requires an explicit close.
+Restoring never promotes the pointer's source-file metadata into an authorized destination: the
+restored session has no chosen file path until the user completes Save As.
+
+One renderer `ProjectSession` is the live document/history authority for its window. It creates or
+accepts a domain-validated document, owns save-token allocation and resolution, schedules immutable
+recovery snapshots after accepted commands, and exposes a stable external-store view to React.
+Project documents remain opaque in the shared/preload contract so the domain parser stays their only
+schema owner. Preload checks exact path-free DTO shapes; main parses the document again, brands state
+and token IDs, bounds and copies asset bytes, and rejects unexpected keys before invoking native
+workflow code. No filesystem path, raw Electron response, or technical rejection crosses back.
+
+User saves still begin in domain history and cross the main boundary as immutable
+`{document,stateId,tokenId}` snapshots. A successful write returns the same receipt plus the exact
+archive length and SHA-256 from the bytes that reached disk. The session then flushes pending
+recovery. It clears recovery only when that exact deterministic archive identity is now present in
+the user file, which also handles a restored history whose local state IDs restarted. If an older
+save completes after a newer edit, the newer recovery digest differs and remains. Recovery refresh
+or cleanup failure is a bounded warning on an otherwise successful user save, never a false save
+failure.
+
+Electron owns project path selection through one window-scoped native-dialog adapter. Open and Save
+As cancellations are ordinary outcomes, not errors; malformed native responses fail without changing
+the active session. Suggested names are bounded and safe on macOS and Windows, but the dialog does not
+invent a public extension or file filter before that product decision is recorded. One exclusive
+main-process workflow coordinates open, save, Save As, recent projects, and close. Its renderer-facing
+result vocabulary contains completed, cancelled, or one stable problem plus at most three deduplicated
+warnings. It never returns filesystem paths, native exceptions, archive details, or recovery paths;
+technical causes go only to the structured main-process reporter.
+
+Recent projects are non-authoritative versioned metadata under `userData`. The canonical file is
+bounded to 64 KiB and 20 newest-first entries, uses opaque path-derived IDs outside the main process,
+serializes mutations, and is replaced atomically. A successful open or save remains successful if
+this convenience list cannot update. Missing recent targets are forgotten only after an actual
+file-not-found result. Malformed metadata is preserved and reported rather than silently overwritten.
+
+Ordinary renderer startup asks main for one bounded, path-free choice set before creating a project.
+Main retains exact recovery pointers behind random window-scoped IDs and exposes only capture time,
+a bounded display name, recent-project summaries, and a count of ignored damaged evidence. The user
+must explicitly restore one point, discard one exact point, or start a new project while retaining
+the recovery evidence. A failed or stale choice keeps the evidence and the same focused overlay open;
+technical pointer, digest, project identity, and path data never cross preload.
+
+Open and recent-project replacement validate and decode the selected file into one immutable
+main-process candidate before the current project is asked to close. The renderer freezes commands,
+captures one exact history/save-token snapshot when dirty, and sends only that path-free replacement
+context. Cancellation or failure rejects the temporary token and restores the same renderer history;
+success closes the native persistence session before installing the already-validated candidate as
+the renderer's sole new history. Selecting the already-open file is refused before save/close so a
+staged older copy can never replace newly saved work.
+
+Unsaved close has exactly three native decisions: Save, Cancel, and Don't Save. Cancel, including a
+cancelled Save As, leaves the session active. Save must durably complete before close; a save failure
+also leaves the session active. Don't Save explicitly discards the known recovery point before the
+session is released. The window close coordinator sends one opaque request ID; the renderer freezes
+new commands before capturing dirty state and its save token, then unlocks and rejects that exact
+token only if main reports cancellation or failure. Duplicate close attempts cannot open duplicate
+dialogs. If the renderer is gone, main flushes the last snapshot it accepted and retains recovery
+before authorizing the native window to close.
+
+Normal close flushes and retains the latest recovery; a failed flush reopens scheduling so close can
+be retried rather than stranding a half-closed session. Explicit discard cancels work not yet begun,
+waits for any active write, and conditionally clears the exact known pointer. Cleanup residue is a
+warning because the project/recovery safety decision has already completed. User-file saves are
+serialized per session, and close refuses to race an active user-file save.
+
+The packaged crash-recovery acceptance probe uses two launches of the real binary and an external
+process owner. Its writer saves a prior user project, applies one edit through document history,
+waits until the production scheduler/journal can read that exact state, and then waits without
+calling a close or shutdown path. The harness kills that process forcibly, snapshots the prior file
+bytes, and relaunches the binary through the ordinary window, preload, startup-choice, and renderer
+history path. The verifier selects the opaque recovery choice, confirms the exact recovered note is
+live, dirty, and recovery-sourced (therefore Save As is still required), and proves the prior file is
+still byte-identical. The test-only writer is confined after real-path resolution to an initially
+empty, contract-named directory beneath the operating system temp root; it cannot be pointed at
+ordinary project or user-data directories.
+
 Rules:
 
 - Parse untrusted project files with runtime schemas and size limits.
@@ -324,7 +480,7 @@ Rules:
 - Preserve the failed source file when migration or parsing fails.
 - Content-address assets and generate thumbnails/previews as disposable caches.
 
-Save status occupies a reserved shell location and does not shift the layout. The application restores unsaved work after a simulated crash as an acceptance test.
+Save status occupies a reserved shell location and does not shift the layout. The application restores unsaved work after a forcibly terminated packaged process as an acceptance test on macOS and Windows.
 
 ## 10. Visual system and layout stability
 
@@ -434,6 +590,13 @@ If a budget fails, profile before changing rendering technology. Caching, cullin
 
 Packaged smoke readiness is an explicit renderer-to-main handshake through the allowlisted preload API. A smoke pass requires the React shell to mount, runtime IPC to validate, the trusted renderer to report ready, and a short stabilization interval to remain free of load failures, preload failures, renderer crashes/unresponsiveness, and console warnings/errors. The passing run captures the rendered window, and CI uploads it per operating system for visual review. Merely resolving `BrowserWindow.loadURL()` is not sufficient evidence.
 
+The packaged project-workflow probe uses the real renderer, preload, trusted IPC, history session,
+main controller, persistence workflow, and native close handshake. Inside a fresh real-path-confined
+OS-temp `userData` root, the renderer creates a project, accepts a command, saves to one fixed safe
+probe file through injected dialogs, and closes normally. Main then reopens that file through a new
+lifecycle and verifies the exact edit. The external owner requires a clean exit, exact marker, empty
+stderr, and non-empty file; the test hook cannot target an ordinary user or project directory.
+
 ### 13.2 Required visual matrix
 
 - No selection, each representative inspector schema, and multi-selection.
@@ -460,20 +623,23 @@ A feature is done only when:
 
 ## 14. Decision log
 
-| ID    | Decision                                                   | Rationale                                                                                                           | Status                                    |
-| ----- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| D-001 | Electron, React, TypeScript, and Vite                      | One Chromium engine across macOS/Windows; mature desktop packaging                                                  | Accepted                                  |
-| D-002 | Standard OS window frame initially                         | Avoid premature platform-specific title-bar complexity                                                              | Accepted                                  |
-| D-003 | World-space geometry plus one viewport transform           | Prevent coordinate drift and duplicate conversion logic                                                             | Accepted                                  |
-| D-004 | Command-only persisted mutations                           | Deterministic undo/redo, validation, and tracing                                                                    | Accepted                                  |
-| D-005 | SVG scene with separate overlays first                     | Correct vector behavior and export path; optimize based on measurement                                              | Accepted                                  |
-| D-006 | Schema-driven control definition registry                  | One source for catalog, rendering, inspector, search, and persistence                                               | Accepted                                  |
-| D-007 | Fixed shell plus overlay feedback                          | Eliminate selection/error-driven layout movement                                                                    | Accepted                                  |
-| D-008 | Portable versioned container with atomic save/recovery     | Offline reliability and safe evolution                                                                              | Accepted                                  |
-| D-009 | Pin the Forge Vite integration exactly                     | Contain the migration risk of Forge's experimental Vite plugin                                                      | Accepted                                  |
-| D-010 | Temporarily accept Forge's dev-only `extract-zip` advisory | No patched upstream release exists; production dependency audit is clean and packaging input is trusted/checksummed | Temporary; review every dependency update |
-| D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored    | Accepted                                  |
-| D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts   | Accepted                                  |
+| ID    | Decision                                                   | Rationale                                                                                                             | Status                                    |
+| ----- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| D-001 | Electron, React, TypeScript, and Vite                      | One Chromium engine across macOS/Windows; mature desktop packaging                                                    | Accepted                                  |
+| D-002 | Standard OS window frame initially                         | Avoid premature platform-specific title-bar complexity                                                                | Accepted                                  |
+| D-003 | World-space geometry plus one viewport transform           | Prevent coordinate drift and duplicate conversion logic                                                               | Accepted                                  |
+| D-004 | Command-only persisted mutations                           | Deterministic undo/redo, validation, and tracing                                                                      | Accepted                                  |
+| D-005 | SVG scene with separate overlays first                     | Correct vector behavior and export path; optimize based on measurement                                                | Accepted                                  |
+| D-006 | Schema-driven control definition registry                  | One source for catalog, rendering, inspector, search, and persistence                                                 | Accepted                                  |
+| D-007 | Fixed shell plus overlay feedback                          | Eliminate selection/error-driven layout movement                                                                      | Accepted                                  |
+| D-008 | Portable versioned container with atomic save/recovery     | Offline reliability and safe evolution                                                                                | Accepted                                  |
+| D-009 | Pin the Forge Vite integration exactly                     | Contain the migration risk of Forge's experimental Vite plugin                                                        | Accepted                                  |
+| D-010 | Temporarily accept Forge's dev-only `extract-zip` advisory | No patched upstream release exists; production dependency audit is clean and packaging input is trusted/checksummed   | Temporary; review every dependency update |
+| D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored      | Accepted                                  |
+| D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts     | Accepted                                  |
+| D-013 | Brand-neutral deterministic v1 logical file entries        | Keep schema, assets, tests, and future archive adapters stable while the public product name and extension can change | Accepted                                  |
+| D-014 | Pinned asynchronous `fflate` ZIP adapter                   | Produce portable deterministic archives without blocking the renderer or implementing security-sensitive ZIP logic    | Accepted                                  |
+| D-015 | Renderer-owned project history with opaque validated IPC   | Keep one live document authority while main exclusively owns paths, dialogs, durability, recovery, and native close   | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 

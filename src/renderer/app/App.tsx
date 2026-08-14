@@ -1,11 +1,74 @@
 import { useEffect, useState } from 'react';
 
+import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
+import recoveryProbeContract from '../../../recovery-probe-contract.json';
 import { AppShell } from '../shell/AppShell';
+import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
+import { useProjectSession } from '../projects/use-project-session';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
 const getPlatformLabel = (platform: 'darwin' | 'win32'): string =>
   platform === 'darwin' ? 'macOS' : 'Windows';
+
+interface ProjectWorkspaceProps {
+  readonly quickAddShortcut: string;
+  readonly runtimeLabel: string;
+}
+
+const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
+  const query = new URLSearchParams(window.location.search);
+  const packagedProbeEnabled =
+    query.get(projectWorkflowProbeContract.queryKey) === projectWorkflowProbeContract.queryValue;
+  const packagedRecoveryRestore =
+    query.get(recoveryProbeContract.rendererQueryKey) === recoveryProbeContract.rendererQueryValue;
+  const project = useProjectSession(window.balsamicDesktop, {
+    ...(packagedProbeEnabled ? { packagedProbeNote: projectWorkflowProbeContract.note } : {}),
+    ...(packagedRecoveryRestore ? { packagedRecoveryRestore: true } : {}),
+  });
+  const { session, view } = project;
+  const firstBoardId = view.history?.document.boardIds[0];
+  const firstBoardNote =
+    firstBoardId === undefined
+      ? undefined
+      : view.history?.document.boardsById[firstBoardId]?.note.text;
+  return (
+    <AppShell
+      projectName={view.displayName}
+      projectOverlay={
+        view.dialog === undefined ? undefined : (
+          <ProjectDecisionDialog
+            busy={view.isTransitioning}
+            dialog={view.dialog}
+            onDismiss={() => session.dismissDialog()}
+            onDiscardRecovery={(recoveryId) => void session.discardRecovery(recoveryId)}
+            onOpenFile={() => void session.openProject()}
+            onOpenRecent={(recentProjectId) => void session.openRecentProject(recentProjectId)}
+            onRestoreRecovery={(recoveryId) => void session.restoreRecovery(recoveryId)}
+            onStartNew={() => void session.startNewProject()}
+          />
+        )
+      }
+      {...(packagedRecoveryRestore
+        ? {
+            projectProbeState: {
+              attributeName: recoveryProbeContract.rendererStateAttribute,
+              value: JSON.stringify({
+                isDirty: view.isDirty,
+                isReady: view.isReady,
+                note: firstBoardNote,
+                source: view.source,
+              }),
+            },
+          }
+        : {})}
+      quickAddShortcut={quickAddShortcut}
+      statusLabel={view.statusLabel}
+      statusScope={runtimeLabel}
+      statusTone={view.statusTone}
+    />
+  );
+};
 
 export const App = () => {
   const runtime = useRuntimeInfo();
@@ -41,8 +104,8 @@ export const App = () => {
     return (
       <AppShell
         quickAddShortcut="Ctrl/Cmd K"
-        runtimeLabel="Connecting to desktop…"
-        runtimeTone="quiet"
+        statusLabel="Connecting to desktop…"
+        statusTone="quiet"
       />
     );
   }
@@ -51,8 +114,8 @@ export const App = () => {
     return (
       <AppShell
         quickAddShortcut="Ctrl/Cmd K"
-        runtimeLabel="Desktop bridge unavailable"
-        runtimeTone="problem"
+        statusLabel="Desktop bridge unavailable"
+        statusTone="problem"
       />
     );
   }
@@ -61,10 +124,9 @@ export const App = () => {
   const mode = isPackaged ? 'Packaged' : 'Development';
 
   return (
-    <AppShell
+    <ProjectWorkspace
       quickAddShortcut={platform === 'darwin' ? '⌘ K' : 'Ctrl K'}
       runtimeLabel={`${getPlatformLabel(platform)} · ${arch} · v${appVersion} · ${mode}`}
-      runtimeTone="ready"
     />
   );
 };
