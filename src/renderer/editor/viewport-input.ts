@@ -1,6 +1,7 @@
 import type { ViewportCameraStore } from './viewport-camera-store';
 import type { ViewportFramingRequest } from './viewport-framing';
 import type { SelectionInteraction, SelectionPointerPosition } from './selection-interaction';
+import type { ResizeHandle } from './resize-geometry';
 import {
   clientPointToViewport,
   createClientPoint,
@@ -8,6 +9,7 @@ import {
   createViewportTransform,
   createViewportVector,
   viewportPointToWorld,
+  type ViewportPoint,
   type ViewportTransform,
 } from './viewport-transform';
 
@@ -128,6 +130,7 @@ export class ViewportInputController {
 
   #activePan: ActivePan | undefined;
   #connected = false;
+  #hoveredResizeHandle: ResizeHandle | undefined;
   #spacePressed = false;
   #unsubscribeSelectionInteraction: (() => void) | undefined;
 
@@ -149,6 +152,7 @@ export class ViewportInputController {
     this.#root.addEventListener('keydown', this.#handleKeyDown);
     this.#root.addEventListener('pointercancel', this.#handlePointerCancel);
     this.#root.addEventListener('pointerdown', this.#handlePointerDown);
+    this.#root.addEventListener('pointerleave', this.#handlePointerLeave);
     this.#root.addEventListener('pointermove', this.#handlePointerMove);
     this.#root.addEventListener('pointerup', this.#handlePointerUp);
     this.#root.addEventListener('lostpointercapture', this.#handleLostPointerCapture);
@@ -169,12 +173,15 @@ export class ViewportInputController {
     this.#cancelSelectionPress();
     this.#connected = false;
     this.#spacePressed = false;
+    this.#hoveredResizeHandle = undefined;
     this.#unsubscribeSelectionInteraction?.();
     this.#unsubscribeSelectionInteraction = undefined;
     this.#updatePanState();
+    this.#updateSelectionState();
     this.#root.removeEventListener('keydown', this.#handleKeyDown);
     this.#root.removeEventListener('pointercancel', this.#handlePointerCancel);
     this.#root.removeEventListener('pointerdown', this.#handlePointerDown);
+    this.#root.removeEventListener('pointerleave', this.#handlePointerLeave);
     this.#root.removeEventListener('pointermove', this.#handlePointerMove);
     this.#root.removeEventListener('pointerup', this.#handlePointerUp);
     this.#root.removeEventListener('lostpointercapture', this.#handleLostPointerCapture);
@@ -230,7 +237,9 @@ export class ViewportInputController {
     }
     event.preventDefault();
     this.#spacePressed = true;
+    this.#hoveredResizeHandle = undefined;
     this.#updatePanState();
+    this.#updateSelectionState();
   };
 
   #handleKeyUp = (event: KeyboardEvent): void => {
@@ -251,6 +260,7 @@ export class ViewportInputController {
     }
     if (shouldStartPan(event, this.#spacePressed)) {
       event.preventDefault();
+      this.#hoveredResizeHandle = undefined;
       this.#camera.flushPending();
       this.#activePan = Object.freeze({
         pointerId: event.pointerId,
@@ -261,6 +271,7 @@ export class ViewportInputController {
       });
       this.#root.setPointerCapture?.(event.pointerId);
       this.#updatePanState();
+      this.#updateSelectionState();
       return;
     }
     if (
@@ -285,6 +296,7 @@ export class ViewportInputController {
       })
     ) {
       event.preventDefault();
+      this.#hoveredResizeHandle = undefined;
       this.#root.setPointerCapture?.(event.pointerId);
       this.#updateSelectionState();
     }
@@ -292,7 +304,7 @@ export class ViewportInputController {
 
   #handlePointerMove = (event: PointerEvent): void => {
     const activePan = this.#activePan;
-    if (activePan === undefined || activePan.pointerId !== event.pointerId) {
+    if (activePan === undefined) {
       const position = this.#getSelectionPosition(event);
       if (
         position !== undefined &&
@@ -303,7 +315,12 @@ export class ViewportInputController {
       ) {
         event.preventDefault();
         this.#updateSelectionState();
+      } else {
+        this.#updateResizeHover(position?.viewportPoint);
       }
+      return;
+    }
+    if (activePan.pointerId !== event.pointerId) {
       return;
     }
     event.preventDefault();
@@ -349,6 +366,15 @@ export class ViewportInputController {
     }
   };
 
+  #handlePointerLeave = (): void => {
+    if (
+      this.#activePan === undefined &&
+      (this.#selectionInteraction?.getSnapshot().kind ?? 'idle') === 'idle'
+    ) {
+      this.#updateResizeHover(undefined);
+    }
+  };
+
   #handleLostPointerCapture = (event: PointerEvent): void => {
     if (this.#activePan?.pointerId === event.pointerId) {
       this.#cancelPan();
@@ -367,6 +393,7 @@ export class ViewportInputController {
       event.preventDefault();
       return;
     }
+    this.#updateResizeHover(undefined);
     const bounds = this.#root.getBoundingClientRect();
     if (bounds.width <= 0 || bounds.height <= 0) {
       return;
@@ -389,6 +416,7 @@ export class ViewportInputController {
 
   #handleWindowBlur = (): void => {
     this.#spacePressed = false;
+    this.#hoveredResizeHandle = undefined;
     this.#cancelPan();
     this.#cancelSelectionPress();
   };
@@ -459,5 +487,24 @@ export class ViewportInputController {
   #updateSelectionState = (): void => {
     const snapshot = this.#selectionInteraction?.getSnapshot();
     this.#root.dataset.selectionState = snapshot?.kind ?? 'idle';
+    const resizeHandle =
+      snapshot?.kind === 'resizing' ? snapshot.handle : this.#hoveredResizeHandle;
+    if (resizeHandle === undefined) {
+      delete this.#root.dataset.resizeHandle;
+    } else {
+      this.#root.dataset.resizeHandle = resizeHandle;
+    }
   };
+
+  #updateResizeHover(point: ViewportPoint | undefined): void {
+    const handle =
+      point === undefined
+        ? undefined
+        : this.#selectionInteraction?.queryResizeHandleWhenIdle(point);
+    if (handle === this.#hoveredResizeHandle) {
+      return;
+    }
+    this.#hoveredResizeHandle = handle;
+    this.#updateSelectionState();
+  }
 }

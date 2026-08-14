@@ -12,6 +12,8 @@ import { DocumentScene } from '../src/renderer/editor/DocumentScene';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
+import { captureResizeTarget } from '../src/renderer/editor/resize-geometry';
+import { ResizeInteraction } from '../src/renderer/editor/resize-interaction';
 import { ViewportScene } from '../src/renderer/editor/ViewportScene';
 import {
   ViewportCameraStore,
@@ -238,6 +240,105 @@ describe('document SVG scene', () => {
     move.cancel(4);
     expect(moved).not.toHaveAttribute('transform');
     expect(unrelated).not.toHaveAttribute('transform');
+    expect(sceneRenderCount).toBe(1);
+    camera.dispose();
+  });
+
+  it('regenerates only resized preview geometry and restores the canonical keyed node on cancel', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const resizeScheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler: cameraScheduler,
+    });
+    const document = parseMovePreviewFixture();
+    const model = new DocumentSceneModel();
+    const resize = new ResizeInteraction(
+      {
+        capture: (id) => captureResizeTarget(document, id),
+        commit: () => false,
+      },
+      resizeScheduler,
+    );
+    let sceneRenderCount = 0;
+    const CountedScene = () => {
+      const renders = useRef(0);
+      renders.current += 1;
+      sceneRenderCount = renders.current;
+      return (
+        <DocumentScene
+          activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+          camera={camera}
+          document={document}
+          model={model}
+          resizeInteraction={resize}
+        />
+      );
+    };
+    const view = render(<ViewportScene camera={camera} worldChildren={<CountedScene />} />);
+    cameraScheduler.flushNext();
+    const resized = view.container.querySelector<SVGGElement>(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const unrelated = view.container.querySelector<SVGGElement>(
+      `[data-scene-element-id="${OTHER_ID}"]`,
+    );
+    if (resized === null || unrelated === null) {
+      throw new Error('Resize preview scene elements did not mount.');
+    }
+    const resizedFill = resized.querySelector<SVGRectElement>('rect');
+    const resizedPath = resized.querySelector<SVGPathElement>('path');
+    const originalPath = resizedPath?.getAttribute('d');
+    const originalRevision = resized.dataset.sceneRevision;
+    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedRevision = unrelated.dataset.sceneRevision;
+
+    resize.begin({
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      handle: 'southEast',
+      pointerId: 10,
+      shiftKey: false,
+      startWorldPoint: createWorldPoint(116, 84.5),
+      worldPoint: createWorldPoint(116, 84.5),
+    });
+    for (let index = 1; index <= 500; index += 1) {
+      resize.update({
+        pointerId: 10,
+        shiftKey: false,
+        worldPoint: createWorldPoint(116 + index / 10, 84.5 + index / 20),
+      });
+    }
+    expect(resizeScheduler.callbacks.size).toBe(1);
+    resizeScheduler.flushNext();
+
+    expect(resizedFill).toHaveAttribute('x', '-4');
+    expect(resizedFill).toHaveAttribute('y', '36.5');
+    expect(resizedFill).toHaveAttribute('width', '170');
+    expect(resizedFill).toHaveAttribute('height', '73');
+    expect(resizedPath?.getAttribute('d')).not.toBe(originalPath);
+    expect(resized.dataset.sceneRevision).toBe(originalRevision);
+    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
+    expect(sceneRenderCount).toBe(1);
+
+    resize.cancel(10);
+    expect(resizedFill).toHaveAttribute('width', '120');
+    expect(resizedFill).toHaveAttribute('height', '48');
+    expect(resizedPath?.getAttribute('d')).toBe(originalPath);
+    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
     expect(sceneRenderCount).toBe(1);
     camera.dispose();
   });

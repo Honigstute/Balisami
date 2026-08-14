@@ -6,6 +6,8 @@ import { parseProjectDocument, type ProjectDocument } from '../src/domain';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
+import { captureResizeTarget } from '../src/renderer/editor/resize-geometry';
+import { ResizeInteraction } from '../src/renderer/editor/resize-interaction';
 import { SelectionOverlay } from '../src/renderer/editor/SelectionOverlay';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import {
@@ -87,6 +89,14 @@ describe('selection overlay', () => {
       },
       moveScheduler,
     );
+    const resizeScheduler = new TestAnimationFrameScheduler();
+    const resize = new ResizeInteraction(
+      {
+        capture: (id) => captureResizeTarget(document, id),
+        commit: () => false,
+      },
+      resizeScheduler,
+    );
     let overlayRenderCount = 0;
     const CountedOverlay = () => {
       const renders = useRef(0);
@@ -97,6 +107,7 @@ describe('selection overlay', () => {
           camera={camera}
           model={model}
           moveInteraction={move}
+          resizeInteraction={resize}
           selection={selection}
         />
       );
@@ -119,6 +130,7 @@ describe('selection overlay', () => {
     expect(outline).toHaveAttribute('width', '120');
     expect(outline).toHaveAttribute('height', '48');
     expect([...handles].every((handle) => handle.getAttribute('width') === '8')).toBe(true);
+    expect(handles).toHaveLength(8);
 
     camera.scheduleTransform(createViewportTransform({ panX: 10, panY: -5, zoom: 2 }));
     scheduler.flushNext();
@@ -146,6 +158,29 @@ describe('selection overlay', () => {
     expect(outline).toHaveAttribute('x', '2');
     expect(outline).toHaveAttribute('y', '68');
     expect(overlayRenderCount).toBe(1);
+
+    resize.begin({
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      handle: 'southEast',
+      pointerId: 9,
+      shiftKey: false,
+      startWorldPoint: createWorldPoint(116, 84.5),
+      worldPoint: createWorldPoint(136, 94.5),
+    });
+    expect(outline).toHaveAttribute('x', '2');
+    expect(outline).toHaveAttribute('y', '68');
+    expect(outline).toHaveAttribute('width', '280');
+    expect(outline).toHaveAttribute('height', '116');
+    expect([...handles].every((handle) => handle.getAttribute('width') === '8')).toBe(true);
+    expect(overlayRenderCount).toBe(1);
+
+    resize.cancel(9);
+    expect(outline).toHaveAttribute('width', '240');
+    expect(outline).toHaveAttribute('height', '96');
+
+    selection.replace([DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child]);
+    expect(group).toHaveAttribute('data-selection-count', '2');
+    expect([...handles].every((handle) => handle.getAttribute('display') === 'none')).toBe(true);
     camera.dispose();
   });
 });

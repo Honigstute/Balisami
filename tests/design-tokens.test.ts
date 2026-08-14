@@ -25,6 +25,11 @@ describe('visual token contract', () => {
   it('keeps spacing on the four-pixel foundation grid', () => {
     expect(Object.values(DESIGN_TOKENS.space).every((value) => value % 4 === 0)).toBe(true);
     expect(DESIGN_TOKENS.shell.collapsedPaneWidth % 4).toBe(0);
+    expect(DESIGN_TOKENS.editor.selectionHandleSize % 4).toBe(0);
+    expect(DESIGN_TOKENS.editor.selectionHandleHitSize % 4).toBe(0);
+    expect(DESIGN_TOKENS.editor.selectionHandleHitSize).toBeGreaterThanOrEqual(
+      DESIGN_TOKENS.editor.selectionHandleSize,
+    );
   });
 
   it('defines valid pane defaults and ordered global overlay tiers', () => {

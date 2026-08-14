@@ -3,6 +3,8 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { BoardId, ElementId, ProjectDocument } from '../../domain';
 import type { DocumentSceneItem, DocumentSceneModel } from './document-scene-model';
 import type { MoveInteraction, MoveInteractionSnapshot } from './move-interaction';
+import type { ResizeInteraction, ResizeInteractionSnapshot } from './resize-interaction';
+import { createSeededSketchRectPath } from './seeded-sketch';
 import type { ViewportCameraStore } from './viewport-camera-store';
 
 interface DocumentSceneProps {
@@ -11,14 +13,17 @@ interface DocumentSceneProps {
   readonly document: ProjectDocument;
   readonly model: DocumentSceneModel;
   readonly moveInteraction?: MoveInteraction;
+  readonly resizeInteraction?: ResizeInteraction;
 }
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 class DocumentScenePresenter {
+  readonly #canonicalItemsById = new Map<ElementId, DocumentSceneItem>();
   readonly #elementsById = new Map<ElementId, SVGGElement>();
   readonly #root: SVGGElement;
   #moveSnapshot: MoveInteractionSnapshot | undefined;
+  #resizeSnapshot: ResizeInteractionSnapshot | undefined;
   #visibleOrder: readonly ElementId[] = Object.freeze([]);
 
   constructor(root: SVGGElement) {
@@ -27,7 +32,9 @@ class DocumentScenePresenter {
 
   clear(): void {
     this.#elementsById.clear();
+    this.#canonicalItemsById.clear();
     this.#moveSnapshot = undefined;
+    this.#resizeSnapshot = undefined;
     this.#visibleOrder = Object.freeze([]);
     this.#root.replaceChildren();
   }
@@ -42,9 +49,11 @@ class DocumentScenePresenter {
       if (!visibleIds.has(id)) {
         element.remove();
         this.#elementsById.delete(id);
+        this.#canonicalItemsById.delete(id);
       }
     }
     for (const item of items) {
+      this.#canonicalItemsById.set(item.id, item);
       const element = this.#elementsById.get(item.id) ?? this.#createElement(item.id);
       if (element.dataset.sceneRevision !== item.revision) {
         this.#updateElement(element, item);
@@ -55,6 +64,18 @@ class DocumentScenePresenter {
     }
     this.#visibleOrder = Object.freeze(nextOrder);
     this.#applyMovePreview();
+    this.#applyResizePreview();
+  }
+
+  setResizePreview(snapshot: ResizeInteractionSnapshot | undefined): void {
+    const previousId =
+      this.#resizeSnapshot?.kind === 'resizing' ? this.#resizeSnapshot.elementId : undefined;
+    const nextId = snapshot?.kind === 'resizing' ? snapshot.elementId : undefined;
+    this.#resizeSnapshot = snapshot;
+    if (previousId !== undefined && previousId !== nextId) {
+      this.#restoreCanonicalElement(previousId);
+    }
+    this.#applyResizePreview();
   }
 
   setMovePreview(snapshot: MoveInteractionSnapshot | undefined): void {
@@ -82,6 +103,30 @@ class DocumentScenePresenter {
     }
   }
 
+  #applyResizePreview(): void {
+    const snapshot = this.#resizeSnapshot;
+    if (snapshot?.kind !== 'resizing') {
+      return;
+    }
+    const element = this.#elementsById.get(snapshot.elementId);
+    if (element === undefined) {
+      return;
+    }
+    this.#updateElementGeometry(
+      element,
+      snapshot.worldBounds,
+      createSeededSketchRectPath(snapshot.worldBounds, snapshot.elementId),
+    );
+  }
+
+  #restoreCanonicalElement(id: ElementId): void {
+    const element = this.#elementsById.get(id);
+    const item = this.#canonicalItemsById.get(id);
+    if (element !== undefined && item !== undefined) {
+      this.#updateElementGeometry(element, item.bounds, item.path);
+    }
+  }
+
   #createElement(id: ElementId): SVGGElement {
     const element = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const fill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
@@ -95,6 +140,15 @@ class DocumentScenePresenter {
   }
 
   #updateElement(element: SVGGElement, item: DocumentSceneItem): void {
+    this.#updateElementGeometry(element, item.bounds, item.path);
+    element.dataset.sceneRevision = item.revision;
+  }
+
+  #updateElementGeometry(
+    element: SVGGElement,
+    bounds: DocumentSceneItem['bounds'],
+    path: string,
+  ): void {
     const fill = element.children[0];
     const outline = element.children[1];
     if (fill?.localName !== 'rect' || outline?.localName !== 'path') {
@@ -102,12 +156,11 @@ class DocumentScenePresenter {
     }
     const fillElement = fill as SVGRectElement;
     const outlineElement = outline as SVGPathElement;
-    fillElement.setAttribute('x', String(item.bounds.x));
-    fillElement.setAttribute('y', String(item.bounds.y));
-    fillElement.setAttribute('width', String(item.bounds.width));
-    fillElement.setAttribute('height', String(item.bounds.height));
-    outlineElement.setAttribute('d', item.path);
-    element.dataset.sceneRevision = item.revision;
+    fillElement.setAttribute('x', String(bounds.x));
+    fillElement.setAttribute('y', String(bounds.y));
+    fillElement.setAttribute('width', String(bounds.width));
+    fillElement.setAttribute('height', String(bounds.height));
+    outlineElement.setAttribute('d', path);
   }
 }
 
@@ -118,6 +171,7 @@ export const DocumentScene = ({
   document,
   model,
   moveInteraction,
+  resizeInteraction,
 }: DocumentSceneProps) => {
   const rootRef = useRef<SVGGElement | null>(null);
   const presenterRef = useRef<DocumentScenePresenter | undefined>(undefined);
@@ -156,6 +210,13 @@ export const DocumentScene = ({
     apply();
     return moveInteraction?.subscribe(apply);
   }, [moveInteraction]);
+
+  useLayoutEffect(() => {
+    const apply = (): void =>
+      presenterRef.current?.setResizePreview(resizeInteraction?.getSnapshot());
+    apply();
+    return resizeInteraction?.subscribe(apply);
+  }, [resizeInteraction]);
 
   return <g data-scene-content="document-elements" ref={rootRef} />;
 };

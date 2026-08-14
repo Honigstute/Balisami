@@ -1,8 +1,13 @@
 import { useLayoutEffect, useRef } from 'react';
 
-import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { DocumentSceneModel } from './document-scene-model';
 import type { MoveInteraction } from './move-interaction';
+import {
+  getResizeHandlePositions,
+  RESIZE_HANDLES,
+  RESIZE_INTERACTION_POLICY,
+} from './resize-geometry';
+import type { ResizeInteraction } from './resize-interaction';
 import { getSceneSelectionWorldBounds } from './selection-bounds';
 import type { SelectionStore } from './selection-store';
 import type { ViewportCameraStore } from './viewport-camera-store';
@@ -12,16 +17,16 @@ interface SelectionOverlayProps {
   readonly camera: ViewportCameraStore;
   readonly model: DocumentSceneModel;
   readonly moveInteraction?: MoveInteraction;
+  readonly resizeInteraction?: ResizeInteraction;
   readonly selection: SelectionStore;
 }
-
-const HANDLE_SIZE = DESIGN_TOKENS.space[2];
 
 /** Fixed-screen selection geometry; camera publications never enter React. */
 export const SelectionOverlay = ({
   camera,
   model,
   moveInteraction,
+  resizeInteraction,
   selection,
 }: SelectionOverlayProps) => {
   const groupRef = useRef<SVGGElement | null>(null);
@@ -38,11 +43,16 @@ export const SelectionOverlay = ({
     }
 
     const apply = (): void => {
+      const selectionSnapshot = selection.getSnapshot();
       const moveSnapshot = moveInteraction?.getSnapshot();
+      const resizeSnapshot = resizeInteraction?.getSnapshot();
       const worldBounds = getSceneSelectionWorldBounds(
         model,
-        selection.getSnapshot().selectedIds,
+        selectionSnapshot.selectedIds,
         moveSnapshot?.kind === 'moving' ? moveSnapshot : undefined,
+        resizeSnapshot?.kind === 'resizing'
+          ? { bounds: resizeSnapshot.worldBounds, elementId: resizeSnapshot.elementId }
+          : undefined,
       );
       if (worldBounds === undefined) {
         group.setAttribute('display', 'none');
@@ -55,47 +65,47 @@ export const SelectionOverlay = ({
       outlineElement.setAttribute('y', String(bounds.y));
       outlineElement.setAttribute('width', String(bounds.width));
       outlineElement.setAttribute('height', String(bounds.height));
-      const halfHandle = HANDLE_SIZE / 2;
-      const corners = [
-        [bounds.x, bounds.y],
-        [bounds.x + bounds.width, bounds.y],
-        [bounds.x, bounds.y + bounds.height],
-        [bounds.x + bounds.width, bounds.y + bounds.height],
-      ] as const;
+      const halfHandle = RESIZE_INTERACTION_POLICY.handleSizePixels / 2;
+      const positions = getResizeHandlePositions(bounds);
       handles.forEach((handle, index) => {
-        const corner = corners[index];
-        if (corner === undefined) {
+        const position = positions[index];
+        if (position === undefined) {
           return;
         }
-        handle.setAttribute('x', String(corner[0] - halfHandle));
-        handle.setAttribute('y', String(corner[1] - halfHandle));
-        handle.setAttribute('width', String(HANDLE_SIZE));
-        handle.setAttribute('height', String(HANDLE_SIZE));
+        handle.setAttribute('x', String(position.point.x - halfHandle));
+        handle.setAttribute('y', String(position.point.y - halfHandle));
+        handle.setAttribute('width', String(RESIZE_INTERACTION_POLICY.handleSizePixels));
+        handle.setAttribute('height', String(RESIZE_INTERACTION_POLICY.handleSizePixels));
+        handle.setAttribute(
+          'display',
+          selectionSnapshot.selectedIds.length === 1 ? 'inline' : 'none',
+        );
       });
       group.removeAttribute('display');
-      group.dataset.selectionCount = String(selection.getSnapshot().selectedIds.length);
+      group.dataset.selectionCount = String(selectionSnapshot.selectedIds.length);
     };
 
     apply();
     const unsubscribeCamera = camera.subscribe(apply);
     const unsubscribeModel = model.subscribe(apply);
     const unsubscribeMove = moveInteraction?.subscribe(apply);
+    const unsubscribeResize = resizeInteraction?.subscribe(apply);
     const unsubscribeSelection = selection.subscribe(apply);
     return () => {
       unsubscribeCamera();
       unsubscribeModel();
       unsubscribeMove?.();
+      unsubscribeResize?.();
       unsubscribeSelection();
     };
-  }, [camera, model, moveInteraction, selection]);
+  }, [camera, model, moveInteraction, resizeInteraction, selection]);
 
   return (
     <g data-selection-count="0" data-selection-overlay="bounds" display="none" ref={groupRef}>
       <rect className="selection-overlay__outline" />
-      <rect className="selection-overlay__handle" />
-      <rect className="selection-overlay__handle" />
-      <rect className="selection-overlay__handle" />
-      <rect className="selection-overlay__handle" />
+      {RESIZE_HANDLES.map((handle) => (
+        <rect className="selection-overlay__handle" data-resize-handle={handle} key={handle} />
+      ))}
     </g>
   );
 };

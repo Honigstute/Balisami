@@ -90,6 +90,10 @@ export const DESIGN_TOKENS = {
     sliderTrackSize: 4,
     swatchWidth: 64,
   },
+  editor: {
+    selectionHandleHitSize: 16,
+    selectionHandleSize: 8,
+  },
   motion: {
     fast: 80,
     standard: 140,
@@ -193,6 +197,8 @@ export const DESIGN_TOKEN_CSS_VARIABLES = {
   '--slider-thumb-size': px(DESIGN_TOKENS.control.sliderThumbSize),
   '--slider-track-size': px(DESIGN_TOKENS.control.sliderTrackSize),
   '--swatch-width': px(DESIGN_TOKENS.control.swatchWidth),
+  '--selection-handle-hit-size': px(DESIGN_TOKENS.editor.selectionHandleHitSize),
+  '--selection-handle-size': px(DESIGN_TOKENS.editor.selectionHandleSize),
   '--motion-fast': `${String(DESIGN_TOKENS.motion.fast)}ms`,
   '--motion-standard': `${String(DESIGN_TOKENS.motion.standard)}ms`,
   '--motion-reduced': `${String(DESIGN_TOKENS.motion.reduced)}ms`,

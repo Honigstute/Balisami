@@ -535,6 +535,26 @@ p {
   cursor: move;
 }
 
+.editor-viewport[data-resize-handle='north'],
+.editor-viewport[data-resize-handle='south'] {
+  cursor: ns-resize;
+}
+
+.editor-viewport[data-resize-handle='east'],
+.editor-viewport[data-resize-handle='west'] {
+  cursor: ew-resize;
+}
+
+.editor-viewport[data-resize-handle='northWest'],
+.editor-viewport[data-resize-handle='southEast'] {
+  cursor: nwse-resize;
+}
+
+.editor-viewport[data-resize-handle='northEast'],
+.editor-viewport[data-resize-handle='southWest'] {
+  cursor: nesw-resize;
+}
+
 .editor-viewport:focus-visible {
   outline: calc(var(--border-width) * 2) solid var(--color-accent-strong);
   outline-offset: calc(var(--border-width) * -2);

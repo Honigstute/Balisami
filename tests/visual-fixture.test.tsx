@@ -58,6 +58,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
     expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
     expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
+    expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
     expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
     expect(getRequestedVisualFixture('?visualFixture=viewportSelectionZoom')).toBe(
@@ -97,7 +98,7 @@ describe('visual conformance fixture contract', () => {
     const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
     expect(overlay).not.toHaveAttribute('display', 'none');
     expect(overlay).toHaveAttribute('data-selection-count', '1');
-    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(4);
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
@@ -111,6 +112,21 @@ describe('visual conformance fixture contract', () => {
     expect(outline).toHaveAttribute('x', '308');
     expect(outline).toHaveAttribute('y', '332');
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders a transient resize with aligned fixed-screen handles and stable shell layout', () => {
+    const view = renderFixture('resize');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '188');
+    expect(outline).toHaveAttribute('y', '272');
+    expect(outline).toHaveAttribute('width', '208');
+    expect(outline).toHaveAttribute('height', '84');
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

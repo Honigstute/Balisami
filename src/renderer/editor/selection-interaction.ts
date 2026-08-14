@@ -1,6 +1,8 @@
 import type { ElementId } from '../../domain';
 import type { DocumentSceneSelectionRegionMode } from './document-scene-model';
 import type { MoveInteraction } from './move-interaction';
+import type { ResizeHandle } from './resize-geometry';
+import type { ResizeInteraction } from './resize-interaction';
 import type { SelectionSnapshot, SelectionStore } from './selection-store';
 import {
   createWorldRect,
@@ -20,6 +22,10 @@ export interface SelectionInteractionGeometry {
     bounds: WorldRect,
     mode: DocumentSceneSelectionRegionMode,
   ) => readonly ElementId[];
+  readonly queryResizeHandle?: (
+    elementId: ElementId,
+    point: ViewportPoint,
+  ) => ResizeHandle | undefined;
 }
 
 export interface SelectionPointerPosition {
@@ -46,6 +52,11 @@ export type SelectionInteractionSnapshot =
     }
   | {
       readonly kind: 'moving';
+      readonly pointerId: number;
+    }
+  | {
+      readonly handle: ResizeHandle;
+      readonly kind: 'resizing';
       readonly pointerId: number;
     }
   | {
@@ -87,7 +98,14 @@ interface ActiveMoving {
   readonly selectionAtPress: SelectionSnapshot;
 }
 
-type ActiveSelectionGesture = ActiveMarquee | ActiveMoving | ActivePressed;
+interface ActiveResizing {
+  readonly handle: ResizeHandle;
+  readonly kind: 'resizing';
+  readonly pointerId: number;
+  readonly selectionAtPress: SelectionSnapshot;
+}
+
+type ActiveSelectionGesture = ActiveMarquee | ActiveMoving | ActivePressed | ActiveResizing;
 
 const IDLE_SNAPSHOT: SelectionInteractionSnapshot = Object.freeze({ kind: 'idle' });
 
@@ -136,6 +154,13 @@ const toPublicSnapshot = (gesture: ActiveSelectionGesture): SelectionInteraction
   if (gesture.kind === 'moving') {
     return Object.freeze({ kind: 'moving', pointerId: gesture.pointerId });
   }
+  if (gesture.kind === 'resizing') {
+    return Object.freeze({
+      handle: gesture.handle,
+      kind: 'resizing',
+      pointerId: gesture.pointerId,
+    });
+  }
   return Object.freeze({
     currentViewportPoint: gesture.currentViewportPoint,
     kind: 'marquee',
@@ -158,6 +183,7 @@ export class SelectionInteraction {
   readonly #geometry: SelectionInteractionGeometry;
   readonly #listeners = new Set<() => void>();
   readonly #move: MoveInteraction | undefined;
+  readonly #resize: ResizeInteraction | undefined;
   readonly #selection: SelectionStore;
   #activeGesture: ActiveSelectionGesture | undefined;
   #snapshot: SelectionInteractionSnapshot = IDLE_SNAPSHOT;
@@ -166,10 +192,12 @@ export class SelectionInteraction {
     selection: SelectionStore,
     geometry: SelectionInteractionGeometry,
     move?: MoveInteraction,
+    resize?: ResizeInteraction,
   ) {
     this.#selection = selection;
     this.#geometry = geometry;
     this.#move = move;
+    this.#resize = resize;
   }
 
   getSnapshot = (): SelectionInteractionSnapshot => this.#snapshot;
@@ -184,13 +212,42 @@ export class SelectionInteraction {
       return false;
     }
     const pointerId = requirePointerId(input.pointerId);
+    const selectionAtPress = this.#selection.getSnapshot();
+    const resizeTargetId =
+      selectionAtPress.selectedIds.length === 1 ? selectionAtPress.selectedIds[0] : undefined;
+    const resizeHandle =
+      resizeTargetId === undefined
+        ? undefined
+        : this.#geometry.queryResizeHandle?.(resizeTargetId, input.viewportPoint);
+    if (
+      resizeTargetId !== undefined &&
+      resizeHandle !== undefined &&
+      this.#resize?.begin({
+        elementId: resizeTargetId,
+        handle: resizeHandle,
+        pointerId,
+        shiftKey: input.shiftKey,
+        startWorldPoint: input.worldPoint,
+        worldPoint: input.worldPoint,
+      })
+    ) {
+      this.#setActiveGesture(
+        Object.freeze({
+          handle: resizeHandle,
+          kind: 'resizing',
+          pointerId,
+          selectionAtPress,
+        }),
+      );
+      return true;
+    }
     const gesture: ActivePressed = Object.freeze({
       altKey: input.altKey,
       clickEligible: true,
       hitStack: copyUniqueIds(this.#geometry.queryHitStack(input.worldPoint)),
       kind: 'pressed',
       pointerId,
-      selectionAtPress: this.#selection.getSnapshot(),
+      selectionAtPress,
       shiftKey: input.shiftKey,
       startViewportPoint: input.viewportPoint,
       startWorldPoint: input.worldPoint,
@@ -211,6 +268,15 @@ export class SelectionInteraction {
     if (gesture.kind === 'moving') {
       return (
         this.#move?.update({
+          pointerId,
+          shiftKey: position.shiftKey,
+          worldPoint: position.worldPoint,
+        }) ?? false
+      );
+    }
+    if (gesture.kind === 'resizing') {
+      return (
+        this.#resize?.update({
           pointerId,
           shiftKey: position.shiftKey,
           worldPoint: position.worldPoint,
@@ -266,6 +332,20 @@ export class SelectionInteraction {
       }
       return true;
     }
+    if (gesture.kind === 'resizing') {
+      // Match move ordering: a synchronous document commit may reconcile the
+      // scene, so release the sole pointer owner before crossing that boundary.
+      this.#setActiveGesture(undefined);
+      const completion = this.#resize?.complete({
+        pointerId,
+        shiftKey: position.shiftKey,
+        worldPoint: position.worldPoint,
+      });
+      if (completion === false || completion === 'failed' || completion === undefined) {
+        this.#restoreSelection(gesture.selectionAtPress);
+      }
+      return true;
+    }
     this.#setActiveGesture(undefined);
     if (gesture.kind === 'marquee') {
       this.#commitMarquee(gesture);
@@ -283,6 +363,9 @@ export class SelectionInteraction {
     if (gesture.kind === 'moving') {
       this.#move?.cancel(gesture.pointerId);
       this.#restoreSelection(gesture.selectionAtPress);
+    } else if (gesture.kind === 'resizing') {
+      this.#resize?.cancel(gesture.pointerId);
+      this.#restoreSelection(gesture.selectionAtPress);
     }
     this.#setActiveGesture(undefined);
     return true;
@@ -297,6 +380,18 @@ export class SelectionInteraction {
       this.#activeGesture === undefined &&
       this.#selection.replace(copyUniqueIds(this.#geometry.listSelectableIds()))
     );
+  }
+
+  /** Provides cursor feedback from the same pure hit contract used on press. */
+  queryResizeHandleWhenIdle(point: ViewportPoint): ResizeHandle | undefined {
+    if (this.#activeGesture !== undefined) {
+      return undefined;
+    }
+    const selectedIds = this.#selection.getSnapshot().selectedIds;
+    const elementId = selectedIds.length === 1 ? selectedIds[0] : undefined;
+    return elementId === undefined
+      ? undefined
+      : this.#geometry.queryResizeHandle?.(elementId, point);
   }
 
   #commitClick(gesture: ActivePressed): void {

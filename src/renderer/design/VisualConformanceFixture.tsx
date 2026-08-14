@@ -15,6 +15,8 @@ import { DocumentSceneModel } from '../editor/document-scene-model';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
+import { captureResizeTarget } from '../editor/resize-geometry';
+import { ResizeInteraction } from '../editor/resize-interaction';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
@@ -144,7 +146,7 @@ const createSceneFixtureDocument = (): {
   return Object.freeze({ boardId, document: result.value, selectedId: buttonId });
 };
 
-type SceneFixtureState = 'marquee' | 'move' | 'plain' | 'selection';
+type SceneFixtureState = 'marquee' | 'move' | 'plain' | 'resize' | 'selection';
 
 const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState }) => {
   const camera = useViewportCameraStore();
@@ -153,12 +155,19 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
     const model = new DocumentSceneModel();
     model.reconcile(fixture.document, fixture.boardId);
     const selection = new SelectionStore();
-    if (state === 'selection' || state === 'move') {
+    if (state === 'selection' || state === 'move' || state === 'resize') {
       selection.selectOnly(fixture.selectedId);
     }
     const moveInteraction = new MoveInteraction(
       {
         capture: (ids) => captureMoveTargets(fixture.document, ids),
+        commit: () => false,
+      },
+      createBrowserAnimationFrameScheduler(),
+    );
+    const resizeInteraction = new ResizeInteraction(
+      {
+        capture: (id) => captureResizeTarget(fixture.document, id),
         commit: () => false,
       },
       createBrowserAnimationFrameScheduler(),
@@ -193,18 +202,29 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
         worldPoint: createWorldPoint(120, 60),
       });
     }
-    return Object.freeze({ interaction, model, moveInteraction, selection });
+    if (state === 'resize') {
+      resizeInteraction.begin({
+        elementId: fixture.selectedId,
+        handle: 'southEast',
+        pointerId: 3,
+        shiftKey: false,
+        startWorldPoint: createWorldPoint(316, 316),
+        worldPoint: createWorldPoint(396, 356),
+      });
+    }
+    return Object.freeze({ interaction, model, moveInteraction, resizeInteraction, selection });
   });
   return (
     <ViewportScene
       camera={camera}
-      {...(state === 'selection' || state === 'move'
+      {...(state === 'selection' || state === 'move' || state === 'resize'
         ? {
             interactionChildren: (
               <SelectionOverlay
                 camera={camera}
                 model={editor.model}
                 {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
+                {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
                 selection={editor.selection}
               />
             ),
@@ -219,6 +239,7 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
           document={fixture.document}
           model={editor.model}
           {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
+          {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
         />
       }
     />
@@ -400,17 +421,19 @@ export const VisualConformanceFixture = ({
         ? { canvas: <SceneFixture state="selection" /> }
         : fixture === 'move'
           ? { canvas: <SceneFixture state="move" /> }
-          : fixture === 'marquee'
-            ? { canvas: <SceneFixture state="marquee" /> }
-            : fixture === 'controls'
-              ? { inspector: <ControlStates /> }
-              : fixture === 'feedback'
-                ? { canvas: <StaticRegionFailure /> }
-                : fixture === 'tooltip'
-                  ? { canvas: <TooltipFixture /> }
-                  : fixture === 'popover'
-                    ? { canvas: <PopoverFixture /> }
-                    : undefined;
+          : fixture === 'resize'
+            ? { canvas: <SceneFixture state="resize" /> }
+            : fixture === 'marquee'
+              ? { canvas: <SceneFixture state="marquee" /> }
+              : fixture === 'controls'
+                ? { inspector: <ControlStates /> }
+                : fixture === 'feedback'
+                  ? { canvas: <StaticRegionFailure /> }
+                  : fixture === 'tooltip'
+                    ? { canvas: <TooltipFixture /> }
+                    : fixture === 'popover'
+                      ? { canvas: <PopoverFixture /> }
+                      : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

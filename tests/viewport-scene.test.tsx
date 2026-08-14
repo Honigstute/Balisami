@@ -9,6 +9,8 @@ import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import type { MoveTargetCapture } from '../src/renderer/editor/move-geometry';
+import { ResizeInteraction } from '../src/renderer/editor/resize-interaction';
+import type { ResizeTargetCapture } from '../src/renderer/editor/resize-geometry';
 import {
   ViewportCameraStore,
   type AnimationFrameScheduler,
@@ -32,6 +34,12 @@ const MOVE_CAPTURE: MoveTargetCapture = Object.freeze({
       id: SELECTABLE_ID,
     }),
   ]),
+});
+
+const RESIZE_CAPTURE: ResizeTargetCapture = Object.freeze({
+  elementId: SELECTABLE_ID,
+  frame: Object.freeze({ x: 10, y: 20, width: 100, height: 50 }),
+  worldBounds: createWorldRect(10, 20, 100, 50),
 });
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
@@ -456,6 +464,111 @@ describe('viewport scene layers', () => {
     ]);
     expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
     expect(moveScheduler.callbacks.size).toBe(0);
+    store.dispose();
+  });
+
+  it('routes resize hover, modifiers, completion, and every cancellation through one owner', () => {
+    mockViewportBounds();
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const resizeScheduler = new TestAnimationFrameScheduler();
+    const store = createStore(cameraScheduler);
+    const commits: SetElementFrameCommand[] = [];
+    const resize = new ResizeInteraction(
+      {
+        capture: () => RESIZE_CAPTURE,
+        commit: (command) => {
+          commits.push(command);
+          return true;
+        },
+      },
+      resizeScheduler,
+    );
+    const selection = new SelectionStore();
+    selection.selectOnly(SELECTABLE_ID);
+    const interaction = new SelectionInteraction(
+      selection,
+      {
+        listSelectableIds: () => [SELECTABLE_ID],
+        queryHitStack: () => [SELECTABLE_ID],
+        queryResizeHandle: (_elementId, point) =>
+          point.x >= 90 && point.y >= 90 ? 'southEast' : undefined,
+        querySelectionRegion: () => [],
+      },
+      undefined,
+      resize,
+    );
+    const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    cameraScheduler.flushNext();
+
+    fireEvent.pointerMove(root, { clientX: 100, clientY: 100, pointerId: 50 });
+    expect(root).toHaveAttribute('data-resize-handle', 'southEast');
+    fireEvent.pointerLeave(root);
+    expect(root).not.toHaveAttribute('data-resize-handle');
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 51 });
+    expect(root).toHaveAttribute('data-selection-state', 'resizing');
+    expect(root).toHaveAttribute('data-resize-handle', 'southEast');
+    fireEvent.pointerMove(root, { clientX: 140, clientY: 115, pointerId: 51 });
+    expect(resizeScheduler.callbacks.size).toBe(1);
+    resizeScheduler.flushNext();
+    expect(resize.getSnapshot()).toMatchObject({
+      frame: { x: 10, y: 20, width: 140, height: 65 },
+      kind: 'resizing',
+    });
+    const transformBeforeWheel = store.getTransformSnapshot();
+    fireEvent.wheel(root, { clientX: 140, clientY: 115, deltaMode: 0, deltaY: 100 });
+    expect(store.getTransformSnapshot()).toBe(transformBeforeWheel);
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(commits).toHaveLength(0);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 52 });
+    fireEvent.pointerMove(root, { clientX: 130, clientY: 110, pointerId: 52 });
+    fireEvent.pointerCancel(root, { pointerId: 52 });
+    expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 53 });
+    fireEvent.pointerMove(root, { clientX: 130, clientY: 110, pointerId: 53 });
+    fireEvent.lostPointerCapture(root, { pointerId: 53 });
+    expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 54 });
+    fireEvent.pointerMove(root, { clientX: 130, clientY: 110, pointerId: 54 });
+    fireEvent.blur(window);
+    expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
+
+    fireEvent.pointerDown(root, {
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+      pointerId: 55,
+      shiftKey: true,
+    });
+    fireEvent.pointerUp(root, {
+      clientX: 150,
+      clientY: 125,
+      pointerId: 55,
+      shiftKey: true,
+    });
+    expect(commits).toEqual([
+      {
+        type: 'element.set-frame',
+        elementId: SELECTABLE_ID,
+        frame: { x: 10, y: 20, width: 150, height: 75 },
+      },
+    ]);
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 56 });
+    fireEvent.pointerMove(root, { clientX: 130, clientY: 110, pointerId: 56 });
+    view.unmount();
+    expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(commits).toHaveLength(1);
+    expect(resizeScheduler.callbacks.size).toBe(0);
     store.dispose();
   });
 });

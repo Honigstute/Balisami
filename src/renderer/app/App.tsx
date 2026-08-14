@@ -17,6 +17,8 @@ import {
 } from '../editor/document-scene-model';
 import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
+import { captureResizeTarget, hitTestResizeHandle } from '../editor/resize-geometry';
+import { ResizeInteraction } from '../editor/resize-interaction';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
@@ -25,6 +27,7 @@ import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { createBrowserAnimationFrameScheduler } from '../editor/viewport-camera-store';
+import { worldRectToViewport } from '../editor/viewport-transform';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
@@ -69,16 +72,47 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       },
       createBrowserAnimationFrameScheduler(),
     );
+    const resizeInteraction = new ResizeInteraction(
+      {
+        capture: (elementId) => {
+          const currentDocument = session.getSnapshot().history?.document;
+          return currentDocument === undefined
+            ? undefined
+            : captureResizeTarget(currentDocument, elementId);
+        },
+        commit: (command) => {
+          const result = session.dispatchTransaction([command], { label: 'Resize element' });
+          return result?.ok === true && result.changed;
+        },
+      },
+      createBrowserAnimationFrameScheduler(),
+    );
     const selectionInteraction = new SelectionInteraction(
       selection,
       {
         listSelectableIds: () => model.listSelectableItemIds(),
         queryHitStack: (point) => model.queryHitStack(point).map((item) => item.id),
+        queryResizeHandle: (elementId, point) => {
+          const item = model.getItem(elementId);
+          return item === undefined || item.locked
+            ? undefined
+            : hitTestResizeHandle(
+                point,
+                worldRectToViewport(item.bounds, camera.getTransformSnapshot()),
+              );
+        },
         querySelectionRegion: (bounds, mode) => model.querySelectionRegion(bounds, mode),
       },
       moveInteraction,
+      resizeInteraction,
     );
-    return Object.freeze({ model, moveInteraction, selection, selectionInteraction });
+    return Object.freeze({
+      model,
+      moveInteraction,
+      resizeInteraction,
+      selection,
+      selectionInteraction,
+    });
   });
   const firstBoardId = view.history?.document.boardIds[0];
   const document = view.history?.document;
@@ -153,6 +187,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                         camera={camera}
                         model={editor.model}
                         moveInteraction={editor.moveInteraction}
+                        resizeInteraction={editor.resizeInteraction}
                         selection={editor.selection}
                       />
                       <MarqueeOverlay interaction={editor.selectionInteraction} />
@@ -170,6 +205,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                       document={document}
                       model={editor.model}
                       moveInteraction={editor.moveInteraction}
+                      resizeInteraction={editor.resizeInteraction}
                     />
                   ),
                 }
