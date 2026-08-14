@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M2 active
+Status: M3 active
 Last reviewed: 2026-08-14
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -64,7 +64,7 @@ Completion evidence (2026-08-14):
 - Source verification covers formatting, lint, 24-file dependency-boundary enforcement, strict TypeScript, 25 tests, and a production-dependency audit with zero vulnerabilities. Repository line endings are fixed to LF through `.gitattributes`, so macOS and Windows enforce the same formatting result.
 - Local macOS verification independently passes `npm run verify`, `npm run package`, `npm run verify:fuses`, and `npm run smoke:packaged`. Cross-packaged Windows x64 independently produces a valid PE32+ `Balsamic.exe` and passes fuse readback before the native CI launch.
 
-### [~] M2 — Document model, commands, selectors, and undo/redo
+### [x] M2 — Document model, commands, selectors, and undo/redo
 
 Depends on: M1
 
@@ -97,7 +97,13 @@ Current progress (2026-08-14):
 - A seeded randomized sequence of 10,000 valid commands spanning create, reorder, geometry, properties, names, and notes undoes to byte-identical initial JSON and redoes to byte-identical final JSON in the history gate.
 - Forty-six focused document/registry/selector/command/history tests pass inside the full 13-file/71-test suite. `npm run verify`, native macOS package/fuse/smoke, and Windows x64 cross-package/fuse verification all pass locally.
 
-### [ ] M3 — Versioned file format, atomic save, autosave, and recovery
+Completion evidence (2026-08-14):
+
+- [Quality run 31810778303](https://github.com/Honigstute/Balisami/actions/runs/31810778303) passed on native macOS 26 arm64 and Windows 2025 x64 hosts for commit `adc7c06`. Both jobs ran the 71-test source gate, packaged the application, verified Electron fuses, launched the packaged binary, and uploaded a rendered smoke screenshot.
+- The history gate applies exactly 10,000 deterministic seeded valid commands through the public history/dispatcher boundary, retains the configured bounded entry count, undoes to state ID `0` and byte-identical initial JSON, then redoes to the exact final state ID and JSON. The sequence covers element creation/order/geometry/properties plus board names and notes.
+- Focused failure tests prove malformed commands, invalid IDs/geometry/properties, illegal child ownership/order, late transaction failure, and corrupt history replay preserve the exact input document/history without partial mutation. Save-token tests prove edits during an asynchronous save remain dirty and that undoing to the captured state becomes clean.
+
+### [~] M3 — Versioned file format, atomic save, autosave, and recovery
 
 Depends on: M2
 
@@ -342,4 +348,4 @@ Exit gate:
 
 ## Next action
 
-Run the completed M2 document/command/history foundation through native macOS and Windows CI, record the final gate evidence, then activate M3 with the versioned file envelope and deterministic codec as its first slice.
+Define the portable version-1 file envelope and deterministic JSON codec with explicit format/version/size errors. Add round-trip, canonical-output, newer-version, malformed, and truncation tests before introducing Electron filesystem I/O.
