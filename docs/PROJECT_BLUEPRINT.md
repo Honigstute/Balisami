@@ -193,6 +193,8 @@ The normalized model contains `Project`, ordered `Board` records, `ElementNode` 
 
 Each board or group owns one ordered `childIds` list. That list alone defines parent membership and stacking order; parent indexes and z-order values are derived at runtime and are never persisted as competing copies.
 
+The M2 read contract derives an `ElementLocation` index from those lists, containing only owner and sibling index. Commands may carry the same discriminated board/element owner value, but nodes never persist it. Ordered record selectors return the canonical board/element records, and selection-ready world bounds accumulate ancestor frame origins from local geometry. These indexes and bounds are disposable and must be rebuilt from the document after a revision.
+
 An element contains identity, `controlType`, local world-space geometry, lock state, and control properties. Child geometry is local to its owning container; world bounds are derived. Defaults come from the control registry and are materialized or normalized at one defined boundary.
 
 Persisted state excludes selection, hover, guides, pointer gestures, open UI, viewport position unless explicitly saved as user preference, generated thumbnails, render caches, and error notifications.
@@ -214,6 +216,8 @@ Derived values such as selection bounds, enabled commands, inspector mixed value
 All document mutations use typed commands with validation, apply, inverse/restore information, and human-readable labels. Commands include create/delete, set properties, move/resize, reorder, group/ungroup, board operations, and asset operations.
 
 `dispatchDocumentCommand` is the public mutation boundary. It runtime-validates command input, returns the original document reference for failures and semantic no-ops, and returns a frozen structurally shared revision plus a validated inverse for changes. Each candidate is checked against the authoritative project invariants before it can escape the dispatcher; unchanged maps and records retain identity for fine-grained selectors and rendering.
+
+Foundation element commands cover insertion, childless deletion, sibling order, complete JSON-safe property replacement, and local-frame geometry. Insertions are initially childless and deletion rejects containers with children; M7 grouping commands will own subtree/group semantics instead of embedding an implicit recursive policy in basic CRUD. Command-availability selectors expose the same current order and child constraints to UI surfaces without persisting enabled flags.
 
 A gesture owns transient preview state and commits exactly one command on completion. Escape or pointer cancellation restores the start snapshot. Text entry and repeated keyboard nudges may coalesce within explicit time/identity rules. Undo/redo restores exact document state and never stores renderer objects.
 

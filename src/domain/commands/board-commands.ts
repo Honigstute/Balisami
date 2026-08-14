@@ -1,40 +1,16 @@
 import type { BoardId } from '../document/ids';
 import type { Board } from '../document/schema';
 import type { ProjectDocument } from '../document/validation';
+import type { CommandApplication } from './application';
 import {
   DOCUMENT_COMMAND_TYPES,
+  type BoardCommand,
   type CreateBoardCommand,
   type DeleteBoardCommand,
-  type DocumentCommand,
   type RenameBoardCommand,
   type ReorderBoardCommand,
   type SetBoardNoteCommand,
 } from './schema';
-
-export type CommandSemanticFailureCode = 'conflict' | 'not-found' | 'out-of-range';
-
-interface CommandApplicationFailure {
-  readonly ok: false;
-  readonly code: CommandSemanticFailureCode;
-  readonly message: string;
-}
-
-interface CommandApplicationUnchanged {
-  readonly ok: true;
-  readonly changed: false;
-  readonly label: string;
-}
-
-interface CommandApplicationChanged {
-  readonly ok: true;
-  readonly changed: true;
-  readonly candidate: ProjectDocument;
-  readonly inverse: DocumentCommand;
-  readonly label: string;
-}
-
-export type CommandApplication =
-  CommandApplicationChanged | CommandApplicationFailure | CommandApplicationUnchanged;
 
 type BoardDocumentPatch = Partial<Pick<ProjectDocument, 'boardIds' | 'boardsById'>>;
 
@@ -265,7 +241,7 @@ const assertNever = (command: never): never => {
 
 export const applyBoardCommand = (
   document: ProjectDocument,
-  command: DocumentCommand,
+  command: BoardCommand,
 ): CommandApplication => {
   switch (command.type) {
     case DOCUMENT_COMMAND_TYPES.createBoard:

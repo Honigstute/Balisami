@@ -4,11 +4,15 @@ import {
   BoardIdSchema,
   BoardSchema,
   DOCUMENT_COMMAND_TYPES,
+  ElementIdSchema,
+  ElementNodeSchema,
+  FOUNDATION_CONTROL_TYPES,
   MAX_COMMAND_VALIDATION_ISSUES,
   dispatchDocumentCommand,
   parseProjectDocument,
   type Board,
   type DocumentCommandResult,
+  type ElementNode,
   type ProjectDocument,
 } from '../src/domain';
 import {
@@ -26,6 +30,9 @@ type UnchangedCommand = Extract<
 
 const SECONDARY_BOARD_ID = BoardIdSchema.parse('board_secondary1');
 const NEW_BOARD_ID = BoardIdSchema.parse('board_newboard01');
+const NEW_ELEMENT_ID = ElementIdSchema.parse('element_newnode01');
+const SECOND_NEW_ELEMENT_ID = ElementIdSchema.parse('element_newnode02');
+const MISSING_ELEMENT_ID = ElementIdSchema.parse('element_missing01');
 
 const parseFixture = (input: unknown): ProjectDocument => {
   const result = parseProjectDocument(input);
@@ -50,6 +57,21 @@ const createBoard = (id = NEW_BOARD_ID, name = 'New wireframe'): Board =>
     name,
     note: { text: '' },
     childIds: [],
+  });
+
+const createElement = (
+  id = NEW_ELEMENT_ID,
+  controlType: string = FOUNDATION_CONTROL_TYPES.rectangle,
+): ElementNode =>
+  ElementNodeSchema.parse({
+    id,
+    controlType,
+    frame: { x: 40, y: 60, width: 160, height: 80 },
+    locked: false,
+    properties: { label: 'New element' },
+    childIds: [],
+    assetIds: [],
+    link: null,
   });
 
 const getFixtureElement = (input: ProjectDocumentInputFixture) => {
@@ -318,5 +340,332 @@ describe('document command dispatcher', () => {
     expect(result.error.issues).toHaveLength(MAX_COMMAND_VALIDATION_ISSUES);
     expect(result.error.omittedIssueCount).toBeGreaterThan(0);
     expect(result.document).toBe(document);
+  });
+});
+
+describe('element document commands', () => {
+  it('creates root and nested elements at explicit local order positions', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+    const rootElement = createElement();
+
+    const rootCreated = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: rootElement,
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 1,
+    });
+
+    expect(rootCreated.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.childIds).toEqual([
+      DOCUMENT_FIXTURE_IDS.group,
+      NEW_ELEMENT_ID,
+    ]);
+    expect(rootCreated.document.elementsById[NEW_ELEMENT_ID]).toEqual(rootElement);
+    expect(rootCreated.document.elementsById[DOCUMENT_FIXTURE_IDS.group]).toBe(
+      document.elementsById[DOCUMENT_FIXTURE_IDS.group],
+    );
+    expect(rootCreated.document.boardIds).toBe(document.boardIds);
+    expect(rootCreated.document.assetsById).toBe(document.assetsById);
+    expect(Object.isFrozen(rootCreated.document.elementsById)).toBe(true);
+    expect(
+      Object.isFrozen(rootCreated.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.childIds),
+    ).toBe(true);
+    expect(rootCreated.inverse).toEqual({
+      type: DOCUMENT_COMMAND_TYPES.deleteElement,
+      elementId: NEW_ELEMENT_ID,
+    });
+    expectInverseRestores(document, rootCreated);
+
+    const nestedElement = createElement(SECOND_NEW_ELEMENT_ID);
+    const nestedCreated = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: nestedElement,
+      owner: { kind: 'element', elementId: DOCUMENT_FIXTURE_IDS.group },
+      index: 1,
+    });
+
+    expect(nestedCreated.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.childIds).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+      SECOND_NEW_ELEMENT_ID,
+    ]);
+    expect(nestedCreated.document.boardsById).toBe(document.boardsById);
+    expect(nestedCreated.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toBe(
+      document.elementsById[DOCUMENT_FIXTURE_IDS.child],
+    );
+    expectInverseRestores(document, nestedCreated);
+  });
+
+  it('rejects invalid, duplicate, unsupported, or illegally owned element creation', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+
+    const duplicate = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(DOCUMENT_FIXTURE_IDS.child),
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 0,
+    });
+    expect(duplicate.error.code).toBe('conflict');
+
+    const nonEmpty = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        ...createElement(),
+        childIds: [DOCUMENT_FIXTURE_IDS.child],
+      },
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 0,
+    });
+    expect(nonEmpty.error.code).toBe('invalid-command');
+    expect(nonEmpty.error.issues.map((issue) => issue.path.join('.'))).toContain(
+      'element.childIds',
+    );
+
+    const missingOwner = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(),
+      owner: { kind: 'element', elementId: MISSING_ELEMENT_ID },
+      index: 0,
+    });
+    expect(missingOwner.error.code).toBe('not-found');
+
+    const leafOwner = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(),
+      owner: { kind: 'element', elementId: DOCUMENT_FIXTURE_IDS.child },
+      index: 0,
+    });
+    expect(leafOwner.error.code).toBe('conflict');
+
+    const unsupported = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(NEW_ELEMENT_ID, 'foundation.unknown'),
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 0,
+    });
+    expect(unsupported.error.code).toBe('conflict');
+
+    const outOfRange = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(),
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 2,
+    });
+    expect(outOfRange.error.code).toBe('out-of-range');
+
+    for (const failure of [duplicate, nonEmpty, missingOwner, leafOwner, unsupported, outOfRange]) {
+      expect(failure.document).toBe(document);
+    }
+  });
+
+  it('rejects a structurally valid create command when references violate the document', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+    const invalidElement = {
+      ...createElement(),
+      link: { kind: 'board', boardId: 'board_missing01' },
+    };
+
+    const result = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: invalidElement,
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 1,
+    });
+
+    expect(result.error.code).toBe('document-invalid');
+    expect(result.error.issues.map((issue) => issue.path.join('.'))).toContain(
+      `elementsById.${NEW_ELEMENT_ID}.link.boardId`,
+    );
+    expect(result.document).toBe(document);
+  });
+
+  it('deletes a childless element and recreates its exact record and nested position', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+
+    const deleted = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.deleteElement,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+    });
+
+    expect(deleted.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toBeUndefined();
+    expect(deleted.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.childIds).toEqual([]);
+    expect(deleted.document.boardsById).toBe(document.boardsById);
+    expect(deleted.document.assetsById).toBe(document.assetsById);
+    expect(deleted.inverse).toMatchObject({
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: document.elementsById[DOCUMENT_FIXTURE_IDS.child],
+      owner: { kind: 'element', elementId: DOCUMENT_FIXTURE_IDS.group },
+      index: 0,
+    });
+    expectInverseRestores(document, deleted);
+
+    const nonEmpty = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.deleteElement,
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+    });
+    expect(nonEmpty.error.code).toBe('conflict');
+
+    const missing = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.deleteElement,
+      elementId: MISSING_ELEMENT_ID,
+    });
+    expect(missing.error.code).toBe('not-found');
+  });
+
+  it('changes local geometry through one invertible command and rejects invalid frames', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+    const frame = { x: -42.25, y: 9.5, width: 240, height: 72 };
+
+    const changed = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      frame,
+    });
+
+    expect(changed.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.frame).toEqual(frame);
+    expect(changed.document.elementsById[DOCUMENT_FIXTURE_IDS.group]).toBe(
+      document.elementsById[DOCUMENT_FIXTURE_IDS.group],
+    );
+    expect(changed.document.boardsById).toBe(document.boardsById);
+    expect(changed.document.assetsById).toBe(document.assetsById);
+    expect(Object.isFrozen(changed.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.frame)).toBe(
+      true,
+    );
+    expectInverseRestores(document, changed);
+
+    const unchanged = expectUnchanged(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      frame: document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.frame,
+    });
+    expect(unchanged.document).toBe(document);
+
+    const invalid = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      frame: { x: Number.NaN, y: 0, width: 0, height: 20 },
+    });
+    expect(invalid.error.code).toBe('invalid-command');
+    expect(invalid.document).toBe(document);
+  });
+
+  it('replaces JSON-safe properties, detects deep no-ops, and restores prior values', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+    const properties = {
+      label: 'Checkout card',
+      state: { disabled: false, variants: ['desktop', 'mobile'] },
+    };
+
+    const changed = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      properties,
+    });
+
+    expect(changed.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.properties).toEqual(
+      properties,
+    );
+    expect(changed.document.elementsById[DOCUMENT_FIXTURE_IDS.group]).toBe(
+      document.elementsById[DOCUMENT_FIXTURE_IDS.group],
+    );
+    expect(changed.document.boardsById).toBe(document.boardsById);
+    expectInverseRestores(document, changed);
+
+    const unchanged = expectUnchanged(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      properties: { tags: ['example', true, null], opacity: 0.75 },
+    });
+    expect(unchanged.document).toBe(document);
+
+    const invalid = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      properties: { 'Unsafe key': Number.NaN },
+    });
+    expect(invalid.error.code).toBe('invalid-command');
+  });
+
+  it('reorders root and nested siblings without changing element records', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+    const rootCreated = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(),
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 1,
+    });
+
+    const rootReordered = expectApplied(rootCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.reorderElement,
+      elementId: NEW_ELEMENT_ID,
+      toIndex: 0,
+    });
+
+    expect(rootReordered.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.childIds).toEqual([
+      NEW_ELEMENT_ID,
+      DOCUMENT_FIXTURE_IDS.group,
+    ]);
+    expect(rootReordered.document.elementsById).toBe(rootCreated.document.elementsById);
+    expectInverseRestores(rootCreated.document, rootReordered);
+
+    const nestedCreated = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(SECOND_NEW_ELEMENT_ID),
+      owner: { kind: 'element', elementId: DOCUMENT_FIXTURE_IDS.group },
+      index: 1,
+    });
+    const nestedReordered = expectApplied(nestedCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.reorderElement,
+      elementId: SECOND_NEW_ELEMENT_ID,
+      toIndex: 0,
+    });
+
+    expect(nestedReordered.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.childIds).toEqual([
+      SECOND_NEW_ELEMENT_ID,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(nestedReordered.document.boardsById).toBe(nestedCreated.document.boardsById);
+    expect(nestedReordered.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toBe(
+      nestedCreated.document.elementsById[DOCUMENT_FIXTURE_IDS.child],
+    );
+    expectInverseRestores(nestedCreated.document, nestedReordered);
+
+    const unchanged = expectUnchanged(rootCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.reorderElement,
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+      toIndex: 0,
+    });
+    expect(unchanged.document).toBe(rootCreated.document);
+
+    const outOfRange = expectFailure(rootCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.reorderElement,
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+      toIndex: 2,
+    });
+    expect(outOfRange.error.code).toBe('out-of-range');
+  });
+
+  it('returns not-found without mutation for edit commands targeting a missing element', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+
+    for (const command of [
+      {
+        type: DOCUMENT_COMMAND_TYPES.reorderElement,
+        elementId: MISSING_ELEMENT_ID,
+        toIndex: 0,
+      },
+      {
+        type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+        elementId: MISSING_ELEMENT_ID,
+        frame: { x: 0, y: 0, width: 100, height: 50 },
+      },
+      {
+        type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+        elementId: MISSING_ELEMENT_ID,
+        properties: {},
+      },
+    ]) {
+      const result = expectFailure(document, command);
+      expect(result.error.code).toBe('not-found');
+      expect(result.document).toBe(document);
+    }
   });
 });

@@ -91,8 +91,9 @@ Current progress (2026-08-14):
 - The first canonical schema slice defines versioned projects, branded stable IDs, boards, notes, elements, local world-space rectangles, JSON-safe properties, child and asset ordering, board/HTTP(S) links, and content-addressed image references. Persisted parent IDs, z-index copies, selection, viewport, and other session state are rejected.
 - Cross-record validation rejects duplicate or missing order entries, map-key/record-ID disagreement, missing board/element/asset targets, zero or multiple element owners, and hierarchy cycles. Successful parser output is readonly; user-facing validation results are capped at 50 stable paths with an omitted-count summary.
 - The minimal control registry owns the stable `foundation.group` and `foundation.rectangle` types plus child-container capability. Unknown controls and children attached to leaf controls are document validation failures.
-- The first command registry supports board create, delete, reorder, rename, and note updates. Commands are runtime validated and return semantic failures, no-ops, or frozen structurally shared documents with validated inverses; invalid operations preserve the exact input document.
-- Twenty-four focused document/registry/command tests pass inside the full 11-file/49-test suite. `npm run verify`, native macOS package/fuse/smoke, and Windows x64 cross-package/fuse verification all pass.
+- Derived selectors rebuild owner/sibling locations exclusively from `childIds`, return ordered canonical records, accumulate nested local frames into selection-ready world bounds, and expose board/element command availability without synchronized state.
+- The command registry supports board CRUD/order/notes plus element create, childless delete, sibling reorder, complete JSON-safe property replacement, and local-frame geometry. Commands are runtime validated and return semantic failures, deep no-ops, or frozen structurally shared documents with validated exact inverses; invalid operations preserve the exact input document.
+- Thirty-seven focused document/registry/selector/command tests pass inside the full 12-file/62-test suite. `npm run verify`, native macOS package/fuse/smoke, and Windows x64 cross-package/fuse verification all pass.
 
 ### [ ] M3 — Versioned file format, atomic save, autosave, and recovery
 
@@ -339,4 +340,4 @@ Exit gate:
 
 ## Next action
 
-Add derived element-owner and order selectors, then implement element create/delete, properties, local-frame geometry, and sibling-order commands through the existing dispatcher. Preserve structural sharing and exact inverses before building bounded history, transactions, and saved-state identity.
+Implement bounded history with monotonically distinct state IDs, undo/redo, exact saved-state identity, and explicit transaction/coalescing rules on top of the dispatcher. Then prove the M2 exit gate with at least 10,000 deterministic valid commands undoing to the exact initial document and redoing to the exact final document.

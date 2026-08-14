@@ -6,19 +6,33 @@ export {
   type DocumentCommandResult,
 } from './commands/dispatcher';
 export {
+  BoardCommandSchema,
   CreateBoardCommandSchema,
+  CreateElementCommandSchema,
   DOCUMENT_COMMAND_TYPES,
   DeleteBoardCommandSchema,
+  DeleteElementCommandSchema,
   DocumentCommandSchema,
+  ElementCommandSchema,
   RenameBoardCommandSchema,
   ReorderBoardCommandSchema,
+  ReorderElementCommandSchema,
   SetBoardNoteCommandSchema,
+  SetElementFrameCommandSchema,
+  SetElementPropertiesCommandSchema,
+  type BoardCommand,
   type CreateBoardCommand,
+  type CreateElementCommand,
   type DeleteBoardCommand,
+  type DeleteElementCommand,
   type DocumentCommand,
+  type ElementCommand,
   type RenameBoardCommand,
   type ReorderBoardCommand,
+  type ReorderElementCommand,
   type SetBoardNoteCommand,
+  type SetElementFrameCommand,
+  type SetElementPropertiesCommand,
 } from './commands/schema';
 export {
   FOUNDATION_CONTROL_TYPES,
@@ -36,6 +50,23 @@ export {
   type ElementId,
   type ProjectId,
 } from './document/ids';
+export { ElementOwnerSchema, type ElementOwner } from './document/owner';
+export {
+  createElementLocationIndex,
+  selectBoardCommandAvailability,
+  selectBoardRootElements,
+  selectElementCommandAvailability,
+  selectElementLocation,
+  selectElementWorldBounds,
+  selectOrderedBoards,
+  selectOrderedChildren,
+  selectOwnerChildIds,
+  selectSelectionWorldBounds,
+  type BoardCommandAvailability,
+  type ElementCommandAvailability,
+  type ElementLocation,
+  type ElementLocationIndex,
+} from './document/selectors';
 export {
   AssetReferenceSchema,
   BoardNoteSchema,
@@ -44,6 +75,7 @@ export {
   DocumentTitleSchema,
   ElementLinkSchema,
   ElementNodeSchema,
+  ElementPropertiesSchema,
   JsonValueSchema,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
   WorldRectSchema,
@@ -53,6 +85,7 @@ export {
   type ControlTypeId,
   type ElementLink,
   type ElementNode,
+  type ElementProperties,
   type JsonValue,
   type WorldRect,
 } from './document/schema';

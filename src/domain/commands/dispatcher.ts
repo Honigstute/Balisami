@@ -1,6 +1,7 @@
 import { parseProjectDocument, type ProjectDocument } from '../document/validation';
 import { summarizeValidationIssues, type ValidationIssue } from '../validation/issues';
-import { applyBoardCommand, type CommandSemanticFailureCode } from './board-commands';
+import type { CommandSemanticFailureCode } from './application';
+import { applyDocumentCommand } from './apply-command';
 import { DocumentCommandSchema, type DocumentCommand } from './schema';
 
 export const MAX_COMMAND_VALIDATION_ISSUES = 10;
@@ -73,7 +74,7 @@ export const dispatchDocumentCommand = (
   }
 
   const command = commandResult.data;
-  const application = applyBoardCommand(document, command);
+  const application = applyDocumentCommand(document, command);
   if (!application.ok) {
     return failure(document, application.code, application.message);
   }

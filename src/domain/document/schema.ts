@@ -26,6 +26,8 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   ]),
 );
 
+export const ElementPropertiesSchema = z.record(PropertyKeySchema, JsonValueSchema).readonly();
+
 export const WorldRectSchema = z
   .strictObject({
     x: z.number().finite(),
@@ -94,7 +96,7 @@ export const ElementNodeSchema = z
     controlType: ControlTypeIdSchema,
     frame: WorldRectSchema,
     locked: z.boolean(),
-    properties: z.record(PropertyKeySchema, JsonValueSchema).readonly(),
+    properties: ElementPropertiesSchema,
     childIds: z.array(ElementIdSchema).readonly(),
     assetIds: z.array(AssetIdSchema).readonly(),
     link: ElementLinkSchema.nullable(),
@@ -127,6 +129,7 @@ export type BoardNote = z.infer<typeof BoardNoteSchema>;
 export type ElementLink = z.infer<typeof ElementLinkSchema>;
 export type AssetReference = z.infer<typeof AssetReferenceSchema>;
 export type ControlTypeId = z.infer<typeof ControlTypeIdSchema>;
+export type ElementProperties = z.infer<typeof ElementPropertiesSchema>;
 export type ElementNode = z.infer<typeof ElementNodeSchema>;
 export type Board = z.infer<typeof BoardSchema>;
 export type ProjectDocumentShape = z.infer<typeof ProjectDocumentShapeSchema>;
