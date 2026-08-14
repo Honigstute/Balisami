@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { AppShell } from '../shell/AppShell';
+import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
 const getPlatformLabel = (platform: 'darwin' | 'win32'): string =>
@@ -16,11 +17,20 @@ export const App = () => {
     }
 
     let active = true;
-    void window.balsamicDesktop.reportRendererReady().catch(() => {
-      if (active) {
-        setReadinessFailed(true);
+    const reportPresentedRenderer = async (): Promise<void> => {
+      try {
+        await waitForRendererPresentation();
+        if (active) {
+          await window.balsamicDesktop.reportRendererReady();
+        }
+      } catch {
+        if (active) {
+          setReadinessFailed(true);
+        }
       }
-    });
+    };
+
+    void reportPresentedRenderer();
 
     return () => {
       active = false;
