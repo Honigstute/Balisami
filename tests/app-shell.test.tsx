@@ -66,6 +66,7 @@ describe('application shell', () => {
   let reportRendererReady: DesktopApi['reportRendererReady'];
 
   beforeEach(() => {
+    window.localStorage.clear();
     reportRendererReady = vi.fn<DesktopApi['reportRendererReady']>().mockResolvedValue(undefined);
     installDesktopApi(createDesktopApi({ reportRendererReady }));
   });
@@ -187,7 +188,11 @@ describe('application shell', () => {
     render(<App />);
 
     for (const button of screen.getAllByRole('button')) {
-      expect(button).toBeDisabled();
+      if (button.hasAttribute('aria-expanded')) {
+        expect(button).toBeEnabled();
+      } else {
+        expect(button).toBeDisabled();
+      }
     }
   });
 

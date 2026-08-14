@@ -53,5 +53,32 @@ describe('fixed shell geometry contract', () => {
     expect(() => getExpectedShellRegionRects(1023, 680)).toThrow(RangeError);
     expect(() => getExpectedShellRegionRects(1024, 679)).toThrow(RangeError);
     expect(() => getExpectedShellRegionRects(Number.NaN, 680)).toThrow(RangeError);
+    expect(() =>
+      getExpectedShellRegionRects(1024, 680, {
+        inspectorWidth: 287,
+        navigatorWidth: DESIGN_TOKENS.shell.navigatorWidth,
+      }),
+    ).toThrow(RangeError);
+  });
+
+  it('derives explicit collapsed-pane geometry without remounting a region', () => {
+    const rectangles = getExpectedShellRegionRects(1024, 680, {
+      inspectorWidth: DESIGN_TOKENS.shell.collapsedPaneWidth,
+      navigatorWidth: DESIGN_TOKENS.shell.collapsedPaneWidth,
+    });
+
+    expect(rectangles[SHELL_REGIONS.navigator].width).toBe(32);
+    expect(rectangles[SHELL_REGIONS.canvas]).toEqual({
+      x: 32,
+      y: 180,
+      width: 960,
+      height: 500,
+    });
+    expect(rectangles[SHELL_REGIONS.inspector]).toEqual({
+      x: 992,
+      y: 180,
+      width: 32,
+      height: 500,
+    });
   });
 });

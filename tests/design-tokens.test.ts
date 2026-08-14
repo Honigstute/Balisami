@@ -10,6 +10,7 @@ import { DESIGN_TOKENS } from '../src/shared/design-tokens';
 describe('visual token contract', () => {
   it('keeps spacing on the four-pixel foundation grid', () => {
     expect(Object.values(DESIGN_TOKENS.space).every((value) => value % 4 === 0)).toBe(true);
+    expect(DESIGN_TOKENS.shell.collapsedPaneWidth % 4).toBe(0);
   });
 
   it('defines valid pane defaults and ordered global overlay tiers', () => {

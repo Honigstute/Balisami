@@ -63,6 +63,9 @@ p {
 }
 
 .app-shell {
+  --navigator-current-width: var(--navigator-width);
+  --inspector-current-width: var(--inspector-width);
+
   position: relative;
   z-index: var(--layer-shell);
   display: grid;
@@ -75,7 +78,9 @@ p {
   grid-template-rows:
     var(--command-bar-height) var(--status-bar-height) var(--category-bar-height)
     var(--control-shelf-height) minmax(0, 1fr);
-  grid-template-columns: var(--navigator-width) minmax(0, 1fr) var(--inspector-width);
+  grid-template-columns:
+    var(--navigator-current-width) minmax(0, 1fr)
+    var(--inspector-current-width);
   min-width: var(--shell-min-width);
   min-height: var(--shell-min-height);
   width: 100%;
@@ -358,6 +363,43 @@ p {
   font-weight: var(--font-weight-semibold);
 }
 
+.panel-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.pane-toggle .icon {
+  transition: transform var(--motion-fast);
+}
+
+.pane-toggle--navigator .icon,
+.pane-toggle--inspector.pane-toggle--collapsed .icon {
+  transform: rotate(90deg);
+}
+
+.pane-toggle--navigator.pane-toggle--collapsed .icon,
+.pane-toggle--inspector .icon {
+  transform: rotate(-90deg);
+}
+
+.pane--collapsed .panel-header {
+  justify-content: center;
+  padding: 0;
+}
+
+.pane--collapsed .panel-header h2,
+.pane--collapsed .panel-action--optional,
+.pane--collapsed .panel-empty,
+.pane--collapsed .inspector-scroll,
+.pane--collapsed .inspector-footer {
+  display: none;
+}
+
+.pane--collapsed .panel-header__actions {
+  gap: 0;
+}
+
 .panel-header--inspector {
   background: var(--color-panel-strong);
 }
@@ -556,6 +598,47 @@ p {
   border-top: var(--border-width) solid var(--color-divider);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
+}
+
+.pane-resizer {
+  position: absolute;
+  z-index: var(--layer-canvas-overlay);
+  top: calc(
+    var(--command-bar-height) + var(--status-bar-height) + var(--category-bar-height) +
+      var(--control-shelf-height)
+  );
+  bottom: 0;
+  width: var(--space-2);
+  padding: 0;
+  touch-action: none;
+  cursor: col-resize;
+  background: transparent;
+  outline: 0;
+}
+
+.pane-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - var(--border-width) / 2);
+  width: var(--border-width);
+  content: '';
+  background: var(--color-accent);
+  opacity: 0;
+  transition: opacity var(--motion-fast);
+}
+
+.pane-resizer:hover::after,
+.pane-resizer:focus-visible::after {
+  opacity: var(--opacity-enabled);
+}
+
+.pane-resizer--navigator {
+  left: calc(var(--navigator-current-width) - var(--space-1));
+}
+
+.pane-resizer--inspector {
+  right: calc(var(--inspector-current-width) - var(--space-1));
 }
 
 .overlay-root {

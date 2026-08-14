@@ -2,6 +2,11 @@ import { DESIGN_TOKENS } from './design-tokens';
 
 export const SHELL_REGION_ATTRIBUTE = 'data-shell-region' as const;
 
+export const SHELL_LAYOUT_ATTRIBUTES = Object.freeze({
+  inspectorWidth: 'data-shell-inspector-width',
+  navigatorWidth: 'data-shell-navigator-width',
+} as const);
+
 export const SHELL_REGIONS = Object.freeze({
   canvas: 'canvas',
   categories: 'categories',
@@ -24,6 +29,11 @@ export interface ShellRegionRect {
 
 export type ShellRegionRects = Readonly<Record<ShellRegion, ShellRegionRect>>;
 
+export interface ShellPaneWidths {
+  readonly inspectorWidth: number;
+  readonly navigatorWidth: number;
+}
+
 const freezeRect = (rect: ShellRegionRect): ShellRegionRect => Object.freeze(rect);
 
 /**
@@ -33,6 +43,10 @@ const freezeRect = (rect: ShellRegionRect): ShellRegionRect => Object.freeze(rec
 export const getExpectedShellRegionRects = (
   viewportWidth: number,
   viewportHeight: number,
+  paneWidths: ShellPaneWidths = {
+    inspectorWidth: DESIGN_TOKENS.shell.inspectorWidth,
+    navigatorWidth: DESIGN_TOKENS.shell.navigatorWidth,
+  },
 ): ShellRegionRects => {
   if (
     !Number.isFinite(viewportWidth) ||
@@ -43,14 +57,31 @@ export const getExpectedShellRegionRects = (
     throw new RangeError('Shell geometry requires finite dimensions at or above the minimum size.');
   }
 
+  const isValidPaneWidth = (width: number, min: number, max: number): boolean =>
+    Number.isFinite(width) &&
+    (width === DESIGN_TOKENS.shell.collapsedPaneWidth || (width >= min && width <= max));
+  if (
+    !isValidPaneWidth(
+      paneWidths.navigatorWidth,
+      DESIGN_TOKENS.shell.navigatorMinWidth,
+      DESIGN_TOKENS.shell.navigatorMaxWidth,
+    ) ||
+    !isValidPaneWidth(
+      paneWidths.inspectorWidth,
+      DESIGN_TOKENS.shell.inspectorMinWidth,
+      DESIGN_TOKENS.shell.inspectorMaxWidth,
+    )
+  ) {
+    throw new RangeError('Shell pane widths must be collapsed or within their tokenized bounds.');
+  }
+
   const commandBottom = DESIGN_TOKENS.shell.commandBarHeight;
   const statusBottom = commandBottom + DESIGN_TOKENS.shell.statusBarHeight;
   const categoryBottom = statusBottom + DESIGN_TOKENS.shell.categoryBarHeight;
   const contentTop = categoryBottom + DESIGN_TOKENS.shell.controlShelfHeight;
   const contentHeight = viewportHeight - contentTop;
-  const canvasWidth =
-    viewportWidth - DESIGN_TOKENS.shell.navigatorWidth - DESIGN_TOKENS.shell.inspectorWidth;
-  const inspectorX = viewportWidth - DESIGN_TOKENS.shell.inspectorWidth;
+  const canvasWidth = viewportWidth - paneWidths.navigatorWidth - paneWidths.inspectorWidth;
+  const inspectorX = viewportWidth - paneWidths.inspectorWidth;
 
   return Object.freeze({
     [SHELL_REGIONS.root]: freezeRect({ x: 0, y: 0, width: viewportWidth, height: viewportHeight }),
@@ -81,11 +112,11 @@ export const getExpectedShellRegionRects = (
     [SHELL_REGIONS.navigator]: freezeRect({
       x: 0,
       y: contentTop,
-      width: DESIGN_TOKENS.shell.navigatorWidth,
+      width: paneWidths.navigatorWidth,
       height: contentHeight,
     }),
     [SHELL_REGIONS.canvas]: freezeRect({
-      x: DESIGN_TOKENS.shell.navigatorWidth,
+      x: paneWidths.navigatorWidth,
       y: contentTop,
       width: canvasWidth,
       height: contentHeight,
@@ -93,7 +124,7 @@ export const getExpectedShellRegionRects = (
     [SHELL_REGIONS.inspector]: freezeRect({
       x: inspectorX,
       y: contentTop,
-      width: DESIGN_TOKENS.shell.inspectorWidth,
+      width: paneWidths.inspectorWidth,
       height: contentHeight,
     }),
   });
