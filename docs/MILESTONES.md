@@ -93,7 +93,9 @@ Current progress (2026-08-14):
 - The minimal control registry owns the stable `foundation.group` and `foundation.rectangle` types plus child-container capability. Unknown controls and children attached to leaf controls are document validation failures.
 - Derived selectors rebuild owner/sibling locations exclusively from `childIds`, return ordered canonical records, accumulate nested local frames into selection-ready world bounds, and expose board/element command availability without synchronized state.
 - The command registry supports board CRUD/order/notes plus element create, childless delete, sibling reorder, complete JSON-safe property replacement, and local-frame geometry. Commands are runtime validated and return semantic failures, deep no-ops, or frozen structurally shared documents with validated exact inverses; invalid operations preserve the exact input document.
-- Thirty-seven focused document/registry/selector/command tests pass inside the full 12-file/62-test suite. `npm run verify`, native macOS package/fuse/smoke, and Windows x64 cross-package/fuse verification all pass.
+- Immutable bounded history provides atomic transactions, explicit coalescing, deterministic labels, monotonic non-reused state IDs, branch-safe undo/redo, and token-protected asynchronous save snapshots. Failed transactions and corrupt replay attempts cannot expose partial state.
+- A seeded randomized sequence of 10,000 valid commands spanning create, reorder, geometry, properties, names, and notes undoes to byte-identical initial JSON and redoes to byte-identical final JSON in the history gate.
+- Forty-six focused document/registry/selector/command/history tests pass inside the full 13-file/71-test suite. `npm run verify`, native macOS package/fuse/smoke, and Windows x64 cross-package/fuse verification all pass locally.
 
 ### [ ] M3 — Versioned file format, atomic save, autosave, and recovery
 
@@ -340,4 +342,4 @@ Exit gate:
 
 ## Next action
 
-Implement bounded history with monotonically distinct state IDs, undo/redo, exact saved-state identity, and explicit transaction/coalescing rules on top of the dispatcher. Then prove the M2 exit gate with at least 10,000 deterministic valid commands undoing to the exact initial document and redoing to the exact final document.
+Run the completed M2 document/command/history foundation through native macOS and Windows CI, record the final gate evidence, then activate M3 with the versioned file envelope and deterministic codec as its first slice.

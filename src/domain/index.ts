@@ -97,3 +97,38 @@ export {
   type ProjectDocument,
   type ProjectDocumentParseResult,
 } from './document/validation';
+export {
+  DEFAULT_HISTORY_LIMIT,
+  MAX_HISTORY_LIMIT,
+  MAX_HISTORY_TRANSACTION_COMMANDS,
+  canRedoDocumentHistory,
+  canUndoDocumentHistory,
+  createDocumentHistory,
+  isDocumentHistoryDirty,
+  selectRedoLabel,
+  selectUndoLabel,
+  type CreateDocumentHistoryOptions,
+  type DocumentHistoryState,
+  type HistoryEntry,
+  type HistoryOperationError,
+  type HistoryOperationErrorCode,
+  type HistoryOperationResult,
+  type HistoryStateId,
+  type HistoryTransactionOptions,
+} from './history/model';
+export {
+  dispatchHistoryCommand,
+  dispatchHistoryTransaction,
+  redoDocumentHistory,
+  undoDocumentHistory,
+} from './history/operations';
+export {
+  beginDocumentHistorySave,
+  completeDocumentHistorySave,
+  failDocumentHistorySave,
+  type BeginHistorySaveResult,
+  type HistorySaveError,
+  type HistorySaveErrorCode,
+  type HistorySaveSnapshot,
+  type ResolveHistorySaveResult,
+} from './history/save-state';

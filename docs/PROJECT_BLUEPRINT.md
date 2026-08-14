@@ -223,6 +223,10 @@ A gesture owns transient preview state and commits exactly one command on comple
 
 History uses monotonically distinct state identifiers rather than a loose dirty boolean. A save captures both a document snapshot and its state identifier; only that identifier becomes the saved state when the asynchronous write succeeds. Edits made while saving therefore remain dirty, while undoing exactly back to a saved state becomes clean.
 
+`DocumentHistoryState` is an immutable session value containing the current document, bounded undo/redo entry stacks, current/saved/next state identities, and in-flight save identities. New branches never reuse abandoned IDs. Undo and redo replay the same validated command boundary and restore the entry's prior or subsequent state ID; a failed or unexpected no-op replay leaves the complete history unchanged and reports corruption.
+
+Multi-command transactions apply to a temporary document and either commit one entry or expose no partial result. Semantic no-ops are omitted. Coalescing requires an explicit stable key from the interaction owner, never occurs across an undo branch, and is blocked when the current state is saved or captured by an in-flight save. This keeps async save snapshots reachable and gives input/gesture code deterministic grouping without time-dependent behavior in the domain layer.
+
 ## 6. Viewport and interaction engine
 
 ### 6.1 Coordinate contract
