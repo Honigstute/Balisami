@@ -1,9 +1,13 @@
+import type { ReactNode } from 'react';
+
 import { FoundationMark, Icon, type IconName } from './Icon';
 
 export type StatusTone = 'problem' | 'quiet' | 'ready';
 
 interface AppShellProps {
   readonly projectName?: string;
+  readonly projectOverlay?: ReactNode;
+  readonly projectProbeState?: { readonly attributeName: string; readonly value: string };
   readonly quickAddShortcut: string;
   readonly statusLabel: string;
   readonly statusScope?: string;
@@ -43,12 +47,20 @@ const LibraryPlaceholders = () => (
 
 export const AppShell = ({
   projectName = 'Untitled project',
+  projectOverlay,
+  projectProbeState,
   quickAddShortcut,
   statusLabel,
   statusScope = 'Foundation · local-first',
   statusTone,
 }: AppShellProps) => (
-  <div className="app-shell" data-testid="app-shell">
+  <div
+    {...(projectProbeState === undefined
+      ? {}
+      : { [projectProbeState.attributeName]: projectProbeState.value })}
+    className="app-shell"
+    data-testid="app-shell"
+  >
     <header className="command-bar">
       <div className="project-identity">
         <FoundationMark />
@@ -158,6 +170,8 @@ export const AppShell = ({
       </div>
     </aside>
 
-    <div aria-live="polite" className="overlay-root" id="overlay-root" />
+    <div aria-live="polite" className="overlay-root" id="overlay-root">
+      {projectOverlay}
+    </div>
   </div>
 );

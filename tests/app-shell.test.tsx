@@ -15,17 +15,31 @@ const installDesktopApi = (desktopApi: DesktopApi): void => {
 const createDesktopApi = (overrides: Partial<DesktopApi> = {}): DesktopApi => {
   const document = createAssetFreeProjectDocument();
   return {
+    discardProjectRecovery: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     getRuntimeInfo: vi.fn().mockResolvedValue({
       appVersion: '0.1.0',
       arch: 'arm64',
       isPackaged: false,
       platform: 'darwin',
     }),
+    getProjectStartupOptions: vi.fn().mockResolvedValue({
+      status: 'completed',
+      value: { ignoredRecoveryEvidenceCount: 0, recentProjects: [], recoveries: [] },
+      warnings: [],
+    }),
+    listRecentProjects: vi.fn().mockResolvedValue({
+      status: 'completed',
+      value: [],
+      warnings: [],
+    }),
     onProjectCloseOutcome: () => () => undefined,
     onProjectCloseRequest: () => () => undefined,
     onProjectCommand: () => () => undefined,
+    openProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
+    openRecentProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     reportRendererReady: vi.fn().mockResolvedValue(undefined),
     respondToProjectClose: () => undefined,
+    restoreProjectRecovery: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     saveProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     saveProjectAs: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     scheduleProjectRecovery: vi.fn().mockResolvedValue({
@@ -98,6 +112,44 @@ describe('application shell', () => {
     });
     expect(screen.getByText('Ctrl K')).toBeInTheDocument();
     expect(screen.queryByText('⌘ K')).not.toBeInTheDocument();
+  });
+
+  it('keeps the shell mounted behind one explicit startup recovery decision', async () => {
+    const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
+      status: 'cancelled',
+    });
+    installDesktopApi(
+      createDesktopApi({
+        getProjectStartupOptions: vi.fn().mockResolvedValue({
+          status: 'completed',
+          value: {
+            ignoredRecoveryEvidenceCount: 1,
+            recentProjects: [],
+            recoveries: [
+              {
+                capturedAtEpochMs: 1_787_000_000_000,
+                displayName: 'Recovered Project.test',
+                id: 'b443818e-2a04-4349-8bdc-9280a0d469f2',
+              },
+            ],
+          },
+          warnings: [],
+        }),
+        startProject,
+      }),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Unsaved work is available' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Start New and Keep Recovery' })).toBeEnabled();
+    expect(screen.getByText(/damaged recovery item/u)).toBeInTheDocument();
+    expect(startProject).not.toHaveBeenCalled();
   });
 
   it('contains no enabled placeholder actions', () => {

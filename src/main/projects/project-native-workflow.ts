@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import type { HistorySaveSnapshot, HistoryStateId, ProjectDocument } from '../../domain';
 import type {
@@ -7,6 +8,11 @@ import type {
   UserOperationResult,
   UserOperationWarning,
 } from '../../shared/user-operation';
+import type {
+  ProjectRecoveryChoice,
+  ProjectRecoveryDiscardedValue,
+  ProjectStartupOptionsValue,
+} from '../../shared/desktop-api';
 import {
   createSuggestedProjectFileName,
   type NativeProjectDialogs,
@@ -14,7 +20,9 @@ import {
 import type {
   ProjectLifecycleController,
   ProjectLifecycleOperationError,
+  PreparedProjectFile,
 } from './project-lifecycle-controller';
+import type { RecoveryPointerV1 } from '../recovery/recovery-schema';
 import type { RecentProjectStore, RecentProjectEntry } from '../recent/recent-project-store';
 
 const MAX_OPERATION_WARNINGS = 3;
@@ -99,6 +107,14 @@ const createDisplayName = (filePath: string): string => {
   return (displayName.length === 0 ? 'Untitled project' : displayName).slice(0, 255);
 };
 
+const filePathsAreEqual = (left: string, right: string): boolean => {
+  const normalizedLeft = path.normalize(left);
+  const normalizedRight = path.normalize(right);
+  return process.platform === 'win32'
+    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+    : normalizedLeft === normalizedRight;
+};
+
 const createOpenProblem = (error: ProjectLifecycleOperationError): UserOperationProblem => {
   if (error.code === 'file-not-found') {
     return {
@@ -173,6 +189,7 @@ export class ProjectNativeWorkflow {
   readonly #reportFailure: NativeProjectFailureReporter | undefined;
 
   #operationInProgress = false;
+  #recoveryChoices = new Map<string, RecoveryPointerV1>();
 
   constructor(options: ProjectNativeWorkflowOptions) {
     this.#dialogs = options.dialogs;
@@ -220,7 +237,99 @@ export class ProjectNativeWorkflow {
     return Promise.resolve(completed(Object.freeze({ scheduled: scheduled.scheduled, stateId })));
   }
 
-  openFromDialog(): Promise<UserOperationResult<NativeOpenedProject>> {
+  getStartupOptions(): Promise<UserOperationResult<ProjectStartupOptionsValue>> {
+    return this.#runExclusive('recovery', async () => {
+      const discovered = await this.#lifecycle.discoverRecoveries();
+      if (!discovered.ok) {
+        this.#reportFailure?.('recovery', discovered.error);
+        return failed(createRecoveryProblem());
+      }
+
+      this.#recoveryChoices.clear();
+      const recoveries = discovered.value.snapshots.map(({ pointer }) => {
+        const id = randomUUID();
+        this.#recoveryChoices.set(id, pointer);
+        return Object.freeze({
+          capturedAtEpochMs: pointer.capturedAtEpochMs,
+          displayName:
+            pointer.sourceFilePath === null
+              ? 'Unsaved recovered project'
+              : createDisplayName(pointer.sourceFilePath),
+          id,
+        }) satisfies ProjectRecoveryChoice;
+      });
+
+      const warnings: UserOperationWarning[] = [];
+      const recent = await this.#recentProjects.list();
+      if (!recent.ok) {
+        this.#reportFailure?.('recent', recent.error);
+        appendWarning(warnings, {
+          code: 'recent-files-read-failed',
+          message: 'Recovery is available, but recent projects could not be listed.',
+        });
+      }
+      return completed(
+        Object.freeze({
+          ignoredRecoveryEvidenceCount:
+            discovered.value.issues.length + discovered.value.omittedIssueCount,
+          recentProjects: Object.freeze((recent.ok ? recent.value : []).map(toRecentSummary)),
+          recoveries: Object.freeze(recoveries),
+        }),
+        warnings,
+      );
+    });
+  }
+
+  restoreRecovery(recoveryId: string): Promise<UserOperationResult<NativeOpenedProject>> {
+    return this.#runExclusive('recovery', async () => {
+      const pointer = this.#recoveryChoices.get(recoveryId);
+      if (pointer === undefined) {
+        return failed(createRecoveryProblem());
+      }
+      const restored = await this.#lifecycle.restoreRecovery(pointer);
+      if (!restored.ok) {
+        this.#reportFailure?.('recovery', restored.error);
+        return failed(createRecoveryProblem());
+      }
+      this.#recoveryChoices.clear();
+      return completed(
+        Object.freeze({
+          assetsById: restored.value.assetsById,
+          displayName: restored.value.document.name,
+          document: restored.value.document,
+          source: 'recovery' as const,
+        }),
+      );
+    });
+  }
+
+  discardRecovery(recoveryId: string): Promise<UserOperationResult<ProjectRecoveryDiscardedValue>> {
+    return this.#runExclusive('recovery', async () => {
+      const pointer = this.#recoveryChoices.get(recoveryId);
+      if (pointer === undefined) {
+        return failed(createRecoveryProblem());
+      }
+      const discarded = await this.#lifecycle.discardRecovery(pointer);
+      if (!discarded.ok) {
+        this.#reportFailure?.('recovery', discarded.error);
+        return failed(createRecoveryProblem());
+      }
+      this.#recoveryChoices.delete(recoveryId);
+      const warnings: UserOperationWarning[] = [];
+      if (discarded.value.warnings.length > 0) {
+        discarded.value.warnings.forEach((warning) => this.#reportFailure?.('recovery', warning));
+        appendWarning(warnings, {
+          code: 'recovery-cleanup-failed',
+          message: 'Recovery was discarded, but temporary recovery debris remains.',
+        });
+      }
+      return completed(Object.freeze({ discarded: discarded.value.cleared, recoveryId }), warnings);
+    });
+  }
+
+  openFromDialog(
+    currentProject?: NativeCloseRequest,
+  ): Promise<UserOperationResult<NativeOpenedProject>> {
     return this.#runExclusive('open', async () => {
       const selected = await this.#dialogs.chooseOpenProject();
       if (selected.status === 'cancelled') {
@@ -229,11 +338,14 @@ export class ProjectNativeWorkflow {
       if (selected.status === 'invalid-response') {
         return failed(INVALID_DIALOG_PROBLEM);
       }
-      return this.#openPath(selected.filePath);
+      return this.#openPath(selected.filePath, undefined, currentProject);
     });
   }
 
-  openRecent(idInput: unknown): Promise<UserOperationResult<NativeOpenedProject>> {
+  openRecent(
+    idInput: unknown,
+    currentProject?: NativeCloseRequest,
+  ): Promise<UserOperationResult<NativeOpenedProject>> {
     return this.#runExclusive('open', async () => {
       const listed = await this.#recentProjects.list();
       if (!listed.ok) {
@@ -255,7 +367,7 @@ export class ProjectNativeWorkflow {
           message: 'It may have been removed from the recent-project list.',
         });
       }
-      return this.#openPath(entry.filePath, entry.id);
+      return this.#openPath(entry.filePath, entry.id, currentProject);
     });
   }
 
@@ -287,46 +399,50 @@ export class ProjectNativeWorkflow {
   }
 
   requestClose(request: NativeCloseRequest): Promise<UserOperationResult<NativeClosedProject>> {
-    return this.#runExclusive('close', async () => {
-      let saved = false;
-      let discarded = false;
-      if (request.dirty) {
-        const closeChoice = await this.#dialogs.chooseUnsavedClose(
-          createSuggestedProjectFileName(request.projectDisplayName),
-        );
-        if (closeChoice.status === 'invalid-response') {
-          return failed(INVALID_DIALOG_PROBLEM);
-        }
-        if (closeChoice.choice === 'cancel') {
-          return { status: 'cancelled' };
-        }
-        if (closeChoice.choice === 'save') {
-          if (request.saveSnapshot === undefined) {
-            return failed(createCloseProblem());
-          }
-          const saveResult = await this.#saveInternal(
-            request.saveSnapshot,
-            request.assetsById ?? {},
-            false,
-          );
-          if (saveResult.status !== 'completed') {
-            return saveResult;
-          }
-          saved = true;
-        } else {
-          discarded = true;
-        }
-      }
+    return this.#runExclusive('close', () => this.#closeCurrentProject(request));
+  }
 
-      const closed = await this.#lifecycle.closeActiveProject('discard-recovery');
-      if (!closed.ok) {
-        this.#reportFailure?.('close', closed.error);
-        return failed(createCloseProblem());
+  async #closeCurrentProject(
+    request: NativeCloseRequest,
+  ): Promise<UserOperationResult<NativeClosedProject>> {
+    let saved = false;
+    let discarded = false;
+    if (request.dirty) {
+      const closeChoice = await this.#dialogs.chooseUnsavedClose(
+        createSuggestedProjectFileName(request.projectDisplayName),
+      );
+      if (closeChoice.status === 'invalid-response') {
+        return failed(INVALID_DIALOG_PROBLEM);
       }
-      closed.value.warnings.forEach((warning) => this.#reportFailure?.('close', warning));
-      const warnings = this.#mapCloseWarnings(closed.value.warnings.length);
-      return completed(Object.freeze({ closed: true, discarded, saved }), warnings);
-    });
+      if (closeChoice.choice === 'cancel') {
+        return { status: 'cancelled' };
+      }
+      if (closeChoice.choice === 'save') {
+        if (request.saveSnapshot === undefined) {
+          return failed(createCloseProblem());
+        }
+        const saveResult = await this.#saveInternal(
+          request.saveSnapshot,
+          request.assetsById ?? {},
+          false,
+        );
+        if (saveResult.status !== 'completed') {
+          return saveResult;
+        }
+        saved = true;
+      } else {
+        discarded = true;
+      }
+    }
+
+    const closed = await this.#lifecycle.closeActiveProject('discard-recovery');
+    if (!closed.ok) {
+      this.#reportFailure?.('close', closed.error);
+      return failed(createCloseProblem());
+    }
+    closed.value.warnings.forEach((warning) => this.#reportFailure?.('close', warning));
+    const warnings = this.#mapCloseWarnings(closed.value.warnings.length);
+    return completed(Object.freeze({ closed: true, discarded, saved }), warnings);
   }
 
   retainRecoveryAndClose(): Promise<UserOperationResult<NativeClosedProject>> {
@@ -347,28 +463,72 @@ export class ProjectNativeWorkflow {
   async #openPath(
     filePath: string,
     recentIdToForget?: string,
+    currentProject?: NativeCloseRequest,
   ): Promise<UserOperationResult<NativeOpenedProject>> {
-    const opened = await this.#lifecycle.openProject(filePath);
-    if (!opened.ok) {
-      this.#reportFailure?.('open', opened.error);
-      if (opened.error.code === 'file-not-found' && recentIdToForget !== undefined) {
+    const prepared = await this.#lifecycle.prepareProjectFile(filePath);
+    if (!prepared.ok) {
+      this.#reportFailure?.('open', prepared.error);
+      if (prepared.error.code === 'file-not-found' && recentIdToForget !== undefined) {
         const forgotten = await this.#recentProjects.forget(recentIdToForget);
         if (!forgotten.ok) {
           this.#reportFailure?.('recent', forgotten.error);
         }
       }
-      return failed(createOpenProblem(opened.error));
+      return failed(createOpenProblem(prepared.error));
     }
+
     const warnings: UserOperationWarning[] = [];
+    const activeStatus = this.#lifecycle.getActiveStatus();
+    if (
+      activeStatus?.filePath !== null &&
+      activeStatus?.filePath !== undefined &&
+      filePathsAreEqual(activeStatus.filePath, filePath)
+    ) {
+      return failed({
+        code: 'open-failed',
+        title: 'This project is already open',
+        message: 'The current project remains open with all of its latest changes.',
+      });
+    }
+    if (activeStatus !== undefined) {
+      if (currentProject === undefined) {
+        return failed(
+          createOpenProblem({
+            code: 'active-project-exists',
+            message: 'The active project needs an explicit replacement decision.',
+          }),
+        );
+      }
+      const closed = await this.#closeCurrentProject(currentProject);
+      if (closed.status !== 'completed') {
+        return closed;
+      }
+      closed.warnings.forEach((warning) => appendWarning(warnings, warning));
+    }
+
+    const opened = this.#activatePreparedProject(prepared.value);
+    if (opened.status !== 'completed') {
+      return opened;
+    }
     await this.#recordRecent(filePath, warnings);
+    return completed(opened.value, warnings);
+  }
+
+  #activatePreparedProject(
+    prepared: PreparedProjectFile,
+  ): UserOperationResult<NativeOpenedProject> {
+    const activated = this.#lifecycle.activatePreparedProject(prepared);
+    if (!activated.ok) {
+      this.#reportFailure?.('open', activated.error);
+      return failed(createOpenProblem(activated.error));
+    }
     return completed(
       Object.freeze({
-        assetsById: opened.value.assetsById,
-        displayName: createDisplayName(filePath),
-        document: opened.value.document,
+        assetsById: activated.value.assetsById,
+        displayName: createDisplayName(prepared.filePath),
+        document: activated.value.document,
         source: 'project-file' as const,
       }),
-      warnings,
     );
   }
 

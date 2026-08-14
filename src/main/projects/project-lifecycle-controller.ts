@@ -72,6 +72,17 @@ export interface ActivatedProject {
   readonly source: ActivatedProjectSource;
 }
 
+/** Immutable, validated file candidate held only while a replacement decision is in progress. */
+export interface PreparedProjectFile {
+  readonly assetsById: Readonly<Record<string, Uint8Array>>;
+  readonly document: ProjectDocument;
+  readonly filePath: string;
+}
+
+export type PrepareProjectFileResult =
+  | { readonly ok: true; readonly value: PreparedProjectFile }
+  | { readonly ok: false; readonly error: ProjectLifecycleOperationError };
+
 export type ActivateProjectResult =
   | { readonly ok: true; readonly value: ActivatedProject }
   | { readonly ok: false; readonly error: ProjectLifecycleOperationError };
@@ -152,11 +163,38 @@ export class ProjectLifecycleController {
     if (!inactive.ok) {
       return inactive;
     }
+    const prepared = await this.prepareProjectFile(filePath);
+    return prepared.ok ? this.activatePreparedProject(prepared.value) : prepared;
+  }
+
+  /** Validates a file without replacing or authorizing the active session. */
+  async prepareProjectFile(filePath: string): Promise<PrepareProjectFileResult> {
     const opened: OpenProjectFileResult = await this.#services.openProject(filePath);
     if (!opened.ok) {
       return opened;
     }
-    return this.#activate(opened.value.document, opened.value.assetsById, 'project-file', filePath);
+    return {
+      ok: true,
+      value: Object.freeze({
+        assetsById: opened.value.assetsById,
+        document: opened.value.document,
+        filePath,
+      }),
+    };
+  }
+
+  /** Activates only a candidate that already passed the bounded file codec. */
+  activatePreparedProject(prepared: PreparedProjectFile): ActivateProjectResult {
+    const inactive = this.#requireInactive();
+    if (!inactive.ok) {
+      return inactive;
+    }
+    return this.#activate(
+      prepared.document,
+      prepared.assetsById,
+      'project-file',
+      prepared.filePath,
+    );
   }
 
   async restoreRecovery(expectedPointerInput: unknown): Promise<ActivateProjectResult> {

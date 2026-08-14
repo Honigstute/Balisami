@@ -8,8 +8,14 @@ import {
   isProjectCloseOutcome,
   isProjectCloseResponse,
   isProjectHistorySnapshotRequest,
+  isProjectOpenRecentRequest,
   isProjectOpenedResult,
+  isProjectRecoveryChoiceRequest,
+  isProjectRecoveryDiscardedResult,
   isProjectRecoveryScheduledResult,
+  isProjectReplacementRequest,
+  isProjectStartupOptionsResult,
+  isRecentProjectsResult,
   isRuntimeInfo,
 } from '../src/shared/desktop-api';
 import { createAssetFreeProjectDocument } from './fixtures/project-file';
@@ -90,5 +96,70 @@ describe('desktop API boundary validation', () => {
     ).toBe(false);
     expect(isProjectCloseResponse({ requestId, status: 'rejected' })).toBe(true);
     expect(isProjectCloseOutcome({ requestId, result: { status: 'cancelled' } })).toBe(true);
+  });
+
+  it('keeps recovery, recent, and replacement choices exact and path-free', () => {
+    const document = createAssetFreeProjectDocument();
+    const recoveryId = '87ac2625-0f03-44f7-a194-935b87d7a7d1';
+    const recentProjectId = 'a'.repeat(64);
+    const cleanCurrent = { dirty: false, projectDisplayName: 'Current project' } as const;
+    const dirtyCurrent = {
+      dirty: true,
+      projectDisplayName: 'Current project',
+      saveSnapshot: { assetsById: {}, document, stateId: 2, tokenId: 1 },
+    } as const;
+
+    expect(isProjectRecoveryChoiceRequest({ recoveryId })).toBe(true);
+    expect(isProjectRecoveryChoiceRequest({ recoveryId, path: '/private/recovery' })).toBe(false);
+    expect(isProjectReplacementRequest(cleanCurrent)).toBe(true);
+    expect(isProjectReplacementRequest(dirtyCurrent)).toBe(true);
+    expect(
+      isProjectReplacementRequest({ ...cleanCurrent, saveSnapshot: dirtyCurrent.saveSnapshot }),
+    ).toBe(false);
+    expect(isProjectOpenRecentRequest({ currentProject: dirtyCurrent, recentProjectId })).toBe(
+      true,
+    );
+    expect(
+      isProjectOpenRecentRequest({ currentProject: dirtyCurrent, recentProjectId: 'project_1' }),
+    ).toBe(false);
+
+    expect(
+      isProjectStartupOptionsResult({
+        status: 'completed',
+        value: {
+          ignoredRecoveryEvidenceCount: 1,
+          recentProjects: [{ displayName: 'Recent', id: recentProjectId, lastOpenedAtEpochMs: 10 }],
+          recoveries: [{ capturedAtEpochMs: 20, displayName: 'Recovered', id: recoveryId }],
+        },
+        warnings: [],
+      }),
+    ).toBe(true);
+    expect(
+      isProjectStartupOptionsResult({
+        status: 'completed',
+        value: {
+          ignoredRecoveryEvidenceCount: 0,
+          recentProjects: [],
+          recoveries: [
+            { capturedAtEpochMs: 20, displayName: 'Recovered', id: recoveryId, path: '/private' },
+          ],
+        },
+        warnings: [],
+      }),
+    ).toBe(false);
+    expect(
+      isProjectRecoveryDiscardedResult({
+        status: 'completed',
+        value: { discarded: true, recoveryId },
+        warnings: [],
+      }),
+    ).toBe(true);
+    expect(
+      isRecentProjectsResult({
+        status: 'completed',
+        value: [{ displayName: 'Recent', id: recentProjectId, lastOpenedAtEpochMs: 10 }],
+        warnings: [],
+      }),
+    ).toBe(true);
   });
 });

@@ -19,6 +19,16 @@ export const installApplicationMenu = (): void => {
       label: 'File',
       submenu: [
         {
+          label: 'Open…',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => sendProjectCommand('open'),
+        },
+        {
+          label: 'Open Recent…',
+          click: () => sendProjectCommand('open-recent'),
+        },
+        { type: 'separator' },
+        {
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
           click: () => sendProjectCommand('save'),

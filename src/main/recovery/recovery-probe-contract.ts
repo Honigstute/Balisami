@@ -7,6 +7,9 @@ export type RecoveryProbeMode = 'verify' | 'write';
 
 export interface RecoveryProbeContract {
   readonly processTimeoutMs: number;
+  readonly rendererQueryKey: string;
+  readonly rendererQueryValue: string;
+  readonly rendererStateAttribute: string;
   readonly rootArgumentPrefix: string;
   readonly rootNamePrefix: string;
   readonly terminationTimeoutMs: number;
@@ -47,6 +50,12 @@ const isRootNamePrefix = (value: unknown): value is string =>
 const isMarker = (value: unknown): value is string =>
   typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,119}$/u.test(value);
 
+const isQueryToken = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-z][a-z0-9-]{0,59}$/u.test(value);
+
+const isDataAttribute = (value: unknown): value is string =>
+  typeof value === 'string' && /^data-[a-z][a-z0-9-]{0,79}$/u.test(value);
+
 export const isValidRecoveryProbeFileName = (value: unknown): value is string =>
   typeof value === 'string' && SAFE_PROBE_FILE_NAME.test(value);
 
@@ -60,6 +69,9 @@ const parseRecoveryProbeContract = (
   if (
     !isPositiveBoundedInteger(contract.processTimeoutMs) ||
     !isPositiveBoundedInteger(contract.terminationTimeoutMs) ||
+    !isQueryToken(contract.rendererQueryKey) ||
+    !isQueryToken(contract.rendererQueryValue) ||
+    !isDataAttribute(contract.rendererStateAttribute) ||
     !isArgumentPrefix(contract.rootArgumentPrefix) ||
     !isRootNamePrefix(contract.rootNamePrefix) ||
     !isValidRecoveryProbeFileName(contract.userFileName) ||

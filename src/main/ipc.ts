@@ -78,6 +78,53 @@ export const registerDesktopIpc = ({
     );
   });
 
+  ipcMain.handle(DESKTOP_CHANNELS.projectStartupOptions, (event) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    return (
+      getProjectController(event.sender.id)?.getStartupOptions() ??
+      PROJECT_BRIDGE_UNAVAILABLE_RESULT
+    );
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.projectRestoreRecovery, (event, input: unknown) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    return (
+      getProjectController(event.sender.id)?.restoreRecovery(input) ??
+      PROJECT_BRIDGE_UNAVAILABLE_RESULT
+    );
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.projectDiscardRecovery, (event, input: unknown) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    return (
+      getProjectController(event.sender.id)?.discardRecovery(input) ??
+      PROJECT_BRIDGE_UNAVAILABLE_RESULT
+    );
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.projectOpen, (event, input: unknown) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    return (
+      getProjectController(event.sender.id)?.openProject(input) ?? PROJECT_BRIDGE_UNAVAILABLE_RESULT
+    );
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.projectOpenRecent, (event, input: unknown) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    return (
+      getProjectController(event.sender.id)?.openRecentProject(input) ??
+      PROJECT_BRIDGE_UNAVAILABLE_RESULT
+    );
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.projectListRecent, (event) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    return (
+      getProjectController(event.sender.id)?.listRecentProjects() ??
+      PROJECT_BRIDGE_UNAVAILABLE_RESULT
+    );
+  });
+
   ipcMain.handle(DESKTOP_CHANNELS.projectSave, (event, input: unknown) => {
     assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
     return (

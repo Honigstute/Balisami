@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { BrowserWindow } from 'electron';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -8,6 +9,7 @@ import recoveryProbeContract from '../recovery-probe-contract.json';
 import {
   preparePackagedRecoveryProbe,
   verifyPackagedRecoveryProbe,
+  verifyPackagedRecoveryThroughRenderer,
 } from '../src/main/recovery/recovery-packaged-probe';
 import { discoverRecoverySnapshots } from '../src/main/recovery/recovery-journal';
 import {
@@ -119,6 +121,30 @@ describe('packaged recovery probe', () => {
       ok: true,
       value: { issues: [], omittedIssueCount: 0, snapshots: [{ pointer: { stateId: 1 } }] },
     });
+  });
+
+  it('accepts ordinary renderer recovery only when it is ready, dirty, and recovery-sourced', async () => {
+    const root = await createProbeRoot();
+    await preparePackagedRecoveryProbe(root, recoveryProbeContract.userFileName);
+    const executeJavaScript = (): Promise<string> =>
+      Promise.resolve(
+        JSON.stringify({
+          isDirty: true,
+          isReady: true,
+          note: 'This accepted edit existed only in recovery when the process was killed.',
+          source: 'recovery',
+        }),
+      );
+    const window = { webContents: { executeJavaScript } };
+
+    await expect(
+      verifyPackagedRecoveryThroughRenderer(
+        window as unknown as BrowserWindow,
+        root,
+        recoveryProbeContract.userFileName,
+        recoveryProbeContract,
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it('refuses to report recovery when the killed process left no durable evidence', async () => {

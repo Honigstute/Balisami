@@ -428,6 +428,21 @@ serializes mutations, and is replaced atomically. A successful open or save rema
 this convenience list cannot update. Missing recent targets are forgotten only after an actual
 file-not-found result. Malformed metadata is preserved and reported rather than silently overwritten.
 
+Ordinary renderer startup asks main for one bounded, path-free choice set before creating a project.
+Main retains exact recovery pointers behind random window-scoped IDs and exposes only capture time,
+a bounded display name, recent-project summaries, and a count of ignored damaged evidence. The user
+must explicitly restore one point, discard one exact point, or start a new project while retaining
+the recovery evidence. A failed or stale choice keeps the evidence and the same focused overlay open;
+technical pointer, digest, project identity, and path data never cross preload.
+
+Open and recent-project replacement validate and decode the selected file into one immutable
+main-process candidate before the current project is asked to close. The renderer freezes commands,
+captures one exact history/save-token snapshot when dirty, and sends only that path-free replacement
+context. Cancellation or failure rejects the temporary token and restores the same renderer history;
+success closes the native persistence session before installing the already-validated candidate as
+the renderer's sole new history. Selecting the already-open file is refused before save/close so a
+staged older copy can never replace newly saved work.
+
 Unsaved close has exactly three native decisions: Save, Cancel, and Don't Save. Cancel, including a
 cancelled Save As, leaves the session active. Save must durably complete before close; a save failure
 also leaves the session active. Don't Save explicitly discards the known recovery point before the
@@ -447,11 +462,12 @@ The packaged crash-recovery acceptance probe uses two launches of the real binar
 process owner. Its writer saves a prior user project, applies one edit through document history,
 waits until the production scheduler/journal can read that exact state, and then waits without
 calling a close or shutdown path. The harness kills that process forcibly, snapshots the prior file
-bytes, and relaunches the binary. The verifier discovers and restores the exact pointer through the
-public lifecycle, confirms the restored session has no authorized save destination, and proves the
-prior file is still byte-identical. The test-only writer is confined after real-path resolution to
-an initially empty, contract-named directory beneath the operating system temp root; it cannot be
-pointed at ordinary project or user-data directories.
+bytes, and relaunches the binary through the ordinary window, preload, startup-choice, and renderer
+history path. The verifier selects the opaque recovery choice, confirms the exact recovered note is
+live, dirty, and recovery-sourced (therefore Save As is still required), and proves the prior file is
+still byte-identical. The test-only writer is confined after real-path resolution to an initially
+empty, contract-named directory beneath the operating system temp root; it cannot be pointed at
+ordinary project or user-data directories.
 
 Rules:
 

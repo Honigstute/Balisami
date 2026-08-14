@@ -8,18 +8,27 @@ import {
   type ProjectCloseResponse,
   type ProjectCommand,
   type ProjectHistorySnapshotRequest,
+  type ProjectOpenRecentRequest,
+  type ProjectRecoveryChoiceRequest,
   type ProjectRecoverySnapshotRequest,
+  type ProjectReplacementRequest,
   type ProjectStartRequest,
   isDesktopAcknowledgement,
   isProjectCloseOutcome,
   isProjectCloseRequest,
   isProjectCloseResponse,
   isProjectCommand,
+  isProjectOpenRecentRequest,
   isProjectHistorySnapshotRequest,
   isProjectOpenedResult,
+  isProjectRecoveryChoiceRequest,
+  isProjectRecoveryDiscardedResult,
   isProjectRecoveryScheduledResult,
   isProjectRecoverySnapshotRequest,
   isProjectSavedResult,
+  isProjectStartupOptionsResult,
+  isProjectReplacementRequest,
+  isRecentProjectsResult,
   isProjectStartRequest,
   isRuntimeInfo,
 } from '../shared/desktop-api';
@@ -64,11 +73,71 @@ const desktopApi: DesktopApi = Object.freeze({
   onProjectCommand(listener: (command: ProjectCommand) => void) {
     return createValidatedListener(DESKTOP_CHANNELS.projectCommand, isProjectCommand, listener);
   },
+  async discardProjectRecovery(request: ProjectRecoveryChoiceRequest) {
+    if (!isProjectRecoveryChoiceRequest(request)) {
+      throw new TypeError('The recovery discard request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(
+      DESKTOP_CHANNELS.projectDiscardRecovery,
+      request,
+    );
+    if (!isProjectRecoveryDiscardedResult(response)) {
+      throw new Error('The desktop runtime returned an invalid recovery discard result.');
+    }
+    return response;
+  },
+  async getProjectStartupOptions() {
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.projectStartupOptions);
+    if (!isProjectStartupOptionsResult(response)) {
+      throw new Error('The desktop runtime returned invalid project startup options.');
+    }
+    return response;
+  },
+  async listRecentProjects() {
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.projectListRecent);
+    if (!isRecentProjectsResult(response)) {
+      throw new Error('The desktop runtime returned an invalid recent-project result.');
+    }
+    return response;
+  },
+  async openProject(request: ProjectReplacementRequest) {
+    if (!isProjectReplacementRequest(request)) {
+      throw new TypeError('The current-project replacement request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.projectOpen, request);
+    if (!isProjectOpenedResult(response)) {
+      throw new Error('The desktop runtime returned an invalid opened-project result.');
+    }
+    return response;
+  },
+  async openRecentProject(request: ProjectOpenRecentRequest) {
+    if (!isProjectOpenRecentRequest(request)) {
+      throw new TypeError('The recent-project replacement request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.projectOpenRecent, request);
+    if (!isProjectOpenedResult(response)) {
+      throw new Error('The desktop runtime returned an invalid recent-project result.');
+    }
+    return response;
+  },
   respondToProjectClose(response: ProjectCloseResponse) {
     if (!isProjectCloseResponse(response)) {
       throw new TypeError('The project close response is invalid.');
     }
     ipcRenderer.send(DESKTOP_CHANNELS.projectCloseResponse, response);
+  },
+  async restoreProjectRecovery(request: ProjectRecoveryChoiceRequest) {
+    if (!isProjectRecoveryChoiceRequest(request)) {
+      throw new TypeError('The recovery restore request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(
+      DESKTOP_CHANNELS.projectRestoreRecovery,
+      request,
+    );
+    if (!isProjectOpenedResult(response)) {
+      throw new Error('The desktop runtime returned an invalid recovered-project result.');
+    }
+    return response;
   },
   async saveProject(request: ProjectHistorySnapshotRequest) {
     if (!isProjectHistorySnapshotRequest(request)) {

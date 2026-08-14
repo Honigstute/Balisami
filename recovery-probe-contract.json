@@ -1,5 +1,8 @@
 {
   "processTimeoutMs": 30000,
+  "rendererQueryKey": "recovery-probe",
+  "rendererQueryValue": "restore",
+  "rendererStateAttribute": "data-recovery-probe-state",
   "rootArgumentPrefix": "--recovery-probe-root=",
   "rootNamePrefix": "balsamic-packaged-recovery-",
   "terminationTimeoutMs": 5000,

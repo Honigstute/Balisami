@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { DOCUMENT_COMMAND_TYPES, type ProjectDocument } from '../src/domain';
+import { DOCUMENT_COMMAND_TYPES, ProjectIdSchema, type ProjectDocument } from '../src/domain';
 import { ProjectSession } from '../src/renderer/projects/project-session';
 import type {
   DesktopApi,
@@ -11,7 +11,10 @@ import type {
   ProjectCloseResponse,
   ProjectCommand,
   ProjectHistorySnapshotRequest,
+  ProjectOpenedResult,
+  ProjectRecoveryDiscardedResult,
   ProjectSavedResult,
+  ProjectStartupOptionsResult,
 } from '../src/shared/desktop-api';
 import { DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 import { createAssetFreeProjectDocument } from './fixtures/project-file';
@@ -36,12 +39,38 @@ class FakeDesktopApi implements DesktopApi {
   readonly commands = new Set<(command: ProjectCommand) => void>();
   readonly recoveryRequests: unknown[] = [];
   readonly saveRequests: ProjectHistorySnapshotRequest[] = [];
+  readonly openRequests: unknown[] = [];
 
+  nextDiscard: ProjectRecoveryDiscardedResult | undefined;
+  nextOpen: ProjectOpenedResult | undefined;
   nextSave: Promise<ProjectSavedResult> | undefined;
+  nextStartup: ProjectStartupOptionsResult | undefined;
+  nextRestore: ProjectOpenedResult | undefined;
 
   constructor(readonly document: ProjectDocument) {}
 
   getRuntimeInfo = (): Promise<never> => Promise.reject(new Error('Not used by project session.'));
+
+  discardProjectRecovery: DesktopApi['discardProjectRecovery'] = (request) =>
+    Promise.resolve(
+      this.nextDiscard ?? {
+        status: 'completed',
+        value: { discarded: true, recoveryId: request.recoveryId },
+        warnings: [],
+      },
+    );
+
+  getProjectStartupOptions: DesktopApi['getProjectStartupOptions'] = () =>
+    Promise.resolve(
+      this.nextStartup ?? {
+        status: 'completed',
+        value: { ignoredRecoveryEvidenceCount: 0, recentProjects: [], recoveries: [] },
+        warnings: [],
+      },
+    );
+
+  listRecentProjects: DesktopApi['listRecentProjects'] = () =>
+    Promise.resolve({ status: 'completed', value: [], warnings: [] });
 
   onProjectCloseOutcome = (listener: (outcome: ProjectCloseOutcome) => void): (() => void) => {
     this.closeOutcomes.add(listener);
@@ -59,6 +88,14 @@ class FakeDesktopApi implements DesktopApi {
   };
 
   reportRendererReady = (): Promise<void> => Promise.resolve();
+
+  openProject: DesktopApi['openProject'] = (request) => {
+    this.openRequests.push(request);
+    return Promise.resolve(this.nextOpen ?? { status: 'cancelled' });
+  };
+
+  openRecentProject: DesktopApi['openRecentProject'] = () =>
+    Promise.resolve({ status: 'cancelled' });
 
   respondToProjectClose = (response: ProjectCloseResponse): void => {
     this.closeResponses.push(response);
@@ -80,6 +117,9 @@ class FakeDesktopApi implements DesktopApi {
       warnings: [],
     });
   };
+
+  restoreProjectRecovery: DesktopApi['restoreProjectRecovery'] = () =>
+    Promise.resolve(this.nextRestore ?? { status: 'cancelled' });
 
   startProject: DesktopApi['startProject'] = () =>
     Promise.resolve({
@@ -109,6 +149,108 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('waits for an explicit opaque recovery choice before creating a new history', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const recoveryId = '1c5a90d8-2f04-45d2-b2c6-67df91989081';
+    desktop.nextStartup = {
+      status: 'completed',
+      value: {
+        ignoredRecoveryEvidenceCount: 1,
+        recentProjects: [],
+        recoveries: [{ capturedAtEpochMs: 20, displayName: 'Recovered project', id: recoveryId }],
+      },
+      warnings: [],
+    };
+    desktop.nextRestore = {
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: 'Recovered project',
+        document,
+        source: 'recovery',
+      },
+      warnings: [],
+    };
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+
+    await session.start();
+    expect(session.getSnapshot()).toMatchObject({
+      dialog: { ignoredEvidenceCount: 1, kind: 'startup-recovery' },
+      history: undefined,
+      isReady: false,
+    });
+
+    await session.restoreRecovery(recoveryId);
+    expect(session.getSnapshot()).toMatchObject({
+      dialog: undefined,
+      displayName: 'Recovered project',
+      isDirty: true,
+      isReady: true,
+    });
+    expect(session.getSnapshot().history?.document).toEqual(document);
+  });
+
+  it('starts a new project only after the last recovery is explicitly discarded', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const recoveryId = 'e01a0907-b8dc-4991-8435-81b9bb0a9e16';
+    desktop.nextStartup = {
+      status: 'completed',
+      value: {
+        ignoredRecoveryEvidenceCount: 0,
+        recentProjects: [],
+        recoveries: [{ capturedAtEpochMs: 20, displayName: 'Recovered project', id: recoveryId }],
+      },
+      warnings: [],
+    };
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+
+    await session.discardRecovery(recoveryId);
+
+    expect(session.getSnapshot()).toMatchObject({
+      dialog: undefined,
+      isDirty: true,
+      isReady: true,
+    });
+    expect(session.getSnapshot().history?.document).toEqual(document);
+  });
+
+  it('keeps a failed recovery choice visible and reports one stable problem', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const recoveryId = '69c61e88-1d1f-4692-9fa3-9f270c85f3ee';
+    desktop.nextStartup = {
+      status: 'completed',
+      value: {
+        ignoredRecoveryEvidenceCount: 0,
+        recentProjects: [],
+        recoveries: [{ capturedAtEpochMs: 20, displayName: 'Recovered project', id: recoveryId }],
+      },
+      warnings: [],
+    };
+    desktop.nextRestore = {
+      status: 'failed',
+      problem: {
+        code: 'recovery-failed',
+        title: 'Recovery could not be prepared',
+        message: 'The recovery point was kept.',
+      },
+    };
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+
+    await session.restoreRecovery(recoveryId);
+
+    expect(session.getSnapshot()).toMatchObject({
+      dialog: { kind: 'startup-recovery' },
+      history: undefined,
+      statusTone: 'problem',
+    });
+    expect(session.getSnapshot().statusLabel).toContain('The recovery point was kept');
+  });
+
   it('keeps later edits dirty when an exact earlier save finishes', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
@@ -145,6 +287,60 @@ describe('renderer project session', () => {
     expect(view.history?.currentStateId).not.toBe(captured.stateId);
     expect(view.isDirty).toBe(true);
     expect(view.statusLabel).toContain('Unsaved changes');
+  });
+
+  it('restores the exact current history when project replacement is cancelled', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    session.dispatch(setBoardNote('Keep this exact edit'));
+    const before = session.getSnapshot().history;
+
+    await session.openProject();
+
+    expect(desktop.openRequests).toHaveLength(1);
+    expect(desktop.openRequests[0]).toMatchObject({
+      dirty: true,
+      projectDisplayName: document.name,
+    });
+    expect(session.getSnapshot().history?.document).toBe(before?.document);
+    expect(session.getSnapshot().history?.currentStateId).toBe(before?.currentStateId);
+    expect(session.getSnapshot().history?.pendingSaves).toHaveLength(0);
+    expect(session.dispatch(setBoardNote('Still editable'))?.ok).toBe(true);
+  });
+
+  it('installs an opened file as the sole clean history after replacement succeeds', async () => {
+    const document = createAssetFreeProjectDocument();
+    const replacement = Object.freeze({
+      ...document,
+      id: ProjectIdSchema.parse('project_opened_replacement'),
+      name: 'Opened replacement',
+    });
+    const desktop = new FakeDesktopApi(document);
+    desktop.nextOpen = {
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: 'Opened replacement.test',
+        document: replacement,
+        source: 'project-file',
+      },
+      warnings: [],
+    };
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    session.dispatch(setBoardNote('Old project edit'));
+
+    await session.openProject();
+
+    expect(session.getSnapshot()).toMatchObject({
+      displayName: 'Opened replacement.test',
+      isDirty: false,
+      isReady: true,
+    });
+    expect(session.getSnapshot().history?.document).toEqual(replacement);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
   });
 
   it('freezes history before answering close and unlocks exact state after cancellation', async () => {

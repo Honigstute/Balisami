@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   beginDocumentHistorySave,
   createDocumentHistory,
+  ProjectIdSchema,
   type HistorySaveSnapshot,
 } from '../src/domain';
 import type {
@@ -21,6 +22,10 @@ import {
   type NativeProjectFailureReporter,
 } from '../src/main/projects/project-native-workflow';
 import { RecentProjectStore } from '../src/main/recent/recent-project-store';
+import {
+  captureProjectRecoverySnapshot,
+  writeRecoverySnapshot,
+} from '../src/main/recovery/recovery-journal';
 import { createAssetFreeProjectDocument } from './fixtures/project-file';
 import { DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
@@ -90,6 +95,51 @@ const createSaveSnapshot = (): HistorySaveSnapshot => {
 };
 
 describe('project native workflow', () => {
+  it('lists and restores recovery through one opaque path-free choice', async () => {
+    const root = await createWorkflowRoot();
+    const document = createAssetFreeProjectDocument();
+    const sourceFilePath = path.join(root, 'Prior Project.test');
+    const history = createDocumentHistory(document, { initiallySaved: false });
+    const written = await writeRecoverySnapshot(
+      root,
+      captureProjectRecoverySnapshot(history),
+      {},
+      {
+        sourceFilePath,
+      },
+    );
+    if (!written.ok) {
+      throw new Error('Expected native recovery-choice fixture to write.');
+    }
+    const dialogs = new QueuedProjectDialogs();
+    const { lifecycle, workflow } = createWorkflow(root, dialogs);
+
+    const options = await workflow.getStartupOptions();
+    expect(options).toMatchObject({
+      status: 'completed',
+      value: {
+        ignoredRecoveryEvidenceCount: 0,
+        recoveries: [{ displayName: 'Prior Project.test' }],
+      },
+    });
+    expect(JSON.stringify(options)).not.toContain(root);
+    expect(JSON.stringify(options)).not.toContain(document.id);
+    const recoveryId = options.status === 'completed' ? options.value.recoveries[0]?.id : undefined;
+    if (recoveryId === undefined) {
+      throw new Error('Expected one opaque recovery choice.');
+    }
+
+    await expect(workflow.restoreRecovery(recoveryId)).resolves.toMatchObject({
+      status: 'completed',
+      value: { document, source: 'recovery' },
+    });
+    expect(lifecycle.getActiveStatus()).toMatchObject({ filePath: null, projectId: document.id });
+    await expect(workflow.restoreRecovery(recoveryId)).resolves.toMatchObject({
+      status: 'failed',
+      problem: { code: 'recovery-failed' },
+    });
+  });
+
   it('treats open cancellation as a normal result and exposes no path', async () => {
     const root = await createWorkflowRoot();
     const filePath = path.join(root, 'Opened Project.test');
@@ -117,6 +167,87 @@ describe('project native workflow', () => {
       value: [{ displayName: 'Opened Project.test' }],
     });
     expect(JSON.stringify(recent)).not.toContain(root);
+  });
+
+  it('validates a replacement file before asking to discard the active project', async () => {
+    const root = await createWorkflowRoot();
+    const invalidFilePath = path.join(root, 'Invalid Project.test');
+    await writeFile(invalidFilePath, 'not a project');
+    const dialogs = new QueuedProjectDialogs();
+    dialogs.openResults.push({ status: 'selected', filePath: invalidFilePath });
+    dialogs.closeResults.push({ status: 'selected', choice: 'discard' });
+    const { lifecycle, workflow } = createWorkflow(root, dialogs);
+    const current = createAssetFreeProjectDocument();
+    lifecycle.startNewProject(current);
+
+    await expect(
+      workflow.openFromDialog({ dirty: false, projectDisplayName: current.name }),
+    ).resolves.toMatchObject({ status: 'failed', problem: { code: 'open-failed' } });
+    expect(dialogs.closeCalls).toBe(0);
+    expect(lifecycle.getActiveStatus()?.projectId).toBe(current.id);
+  });
+
+  it('refuses to reinstall stale staged bytes when the selected file is already open', async () => {
+    const root = await createWorkflowRoot();
+    const filePath = path.join(root, 'Current Project.test');
+    const document = createAssetFreeProjectDocument();
+    const saved = await saveProjectFile(filePath, document);
+    if (!saved.ok) {
+      throw new Error('Expected already-open project fixture to save.');
+    }
+    const dialogs = new QueuedProjectDialogs();
+    dialogs.openResults.push({ status: 'selected', filePath });
+    dialogs.closeResults.push({ status: 'selected', choice: 'save' });
+    const { lifecycle, workflow } = createWorkflow(root, dialogs);
+    await lifecycle.openProject(filePath);
+
+    await expect(
+      workflow.openFromDialog({
+        dirty: true,
+        projectDisplayName: document.name,
+        saveSnapshot: createSaveSnapshot(),
+      }),
+    ).resolves.toMatchObject({
+      status: 'failed',
+      problem: { code: 'open-failed', title: 'This project is already open' },
+    });
+    expect(dialogs.closeCalls).toBe(0);
+    expect(dialogs.saveCalls).toBe(0);
+    expect(lifecycle.getActiveStatus()?.filePath).toBe(filePath);
+  });
+
+  it('replaces an active project only after an explicit discard decision', async () => {
+    const root = await createWorkflowRoot();
+    const targetPath = path.join(root, 'Replacement Project.test');
+    const replacement = Object.freeze({
+      ...createAssetFreeProjectDocument(),
+      id: ProjectIdSchema.parse('project_replacement'),
+      name: 'Replacement document',
+    });
+    const saved = await saveProjectFile(targetPath, replacement);
+    if (!saved.ok) {
+      throw new Error('Expected replacement project fixture to save.');
+    }
+    const dialogs = new QueuedProjectDialogs();
+    dialogs.openResults.push({ status: 'selected', filePath: targetPath });
+    dialogs.closeResults.push({ status: 'selected', choice: 'discard' });
+    const { lifecycle, workflow } = createWorkflow(root, dialogs);
+    const current = createAssetFreeProjectDocument();
+    lifecycle.startNewProject(current);
+
+    await expect(
+      workflow.openFromDialog({
+        dirty: true,
+        projectDisplayName: current.name,
+        saveSnapshot: createSaveSnapshot(),
+      }),
+    ).resolves.toMatchObject({
+      status: 'completed',
+      value: { document: replacement, source: 'project-file' },
+    });
+    expect(dialogs.closeCalls).toBe(1);
+    expect(lifecycle.getActiveStatus()?.projectId).toBe(replacement.id);
+    expect(lifecycle.getActiveStatus()?.filePath).toBe(targetPath);
   });
 
   it('uses Save As for an unbound project, then saves directly to the accepted path', async () => {

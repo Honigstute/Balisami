@@ -80,6 +80,31 @@ const createController = async () => {
 };
 
 describe('project window controller', () => {
+  it('exposes bounded startup options and rejects path-bearing navigation requests', async () => {
+    const { controller, lifecycle } = await createController();
+    const document = createAssetFreeProjectDocument();
+
+    await expect(controller.getStartupOptions()).resolves.toMatchObject({
+      status: 'completed',
+      value: { ignoredRecoveryEvidenceCount: 0, recentProjects: [], recoveries: [] },
+    });
+    await controller.startProject({ assetsById: {}, document });
+    await expect(
+      controller.openProject({
+        dirty: false,
+        projectDisplayName: document.name,
+        selectedPath: '/private/project',
+      }),
+    ).resolves.toMatchObject({
+      status: 'failed',
+      problem: { code: 'unexpected-native-failure' },
+    });
+    await expect(
+      controller.restoreRecovery({ recoveryId: 'opaque-id', recoveryPath: '/private/recovery' }),
+    ).resolves.toMatchObject({ status: 'failed' });
+    expect(lifecycle.getActiveStatus()?.projectId).toBe(document.id);
+  });
+
   it('rejects malformed renderer snapshots before the native workflow changes state', async () => {
     const { controller, lifecycle } = await createController();
     const document = createAssetFreeProjectDocument();

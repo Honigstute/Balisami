@@ -1,6 +1,7 @@
 import {
   USER_OPERATION_PROBLEM_CODES,
   USER_OPERATION_WARNING_CODES,
+  type RecentProjectSummary,
   type UserOperationResult,
 } from './user-operation';
 
@@ -10,10 +11,16 @@ export const DESKTOP_CHANNELS = {
   projectCloseRequest: 'desktop:project-close-request',
   projectCloseResponse: 'desktop:project-close-response',
   projectCommand: 'desktop:project-command',
+  projectDiscardRecovery: 'desktop:project-discard-recovery',
+  projectListRecent: 'desktop:project-list-recent',
+  projectOpen: 'desktop:project-open',
+  projectOpenRecent: 'desktop:project-open-recent',
+  projectRestoreRecovery: 'desktop:project-restore-recovery',
   projectSave: 'desktop:project-save',
   projectSaveAs: 'desktop:project-save-as',
   projectScheduleRecovery: 'desktop:project-schedule-recovery',
   projectStart: 'desktop:project-start',
+  projectStartupOptions: 'desktop:project-startup-options',
   reportRendererReady: 'desktop:report-renderer-ready',
 } as const;
 
@@ -26,7 +33,7 @@ export interface RuntimeInfo {
   readonly platform: RuntimePlatform;
 }
 
-export type ProjectCommand = 'save' | 'save-as';
+export type ProjectCommand = 'open' | 'open-recent' | 'save' | 'save-as';
 
 export interface ProjectAssetBytes {
   readonly [assetId: string]: Uint8Array;
@@ -68,6 +75,44 @@ export interface ProjectRecoveryScheduledValue {
   readonly stateId: number;
 }
 
+export interface ProjectRecoveryChoice {
+  /** Opaque, window-scoped identity. It never contains a path or project ID. */
+  readonly id: string;
+  readonly capturedAtEpochMs: number;
+  readonly displayName: string;
+}
+
+export interface ProjectStartupOptionsValue {
+  readonly ignoredRecoveryEvidenceCount: number;
+  readonly recentProjects: readonly RecentProjectSummary[];
+  readonly recoveries: readonly ProjectRecoveryChoice[];
+}
+
+export interface ProjectRecoveryChoiceRequest {
+  readonly recoveryId: string;
+}
+
+export interface ProjectRecoveryDiscardedValue {
+  readonly discarded: boolean;
+  readonly recoveryId: string;
+}
+
+export type ProjectReplacementRequest =
+  | {
+      readonly dirty: false;
+      readonly projectDisplayName: string;
+    }
+  | {
+      readonly dirty: true;
+      readonly projectDisplayName: string;
+      readonly saveSnapshot: ProjectHistorySnapshotRequest;
+    };
+
+export interface ProjectOpenRecentRequest {
+  readonly currentProject: ProjectReplacementRequest;
+  readonly recentProjectId: string;
+}
+
 export interface ProjectClosedValue {
   readonly closed: true;
   readonly discarded: boolean;
@@ -77,6 +122,9 @@ export interface ProjectClosedValue {
 export type ProjectOpenedResult = UserOperationResult<ProjectOpenedValue>;
 export type ProjectSavedResult = UserOperationResult<ProjectSavedValue>;
 export type ProjectRecoveryScheduledResult = UserOperationResult<ProjectRecoveryScheduledValue>;
+export type ProjectStartupOptionsResult = UserOperationResult<ProjectStartupOptionsValue>;
+export type ProjectRecoveryDiscardedResult = UserOperationResult<ProjectRecoveryDiscardedValue>;
+export type RecentProjectsResult = UserOperationResult<readonly RecentProjectSummary[]>;
 export type ProjectClosedResult = UserOperationResult<ProjectClosedValue>;
 
 export interface ProjectCloseRequest {
@@ -105,7 +153,15 @@ export interface DesktopApi {
   onProjectCloseOutcome(listener: (outcome: ProjectCloseOutcome) => void): DesktopEventUnsubscribe;
   onProjectCloseRequest(listener: (request: ProjectCloseRequest) => void): DesktopEventUnsubscribe;
   onProjectCommand(listener: (command: ProjectCommand) => void): DesktopEventUnsubscribe;
+  discardProjectRecovery(
+    request: ProjectRecoveryChoiceRequest,
+  ): Promise<ProjectRecoveryDiscardedResult>;
+  getProjectStartupOptions(): Promise<ProjectStartupOptionsResult>;
+  listRecentProjects(): Promise<RecentProjectsResult>;
+  openProject(request: ProjectReplacementRequest): Promise<ProjectOpenedResult>;
+  openRecentProject(request: ProjectOpenRecentRequest): Promise<ProjectOpenedResult>;
   respondToProjectClose(response: ProjectCloseResponse): void;
+  restoreProjectRecovery(request: ProjectRecoveryChoiceRequest): Promise<ProjectOpenedResult>;
   saveProject(request: ProjectHistorySnapshotRequest): Promise<ProjectSavedResult>;
   saveProjectAs(request: ProjectHistorySnapshotRequest): Promise<ProjectSavedResult>;
   scheduleProjectRecovery(
@@ -138,6 +194,15 @@ const isSafeSaveTokenId = (value: unknown): value is number =>
 
 const isBoundedText = (value: unknown, maxLength: number): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= maxLength;
+
+const isSafeTimestamp = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+const isRecoveryChoiceId = (value: unknown): value is string =>
+  isBoundedText(value, 80) && /^[a-f0-9-]+$/u.test(value);
+
+const isRecentProjectId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 
 export const isProjectAssetBytes = (value: unknown): value is ProjectAssetBytes =>
   isRecord(value) &&
@@ -238,6 +303,40 @@ const isProjectRecoveryScheduledValue = (value: unknown): value is ProjectRecove
   typeof value.scheduled === 'boolean' &&
   isSafeStateId(value.stateId);
 
+const isRecentProjectSummary = (value: unknown): value is RecentProjectSummary =>
+  isRecord(value) &&
+  hasExactKeys(value, ['displayName', 'id', 'lastOpenedAtEpochMs']) &&
+  isBoundedText(value.displayName, 255) &&
+  isRecentProjectId(value.id) &&
+  isSafeTimestamp(value.lastOpenedAtEpochMs);
+
+const isProjectRecoveryChoice = (value: unknown): value is ProjectRecoveryChoice =>
+  isRecord(value) &&
+  hasExactKeys(value, ['capturedAtEpochMs', 'displayName', 'id']) &&
+  isRecoveryChoiceId(value.id) &&
+  isSafeTimestamp(value.capturedAtEpochMs) &&
+  isBoundedText(value.displayName, 255);
+
+const isProjectStartupOptionsValue = (value: unknown): value is ProjectStartupOptionsValue =>
+  isRecord(value) &&
+  hasExactKeys(value, ['ignoredRecoveryEvidenceCount', 'recentProjects', 'recoveries']) &&
+  Number.isSafeInteger(value.ignoredRecoveryEvidenceCount) &&
+  typeof value.ignoredRecoveryEvidenceCount === 'number' &&
+  value.ignoredRecoveryEvidenceCount >= 0 &&
+  value.ignoredRecoveryEvidenceCount <= 1_050 &&
+  Array.isArray(value.recentProjects) &&
+  value.recentProjects.length <= 20 &&
+  value.recentProjects.every(isRecentProjectSummary) &&
+  Array.isArray(value.recoveries) &&
+  value.recoveries.length <= 1_000 &&
+  value.recoveries.every(isProjectRecoveryChoice);
+
+const isProjectRecoveryDiscardedValue = (value: unknown): value is ProjectRecoveryDiscardedValue =>
+  isRecord(value) &&
+  hasExactKeys(value, ['discarded', 'recoveryId']) &&
+  typeof value.discarded === 'boolean' &&
+  isRecoveryChoiceId(value.recoveryId);
+
 const isProjectClosedValue = (value: unknown): value is ProjectClosedValue =>
   isRecord(value) &&
   hasExactKeys(value, ['closed', 'discarded', 'saved']) &&
@@ -255,6 +354,23 @@ export const isProjectRecoveryScheduledResult = (
   value: unknown,
 ): value is ProjectRecoveryScheduledResult =>
   isUserOperationResult(value, isProjectRecoveryScheduledValue);
+
+export const isProjectStartupOptionsResult = (
+  value: unknown,
+): value is ProjectStartupOptionsResult =>
+  isUserOperationResult(value, isProjectStartupOptionsValue);
+
+export const isProjectRecoveryDiscardedResult = (
+  value: unknown,
+): value is ProjectRecoveryDiscardedResult =>
+  isUserOperationResult(value, isProjectRecoveryDiscardedValue);
+
+export const isRecentProjectsResult = (value: unknown): value is RecentProjectsResult =>
+  isUserOperationResult(
+    value,
+    (candidate): candidate is readonly RecentProjectSummary[] =>
+      Array.isArray(candidate) && candidate.length <= 20 && candidate.every(isRecentProjectSummary),
+  );
 
 export const isProjectClosedResult = (value: unknown): value is ProjectClosedResult =>
   isUserOperationResult(value, isProjectClosedValue);
@@ -297,8 +413,36 @@ export const isProjectCloseOutcome = (value: unknown): value is ProjectCloseOutc
   isProjectCloseRequest({ requestId: value.requestId }) &&
   isProjectClosedResult(value.result);
 
+export const isProjectRecoveryChoiceRequest = (
+  value: unknown,
+): value is ProjectRecoveryChoiceRequest =>
+  isRecord(value) && hasExactKeys(value, ['recoveryId']) && isRecoveryChoiceId(value.recoveryId);
+
+export const isProjectReplacementRequest = (value: unknown): value is ProjectReplacementRequest => {
+  if (!isRecord(value) || typeof value.dirty !== 'boolean') {
+    return false;
+  }
+  if (!value.dirty) {
+    return (
+      hasExactKeys(value, ['dirty', 'projectDisplayName']) &&
+      isBoundedText(value.projectDisplayName, 255)
+    );
+  }
+  return (
+    hasExactKeys(value, ['dirty', 'projectDisplayName', 'saveSnapshot']) &&
+    isBoundedText(value.projectDisplayName, 255) &&
+    isProjectHistorySnapshotRequest(value.saveSnapshot)
+  );
+};
+
+export const isProjectOpenRecentRequest = (value: unknown): value is ProjectOpenRecentRequest =>
+  isRecord(value) &&
+  hasExactKeys(value, ['currentProject', 'recentProjectId']) &&
+  isProjectReplacementRequest(value.currentProject) &&
+  isRecentProjectId(value.recentProjectId);
+
 export const isProjectCommand = (value: unknown): value is ProjectCommand =>
-  value === 'save' || value === 'save-as';
+  value === 'open' || value === 'open-recent' || value === 'save' || value === 'save-as';
 
 export const isRuntimeInfo = (value: unknown): value is RuntimeInfo => {
   if (!isRecord(value)) {

@@ -16,7 +16,7 @@ import { installNavigationPolicy } from './navigation-policy';
 import { APP_ENTRY_URL, installAppProtocol, registerAppScheme } from './protocol';
 import {
   preparePackagedRecoveryProbe,
-  verifyPackagedRecoveryProbe,
+  verifyPackagedRecoveryThroughRenderer,
 } from './recovery/recovery-packaged-probe';
 import {
   authorizeRecoveryProbeRoot,
@@ -61,7 +61,11 @@ if (started) {
 let logger: AppLogger | undefined;
 const projectControllers = new Map<number, ProjectWindowController>();
 const startupHealth =
-  isSmokeTest || isProjectWorkflowProbe ? new StartupHealthMonitor() : undefined;
+  isSmokeTest ||
+  isProjectWorkflowProbe ||
+  (recoveryProbeInvocation.kind === 'probe' && recoveryProbeInvocation.mode === 'verify')
+    ? new StartupHealthMonitor()
+    : undefined;
 
 const developmentServerUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL;
 
@@ -199,15 +203,9 @@ const waitForForcedTermination = (): Promise<never> =>
 const runRecoveryProbe = async (
   invocation: Extract<RecoveryProbeInvocation, { readonly kind: 'probe' }>,
 ): Promise<void> => {
-  if (invocation.mode === 'write') {
-    await preparePackagedRecoveryProbe(invocation.root, invocation.contract.userFileName);
-    await writeStandardOutputLine(invocation.contract.writerReadyMarker);
-    await waitForForcedTermination();
-  }
-
-  await verifyPackagedRecoveryProbe(invocation.root, invocation.contract.userFileName);
-  await writeStandardOutputLine(invocation.contract.verificationMarker);
-  app.exit(0);
+  await preparePackagedRecoveryProbe(invocation.root, invocation.contract.userFileName);
+  await writeStandardOutputLine(invocation.contract.writerReadyMarker);
+  await waitForForcedTermination();
 };
 
 const startApplication = async (): Promise<void> => {
@@ -253,7 +251,7 @@ const startApplication = async (): Promise<void> => {
   }
   await app.whenReady();
 
-  if (activeRecoveryProbe !== undefined) {
+  if (activeRecoveryProbe?.mode === 'write') {
     await runRecoveryProbe(activeRecoveryProbe);
     return;
   }
@@ -278,15 +276,19 @@ const startApplication = async (): Promise<void> => {
     resolveProjectController: (webContentsId) => projectControllers.get(webContentsId),
   });
   const window = await createWindow(
-    activeProjectWorkflowProbe === undefined
-      ? {}
-      : {
+    activeProjectWorkflowProbe !== undefined
+      ? {
           projectDialogs: createProjectWorkflowProbeDialogs(
             activeProjectWorkflowProbe.root,
             activeProjectWorkflowProbe.contract.userFileName,
           ),
           rendererQuery: `${activeProjectWorkflowProbe.contract.queryKey}=${activeProjectWorkflowProbe.contract.queryValue}`,
-        },
+        }
+      : activeRecoveryProbe?.mode === 'verify'
+        ? {
+            rendererQuery: `${activeRecoveryProbe.contract.rendererQueryKey}=${activeRecoveryProbe.contract.rendererQueryValue}`,
+          }
+        : {},
   );
   if (activeProjectWorkflowProbe !== undefined) {
     if (startupHealth === undefined) {
@@ -301,6 +303,23 @@ const startApplication = async (): Promise<void> => {
     );
     startupHealth.assertHealthy();
     await writeStandardOutputLine(activeProjectWorkflowProbe.contract.marker);
+    app.exit(0);
+    return;
+  }
+  if (activeRecoveryProbe?.mode === 'verify') {
+    if (startupHealth === undefined) {
+      throw new Error('The recovery verifier health monitor is unavailable.');
+    }
+    await startupHealth.waitForRendererReady(activeRecoveryProbe.contract.processTimeoutMs);
+    startupHealth.assertHealthy();
+    await verifyPackagedRecoveryThroughRenderer(
+      window,
+      activeRecoveryProbe.root,
+      activeRecoveryProbe.contract.userFileName,
+      activeRecoveryProbe.contract,
+    );
+    startupHealth.assertHealthy();
+    await writeStandardOutputLine(activeRecoveryProbe.contract.verificationMarker);
     app.exit(0);
     return;
   }

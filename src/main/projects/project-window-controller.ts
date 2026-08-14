@@ -6,13 +6,22 @@ import type {
   ProjectClosedResult,
   ProjectClosedValue,
   ProjectOpenedResult,
+  ProjectRecoveryDiscardedResult,
   ProjectRecoveryScheduledResult,
+  ProjectReplacementRequest,
   ProjectSavedResult,
+  ProjectStartupOptionsResult,
+  RecentProjectsResult,
 } from '../../shared/desktop-api';
-import { isProjectCloseResponse } from '../../shared/desktop-api';
+import {
+  isProjectCloseResponse,
+  isProjectOpenRecentRequest,
+  isProjectRecoveryChoiceRequest,
+  isProjectReplacementRequest,
+} from '../../shared/desktop-api';
 import type { UserOperationProblem, UserOperationResult } from '../../shared/user-operation';
 import type { ProjectLifecycleController } from './project-lifecycle-controller';
-import type { ProjectNativeWorkflow } from './project-native-workflow';
+import type { NativeCloseRequest, ProjectNativeWorkflow } from './project-native-workflow';
 import {
   parseProjectRecoveryTransport,
   parseProjectSaveTransport,
@@ -76,6 +85,48 @@ export class ProjectWindowController {
       return this.#reject('start');
     }
     return this.#workflow.startNewProject(parsed.value.document, parsed.value.assetsById);
+  }
+
+  getStartupOptions(): Promise<ProjectStartupOptionsResult> {
+    return this.#workflow.getStartupOptions();
+  }
+
+  listRecentProjects(): Promise<RecentProjectsResult> {
+    return this.#workflow.listRecentProjects();
+  }
+
+  async restoreRecovery(input: unknown): Promise<ProjectOpenedResult> {
+    if (!isProjectRecoveryChoiceRequest(input)) {
+      return this.#reject('restore-recovery');
+    }
+    return this.#workflow.restoreRecovery(input.recoveryId);
+  }
+
+  async discardRecovery(input: unknown): Promise<ProjectRecoveryDiscardedResult> {
+    if (!isProjectRecoveryChoiceRequest(input)) {
+      return this.#reject('discard-recovery');
+    }
+    return this.#workflow.discardRecovery(input.recoveryId);
+  }
+
+  async openProject(input: unknown): Promise<ProjectOpenedResult> {
+    if (!isProjectReplacementRequest(input)) {
+      return this.#reject('open');
+    }
+    const currentProject = this.#parseReplacement(input);
+    return currentProject === undefined
+      ? this.#reject('open-current')
+      : this.#workflow.openFromDialog(currentProject);
+  }
+
+  async openRecentProject(input: unknown): Promise<ProjectOpenedResult> {
+    if (!isProjectOpenRecentRequest(input)) {
+      return this.#reject('open-recent');
+    }
+    const currentProject = this.#parseReplacement(input.currentProject);
+    return currentProject === undefined
+      ? this.#reject('open-recent-current')
+      : this.#workflow.openRecent(input.recentProjectId, currentProject);
   }
 
   async saveProject(input: unknown, forceSaveAs = false): Promise<ProjectSavedResult> {
@@ -194,6 +245,22 @@ export class ProjectWindowController {
       this.#closeAuthorized = true;
       this.#events.closeWindow();
     }
+  }
+
+  #parseReplacement(input: ProjectReplacementRequest): NativeCloseRequest | undefined {
+    if (!input.dirty) {
+      return Object.freeze({ dirty: false, projectDisplayName: input.projectDisplayName });
+    }
+    const parsed = parseProjectSaveTransport(input.saveSnapshot);
+    if (!parsed.ok) {
+      return undefined;
+    }
+    return Object.freeze({
+      assetsById: parsed.value.assetsById,
+      dirty: true,
+      projectDisplayName: input.projectDisplayName,
+      saveSnapshot: parsed.value.snapshot,
+    });
   }
 
   #finishRejectedClose(requestId: string): void {

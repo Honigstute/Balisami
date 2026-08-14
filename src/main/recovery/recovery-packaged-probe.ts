@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { BrowserWindow } from 'electron';
 
 import {
   BoardIdSchema,
@@ -16,6 +17,7 @@ import { isValidAbsoluteNonRootPath, isValidApplicationDataRoot } from '../files
 import { ProjectLifecycleController } from '../projects/project-lifecycle-controller';
 import { loadRecoverySnapshot } from './recovery-journal';
 import { isValidRecoveryProbeFileName } from './recovery-probe-contract';
+import type { RecoveryProbeContract } from './recovery-probe-contract';
 
 interface RecoveryProbeFixture {
   readonly priorDocument: ProjectDocument;
@@ -28,6 +30,7 @@ const PROBE_BOARD_ID = BoardIdSchema.parse('board_recovery_probe');
 const PRIOR_NOTE = 'This note was already present in the durable user file.';
 const RECOVERED_NOTE = 'This accepted edit existed only in recovery when the process was killed.';
 const RECOVERY_WRITE_TIMEOUT_MS = 10_000;
+const RENDERER_RECOVERY_POLL_INTERVAL_MS = 25;
 
 const createRecoveryProbeFixture = (): RecoveryProbeFixture => {
   const parsed = parseProjectDocument({
@@ -200,4 +203,73 @@ export const verifyPackagedRecoveryProbe = async (
     );
   }
   await assertPriorUserFile(storage.userFilePath, fixture.priorDocument);
+};
+
+interface RendererRecoveryState {
+  readonly isDirty: boolean;
+  readonly isReady: boolean;
+  readonly note: string;
+  readonly source: string;
+}
+
+const parseRendererRecoveryState = (input: unknown): RendererRecoveryState | undefined => {
+  if (typeof input !== 'string' || input.length > 4_096) {
+    return undefined;
+  }
+  try {
+    const value: unknown = JSON.parse(input);
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      Object.keys(value).length === 4 &&
+      'isDirty' in value &&
+      typeof value.isDirty === 'boolean' &&
+      'isReady' in value &&
+      typeof value.isReady === 'boolean' &&
+      'note' in value &&
+      typeof value.note === 'string' &&
+      'source' in value &&
+      typeof value.source === 'string'
+    ) {
+      return value as unknown as RendererRecoveryState;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+};
+
+/** Proves an ordinary renderer launch selected recovery and retained Save As semantics. */
+export const verifyPackagedRecoveryThroughRenderer = async (
+  window: BrowserWindow,
+  root: unknown,
+  userFileName: unknown,
+  contract: RecoveryProbeContract,
+): Promise<void> => {
+  const storage = resolveProbeStorage(root, userFileName);
+  const fixture = createRecoveryProbeFixture();
+  await assertPriorUserFile(storage.userFilePath, fixture.priorDocument);
+
+  const attribute = JSON.stringify(contract.rendererStateAttribute);
+  const deadline = Date.now() + contract.processTimeoutMs;
+  while (Date.now() <= deadline) {
+    const rawState: unknown = await window.webContents.executeJavaScript(
+      `document.querySelector('.app-shell')?.getAttribute(${attribute}) ?? null`,
+      true,
+    );
+    const state = parseRendererRecoveryState(rawState);
+    if (
+      state?.isReady === true &&
+      state.isDirty &&
+      state.source === 'recovery' &&
+      state.note === RECOVERED_NOTE
+    ) {
+      await assertPriorUserFile(storage.userFilePath, fixture.priorDocument);
+      return;
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, RENDERER_RECOVERY_POLL_INTERVAL_MS));
+  }
+  throw new Error(
+    'The ordinary packaged renderer did not restore the exact recovery state with Save As required.',
+  );
 };

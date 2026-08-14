@@ -19,6 +19,7 @@ export interface UserOperationProblem {
 }
 
 export const USER_OPERATION_WARNING_CODES = Object.freeze([
+  'recent-files-read-failed',
   'recent-files-update-failed',
   'recovery-cleanup-failed',
   'save-cleanup-failed',

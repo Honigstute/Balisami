@@ -26,6 +26,12 @@ if (
   contract === null ||
   !isPositiveBoundedInteger(contract.processTimeoutMs) ||
   !isPositiveBoundedInteger(contract.terminationTimeoutMs) ||
+  typeof contract.rendererQueryKey !== 'string' ||
+  !/^[a-z][a-z0-9-]{0,59}$/u.test(contract.rendererQueryKey) ||
+  typeof contract.rendererQueryValue !== 'string' ||
+  !/^[a-z][a-z0-9-]{0,59}$/u.test(contract.rendererQueryValue) ||
+  typeof contract.rendererStateAttribute !== 'string' ||
+  !/^data-[a-z][a-z0-9-]{0,79}$/u.test(contract.rendererStateAttribute) ||
   !isArgumentPrefix(contract.rootArgumentPrefix) ||
   !isRootNamePrefix(contract.rootNamePrefix) ||
   !isFileName(contract.userFileName) ||
@@ -190,7 +196,7 @@ try {
   }
 
   process.stdout.write(
-    `Packaged forced-crash recovery passed: ${executable}\nPrior user file preserved byte-for-byte (${String(priorUserFileBytes.byteLength)} bytes).\n`,
+    `Packaged forced-crash ordinary-launch recovery passed: ${executable}\nPrior user file preserved byte-for-byte (${String(priorUserFileBytes.byteLength)} bytes).\n`,
   );
 } finally {
   if (writer !== undefined) {
