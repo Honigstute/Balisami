@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M3 active
+Status: M4 active
 Last reviewed: 2026-08-14
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -103,7 +103,7 @@ Completion evidence (2026-08-14):
 - The history gate applies exactly 10,000 deterministic seeded valid commands through the public history/dispatcher boundary, retains the configured bounded entry count, undoes to state ID `0` and byte-identical initial JSON, then redoes to the exact final state ID and JSON. The sequence covers element creation/order/geometry/properties plus board names and notes.
 - Focused failure tests prove malformed commands, invalid IDs/geometry/properties, illegal child ownership/order, late transaction failure, and corrupt history replay preserve the exact input document/history without partial mutation. Save-token tests prove edits during an asynchronous save remain dirty and that undoing to the captured state becomes clean.
 
-### [~] M3 — Versioned file format, atomic save, autosave, and recovery
+### [x] M3 — Versioned file format, atomic save, autosave, and recovery
 
 Depends on: M2
 
@@ -125,7 +125,7 @@ Exit gate:
 - Round trips are deterministic and migrations preserve all supported data.
 - Failed parses/migrations/saves retain the source and in-memory document and produce one actionable, deduplicated message.
 
-Current progress (2026-08-14):
+Completion evidence (2026-08-14):
 
 - The brand-neutral version-1 logical envelope fixes `manifest.json`, canonical `project.json`, and content-addressed raw asset entries without coupling the domain to a product name, extension, or archive library. Equivalent JSON sorts keys recursively, preserves array order, uses two-space indentation, and ends with one newline.
 - Decode treats every envelope as untrusted: exact entry shapes and paths, duplicate/missing entries, per-entry and total byte limits, fatal UTF-8, malformed/truncated JSON, nesting/value complexity, strict manifest fields, file-format compatibility, domain invariants, asset length, and SHA-256 are checked before a project is accepted.
@@ -155,12 +155,9 @@ Current progress (2026-08-14):
 - [Push quality run 31819690480](https://github.com/Honigstute/Balisami/actions/runs/31819690480) and independent [PR quality run 31819693969](https://github.com/Honigstute/Balisami/actions/runs/31819693969) passed all 155 tests for commit `33ac327` on native macOS 26 arm64 and Windows 2025 x64. Both runs also packaged the app, verified the native Electron fuses, launched it, and uploaded a rendered screenshot on each host.
 - [Push quality run 31821474635](https://github.com/Honigstute/Balisami/actions/runs/31821474635) and independent [PR quality run 31821478069](https://github.com/Honigstute/Balisami/actions/runs/31821478069) passed all 159 tests for commit `071a79c` on native macOS 26 arm64 and Windows 2025 x64. On both hosts the packaged writer was forcibly terminated without close, the same binary relaunched and restored state ID `1`, and the prior 531-byte project file remained byte-identical; package, fuse, normal smoke, and screenshot gates also passed.
 - [Push quality run 31824190767](https://github.com/Honigstute/Balisami/actions/runs/31824190767) and independent [PR quality run 31824194152](https://github.com/Honigstute/Balisami/actions/runs/31824194152) passed the 31-file/174-test gate for commit `9f621fc` on native macOS 26 arm64 and Windows 2025 x64. All four native jobs packaged the app, verified Electron fuses, launched without console/stderr failures, passed the real-renderer create/edit/save/close/reopen workflow, passed the separate forced-crash exact-recovery/byte-preservation probe, and uploaded the stable shell screenshot.
+- [Push quality run 31826551480](https://github.com/Honigstute/Balisami/actions/runs/31826551480) and independent [PR quality run 31826555949](https://github.com/Honigstute/Balisami/actions/runs/31826555949) passed the 31-file/187-test gate for commit `1600bd4` on native macOS 26 arm64 and Windows 2025 x64. All four jobs independently packaged the app, verified Electron fuses, launched and captured the stable shell, passed real-renderer create/edit/save/close/reopen, then forcibly killed a writer and restored its exact note through the ordinary preload/startup-overlay/renderer-history path while leaving the prior 531-byte user file byte-identical and the recovered session Save-As-only. No packaged console/stderr failure was accepted.
 
-Exact next action:
-
-- Push the ordinary startup recovery and safe Open/recent replacement slice, then require independent native macOS and Windows quality runs to pass the full 31-file/187-test source gate, packaging/fuse/smoke/project-workflow gates, and crash→ordinary-renderer recovery acceptance. Re-audit that evidence before marking M3 complete and activating M4.
-
-### [ ] M4 — Stable application shell and design system
+### [~] M4 — Stable application shell and design system
 
 Depends on: M1; integrates with M3 status
 
@@ -383,4 +380,4 @@ Exit gate:
 
 ## Next action
 
-Push the ordinary startup recovery and safe Open/recent replacement slice, then require independent native macOS and Windows quality runs to pass the full 31-file/187-test source gate, packaging/fuse/smoke/project-workflow gates, and crash→ordinary-renderer recovery acceptance. Re-audit that evidence before marking M3 complete and activating M4.
+Begin M4 with the visual conformance harness: audit the existing M1 shell/tokens against every M4 deliverable, promote the proven recovery chooser into reusable token-owned modal/button/list primitives, and add deterministic shell-anchor plus overlay/error-state coverage at the minimum viewport before introducing more feature UI. Preserve all M3 project/recovery behavior and do not begin M5 viewport work.
