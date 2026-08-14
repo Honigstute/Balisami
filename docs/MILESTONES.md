@@ -204,6 +204,12 @@ Depends on: M2, M4
 
 Objective: provide a deterministic, high-performance workspace before object editing.
 
+Current progress (2026-08-14):
+
+- The first pure editor coordinate module defines incompatible branded client, viewport, world, and device points/vectors/rectangles plus validated viewport bounds, device scale, zoom, and immutable camera transforms. Browser client offsets are converted exactly once; pan remains in viewport CSS pixels; world geometry stays floating-point and no conversion rounds model values.
+- One explicit 10–400% zoom policy distinguishes strict persisted/session transform validation from clamped user requests. World↔viewport, client↔viewport, viewport↔device, vector, and rectangle conversions share the same contract; translating pan and changing zoom around a viewport anchor return frozen values without mutating inputs.
+- Fourteen focused cases include 10,000 deterministic seeded point/vector/rect round trips across negative and million-unit world coordinates, every zoom bound, fractional DPR conversion, exact cursor-anchor preservation, malformed-number rejection, and the documented `1e-9` round-trip epsilon. Typecheck, lint, and architecture-boundary checks pass with the new `renderer/editor` layer.
+
 Deliverables:
 
 - Single viewport-transform module and unit-tested world/screen/device conversions.
@@ -400,4 +406,4 @@ Exit gate:
 
 ## Next action
 
-Begin M5 with the pure coordinate contract: branded world/viewport/device types, immutable viewport-transform math, documented rounding/bounds policy, and exhaustive round-trip/cursor-anchor tests. Then mount explicit scene and fixed-screen overlay layers behind one camera store without adding pan/zoom gesture UI or React updates per raw pointer event until the coordinate and scheduling contracts pass.
+Extend the pure coordinate contract with actual/fit/width/selection calculations and viewport-resize invariants, then add one external camera store with animation-frame coalescing and selector-safe subscriptions. Mount explicit SVG world/background and fixed-screen interaction/DOM overlay layers only after those tests pass; do not add pan/zoom gestures yet.
