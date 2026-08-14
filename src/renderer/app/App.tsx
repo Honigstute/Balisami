@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
+import { isViewportPerformanceProbeRequested } from '../../shared/viewport-performance';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
+import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { useProjectSession } from '../projects/use-project-session';
@@ -156,6 +158,12 @@ export const App = () => {
   const quickAddShortcut = platform === 'darwin' ? '⌘ K' : 'Ctrl K';
   const runtimeLabel = `${getPlatformLabel(platform)} · ${arch} · v${appVersion} · ${mode}`;
   const visualFixture = getRequestedVisualFixture(window.location.search);
+
+  if (isViewportPerformanceProbeRequested(window.location.search)) {
+    return (
+      <ViewportPerformanceFixture quickAddShortcut={quickAddShortcut} runtimeLabel={runtimeLabel} />
+    );
+  }
 
   if (visualFixture !== undefined) {
     return (

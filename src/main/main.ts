@@ -6,6 +6,7 @@ import started from 'electron-squirrel-startup';
 import recoveryProbeContract from '../../recovery-probe-contract.json';
 import projectWorkflowProbeContract from '../../project-workflow-probe-contract.json';
 import smokeTestContract from '../../smoke-test-contract.json';
+import viewportPerformanceContract from '../../viewport-performance-contract.json';
 import visualFixtureContract from '../../visual-fixture-contract.json';
 import { DESKTOP_CHANNELS } from '../shared/desktop-api';
 import {
@@ -45,6 +46,7 @@ import { RecentProjectStore } from './recent/recent-project-store';
 import { verifyPackagedShellGeometry } from './shell-geometry-check';
 import { captureSmokeScreenshot } from './smoke-test';
 import { StartupHealthMonitor } from './startup-health';
+import { runPackagedViewportPerformanceProbe } from './viewport-performance-probe';
 import { installWindowDiagnostics, type WindowProblem } from './window-diagnostics';
 import { createMainWindowOptions } from './window-options';
 
@@ -61,7 +63,13 @@ const visualFixtureInvocation = parseVisualFixtureInvocation(
 const isRecoveryProbe = recoveryProbeInvocation.kind !== 'none';
 const isProjectWorkflowProbe = projectWorkflowProbeInvocation.kind !== 'none';
 const isVisualFixture = visualFixtureInvocation.kind !== 'none';
-const isAutomatedTest = isSmokeTest || isRecoveryProbe || isProjectWorkflowProbe || isVisualFixture;
+const isViewportPerformanceProbe = process.argv.includes(viewportPerformanceContract.argument);
+const isAutomatedTest =
+  isSmokeTest ||
+  isRecoveryProbe ||
+  isProjectWorkflowProbe ||
+  isVisualFixture ||
+  isViewportPerformanceProbe;
 
 registerAppScheme();
 app.enableSandbox();
@@ -75,6 +83,7 @@ const projectControllers = new Map<number, ProjectWindowController>();
 const startupHealth =
   isSmokeTest ||
   visualFixtureInvocation.kind === 'fixture' ||
+  isViewportPerformanceProbe ||
   isProjectWorkflowProbe ||
   (recoveryProbeInvocation.kind === 'probe' && recoveryProbeInvocation.mode === 'verify')
     ? new StartupHealthMonitor()
@@ -266,6 +275,15 @@ const startApplication = async (): Promise<void> => {
   ) {
     throw new Error('A visual fixture cannot run with another packaged test mode.');
   }
+  if (
+    isViewportPerformanceProbe &&
+    (isSmokeTest ||
+      recoveryProbeInvocation.kind === 'probe' ||
+      projectWorkflowProbeInvocation.kind === 'probe' ||
+      visualFixtureInvocation.kind === 'fixture')
+  ) {
+    throw new Error('The viewport performance probe cannot run with another packaged test mode.');
+  }
   let activeRecoveryProbe: Extract<RecoveryProbeInvocation, { readonly kind: 'probe' }> | undefined;
   let activeProjectWorkflowProbe:
     Extract<ProjectWorkflowProbeInvocation, { readonly kind: 'probe' }> | undefined;
@@ -324,24 +342,42 @@ const startApplication = async (): Promise<void> => {
     resolveProjectController: (webContentsId) => projectControllers.get(webContentsId),
   });
   const window = await createWindow(
-    visualFixtureInvocation.kind === 'fixture'
+    isViewportPerformanceProbe
       ? {
-          rendererQuery: `${visualFixtureContract.queryKey}=${encodeURIComponent(visualFixtureInvocation.fixture)}`,
+          rendererQuery: `${viewportPerformanceContract.queryKey}=${viewportPerformanceContract.queryValue}`,
         }
-      : activeProjectWorkflowProbe !== undefined
+      : visualFixtureInvocation.kind === 'fixture'
         ? {
-            projectDialogs: createProjectWorkflowProbeDialogs(
-              activeProjectWorkflowProbe.root,
-              activeProjectWorkflowProbe.contract.userFileName,
-            ),
-            rendererQuery: `${activeProjectWorkflowProbe.contract.queryKey}=${activeProjectWorkflowProbe.contract.queryValue}`,
+            rendererQuery: `${visualFixtureContract.queryKey}=${encodeURIComponent(visualFixtureInvocation.fixture)}`,
           }
-        : activeRecoveryProbe?.mode === 'verify'
+        : activeProjectWorkflowProbe !== undefined
           ? {
-              rendererQuery: `${activeRecoveryProbe.contract.rendererQueryKey}=${activeRecoveryProbe.contract.rendererQueryValue}`,
+              projectDialogs: createProjectWorkflowProbeDialogs(
+                activeProjectWorkflowProbe.root,
+                activeProjectWorkflowProbe.contract.userFileName,
+              ),
+              rendererQuery: `${activeProjectWorkflowProbe.contract.queryKey}=${activeProjectWorkflowProbe.contract.queryValue}`,
             }
-          : {},
+          : activeRecoveryProbe?.mode === 'verify'
+            ? {
+                rendererQuery: `${activeRecoveryProbe.contract.rendererQueryKey}=${activeRecoveryProbe.contract.rendererQueryValue}`,
+              }
+            : {},
   );
+  if (isViewportPerformanceProbe) {
+    if (startupHealth === undefined) {
+      throw new Error('The viewport performance health monitor is unavailable.');
+    }
+    await startupHealth.waitForRendererReady(viewportPerformanceContract.readyTimeoutMs);
+    startupHealth.assertHealthy();
+    const result = await runPackagedViewportPerformanceProbe(window, viewportPerformanceContract);
+    startupHealth.assertHealthy();
+    await writeStandardOutputLine(
+      `${viewportPerformanceContract.resultMarker}${JSON.stringify(result)}`,
+    );
+    app.exit(0);
+    return;
+  }
   if (activeProjectWorkflowProbe !== undefined) {
     if (startupHealth === undefined) {
       throw new Error('The project-workflow probe health monitor is unavailable.');

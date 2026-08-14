@@ -51,6 +51,9 @@ jobs:
       - name: Capture packaged visual fixture matrix
         run: npm run visual:packaged
 
+      - name: Verify packaged viewport performance
+        run: npm run verify:viewport-performance:packaged
+
       - name: Verify packaged project workflow
         run: npm run verify:project-workflow:packaged
 
@@ -64,4 +67,5 @@ jobs:
           path: |
             out/smoke/
             out/visual/
+            out/performance/
           if-no-files-found: error

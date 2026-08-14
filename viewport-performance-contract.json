@@ -1,0 +1,14 @@
+{
+  "argument": "--balsamic-viewport-performance-probe",
+  "durationMs": 10000,
+  "maximumFrameWorkMs": 50,
+  "maximumFrameWorkP95Ms": 16.7,
+  "maximumInputLatencyP95Ms": 50,
+  "minimumFrameSamples": 120,
+  "processTimeoutMs": 40000,
+  "queryKey": "balsamic-viewport-performance-probe",
+  "queryValue": "v1",
+  "readyTimeoutMs": 10000,
+  "resultAttribute": "data-viewport-performance-result",
+  "resultMarker": "BALSAMIC_VIEWPORT_PERFORMANCE_RESULT="
+}
