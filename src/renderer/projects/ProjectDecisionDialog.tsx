@@ -1,3 +1,12 @@
+import { AppButton } from '../design/AppButton';
+import {
+  AppModal,
+  AppModalActions,
+  AppModalHeading,
+  AppModalList,
+  AppModalNotice,
+  AppModalRow,
+} from '../design/AppModal';
 import type { ProjectSessionDialog } from './project-session';
 
 interface ProjectDecisionDialogProps {
@@ -38,133 +47,119 @@ export const ProjectDecisionDialog = ({
 }: ProjectDecisionDialogProps) => {
   if (dialog.kind === 'startup-problem') {
     return (
-      <div className="project-dialog-backdrop">
-        <section
-          aria-describedby="project-startup-problem-copy"
-          aria-labelledby="project-startup-problem-title"
-          aria-modal="true"
-          className="project-dialog"
-          role="alertdialog"
-        >
-          <div className="project-dialog__heading">
-            <span className="project-dialog__eyebrow">Project safety</span>
-            <h2 id="project-startup-problem-title">{dialog.problem.title}</h2>
-            <p id="project-startup-problem-copy">{dialog.problem.message}</p>
-          </div>
-          <div className="project-dialog__actions">
-            <button
-              className="project-dialog__button project-dialog__button--primary"
-              disabled={busy}
-              onClick={onStartNew}
-            >
-              Start New
-            </button>
-          </div>
-        </section>
-      </div>
+      <AppModal
+        describedBy="project-startup-problem-copy"
+        labelledBy="project-startup-problem-title"
+        role="alertdialog"
+      >
+        <AppModalHeading
+          description={dialog.problem.message}
+          descriptionId="project-startup-problem-copy"
+          eyebrow="Project safety"
+          title={dialog.problem.title}
+          titleId="project-startup-problem-title"
+        />
+        <AppModalActions>
+          <AppButton disabled={busy} initialFocus onClick={onStartNew} tone="primary">
+            Start New
+          </AppButton>
+        </AppModalActions>
+      </AppModal>
     );
   }
 
   if (dialog.kind === 'recent-projects') {
     return (
-      <div className="project-dialog-backdrop">
-        <section
-          aria-labelledby="recent-projects-title"
-          aria-modal="true"
-          className="project-dialog"
-          role="dialog"
-        >
-          <div className="project-dialog__heading">
-            <span className="project-dialog__eyebrow">Open project</span>
-            <h2 id="recent-projects-title">Recent projects</h2>
-            <p>The selected file is checked before your current project is asked to close.</p>
-          </div>
-          {dialog.projects.length === 0 ? (
-            <p className="project-dialog__empty">No recent projects are available yet.</p>
-          ) : (
-            <ul className="project-dialog__list">
-              {dialog.projects.map((project) => (
-                <li className="project-dialog__row" key={project.id}>
-                  <div className="project-dialog__row-copy">
-                    <strong>{project.displayName}</strong>
-                    <span>{formatCaptureTime(project.lastOpenedAtEpochMs)}</span>
-                  </div>
-                  <button disabled={busy} onClick={() => onOpenRecent(project.id)}>
+      <AppModal
+        describedBy="recent-projects-copy"
+        labelledBy="recent-projects-title"
+        onDismiss={onDismiss}
+      >
+        <AppModalHeading
+          description="The selected file is checked before your current project is asked to close."
+          descriptionId="recent-projects-copy"
+          eyebrow="Open project"
+          title="Recent projects"
+          titleId="recent-projects-title"
+        />
+        {dialog.projects.length === 0 ? (
+          <p className="app-modal__empty">No recent projects are available yet.</p>
+        ) : (
+          <AppModalList>
+            {dialog.projects.map((project) => (
+              <AppModalRow
+                actions={
+                  <AppButton disabled={busy} onClick={() => onOpenRecent(project.id)}>
                     Open
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="project-dialog__actions project-dialog__actions--split">
-            <button disabled={busy} onClick={onDismiss}>
-              Cancel
-            </button>
-            <button
-              className="project-dialog__button--primary"
-              disabled={busy}
-              onClick={onOpenFile}
-            >
-              Open Another File…
-            </button>
-          </div>
-        </section>
-      </div>
+                  </AppButton>
+                }
+                key={project.id}
+                primary={project.displayName}
+                secondary={formatCaptureTime(project.lastOpenedAtEpochMs)}
+              />
+            ))}
+          </AppModalList>
+        )}
+        <AppModalActions split>
+          <AppButton disabled={busy} initialFocus onClick={onDismiss}>
+            Cancel
+          </AppButton>
+          <AppButton disabled={busy} onClick={onOpenFile} tone="primary">
+            Open Another File…
+          </AppButton>
+        </AppModalActions>
+      </AppModal>
     );
   }
 
   return (
-    <div className="project-dialog-backdrop">
-      <section
-        aria-describedby="project-recovery-copy"
-        aria-labelledby="project-recovery-title"
-        aria-modal="true"
-        className="project-dialog"
-        role="alertdialog"
-      >
-        <div className="project-dialog__heading">
-          <span className="project-dialog__eyebrow">Crash recovery</span>
-          <h2 id="project-recovery-title">Unsaved work is available</h2>
-          <p id="project-recovery-copy">
-            Restore a recovery point, discard it explicitly, or start a new project while keeping it
-            for later.
-          </p>
-        </div>
-        {dialog.ignoredEvidenceCount > 0 ? (
-          <p className="project-dialog__evidence-note">
-            {dialog.ignoredEvidenceCount} damaged recovery item
-            {dialog.ignoredEvidenceCount === 1 ? ' was' : 's were'} kept for diagnostics and
-            ignored.
-          </p>
-        ) : null}
-        <ul className="project-dialog__list">
-          {dialog.recoveries.map((recovery) => (
-            <li className="project-dialog__row" key={recovery.id}>
-              <div className="project-dialog__row-copy">
-                <strong>{recovery.displayName}</strong>
-                <span>{formatCaptureTime(recovery.capturedAtEpochMs)}</span>
-              </div>
-              <div className="project-dialog__row-actions">
-                <button disabled={busy} onClick={() => onDiscardRecovery(recovery.id)}>
+    <AppModal
+      describedBy="project-recovery-copy"
+      labelledBy="project-recovery-title"
+      role="alertdialog"
+    >
+      <AppModalHeading
+        description="Restore a recovery point, discard it explicitly, or start a new project while keeping it for later."
+        descriptionId="project-recovery-copy"
+        eyebrow="Crash recovery"
+        title="Unsaved work is available"
+        titleId="project-recovery-title"
+      />
+      {dialog.ignoredEvidenceCount > 0 ? (
+        <AppModalNotice>
+          {dialog.ignoredEvidenceCount} damaged recovery item
+          {dialog.ignoredEvidenceCount === 1 ? ' was' : 's were'} kept for diagnostics and ignored.
+        </AppModalNotice>
+      ) : null}
+      <AppModalList>
+        {dialog.recoveries.map((recovery, index) => (
+          <AppModalRow
+            actions={
+              <>
+                <AppButton disabled={busy} onClick={() => onDiscardRecovery(recovery.id)}>
                   Discard
-                </button>
-                <button
-                  className="project-dialog__button--primary"
+                </AppButton>
+                <AppButton
                   disabled={busy}
+                  initialFocus={index === 0}
                   onClick={() => onRestoreRecovery(recovery.id)}
+                  tone="primary"
                 >
                   Restore
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <div className="project-dialog__actions">
-          <button disabled={busy} onClick={onStartNew}>
-            Start New and Keep Recovery
-          </button>
-        </div>
-      </section>
-    </div>
+                </AppButton>
+              </>
+            }
+            key={recovery.id}
+            primary={recovery.displayName}
+            secondary={formatCaptureTime(recovery.capturedAtEpochMs)}
+          />
+        ))}
+      </AppModalList>
+      <AppModalActions>
+        <AppButton disabled={busy} onClick={onStartNew}>
+          Start New and Keep Recovery
+        </AppButton>
+      </AppModalActions>
+    </AppModal>
   );
 };

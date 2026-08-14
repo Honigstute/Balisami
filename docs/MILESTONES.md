@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M4 active
+Status: M5 active
 Last reviewed: 2026-08-14
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -157,11 +157,23 @@ Completion evidence (2026-08-14):
 - [Push quality run 31824190767](https://github.com/Honigstute/Balisami/actions/runs/31824190767) and independent [PR quality run 31824194152](https://github.com/Honigstute/Balisami/actions/runs/31824194152) passed the 31-file/174-test gate for commit `9f621fc` on native macOS 26 arm64 and Windows 2025 x64. All four native jobs packaged the app, verified Electron fuses, launched without console/stderr failures, passed the real-renderer create/edit/save/close/reopen workflow, passed the separate forced-crash exact-recovery/byte-preservation probe, and uploaded the stable shell screenshot.
 - [Push quality run 31826551480](https://github.com/Honigstute/Balisami/actions/runs/31826551480) and independent [PR quality run 31826555949](https://github.com/Honigstute/Balisami/actions/runs/31826555949) passed the 31-file/187-test gate for commit `1600bd4` on native macOS 26 arm64 and Windows 2025 x64. All four jobs independently packaged the app, verified Electron fuses, launched and captured the stable shell, passed real-renderer create/edit/save/close/reopen, then forcibly killed a writer and restored its exact note through the ordinary preload/startup-overlay/renderer-history path while leaving the prior 531-byte user file byte-identical and the recovered session Save-As-only. No packaged console/stderr failure was accepted.
 
-### [~] M4 — Stable application shell and design system
+### [x] M4 — Stable application shell and design system
 
 Depends on: M1; integrates with M3 status
 
 Objective: freeze layout grammar early so later features cannot make the interface jump or visually drift.
+
+Current progress (2026-08-14):
+
+- The shared visual contract now owns semantic application colors, the two bundled font roles and weights, four-pixel spacing, compact control geometry, pane defaults and bounds, reduced-motion timing, opacity, shadow, and ordered overlay tiers. Renderer CSS consumes those variables; an automated source guard rejects feature-local colors, numeric font weights, and numeric z-indexes.
+- The startup recovery, recent-project, and startup-failure chooser now uses reusable token-owned button, modal, heading, notice, bounded-list, row, and action primitives. Required decisions cannot be dismissed accidentally; dismissible dialogs handle Escape; modal focus enters deterministically, remains trapped, and returns to its prior owner.
+- Every fixed shell region has one stable semantic marker. A pure shared geometry contract derives its expected border box from the same tokens used by CSS and native window setup. The packaged smoke test requests the 1024×680 native minimum and then 1440×900 bounded by the host display's available work area, allows only the documented two-DIP native-frame quantization seen under fractional Windows scaling, waits for the platform-specific content viewport to settle, and rejects any renderer anchor error above 0.5 CSS pixel before capturing its screenshot; native title/frame insets never become renderer magic numbers.
+- Navigator and inspector layout preferences now have one strict, versioned, at-most-1-KiB renderer profile record under Electron's per-user application data. Explicit collapse retains the last expanded width and keeps the pane mounted as a 32-px rail; pointer previews are transient and cancellable; pointer, keyboard, and reset commits clamp to token bounds and persist. The resizer hit targets overlay existing boundaries, so they add no grid track or layout shift.
+- Shelf, navigator, canvas, and inspector content now mount behind region-local error boundaries. A failure replaces only that region with a fixed-track retry state and reports a path-free plain-language notice through a store that validates input, deduplicates stable keys, rate-limits recurrence, and caps the overlay at three messages. Notices and failures do not enter document/history state or shell layout.
+- The compact application-control set now includes reserved-message field frames, text/number inputs, selects with a bundled SVG affordance, segmented controls, a Chromium-normalized slider, validated color swatches, buttons, bounded internal scrollers, empty states, tooltips, popovers, modals, and capped notices. Disabled, selected, mixed, invalid, help, and overlay states retain one token-owned border box; number spinners, range tracks, and select arrows no longer vary with the host OS. Anchored overlays portal outside shell flow, flip above when needed, clamp to the viewport, and expose explicit focus/Escape/outside-dismiss semantics.
+- A deterministic packaged visual-conformance mode now owns six named states: default/loading, representative controls, bounded failure plus capped notice, tooltip, popover, and modal. Every state launches the production package in a separate process, waits for renderer readiness, proves the same minimum/normal shell geometry contract, rejects stderr or health-monitor failures, and captures a non-empty review artifact. The default state also runs at forced 100%, 125%, 150%, and 200% display scales. Fixture-only state disables user preference reads so existing pane settings cannot contaminate baselines.
+- The palette now carries an explicit accessible control-boundary token. Automated contrast cases lock compact text and selected states to at least 4.5:1 and control borders, selection cues, and focus indicators to at least 3:1; the quiet command-bar text case is checked after alpha compositing. The darker product blue owns text-bearing selected surfaces, while the brighter blue remains a non-text accent.
+- Focused coverage proves unique shell anchors, default/resized/collapsed center-column geometry, display-bounded/native-frame-aware viewport sizing, invalid viewport rejection, recovery/startup-error overlays that leave the canvas mounted, two-font and token ownership, compact control states, modal/tooltip/popover accessibility and focus behavior, strict preference fallback/persistence, bounded keyboard and pointer resizing/cancellation, regional isolation/retry, capped notice behavior, stable button tones, deterministic fixture dispatch, and semantic contrast floors. The full local 41-file/236-test source gate, package, fuse readback, geometry-aware smoke, six-state packaged visual matrix, create/edit/save/close/reopen workflow, and forced-crash ordinary-launch recovery all pass; the prior 531-byte user file remains byte-identical.
 
 Deliverables:
 
@@ -178,7 +190,15 @@ Exit gate:
 - The UI uses at most the two approved bundled font families and contains no platform emoji or feature-local visual constants.
 - Keyboard focus, contrast, reduced motion, 100–200% display scaling, minimum window size, and both platforms pass review.
 
-### [ ] M5 — Viewport, coordinate system, pan, zoom, and scene layers
+Completion evidence (2026-08-14):
+
+- One shared visual contract owns every renderer color, the two approved bundled font roles, the four-pixel spacing grid, compact controls, shell/pane geometry, motion, opacity, shadows, and ordered overlay tiers. Source tests reject feature-local raw colors, numeric font weights, and numeric z-indexes in CSS and TypeScript/React.
+- The fixed shell, persisted/collapsible panes, internal scrollers, compact control grammar, modal/tooltip/popover layers, region-level error isolation, and capped notice center preserve their border boxes across empty, loading, selected, mixed, disabled, invalid, failure, and overlay states. Keyboard/focus behavior and reduced-motion fallback are automated; text, focus, selection, and control-boundary contrast floors are calculated from the actual tokens.
+- The packaged geometry probe verifies every renderer shell anchor at minimum and display-bounded normal sizes to within 0.5 CSS pixel. Fractional Windows scaling may quantize the requested native frame by at most two DIPs, but the renderer remains subject to the stricter CSS contract. Separate production processes capture default at forced 100%, 125%, 150%, and 200% plus controls, feedback, tooltip, popover, and modal without accepting stderr, console errors, malformed geometry, or empty artifacts.
+- The final local gate passes 41 files / 236 tests, zero high-severity runtime audit findings, packaging, Electron fuse readback, ordinary smoke, all nine packaged visual launches, real create/edit/save/close/reopen, and forced-crash ordinary-launch recovery; the prior 531-byte user project remains byte-identical.
+- [Push quality run 31831856599](https://github.com/Honigstute/Balisami/actions/runs/31831856599) and independent [PR quality run 31831862197](https://github.com/Honigstute/Balisami/actions/runs/31831862197) passed commit `037e456` on native macOS 26 arm64 and Windows 2025 x64. Both hosts completed source, package, fuse, smoke, nine-state visual, real project-workflow, and crash-recovery gates. The uploaded semantic and 100/125/150/200% artifacts were inspected at native resolution on both platforms with stable tracks, bundled-font metrics, internal inspector overflow, and non-reflowing overlays.
+
+### [~] M5 — Viewport, coordinate system, pan, zoom, and scene layers
 
 Depends on: M2, M4
 
@@ -380,4 +400,4 @@ Exit gate:
 
 ## Next action
 
-Begin M4 with the visual conformance harness: audit the existing M1 shell/tokens against every M4 deliverable, promote the proven recovery chooser into reusable token-owned modal/button/list primitives, and add deterministic shell-anchor plus overlay/error-state coverage at the minimum viewport before introducing more feature UI. Preserve all M3 project/recovery behavior and do not begin M5 viewport work.
+Begin M5 with the pure coordinate contract: branded world/viewport/device types, immutable viewport-transform math, documented rounding/bounds policy, and exhaustive round-trip/cursor-anchor tests. Then mount explicit scene and fixed-screen overlay layers behind one camera store without adding pan/zoom gesture UI or React updates per raw pointer event until the coordinate and scheduling contracts pass.

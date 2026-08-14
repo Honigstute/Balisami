@@ -1,0 +1,110 @@
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import visualFixtureContract from '../visual-fixture-contract.json';
+import { VisualConformanceFixture } from '../src/renderer/design/VisualConformanceFixture';
+import {
+  VISUAL_FIXTURE_NAMES,
+  getRequestedVisualFixture,
+  isVisualFixtureContractSynchronized,
+  parseVisualFixtureInvocation,
+} from '../src/shared/visual-fixture';
+import { SHELL_LAYOUT_ATTRIBUTES } from '../src/shared/shell-layout';
+
+const renderFixture = (fixture: (typeof VISUAL_FIXTURE_NAMES)[number]) =>
+  render(
+    <VisualConformanceFixture
+      fixture={fixture}
+      quickAddShortcut="Ctrl K"
+      runtimeLabel="Windows · x64 · v0.1.0 · Packaged"
+    />,
+  );
+
+describe('visual conformance fixture contract', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('keeps the external harness registry exact and rejects malformed invocations', () => {
+    expect(isVisualFixtureContractSynchronized()).toBe(true);
+    expect(visualFixtureContract.fixtures).toEqual(VISUAL_FIXTURE_NAMES);
+    expect(visualFixtureContract.displayScales).toEqual([1, 1.25, 1.5, 2]);
+    expect(parseVisualFixtureInvocation([], visualFixtureContract.argumentPrefix)).toEqual({
+      kind: 'none',
+    });
+    expect(
+      parseVisualFixtureInvocation(
+        [`${visualFixtureContract.argumentPrefix}controls`],
+        visualFixtureContract.argumentPrefix,
+      ),
+    ).toEqual({ fixture: 'controls', kind: 'fixture' });
+    expect(
+      parseVisualFixtureInvocation(
+        [`${visualFixtureContract.argumentPrefix}unknown`],
+        visualFixtureContract.argumentPrefix,
+      ),
+    ).toMatchObject({ kind: 'invalid' });
+    expect(
+      parseVisualFixtureInvocation(
+        [
+          `${visualFixtureContract.argumentPrefix}default`,
+          `${visualFixtureContract.argumentPrefix}modal`,
+        ],
+        visualFixtureContract.argumentPrefix,
+      ),
+    ).toMatchObject({ kind: 'invalid' });
+    expect(getRequestedVisualFixture('?visualFixture=popover')).toBe('popover');
+    expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
+  });
+
+  it('renders the default/loading fixture with deterministic default pane widths', () => {
+    window.localStorage.setItem(
+      'balsamic.shell-preferences.v1',
+      JSON.stringify({
+        formatVersion: 1,
+        inspector: { collapsed: true, width: 320 },
+        navigator: { collapsed: true, width: 224 },
+      }),
+    );
+    renderFixture('default');
+
+    expect(screen.getByRole('status', { name: 'Control library is loading' })).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toHaveAttribute(
+      SHELL_LAYOUT_ATTRIBUTES.navigatorWidth,
+      '224',
+    );
+    expect(screen.getByTestId('app-shell')).toHaveAttribute(
+      SHELL_LAYOUT_ATTRIBUTES.inspectorWidth,
+      '320',
+    );
+  });
+
+  it('renders compact selected, mixed, invalid, and disabled control states', () => {
+    renderFixture('controls');
+
+    expect(screen.getByText('Control states')).toBeInTheDocument();
+    expect(screen.getByText('Mixed')).toBeInTheDocument();
+    expect(screen.getByLabelText('Width')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Disabled field')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Left' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('renders bounded failure, tooltip, popover, and modal overlay fixtures', () => {
+    const feedback = renderFixture('feedback');
+    expect(screen.getByText('Canvas unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Canvas was isolated')).toBeInTheDocument();
+    feedback.unmount();
+
+    const tooltip = renderFixture('tooltip');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Full control name');
+    tooltip.unmount();
+
+    const popover = renderFixture('popover');
+    expect(screen.getByRole('dialog', { name: 'Color options' })).toBeInTheDocument();
+    popover.unmount();
+
+    renderFixture('modal');
+    expect(screen.getByRole('dialog', { name: 'Confirm a stable decision' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toHaveFocus();
+  });
+});

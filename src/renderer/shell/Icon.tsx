@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react';
 
 export type IconName =
-  'chevron' | 'more' | 'presentation' | 'redo' | 'search' | 'undo' | 'zoomIn' | 'zoomOut';
+  'chevron' | 'close' | 'more' | 'presentation' | 'redo' | 'search' | 'undo' | 'zoomIn' | 'zoomOut';
 
 const getIconPath = (name: IconName): ReactNode => {
   switch (name) {
     case 'chevron':
       return <path d="m5 8 3 3 3-3" />;
+    case 'close':
+      return <path d="m4 4 8 8m0-8-8 8" />;
     case 'more':
       return (
         <>

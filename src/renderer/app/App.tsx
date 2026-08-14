@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
+import { getRequestedVisualFixture } from '../../shared/visual-fixture';
+import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { useProjectSession } from '../projects/use-project-session';
@@ -122,11 +124,19 @@ export const App = () => {
 
   const { appVersion, arch, isPackaged, platform } = runtime.value;
   const mode = isPackaged ? 'Packaged' : 'Development';
+  const quickAddShortcut = platform === 'darwin' ? '⌘ K' : 'Ctrl K';
+  const runtimeLabel = `${getPlatformLabel(platform)} · ${arch} · v${appVersion} · ${mode}`;
+  const visualFixture = getRequestedVisualFixture(window.location.search);
 
-  return (
-    <ProjectWorkspace
-      quickAddShortcut={platform === 'darwin' ? '⌘ K' : 'Ctrl K'}
-      runtimeLabel={`${getPlatformLabel(platform)} · ${arch} · v${appVersion} · ${mode}`}
-    />
-  );
+  if (visualFixture !== undefined) {
+    return (
+      <VisualConformanceFixture
+        fixture={visualFixture}
+        quickAddShortcut={quickAddShortcut}
+        runtimeLabel={runtimeLabel}
+      />
+    );
+  }
+
+  return <ProjectWorkspace quickAddShortcut={quickAddShortcut} runtimeLabel={runtimeLabel} />;
 };

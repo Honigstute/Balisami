@@ -48,6 +48,9 @@ jobs:
       - name: Smoke-test packaged application
         run: npm run smoke:packaged
 
+      - name: Capture packaged visual fixture matrix
+        run: npm run visual:packaged
+
       - name: Verify packaged project workflow
         run: npm run verify:project-workflow:packaged
 
@@ -58,5 +61,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: balsamic-smoke-${{ matrix.artifact }}
-          path: out/smoke/
+          path: |
+            out/smoke/
+            out/visual/
           if-no-files-found: error
