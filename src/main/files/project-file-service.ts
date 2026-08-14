@@ -1,4 +1,4 @@
-import type { ProjectDocument } from '../../domain';
+import type { HistorySaveSnapshot, ProjectDocument } from '../../domain';
 import {
   decodeProjectFileArchive,
   encodeProjectFileArchive,
@@ -22,6 +22,15 @@ export type SaveProjectFileResult =
   | { readonly ok: true; readonly value: AtomicProjectFileWriteSuccess }
   | { readonly ok: false; readonly error: ProjectFileServiceError };
 
+export interface SavedProjectHistorySnapshot extends AtomicProjectFileWriteSuccess {
+  readonly stateId: HistorySaveSnapshot['stateId'];
+  readonly tokenId: HistorySaveSnapshot['tokenId'];
+}
+
+export type SaveProjectHistorySnapshotResult =
+  | { readonly ok: true; readonly value: SavedProjectHistorySnapshot }
+  | { readonly ok: false; readonly error: ProjectFileServiceError };
+
 export const openProjectFile = async (filePath: unknown): Promise<OpenProjectFileResult> => {
   const read = await readProjectArchiveFile(filePath);
   if (!read.ok) {
@@ -40,4 +49,23 @@ export const saveProjectFile = async (
     return encoded;
   }
   return writeProjectArchiveFileAtomically(filePath, encoded.value);
+};
+
+export const saveProjectHistorySnapshot = async (
+  filePath: unknown,
+  snapshot: HistorySaveSnapshot,
+  assetsById: Readonly<Record<string, Uint8Array>> = {},
+): Promise<SaveProjectHistorySnapshotResult> => {
+  const saved = await saveProjectFile(filePath, snapshot.document, assetsById);
+  if (!saved.ok) {
+    return saved;
+  }
+  return {
+    ok: true,
+    value: Object.freeze({
+      stateId: snapshot.stateId,
+      tokenId: snapshot.tokenId,
+      ...(saved.value.warning === undefined ? {} : { warning: saved.value.warning }),
+    }),
+  };
 };

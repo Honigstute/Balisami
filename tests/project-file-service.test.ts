@@ -4,7 +4,19 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { openProjectFile, saveProjectFile } from '../src/main/files/project-file-service';
+import {
+  openProjectFile,
+  saveProjectFile,
+  saveProjectHistorySnapshot,
+} from '../src/main/files/project-file-service';
+import {
+  DOCUMENT_COMMAND_TYPES,
+  beginDocumentHistorySave,
+  completeDocumentHistorySave,
+  createDocumentHistory,
+  dispatchHistoryCommand,
+  isDocumentHistoryDirty,
+} from '../src/domain';
 import {
   createAssetFreeProjectDocument,
   createProjectDocumentWithAsset,
@@ -73,5 +85,50 @@ describe('main-process project file service', () => {
       error: { code: 'invalid-document' },
     });
     expect(Array.from(await readFile(filePath))).toEqual(Array.from(priorBytes));
+  });
+
+  it('returns the exact saved history identity while edits made during save remain dirty', async () => {
+    const filePath = await createProjectPath();
+    const initial = createDocumentHistory(createAssetFreeProjectDocument(), {
+      initiallySaved: false,
+    });
+    const started = beginDocumentHistorySave(initial);
+    if (!started.ok) {
+      throw new Error('Expected the history save to start.');
+    }
+
+    const saving = saveProjectHistorySnapshot(filePath, started.snapshot);
+    const edited = dispatchHistoryCommand(started.history, {
+      type: DOCUMENT_COMMAND_TYPES.setBoardNote,
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+      note: { text: 'Edited while the file write was in flight' },
+    });
+    if (!edited.ok || !edited.changed) {
+      throw new Error('Expected an edit during the save.');
+    }
+    const saved = await saving;
+    expect(saved).toMatchObject({
+      ok: true,
+      value: {
+        stateId: started.snapshot.stateId,
+        tokenId: started.snapshot.tokenId,
+      },
+    });
+    expect(saved.ok && Object.isFrozen(saved.value)).toBe(true);
+
+    const completed = completeDocumentHistorySave(edited.history, started.snapshot);
+    if (!completed.ok) {
+      throw new Error('Expected the matching save token to resolve.');
+    }
+    expect(completed.history.savedStateId).toBe(started.snapshot.stateId);
+    expect(completed.history.currentStateId).not.toBe(started.snapshot.stateId);
+    expect(isDocumentHistoryDirty(completed.history)).toBe(true);
+
+    const reopened = await openProjectFile(filePath);
+    if (!reopened.ok) {
+      throw new Error('Expected the saved snapshot to reopen.');
+    }
+    expect(reopened.value.document).toEqual(started.snapshot.document);
+    expect(reopened.value.document).not.toEqual(edited.history.document);
   });
 });
