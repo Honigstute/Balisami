@@ -159,16 +159,18 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
       querySelectionRegion: (bounds, mode) => model.querySelectionRegion(bounds, mode),
     });
     if (state === 'marquee') {
+      // Keep both endpoints inside the minimum packaged viewport. This fixture
+      // is evidence for the marquee itself, not merely for its mounted DOM.
       interaction.beginPress({
         altKey: false,
         pointerId: 1,
         shiftKey: false,
-        viewportPoint: createViewportPoint(720, 120),
-        worldPoint: createWorldPoint(720, 120),
+        viewportPoint: createViewportPoint(440, 60),
+        worldPoint: createWorldPoint(440, 60),
       });
       interaction.updatePress(1, {
-        viewportPoint: createViewportPoint(480, 360),
-        worldPoint: createWorldPoint(480, 360),
+        viewportPoint: createViewportPoint(260, 360),
+        worldPoint: createWorldPoint(260, 360),
       });
     }
     return Object.freeze({ interaction, model, selection });

@@ -106,6 +106,11 @@ describe('visual conformance fixture contract', () => {
     const overlay = view.container.querySelector('[data-marquee-overlay="selection-region"]');
     expect(overlay).not.toHaveAttribute('display', 'none');
     expect(overlay).toHaveAttribute('data-marquee-mode', 'intersecting');
+    const rectangle = overlay?.querySelector('.marquee-overlay__rectangle');
+    expect(rectangle).toHaveAttribute('height', '300');
+    expect(rectangle).toHaveAttribute('width', '180');
+    expect(rectangle).toHaveAttribute('x', '260');
+    expect(rectangle).toHaveAttribute('y', '60');
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
