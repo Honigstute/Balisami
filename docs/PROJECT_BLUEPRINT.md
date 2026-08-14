@@ -313,6 +313,28 @@ Guides are ephemeral overlays and never export or enter history. Align/distribut
 
 The project file is a portable container with a manifest, versioned project JSON, and deduplicated assets. Exact extension/name is decided before public alpha; internal code does not depend on marketing naming.
 
+The version-1 logical container contract is deliberately independent of its eventual extension and
+physical archive adapter:
+
+| Entry                    | Contract                                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest.json`          | Canonical JSON with technical format ID `wireframe-project`, file-format version `1`, and the fixed document/asset entry locations |
+| `project.json`           | The runtime-validated `ProjectDocument` in canonical JSON                                                                          |
+| `assets/sha256/<digest>` | Raw bytes named by their lowercase 64-character SHA-256 digest; multiple asset IDs with identical bytes share one entry            |
+
+Canonical JSON recursively sorts object keys, preserves array order, uses two-space indentation, and
+ends with one newline. The codec copies binary input/output and orders metadata first, followed by
+asset entries in lexical digest order. This makes equivalent documents deterministic without making
+the domain model aware of archive or marketing details.
+
+The initial uncompressed input limits are 10,002 entries, 64 KiB for the manifest, 32 MiB for project
+JSON, 64 MiB per asset, and 256 MiB total. Parsed JSON is additionally capped at 64 nesting levels and
+250,000 values before domain validation. These are codec-owned security limits, not document or UI
+constants. Decode errors distinguish invalid envelopes/entries, invalid UTF-8, malformed or truncated
+JSON, unsupported formats, older versions without a migration, newer versions, invalid documents,
+and missing/unexpected/damaged assets. A physical container reader must enforce compressed-input and
+expansion limits before handing this same logical entry set to the codec.
+
 Rules:
 
 - Parse untrusted project files with runtime schemas and size limits.
@@ -460,20 +482,21 @@ A feature is done only when:
 
 ## 14. Decision log
 
-| ID    | Decision                                                   | Rationale                                                                                                           | Status                                    |
-| ----- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| D-001 | Electron, React, TypeScript, and Vite                      | One Chromium engine across macOS/Windows; mature desktop packaging                                                  | Accepted                                  |
-| D-002 | Standard OS window frame initially                         | Avoid premature platform-specific title-bar complexity                                                              | Accepted                                  |
-| D-003 | World-space geometry plus one viewport transform           | Prevent coordinate drift and duplicate conversion logic                                                             | Accepted                                  |
-| D-004 | Command-only persisted mutations                           | Deterministic undo/redo, validation, and tracing                                                                    | Accepted                                  |
-| D-005 | SVG scene with separate overlays first                     | Correct vector behavior and export path; optimize based on measurement                                              | Accepted                                  |
-| D-006 | Schema-driven control definition registry                  | One source for catalog, rendering, inspector, search, and persistence                                               | Accepted                                  |
-| D-007 | Fixed shell plus overlay feedback                          | Eliminate selection/error-driven layout movement                                                                    | Accepted                                  |
-| D-008 | Portable versioned container with atomic save/recovery     | Offline reliability and safe evolution                                                                              | Accepted                                  |
-| D-009 | Pin the Forge Vite integration exactly                     | Contain the migration risk of Forge's experimental Vite plugin                                                      | Accepted                                  |
-| D-010 | Temporarily accept Forge's dev-only `extract-zip` advisory | No patched upstream release exists; production dependency audit is clean and packaging input is trusted/checksummed | Temporary; review every dependency update |
-| D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored    | Accepted                                  |
-| D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts   | Accepted                                  |
+| ID    | Decision                                                   | Rationale                                                                                                             | Status                                    |
+| ----- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| D-001 | Electron, React, TypeScript, and Vite                      | One Chromium engine across macOS/Windows; mature desktop packaging                                                    | Accepted                                  |
+| D-002 | Standard OS window frame initially                         | Avoid premature platform-specific title-bar complexity                                                                | Accepted                                  |
+| D-003 | World-space geometry plus one viewport transform           | Prevent coordinate drift and duplicate conversion logic                                                               | Accepted                                  |
+| D-004 | Command-only persisted mutations                           | Deterministic undo/redo, validation, and tracing                                                                      | Accepted                                  |
+| D-005 | SVG scene with separate overlays first                     | Correct vector behavior and export path; optimize based on measurement                                                | Accepted                                  |
+| D-006 | Schema-driven control definition registry                  | One source for catalog, rendering, inspector, search, and persistence                                                 | Accepted                                  |
+| D-007 | Fixed shell plus overlay feedback                          | Eliminate selection/error-driven layout movement                                                                      | Accepted                                  |
+| D-008 | Portable versioned container with atomic save/recovery     | Offline reliability and safe evolution                                                                                | Accepted                                  |
+| D-009 | Pin the Forge Vite integration exactly                     | Contain the migration risk of Forge's experimental Vite plugin                                                        | Accepted                                  |
+| D-010 | Temporarily accept Forge's dev-only `extract-zip` advisory | No patched upstream release exists; production dependency audit is clean and packaging input is trusted/checksummed   | Temporary; review every dependency update |
+| D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored      | Accepted                                  |
+| D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts     | Accepted                                  |
+| D-013 | Brand-neutral deterministic v1 logical file entries        | Keep schema, assets, tests, and future archive adapters stable while the public product name and extension can change | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 

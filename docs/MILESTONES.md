@@ -125,6 +125,17 @@ Exit gate:
 - Round trips are deterministic and migrations preserve all supported data.
 - Failed parses/migrations/saves retain the source and in-memory document and produce one actionable, deduplicated message.
 
+Current progress (2026-08-14):
+
+- The brand-neutral version-1 logical envelope fixes `manifest.json`, canonical `project.json`, and content-addressed raw asset entries without coupling the domain to a product name, extension, or archive library. Equivalent JSON sorts keys recursively, preserves array order, uses two-space indentation, and ends with one newline.
+- Decode treats every envelope as untrusted: exact entry shapes and paths, duplicate/missing entries, per-entry and total byte limits, fatal UTF-8, malformed/truncated JSON, nesting/value complexity, strict manifest fields, file-format compatibility, domain invariants, asset length, and SHA-256 are checked before a project is accepted.
+- Asset bytes are copied at both boundaries and identical digests occupy one logical entry while retaining separate asset IDs in the document. Failures use typed, actionable error codes and never return a partial document or asset map.
+- Eleven focused codec tests pass inside the full 14-file/82-test suite, covering deterministic round trips, non-canonical input, older/newer/wrong formats, corruption, truncation, hostile limits, entry errors, asset deduplication/integrity, and mutation isolation.
+
+Exact next action:
+
+- Add the bounded deterministic physical-container adapter and immutable version-1 golden fixtures, then route its decoded entry set through the existing codec. Keep extension selection and Electron filesystem I/O out of that slice.
+
 ### [ ] M4 — Stable application shell and design system
 
 Depends on: M1; integrates with M3 status
