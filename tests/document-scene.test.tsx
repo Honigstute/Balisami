@@ -67,6 +67,7 @@ const parseFixture = (childX = 16): ProjectDocument => {
 };
 
 const OTHER_ID = ElementIdSchema.parse('element_sceneother');
+const CLONE_ID = ElementIdSchema.parse('element_sceneclone');
 
 const parseMovePreviewFixture = (): ProjectDocument => {
   const input = createValidProjectDocumentInput();
@@ -383,6 +384,84 @@ describe('document SVG scene', () => {
 
     view.rerender(renderScene(result.document));
     expect(view.container.querySelector(deletedSelector)).toBeNull();
+    expect(view.container.querySelector(unrelatedSelector)).toBe(unrelated);
+    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
+    camera.dispose();
+  });
+
+  it('adds a duplicated keyed node without regenerating its source or an unrelated sibling', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const document = parseMovePreviewFixture();
+    const model = new DocumentSceneModel();
+    const renderScene = (currentDocument: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={currentDocument}
+            model={model}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(document));
+    scheduler.flushNext();
+    const sourceSelector = `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`;
+    const unrelatedSelector = `[data-scene-element-id="${OTHER_ID}"]`;
+    const cloneSelector = `[data-scene-element-id="${CLONE_ID}"]`;
+    const source = view.container.querySelector<SVGGElement>(sourceSelector);
+    const unrelated = view.container.querySelector<SVGGElement>(unrelatedSelector);
+    if (source === null || unrelated === null) {
+      throw new Error('Duplicate preview source elements did not mount.');
+    }
+    const sourcePath = source.querySelector('path')?.getAttribute('d');
+    const sourceRevision = source.dataset.sceneRevision;
+    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedRevision = unrelated.dataset.sceneRevision;
+    const sourceElement = document.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (sourceElement === undefined) {
+      throw new Error('Duplicate preview source record is missing.');
+    }
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        ...sourceElement,
+        id: CLONE_ID,
+        frame: { ...sourceElement.frame, x: 26, y: 34 },
+        childIds: [],
+      },
+      owner: { kind: 'element', elementId: DOCUMENT_FIXTURE_IDS.group },
+      index: 1,
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('Duplicate preview command was not accepted.');
+    }
+
+    view.rerender(renderScene(result.document));
+    expect(view.container.querySelector(cloneSelector)).not.toBeNull();
+    expect(view.container.querySelector(sourceSelector)).toBe(source);
+    expect(source.querySelector('path')?.getAttribute('d')).toBe(sourcePath);
+    expect(source.dataset.sceneRevision).toBe(sourceRevision);
     expect(view.container.querySelector(unrelatedSelector)).toBe(unrelated);
     expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);

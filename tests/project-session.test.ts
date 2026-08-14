@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   DOCUMENT_COMMAND_TYPES,
+  ElementIdSchema,
   ProjectIdSchema,
   undoDocumentHistory,
   type ProjectDocument,
@@ -11,6 +12,7 @@ import {
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
 import { deleteSelectedElements } from '../src/renderer/editor/selection-delete';
+import { duplicateSelectedElements } from '../src/renderer/editor/selection-duplicate';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
 import { ProjectSession } from '../src/renderer/projects/project-session';
@@ -208,6 +210,58 @@ describe('renderer project session', () => {
     });
     expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toBeUndefined();
     expect(selection.getSnapshot()).toMatchObject({ primaryId: undefined, selectedIds: [] });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
+  it('commits one selection duplicate and schedules one recovery point before selecting clones', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const selection = new SelectionStore();
+    const cloneId = ElementIdSchema.parse('element_sessionclone1');
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      duplicateSelectedElements(
+        document,
+        selection,
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+        () => cloneId,
+        {
+          commit: (commands) => {
+            const result = session.dispatchTransaction(commands, { label: 'Duplicate element' });
+            return result?.ok === true && result.changed ? result.history.document : undefined;
+          },
+        },
+      ),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Selection duplicate integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ element: { id: cloneId }, type: 'element.create' }],
+      label: 'Duplicate element',
+    });
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.childIds).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+      cloneId,
+    ]);
+    expect(history.document.elementsById[cloneId]?.frame).toEqual({
+      x: 26,
+      y: 34,
+      width: 120,
+      height: 48,
+    });
+    expect(selection.getSnapshot()).toMatchObject({ primaryId: cloneId, selectedIds: [cloneId] });
     expect(desktop.recoveryRequests).toHaveLength(2);
 
     const undone = undoDocumentHistory(history);

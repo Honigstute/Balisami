@@ -60,6 +60,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
     expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
     expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
+    expect(getRequestedVisualFixture('?visualFixture=duplicate')).toBe('duplicate');
     expect(getRequestedVisualFixture('?visualFixture=nudge')).toBe('nudge');
     expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
@@ -152,6 +153,18 @@ describe('visual conformance fixture contract', () => {
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toBeNull();
     expect(screen.getByText('Visual fixture · delete')).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an accepted duplicate result with only the clone selected', () => {
+    const view = renderFixture('duplicate');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '198');
+    expect(outline).toHaveAttribute('y', '282');
+    expect(screen.getByText('Visual fixture · duplicate')).toBeInTheDocument();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

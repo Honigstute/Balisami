@@ -8,6 +8,7 @@ import {
 import type { SelectionInteraction, SelectionPointerPosition } from './selection-interaction';
 import type { ResizeHandle } from './resize-geometry';
 import type { SelectionStore } from './selection-store';
+import type { ViewportShortcutPlatform } from './viewport-commands';
 import {
   clientPointToViewport,
   createClientPoint,
@@ -43,11 +44,21 @@ export type ViewportWheelAction =
   | { readonly factor: number; readonly kind: 'zoom' }
   | { readonly deltaX: number; readonly deltaY: number; readonly kind: 'pan' };
 
+export interface ViewportDuplicateShortcutInput {
+  readonly altKey: boolean;
+  readonly code: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly shiftKey: boolean;
+}
+
 export interface ViewportInputControllerOptions {
   readonly deleteSelection?: () => boolean;
+  readonly duplicateSelection?: () => boolean;
   readonly keyboardNudge?: KeyboardNudgeInteraction;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
+  readonly shortcutPlatform?: ViewportShortcutPlatform;
 }
 
 interface ActivePan {
@@ -65,6 +76,16 @@ const VIEWPORT_DELETE_KEY_SET = new Set<string>(VIEWPORT_DELETE_KEYS);
 
 export const isViewportDeleteKey = (code: string): code is ViewportDeleteKey =>
   VIEWPORT_DELETE_KEY_SET.has(code);
+
+/** Cmd+D on macOS and Ctrl+D on Windows own the same editor command. */
+export const isViewportDuplicateShortcut = (
+  input: ViewportDuplicateShortcutInput,
+  platform: ViewportShortcutPlatform,
+): boolean =>
+  input.code === 'KeyD' &&
+  !input.altKey &&
+  !input.shiftKey &&
+  (platform === 'darwin' ? input.metaKey && !input.ctrlKey : input.ctrlKey && !input.metaKey);
 
 const clampWheelDelta = (value: number): number =>
   Math.max(
@@ -146,10 +167,12 @@ const shouldStartPan = (event: PointerEvent, spacePressed: boolean): boolean =>
 export class ViewportInputController {
   readonly #camera: ViewportCameraStore;
   readonly #deleteSelection: (() => boolean) | undefined;
+  readonly #duplicateSelection: (() => boolean) | undefined;
   readonly #keyboardNudge: KeyboardNudgeInteraction | undefined;
   readonly #root: HTMLElement;
   readonly #selection: SelectionStore | undefined;
   readonly #selectionInteraction: SelectionInteraction | undefined;
+  readonly #shortcutPlatform: ViewportShortcutPlatform | undefined;
 
   #activePan: ActivePan | undefined;
   #activeNudgeKeys = new Set<KeyboardNudgeKey>();
@@ -172,6 +195,8 @@ export class ViewportInputController {
     this.#keyboardNudge = options.keyboardNudge;
     this.#selection = options.selection;
     this.#deleteSelection = options.deleteSelection;
+    this.#duplicateSelection = options.duplicateSelection;
+    this.#shortcutPlatform = options.shortcutPlatform;
   }
 
   connect(): void {
@@ -256,6 +281,9 @@ export class ViewportInputController {
       }
     }
     if (isViewportDeleteKey(event.code) && this.#handleDeleteKeyDown(event)) {
+      return;
+    }
+    if (event.code === 'KeyD' && this.#handleDuplicateKeyDown(event)) {
       return;
     }
     if (
@@ -525,11 +553,7 @@ export class ViewportInputController {
       event.ctrlKey ||
       event.metaKey ||
       event.shiftKey ||
-      isEditableTarget(event.target) ||
-      this.#activePan !== undefined ||
-      this.#isKeyboardNudgeActive() ||
-      this.#spacePressed ||
-      (this.#selectionInteraction?.getSnapshot().kind ?? 'idle') !== 'idle'
+      !this.#isIdleEditTarget(event)
     ) {
       return false;
     }
@@ -538,6 +562,32 @@ export class ViewportInputController {
       this.#deleteSelection?.();
     }
     return true;
+  }
+
+  #handleDuplicateKeyDown(event: KeyboardEvent): boolean {
+    const platform = this.#shortcutPlatform;
+    if (
+      platform === undefined ||
+      !isViewportDuplicateShortcut(event, platform) ||
+      !this.#isIdleEditTarget(event)
+    ) {
+      return false;
+    }
+    event.preventDefault();
+    if (!event.repeat) {
+      this.#duplicateSelection?.();
+    }
+    return true;
+  }
+
+  #isIdleEditTarget(event: KeyboardEvent): boolean {
+    return (
+      !isEditableTarget(event.target) &&
+      this.#activePan === undefined &&
+      !this.#isKeyboardNudgeActive() &&
+      !this.#spacePressed &&
+      (this.#selectionInteraction?.getSnapshot().kind ?? 'idle') === 'idle'
+    );
   }
 
   #handleSelectionChange = (): void => {

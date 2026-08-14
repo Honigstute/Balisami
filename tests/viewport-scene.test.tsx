@@ -744,4 +744,79 @@ describe('viewport scene layers', () => {
     expect(nudgeScheduler.callbacks.size).toBe(0);
     store.dispose();
   });
+
+  it('routes duplicate through the exact platform modifier only while the viewport is idle', () => {
+    mockViewportBounds();
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const nudgeScheduler = new TestAnimationFrameScheduler();
+    const store = createStore(cameraScheduler);
+    const duplicateSelection = vi.fn(() => true);
+    const nudge = new KeyboardNudgeInteraction(
+      { capture: () => MOVE_CAPTURE, commit: () => true },
+      nudgeScheduler,
+    );
+    const selection = new SelectionStore();
+    selection.selectOnly(SELECTABLE_ID);
+    const interaction = new SelectionInteraction(selection, {
+      listSelectableIds: () => [SELECTABLE_ID],
+      queryHitStack: () => [SELECTABLE_ID],
+      querySelectionRegion: () => [],
+    });
+    const renderScene = (shortcutPlatform: 'darwin' | 'win32') => (
+      <ViewportScene
+        camera={store}
+        domChildren={<input aria-label="Duplicate-safe inline editor" />}
+        keyboardNudgeInteraction={nudge}
+        onDuplicateSelection={duplicateSelection}
+        selection={selection}
+        selectionInteraction={interaction}
+        shortcutPlatform={shortcutPlatform}
+      />
+    );
+    const view = render(renderScene('darwin'));
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    const input = screen.getByLabelText('Duplicate-safe inline editor');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    cameraScheduler.flushNext();
+
+    expect(fireEvent.keyDown(input, { code: 'KeyD', metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(root, { code: 'KeyD', ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(root, { altKey: true, code: 'KeyD', metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true, shiftKey: true })).toBe(true);
+    expect(duplicateSelection).not.toHaveBeenCalled();
+
+    expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true, repeat: true })).toBe(false);
+    expect(duplicateSelection).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true })).toBe(false);
+    expect(duplicateSelection).toHaveBeenCalledTimes(1);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 71 });
+    expect(root).toHaveAttribute('data-selection-state', 'pressed');
+    expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true })).toBe(true);
+    expect(duplicateSelection).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(root, { code: 'Escape' });
+
+    fireEvent.keyDown(root, { code: 'Space' });
+    expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true })).toBe(true);
+    expect(duplicateSelection).toHaveBeenCalledTimes(1);
+    fireEvent.keyUp(window, { code: 'Space' });
+
+    fireEvent.keyDown(root, { code: 'ArrowRight' });
+    expect(root).toHaveAttribute('data-selection-state', 'nudging');
+    expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true })).toBe(true);
+    expect(duplicateSelection).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(root, { code: 'Escape' });
+
+    view.rerender(renderScene('win32'));
+    expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true })).toBe(true);
+    expect(duplicateSelection).toHaveBeenCalledTimes(1);
+    expect(fireEvent.keyDown(root, { code: 'KeyD', ctrlKey: true })).toBe(false);
+    expect(duplicateSelection).toHaveBeenCalledTimes(2);
+
+    view.unmount();
+    expect(nudgeScheduler.callbacks.size).toBe(0);
+    store.dispose();
+  });
 });

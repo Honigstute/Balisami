@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
+import { ElementIdSchema } from '../../domain';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
 import { isViewportPerformanceProbeRequested } from '../../shared/viewport-performance';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
@@ -21,6 +22,11 @@ import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget, hitTestResizeHandle } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
 import { deleteSelectedElements, type SelectionDeleteSource } from '../editor/selection-delete';
+import {
+  duplicateSelectedElements,
+  type SelectionDuplicateIdAllocator,
+  type SelectionDuplicateSource,
+} from '../editor/selection-duplicate';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
@@ -35,6 +41,13 @@ import { useRuntimeInfo } from './use-runtime-info';
 
 const getPlatformLabel = (platform: 'darwin' | 'win32'): string =>
   platform === 'darwin' ? 'macOS' : 'Windows';
+
+const allocateEditorElementId: SelectionDuplicateIdAllocator = () => {
+  const result = ElementIdSchema.safeParse(
+    `element_${globalThis.crypto.randomUUID().replaceAll('-', '').toLowerCase()}`,
+  );
+  return result.success ? result.data : undefined;
+};
 
 interface ProjectWorkspaceProps {
   readonly platform: 'darwin' | 'win32';
@@ -141,8 +154,30 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         deleteSelectionSource,
       );
     };
+    const duplicateSelectionSource: SelectionDuplicateSource = {
+      commit(commands) {
+        const result = session.dispatchTransaction(commands, {
+          label: commands.length === 1 ? 'Duplicate element' : 'Duplicate elements',
+        });
+        return result?.ok === true && result.changed ? result.history.document : undefined;
+      },
+    };
+    const duplicateSelection = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      if (currentDocument === undefined) {
+        return false;
+      }
+      return duplicateSelectedElements(
+        currentDocument,
+        selection,
+        model.listItemIds(),
+        allocateEditorElementId,
+        duplicateSelectionSource,
+      );
+    };
     return Object.freeze({
       deleteSelection,
+      duplicateSelection,
       keyboardNudgeInteraction,
       model,
       moveInteraction,
@@ -235,8 +270,10 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   ),
                   keyboardNudgeInteraction: editor.keyboardNudgeInteraction,
                   onDeleteSelection: editor.deleteSelection,
+                  onDuplicateSelection: editor.duplicateSelection,
                   selection: editor.selection,
                   selectionInteraction: editor.selectionInteraction,
+                  shortcutPlatform: platform,
                 })}
             {...(!hasRenderableElements ? { domChildren: <ViewportEmptyState /> } : {})}
             {...(document !== undefined

@@ -4,6 +4,7 @@ import type { KeyboardNudgeInteraction } from './keyboard-nudge-interaction';
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from './scene-layers';
 import type { SelectionInteraction } from './selection-interaction';
 import type { SelectionStore } from './selection-store';
+import type { ViewportShortcutPlatform } from './viewport-commands';
 import type { ViewportCameraStore } from './viewport-camera-store';
 import { ViewportInputController } from './viewport-input';
 import { createDeviceScale, createViewportSize } from './viewport-transform';
@@ -14,8 +15,10 @@ interface ViewportSceneProps {
   readonly interactionChildren?: ReactNode;
   readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
   readonly onDeleteSelection?: () => boolean;
+  readonly onDuplicateSelection?: () => boolean;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
+  readonly shortcutPlatform?: ViewportShortcutPlatform;
   readonly worldChildren?: ReactNode;
 }
 
@@ -54,8 +57,10 @@ export const ViewportScene = ({
   interactionChildren,
   keyboardNudgeInteraction,
   onDeleteSelection,
+  onDuplicateSelection,
   selection,
   selectionInteraction,
+  shortcutPlatform,
   worldChildren,
 }: ViewportSceneProps) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -114,15 +119,25 @@ export const ViewportScene = ({
     }
     const input = new ViewportInputController(root, camera, {
       ...(onDeleteSelection === undefined ? {} : { deleteSelection: onDeleteSelection }),
+      ...(onDuplicateSelection === undefined ? {} : { duplicateSelection: onDuplicateSelection }),
       ...(keyboardNudgeInteraction === undefined
         ? {}
         : { keyboardNudge: keyboardNudgeInteraction }),
       ...(selection === undefined ? {} : { selection }),
       ...(selectionInteraction === undefined ? {} : { selectionInteraction }),
+      ...(shortcutPlatform === undefined ? {} : { shortcutPlatform }),
     });
     input.connect();
     return () => input.disconnect();
-  }, [camera, keyboardNudgeInteraction, onDeleteSelection, selection, selectionInteraction]);
+  }, [
+    camera,
+    keyboardNudgeInteraction,
+    onDeleteSelection,
+    onDuplicateSelection,
+    selection,
+    selectionInteraction,
+    shortcutPlatform,
+  ]);
 
   return (
     <div

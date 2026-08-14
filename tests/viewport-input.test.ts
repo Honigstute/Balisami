@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   VIEWPORT_INPUT_POLICY,
   isViewportDeleteKey,
+  isViewportDuplicateShortcut,
   normalizeViewportWheel,
   type ViewportWheelInput,
 } from '../src/renderer/editor/viewport-input';
@@ -26,6 +27,28 @@ describe('viewport wheel normalization', () => {
     expect(isViewportDeleteKey('Delete')).toBe(true);
     expect(isViewportDeleteKey('Backspace')).toBe(true);
     expect(isViewportDeleteKey('KeyD')).toBe(false);
+  });
+
+  it('maps duplicate to the exact primary modifier for each supported platform', () => {
+    const input = {
+      altKey: false,
+      code: 'KeyD',
+      ctrlKey: false,
+      metaKey: true,
+      shiftKey: false,
+    };
+
+    expect(isViewportDuplicateShortcut(input, 'darwin')).toBe(true);
+    expect(isViewportDuplicateShortcut(input, 'win32')).toBe(false);
+    expect(isViewportDuplicateShortcut({ ...input, ctrlKey: true, metaKey: false }, 'win32')).toBe(
+      true,
+    );
+    expect(isViewportDuplicateShortcut({ ...input, ctrlKey: true, metaKey: false }, 'darwin')).toBe(
+      false,
+    );
+    expect(isViewportDuplicateShortcut({ ...input, altKey: true }, 'darwin')).toBe(false);
+    expect(isViewportDuplicateShortcut({ ...input, shiftKey: true }, 'darwin')).toBe(false);
+    expect(isViewportDuplicateShortcut({ ...input, code: 'KeyC' }, 'darwin')).toBe(false);
   });
 
   it('normalizes pixel, line, and page wheel units into viewport-pixel pan', () => {
