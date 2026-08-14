@@ -1,0 +1,56 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-package:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS 26 arm64
+            os: macos-26
+            artifact: macos-26-arm64
+          - name: Windows 2025 x64
+            os: windows-2025
+            artifact: windows-2025-x64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Use pinned Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify source
+        run: npm run verify
+
+      - name: Package application
+        run: npm run package
+
+      - name: Verify packaged Electron fuses
+        run: npm run verify:fuses
+
+      - name: Smoke-test packaged application
+        run: npm run smoke:packaged
+
+      - name: Upload rendered smoke screenshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: balsamic-smoke-${{ matrix.artifact }}
+          path: out/smoke/
+          if-no-files-found: error

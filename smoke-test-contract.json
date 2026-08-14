@@ -1,0 +1,8 @@
+{
+  "argument": "--smoke-test",
+  "marker": "BALSAMIC_SMOKE_OK",
+  "processTimeoutMs": 20000,
+  "readyTimeoutMs": 10000,
+  "screenshotMarker": "BALSAMIC_SMOKE_SCREENSHOT=",
+  "settleMs": 250
+}

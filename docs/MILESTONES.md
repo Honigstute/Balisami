@@ -1,0 +1,334 @@
+# Balsamic milestones
+
+Status: M1 active
+Last reviewed: 2026-08-14
+
+This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
+
+## Status legend
+
+- `[ ]` Not started
+- `[~]` Active — exactly one milestone may have this state
+- `[x]` Complete — every exit gate passed
+- `[!]` Blocked — blocker and owner recorded directly below the item
+
+## Foundation rule
+
+Milestones M0 through M7 form the editor foundation. Do not begin broad catalog production, presentation polish, or distribution work until M7 is complete. A narrow vertical slice is built earlier only to prove the architecture.
+
+## Roadmap
+
+### [x] M0 — Canonical blueprint and reference inventory
+
+Objective: preserve product and engineering intent independently of conversation context.
+
+Deliverables:
+
+- Canonical project blueprint covering screenshots, architecture, state ownership, controls, visual stability, errors, performance, and testing.
+- Single roadmap and agent continuity protocol.
+- Reference feature/control inventory separated into observed and inferred behavior.
+- Initial decisions recorded with explicit rationale.
+
+Exit gate:
+
+- A new developer can identify the source of truth for every major subsystem without chat history.
+- No implementation milestone depends on an undocumented ownership or coordinate decision.
+
+### [~] M1 — Cross-platform application skeleton and guardrails
+
+Depends on: M0
+
+Objective: prove that the application can be developed, tested, and packaged on both desktop targets without weakening security.
+
+Deliverables:
+
+- Electron + React + TypeScript + Vite application with `main`, `preload`, `renderer`, `domain`, and `persistence` boundaries.
+- Sandboxed renderer, context isolation, restrictive navigation/content policy, and typed allowlisted IPC.
+- Design-token entry point and empty stable shell regions.
+- Formatting, linting, strict type checking, unit test runner, component test runner, and production logging foundation.
+- CI jobs for macOS and Windows plus unsigned development packaging and launch smoke test.
+- Dependency-boundary checks preventing renderer access to Node/Electron.
+
+Exit gate:
+
+- Development and packaged builds launch on macOS and Windows.
+- Type/lint/test/package/smoke checks pass with no uncaught errors or unexpected production console noise.
+- Renderer cannot access filesystem or arbitrary IPC.
+
+Current evidence (2026-08-14):
+
+- macOS arm64: `npm run verify`, `npm run package`, and `npm run smoke:packaged` pass. The packaged shell was also inspected in the running app; all fixed regions were present without clipping, modal errors, or shell movement.
+- Packaged smoke now waits for a trusted renderer-ready IPC acknowledgement after React mounts and runtime IPC succeeds, then enforces a quiet stabilization interval. Load/preload failures, renderer crashes/unresponsiveness, console warnings/errors, stderr output, timeout, an empty screenshot, or a malformed acknowledgement fail the run. Each CI host uploads its rendered window for review.
+- A strict post-package hook configures every Electron 43 fuse, and a separate readback check verifies the native binary rather than trusting build configuration. macOS arm64 and cross-packaged Windows x64 both pass; `RunAsNode`, `NODE_OPTIONS`, CLI inspection, and extra `file://` privileges are disabled, while ASAR integrity and ASAR-only loading are enabled.
+- Source verification currently covers formatting, lint, 23-file dependency-boundary enforcement, strict TypeScript, 24 tests, and a production-dependency audit with zero vulnerabilities.
+- Windows x64 cross-packaging from macOS produces a valid PE32+ `Balsamic.exe` with the expected fuse wire. The Windows 2025 x64 CI job is configured to install, verify, package, read back fuses, launch the packaged executable, and upload its rendered screenshot, but it has not run on a Windows host yet. M1 remains active and M2 must not start until that native result and a Windows visual check pass.
+- Exact next action: run `.github/workflows/quality.yml` on a hosted repository, review the Windows artifact/shortcut rendering, then record the run URL and either close M1 or fix the native failure.
+
+### [ ] M2 — Document model, commands, selectors, and undo/redo
+
+Depends on: M1
+
+Objective: establish the single authoritative document state before editor gestures exist.
+
+Deliverables:
+
+- Runtime-validated project, board, element, asset-reference, note, and link schemas with stable IDs.
+- Normalized document store with one canonical `childIds` source for parent/stack order and a narrow read/dispatch interface.
+- Minimal control-type/spec contract for placeholder nodes; the complete authoring registry arrives in M8.
+- Typed command registry for board and element CRUD, properties, geometry, and order.
+- Bounded undo/redo history with transaction grouping, deterministic command labels, and exact saved-state identity.
+- Derived selectors for board order, element order, selection-ready bounds, and command enablement.
+- Fixture builders and invariant/property tests.
+
+Exit gate:
+
+- Every persisted mutation in tests travels through a command.
+- A randomized sequence of at least 10,000 valid commands can undo to its exact initial document and redo to its exact final document.
+- Invalid IDs, non-finite geometry, malformed properties, and illegal group/order operations fail predictably without partial mutation.
+
+### [ ] M3 — Versioned file format, atomic save, autosave, and recovery
+
+Depends on: M2
+
+Objective: make work safe before the editor becomes valuable enough to lose.
+
+Deliverables:
+
+- Portable container manifest, project JSON schema version, and asset layout.
+- Sequential pure migration runner and golden files for every supported schema version.
+- Main-process open/save/save-as APIs with runtime limits and clear error contracts.
+- Atomic user-file save, debounced autosave, recovery journal/snapshot, recent files, and unsaved-close state machine.
+- Save snapshots paired with history state IDs so edits made during an asynchronous save remain dirty.
+- Save-state indicator in a reserved shell slot.
+- Corruption, interruption, newer-version, and crash-recovery tests.
+
+Exit gate:
+
+- A killed process recovers the last accepted edit without corrupting the user's last valid file.
+- Round trips are deterministic and migrations preserve all supported data.
+- Failed parses/migrations/saves retain the source and in-memory document and produce one actionable, deduplicated message.
+
+### [ ] M4 — Stable application shell and design system
+
+Depends on: M1; integrates with M3 status
+
+Objective: freeze layout grammar early so later features cannot make the interface jump or visually drift.
+
+Deliverables:
+
+- Tokenized typography, palette, spacing, controls, icons, pane sizes, motion, states, and overlay tiers.
+- Fixed command/status/category/shelf rows and navigator/viewport/inspector columns.
+- Resizable/collapsible side panes with persisted user preference and stable gutters.
+- Reusable compact controls: fields, buttons, segments, selects, slider, swatch, tooltip, popover, modal, toast, empty state, and internal scroller.
+- Regional error boundaries and capped/deduplicated feedback system.
+- Visual regression stories for empty, loading, selected, mixed, disabled, invalid, error, and overlay states.
+
+Exit gate:
+
+- Switching among representative inspector placeholders changes shell/viewport edges by no more than 1 CSS pixel and produces zero post-ready layout shift.
+- The UI uses at most the two approved bundled font families and contains no platform emoji or feature-local visual constants.
+- Keyboard focus, contrast, reduced motion, 100–200% display scaling, minimum window size, and both platforms pass review.
+
+### [ ] M5 — Viewport, coordinate system, pan, zoom, and scene layers
+
+Depends on: M2, M4
+
+Objective: provide a deterministic, high-performance workspace before object editing.
+
+Deliverables:
+
+- Single viewport-transform module and unit-tested world/screen/device conversions.
+- SVG scene root with background, document, interaction overlay, and DOM editing overlay.
+- Pointer-centered zoom, pinch/wheel behavior, pan gestures, actual/fit/width/selection zoom modes, bounds, and optional scrollbars.
+- Resize/DPR handling, bundled-font readiness, stable seeded sketch primitive, and animation-frame scheduler.
+- Spatial-index and visible-range interfaces with benchmark fixtures.
+
+Exit gate:
+
+- World→screen→world round trips remain within the documented epsilon across zoom/DPR/property-based cases.
+- Zoom retains the point beneath the cursor; no jump occurs during resize or pane toggle.
+- Ten-second pan/zoom runs meet the 1,000-element frame budget without React/global-store updates per raw pointer event.
+
+### [ ] M6 — Selection, gestures, hit testing, and transforms
+
+Depends on: M5
+
+Objective: make manipulation correct and undoable before adding smart assistance.
+
+Deliverables:
+
+- Tested gesture state machine with pointer capture and cancellation.
+- Exact/broad-phase hit testing, topmost/cycle behavior, click, shift/toggle, marquee, select all, and escape.
+- Move, resize, aspect/axis modifiers, keyboard nudge, duplicate, delete, copy/cut/paste, and in-place text-edit overlay.
+- Fixed-screen selection bounds/handles and accessible keyboard route.
+- Transient gesture preview with one command commit per completed gesture.
+
+Exit gate:
+
+- Pointer cancellation/Escape restores exact starting state.
+- A 500-event drag yields one history entry and undo restores exact prior geometry.
+- Selecting or transforming one item does not rerender unrelated scene nodes and meets the 1,000-element gesture budget.
+- Interaction matrix passes on mouse and trackpad paths for macOS and Windows shortcut mappings.
+
+### [ ] M7 — Smart guides, snapping, grouping, and arrangement
+
+Depends on: M6
+
+Objective: complete the geometry foundation that every future control relies on.
+
+Deliverables:
+
+- Pure candidate generation/resolution engine for grid, edges, centers, baselines, container targets, and equal gaps.
+- Zoom-independent tolerance, acquire/release hysteresis, stable priority/tie-break rules, bypass modifier, and guide overlay.
+- Group/ungroup, lock/unlock, z-order, align, and distribute commands.
+- Multi-selection bounds and nested-transform rules.
+- Dense-board snapping benchmark using the spatial index.
+
+Exit gate:
+
+- Golden geometry tests cover ambiguous candidates, negative coordinates, nested groups, all zoom bounds, and modifier changes.
+- Guide visuals never enter persisted state, history, hit testing, thumbnails, or export.
+- Snap/hit-test performance meets the 5,000-element p95 budget.
+
+### [ ] M8 — Control registry and representative vertical slice
+
+Depends on: M7
+
+Objective: prove that controls are data-driven and extensible before building the catalog.
+
+Deliverables:
+
+- Validated `ControlDefinition` contract and registry consumed by rendering, defaults, search, inspector schema, thumbnail, file validation, and migrations.
+- Reusable scene and inspector primitives.
+- Representative controls: Rectangle, Text Label, Button, Text Input, Checkbox, Image placeholder, Browser/container, and Arrow.
+- Deterministic auto-size and bundled-font measurement service.
+- Registry compliance tests and control visual matrix.
+
+Exit gate:
+
+- A normal new control is registered once and automatically becomes searchable, insertable, renderable, inspectable, serializable, migratable, thumbnail-capable, and exportable.
+- Representative controls round-trip without data loss and retain identical seeded sketch geometry across reopen.
+
+### [ ] M9 — Library, quick add, drag-create, and schema-driven inspector
+
+Depends on: M8
+
+Objective: deliver the primary fast-create/edit loop visible in the references.
+
+Deliverables:
+
+- Fixed-slot horizontal shelf, category filters, tooltips, keyboard navigation, search/aliases, loading placeholders, and end reachability.
+- Quick Add with ranked deterministic results and recent/favorite controls.
+- Click insert, drag-to-place, and supported draw gestures.
+- Inspector common modules and control-specific schema renderer with mixed values and batched multi-edit.
+- Numeric field keyboard behavior and overlay-based selects/colors/icons.
+
+Exit gate:
+
+- A user can find, place, edit, move, resize, snap, undo, save, reopen, and delete every representative control without console errors.
+- Shelf slots and viewport bounds are unchanged by long names, missing previews, active category, selection type, validation, or open overlays.
+
+### [ ] M10 — Boards, notes, links, alternates, and presentation
+
+Depends on: M9
+
+Objective: turn the single-board editor into a useful wireframing project.
+
+Deliverables:
+
+- Navigator CRUD, rename, reorder, duplicate, thumbnails, keyboard navigation, and recoverable trash/delete behavior.
+- Board notes with stable inspector/document-level state.
+- Element-to-board/external links with validation and link hints.
+- Alternate versions with create, select, rename, promote, duplicate, merge/discard rules documented before implementation.
+- Full-screen presentation with working navigation history and selected alternate behavior.
+
+Exit gate:
+
+- Board selection changes only navigator styling and document content; shell geometry remains fixed.
+- Links and alternates survive save/reopen and behave consistently in presentation and export fixtures.
+- Thumbnails update asynchronously without degrading active-canvas performance budget.
+
+### [ ] M11 — Assets, icons, reusable components, and catalog expansion
+
+Depends on: M9, M10
+
+Objective: expand capability without weakening registry, file safety, or performance.
+
+Deliverables:
+
+- Image import/drop with type, size, decode, scaling, orientation, transparency, and corruption handling.
+- Content-addressed asset storage, unused-asset management, and custom icon conversion.
+- Searchable bundled icon library using vector assets rather than emoji/font glyphs.
+- Reusable component definitions and instances with override semantics and cycle prevention.
+- Remaining control catalog implemented category-by-category through the registry.
+- A maintained catalog matrix tracking visual states, properties, auto-size, hit shape, accessibility, migration, and tests.
+
+Exit gate:
+
+- Asset-heavy and component-heavy fixtures meet open/save/render budgets.
+- Updating a component definition updates instances deterministically; invalid cycles are rejected without document damage.
+- Every promoted catalog control passes the same registry contract and visual matrix; there are no one-off inspector branches.
+
+### [ ] M12 — Clipboard, import/export, print, and interoperability
+
+Depends on: M10, M11
+
+Objective: make projects easy to move and share while keeping export faithful to the editor.
+
+Deliverables:
+
+- Internal clipboard format plus safe plain-text/image fallbacks across applications.
+- PNG export at explicit scale, SVG export where supported, and PDF export with one board per page and link annotations.
+- Export selection/all/subset and active-alternate rules.
+- Print/presentation-safe bounds, deterministic fonts, and missing-asset behavior.
+- Public project-format documentation and compatibility fixtures.
+
+Exit gate:
+
+- Golden exports match scene geometry within documented raster tolerance on macOS and Windows.
+- Copy/paste within and between projects remaps IDs/assets/links without collisions or loss.
+- Export failures preserve the document and produce one actionable message.
+
+### [ ] M13 — Native desktop integration and release pipeline
+
+Depends on: M12
+
+Objective: ship a normal, trustworthy application on both operating systems.
+
+Deliverables:
+
+- Native menus and platform shortcut labels, dock/taskbar integration, app icon set, file association, recent documents, open-with, and single-instance behavior.
+- macOS arm64 and x64/universal decision validated; signed/notarized `.dmg` pipeline.
+- Windows x64 installer, uninstall behavior, file association, signed executable/installer; Windows ARM promoted only after test coverage exists.
+- Signed automatic updates with staged rollout, rollback, and update/recovery tests.
+- License notices, privacy/offline statement, diagnostics access, and release checklist.
+
+Exit gate:
+
+- Clean macOS and Windows machines can install, launch, create, save, reopen by file association, update, and uninstall without security or data-loss surprises.
+- CI produces traceable signed artifacts from a version tag and verifies their signatures and smoke tests.
+
+### [ ] M14 — Performance, accessibility, visual, and beta hardening
+
+Depends on: M13
+
+Objective: validate that the complete product still meets the foundation promises.
+
+Deliverables:
+
+- Full benchmark suite and profiles for large, asset-heavy, grouped, and multi-board projects.
+- Complete screenshot/geometry matrix at supported scaling and operating-system combinations.
+- Keyboard-only audit, focus/accessibility-tree review of chrome, reduced motion, and contrast review.
+- Error/telemetry-free soak tests, corrupted-file drills, forced-crash recovery, update rollback, and low-disk tests.
+- Reference-parity audit against the explicit interaction/control catalog; unresolved gaps categorized, not hidden.
+- User beta feedback triaged into correctness, usability, visual, performance, and later-scope groups.
+
+Exit gate:
+
+- All blueprint performance and layout budgets pass in packaged builds.
+- No known data-loss, crash-loop, notification-storm, shell-shift, or blocker accessibility defect remains.
+- Release candidate passes the complete create→edit→save→crash/recover→reopen→export→update workflow on macOS and Windows.
+
+## Next action
+
+Run `.github/workflows/quality.yml` from a hosted repository, inspect the Windows x64 artifact on the Windows runner, and record the run URL. If the native package, renderer-ready smoke, and Windows visual/shortcut review pass, close M1 and activate M2; otherwise keep M1 active and fix the observed platform failure first.
