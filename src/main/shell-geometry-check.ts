@@ -13,6 +13,9 @@ import {
 } from '../shared/shell-layout';
 
 const MAX_GEOMETRY_ERROR_CSS_PX = 0.5;
+// Windows may quantize requested native DIPs by up to two pixels at fractional display scales.
+// Renderer region rectangles remain subject to the stricter CSS-pixel contract below.
+const MAX_NATIVE_WINDOW_ERROR_DIP = 2;
 const MAX_LAYOUT_SETTLE_ATTEMPTS = 60;
 const SHELL_REGION_NAMES = Object.freeze(Object.values(SHELL_REGIONS));
 
@@ -111,6 +114,15 @@ const waitForLayout = (window: BrowserWindow): Promise<unknown> =>
     true,
   );
 
+const isNativeWindowSizeSettled = (
+  actualWidth: number,
+  actualHeight: number,
+  expectedWidth: number,
+  expectedHeight: number,
+): boolean =>
+  Math.abs(actualWidth - expectedWidth) <= MAX_NATIVE_WINDOW_ERROR_DIP &&
+  Math.abs(actualHeight - expectedHeight) <= MAX_NATIVE_WINDOW_ERROR_DIP;
+
 const assertRect = (
   region: ShellRegion,
   actual: ShellRegionRect,
@@ -140,7 +152,7 @@ const measureAndAssert = async (
     measured = parseMeasuredGeometry(
       await window.webContents.executeJavaScript(createMeasurementScript(), true),
     );
-    const [windowWidth, windowHeight] = window.getSize();
+    const [windowWidth = Number.NaN, windowHeight = Number.NaN] = window.getSize();
     const viewportKey =
       measured === undefined
         ? undefined
@@ -149,8 +161,12 @@ const measureAndAssert = async (
       viewportKey !== undefined && viewportKey === priorViewportKey ? stableViewportSamples + 1 : 1;
     priorViewportKey = viewportKey;
     if (
-      windowWidth === expectedWindowWidth &&
-      windowHeight === expectedWindowHeight &&
+      isNativeWindowSizeSettled(
+        windowWidth,
+        windowHeight,
+        expectedWindowWidth,
+        expectedWindowHeight,
+      ) &&
       measured !== undefined &&
       stableViewportSamples >= 2
     ) {
@@ -160,10 +176,12 @@ const measureAndAssert = async (
   if (measured === undefined) {
     throw new Error('Packaged shell returned malformed viewport geometry.');
   }
-  const [windowWidth, windowHeight] = window.getSize();
-  if (windowWidth !== expectedWindowWidth || windowHeight !== expectedWindowHeight) {
+  const [windowWidth = Number.NaN, windowHeight = Number.NaN] = window.getSize();
+  if (
+    !isNativeWindowSizeSettled(windowWidth, windowHeight, expectedWindowWidth, expectedWindowHeight)
+  ) {
     throw new Error(
-      `Packaged native window did not settle at ${String(expectedWindowWidth)}x${String(expectedWindowHeight)} (received ${String(windowWidth)}x${String(windowHeight)}).`,
+      `Packaged native window exceeded the ${String(MAX_NATIVE_WINDOW_ERROR_DIP)}-DIP scale tolerance around ${String(expectedWindowWidth)}x${String(expectedWindowHeight)} (received ${String(windowWidth)}x${String(windowHeight)}).`,
     );
   }
   if (stableViewportSamples < 2) {
