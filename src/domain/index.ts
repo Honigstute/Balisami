@@ -1,6 +1,37 @@
-/**
- * M2 introduces the validated project document and command dispatcher here.
- * Keeping the boundary present in M1 lets import rules protect it from the
- * first implementation commit.
- */
-export {};
+export {
+  AssetIdSchema,
+  BoardIdSchema,
+  ElementIdSchema,
+  ProjectIdSchema,
+  type AssetId,
+  type BoardId,
+  type ElementId,
+  type ProjectId,
+} from './document/ids';
+export {
+  AssetReferenceSchema,
+  BoardNoteSchema,
+  BoardSchema,
+  ControlTypeIdSchema,
+  ElementLinkSchema,
+  ElementNodeSchema,
+  JsonValueSchema,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
+  WorldRectSchema,
+  type AssetReference,
+  type Board,
+  type BoardNote,
+  type ControlTypeId,
+  type ElementLink,
+  type ElementNode,
+  type JsonValue,
+  type WorldRect,
+} from './document/schema';
+export {
+  MAX_DOCUMENT_VALIDATION_ISSUES,
+  ProjectDocumentSchema,
+  parseProjectDocument,
+  type DocumentValidationIssue,
+  type ProjectDocument,
+  type ProjectDocumentParseResult,
+} from './document/validation';

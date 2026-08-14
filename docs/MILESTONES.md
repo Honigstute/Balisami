@@ -86,6 +86,12 @@ Exit gate:
 - A randomized sequence of at least 10,000 valid commands can undo to its exact initial document and redo to its exact final document.
 - Invalid IDs, non-finite geometry, malformed properties, and illegal group/order operations fail predictably without partial mutation.
 
+Current progress (2026-08-14):
+
+- The first canonical schema slice defines versioned projects, branded stable IDs, boards, notes, elements, local world-space rectangles, JSON-safe properties, child and asset ordering, board/HTTP(S) links, and content-addressed image references. Persisted parent IDs, z-index copies, selection, viewport, and other session state are rejected.
+- Cross-record validation rejects duplicate or missing order entries, map-key/record-ID disagreement, missing board/element/asset targets, zero or multiple element owners, and hierarchy cycles. Successful parser output is readonly; user-facing validation results are capped at 50 stable paths with an omitted-count summary.
+- Thirteen focused document tests pass inside the full 9-file/38-test suite. `npm run verify`, native macOS package/fuse/smoke, and Windows x64 cross-package/fuse verification all pass.
+
 ### [ ] M3 — Versioned file format, atomic save, autosave, and recovery
 
 Depends on: M2
@@ -331,4 +337,4 @@ Exit gate:
 
 ## Next action
 
-Define M2's runtime schema primitives and canonical normalized document types in `src/domain`, beginning with project, board, element, geometry, notes, links, stable IDs, and the single authoritative child-order representation. Add valid/invalid fixtures and invariant tests before exposing any mutation API.
+Define M2's minimal control-spec contract for the foundation group and rectangle placeholders, then use it to reject unknown control types and illegal child ownership. Only after those document invariants pass should the command result/dispatcher contract and board CRUD become the first supported mutation path.

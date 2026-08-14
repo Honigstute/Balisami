@@ -131,7 +131,7 @@ Use Electron with TypeScript, React, and Vite. Electron is selected because both
 
 Use the operating system's standard window frame initially. A custom title bar adds platform-specific dragging, traffic-light, snap-layout, accessibility, and full-screen complexity without improving the editor foundation.
 
-The M1 toolchain is pinned rather than ranged:
+The foundation toolchain is pinned rather than ranged:
 
 | Tool           | Version |
 | -------------- | ------: |
@@ -143,6 +143,7 @@ The M1 toolchain is pinned rather than ranged:
 | React          |  19.2.8 |
 | Vite           |   7.3.6 |
 | TypeScript     |   6.0.3 |
+| Zod            |   4.4.3 |
 
 `package.json`, `package-lock.json`, and `.nvmrc` are authoritative for executable versions. Electron Forge still labels its Vite plugin experimental, so its exact version is pinned and upgrades require a verified package/build/smoke cycle on macOS and Windows. Vite 7 is intentional: Forge 7's integration still emits deprecated Rollup options under Vite 8.
 
@@ -187,6 +188,8 @@ Circular imports and renderer imports from `main` or Node built-ins fail CI.
 ### 5.1 Persisted document state
 
 The normalized model contains `Project`, ordered `Board` records, `ElementNode` records, content-addressed assets, symbols/components, links, notes, and alternates. Every record has a stable identifier. Every stored number and enum is validated and finite.
+
+`ProjectDocumentSchema` is the authoritative runtime structure, while `parseProjectDocument` is the public untrusted-input boundary. It returns stable field paths and caps surfaced issues so one malformed document cannot create an error-message storm. Cross-record ownership, ordering, identity, link, asset, and cycle rules are validated with the shape rather than repaired silently.
 
 Each board or group owns one ordered `childIds` list. That list alone defines parent membership and stacking order; parent indexes and z-order values are derived at runtime and are never persisted as competing copies.
 
@@ -458,6 +461,7 @@ A feature is done only when:
 | D-009 | Pin the Forge Vite integration exactly                     | Contain the migration risk of Forge's experimental Vite plugin                                                      | Accepted                                  |
 | D-010 | Temporarily accept Forge's dev-only `extract-zip` advisory | No patched upstream release exists; production dependency audit is clean and packaging input is trusted/checksummed | Temporary; review every dependency update |
 | D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored    | Accepted                                  |
+| D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts   | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 
