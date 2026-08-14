@@ -12,8 +12,12 @@ import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
 import {
   countRenderableBoardElements,
+  DocumentSceneModel,
   getRenderableBoardWorldBounds,
 } from '../editor/document-scene-model';
+import { SelectionInteraction } from '../editor/selection-interaction';
+import { SelectionOverlay } from '../editor/SelectionOverlay';
+import { SelectionStore } from '../editor/selection-store';
 import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
@@ -31,6 +35,15 @@ interface ProjectWorkspaceProps {
 
 const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
   const camera = useViewportCameraStore();
+  const [editor] = useState(() => {
+    const model = new DocumentSceneModel();
+    const selection = new SelectionStore();
+    const selectionInteraction = new SelectionInteraction(
+      selection,
+      (point) => model.hitTestTopmost(point)?.id,
+    );
+    return Object.freeze({ model, selection, selectionInteraction });
+  });
   const query = new URLSearchParams(window.location.search);
   const packagedProbeEnabled =
     query.get(projectWorkflowProbeContract.queryKey) === projectWorkflowProbeContract.queryValue;
@@ -56,6 +69,13 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     firstBoardId === undefined
       ? undefined
       : view.history?.document.boardsById[firstBoardId]?.note.text;
+  useEffect(
+    () =>
+      editor.model.subscribe(() => {
+        editor.selection.reconcile(new Set(editor.model.listItemIds()));
+      }),
+    [editor],
+  );
   return (
     <AppShell
       projectName={view.displayName}
@@ -91,6 +111,10 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         canvas: (
           <ViewportScene
             camera={camera}
+            interactionChildren={
+              <SelectionOverlay camera={camera} model={editor.model} selection={editor.selection} />
+            }
+            selectionInteraction={editor.selectionInteraction}
             {...(!hasRenderableElements ? { domChildren: <ViewportEmptyState /> } : {})}
             {...(document !== undefined
               ? {
@@ -99,6 +123,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                       activeBoardId={firstBoardId}
                       camera={camera}
                       document={document}
+                      model={editor.model}
                     />
                   ),
                 }

@@ -11,6 +11,9 @@ import {
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
 import { DocumentScene } from '../editor/DocumentScene';
+import { DocumentSceneModel } from '../editor/document-scene-model';
+import { SelectionOverlay } from '../editor/SelectionOverlay';
+import { SelectionStore } from '../editor/selection-store';
 import { ViewportScene } from '../editor/ViewportScene';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
@@ -39,6 +42,7 @@ interface VisualConformanceFixtureProps {
 const createSceneFixtureDocument = (): {
   readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
   readonly document: ProjectDocument;
+  readonly selectedId: ReturnType<typeof ElementIdSchema.parse>;
 } => {
   const projectId = ProjectIdSchema.parse('project_visualscene');
   const boardId = BoardIdSchema.parse('board_visualscene');
@@ -128,20 +132,37 @@ const createSceneFixtureDocument = (): {
   if (!result.ok) {
     throw new Error('The deterministic scene visual fixture is invalid.');
   }
-  return Object.freeze({ boardId, document: result.value });
+  return Object.freeze({ boardId, document: result.value, selectedId: buttonId });
 };
 
-const SceneFixture = () => {
+const SceneFixture = ({ selected = false }: { readonly selected?: boolean }) => {
   const camera = useViewportCameraStore();
   const [fixture] = useState(createSceneFixtureDocument);
+  const [editor] = useState(() => {
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const selection = new SelectionStore();
+    if (selected) {
+      selection.selectOnly(fixture.selectedId);
+    }
+    return Object.freeze({ model, selection });
+  });
   return (
     <ViewportScene
       camera={camera}
+      {...(selected
+        ? {
+            interactionChildren: (
+              <SelectionOverlay camera={camera} model={editor.model} selection={editor.selection} />
+            ),
+          }
+        : {})}
       worldChildren={
         <DocumentScene
           activeBoardId={fixture.boardId}
           camera={camera}
           document={fixture.document}
+          model={editor.model}
         />
       }
     />
@@ -302,15 +323,17 @@ export const VisualConformanceFixture = ({
   const regionContent =
     fixture === 'scene'
       ? { canvas: <SceneFixture /> }
-      : fixture === 'controls'
-        ? { inspector: <ControlStates /> }
-        : fixture === 'feedback'
-          ? { canvas: <StaticRegionFailure /> }
-          : fixture === 'tooltip'
-            ? { canvas: <TooltipFixture /> }
-            : fixture === 'popover'
-              ? { canvas: <PopoverFixture /> }
-              : undefined;
+      : fixture === 'selection'
+        ? { canvas: <SceneFixture selected /> }
+        : fixture === 'controls'
+          ? { inspector: <ControlStates /> }
+          : fixture === 'feedback'
+            ? { canvas: <StaticRegionFailure /> }
+            : fixture === 'tooltip'
+              ? { canvas: <TooltipFixture /> }
+              : fixture === 'popover'
+                ? { canvas: <PopoverFixture /> }
+                : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ViewportEmptyState, ViewportScene } from '../src/renderer/editor/ViewportScene';
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from '../src/renderer/editor/scene-layers';
+import { SelectionInteraction } from '../src/renderer/editor/selection-interaction';
+import { SelectionStore } from '../src/renderer/editor/selection-store';
+import { ElementIdSchema } from '../src/domain';
 import {
   ViewportCameraStore,
   type AnimationFrameScheduler,
@@ -16,6 +19,8 @@ import {
   createWorldRect,
   viewportPointToWorld,
 } from '../src/renderer/editor/viewport-transform';
+
+const SELECTABLE_ID = ElementIdSchema.parse('element_viewportselect');
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
   readonly callbacks = new Map<number, (timestamp: number) => void>();
@@ -242,6 +247,52 @@ describe('viewport scene layers', () => {
 
     expect(fireEvent.keyDown(input, { code: 'Space' })).toBe(true);
     expect(root).toHaveAttribute('data-pan-state', 'idle');
+    store.dispose();
+  });
+
+  it('routes click selection through viewport-to-world conversion and preserves pan ownership', () => {
+    mockViewportBounds();
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const selection = new SelectionStore();
+    const interaction = new SelectionInteraction(selection, (point) =>
+      point.x >= 100 && point.x <= 200 ? SELECTABLE_ID : undefined,
+    );
+    const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    scheduler.flushNext();
+    store.scheduleTransform(createViewportTransform({ panX: 50, panY: 0, zoom: 2 }));
+    scheduler.flushNext();
+
+    fireEvent.pointerDown(root, {
+      button: 0,
+      clientX: 350,
+      clientY: 100,
+      pointerId: 21,
+    });
+    expect(root).toHaveAttribute('data-selection-state', 'pressed');
+    expect(selection.getSnapshot().selectedIds).toEqual([]);
+    fireEvent.pointerUp(root, { button: 0, clientX: 350, clientY: 100, pointerId: 21 });
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+
+    fireEvent.keyDown(root, { code: 'Space' });
+    fireEvent.pointerDown(root, { button: 0, clientX: 350, clientY: 100, pointerId: 22 });
+    expect(root).toHaveAttribute('data-pan-state', 'active');
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+    fireEvent.keyUp(window, { code: 'Space' });
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 350, clientY: 100, pointerId: 23 });
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(selection.getSnapshot().selectedIds).toEqual([]);
     store.dispose();
   });
 });

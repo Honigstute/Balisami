@@ -1,11 +1,14 @@
 import type { ViewportCameraStore } from './viewport-camera-store';
 import type { ViewportFramingRequest } from './viewport-framing';
+import type { SelectionInteraction } from './selection-interaction';
 import {
   clientPointToViewport,
   createClientPoint,
   createViewportClientBounds,
   createViewportTransform,
   createViewportVector,
+  viewportPointToWorld,
+  type ViewportPoint,
   type ViewportTransform,
 } from './viewport-transform';
 
@@ -122,14 +125,20 @@ const shouldStartPan = (event: PointerEvent, spacePressed: boolean): boolean =>
 export class ViewportInputController {
   readonly #camera: ViewportCameraStore;
   readonly #root: HTMLElement;
+  readonly #selectionInteraction: SelectionInteraction | undefined;
 
   #activePan: ActivePan | undefined;
   #connected = false;
   #spacePressed = false;
 
-  constructor(root: HTMLElement, camera: ViewportCameraStore) {
+  constructor(
+    root: HTMLElement,
+    camera: ViewportCameraStore,
+    selectionInteraction?: SelectionInteraction,
+  ) {
     this.#root = root;
     this.#camera = camera;
+    this.#selectionInteraction = selectionInteraction;
   }
 
   connect(): void {
@@ -153,6 +162,7 @@ export class ViewportInputController {
       return;
     }
     this.#cancelPan();
+    this.#cancelSelectionPress();
     this.#connected = false;
     this.#spacePressed = false;
     this.#updatePanState();
@@ -173,7 +183,27 @@ export class ViewportInputController {
       this.#cancelPan();
       return;
     }
+    if (event.code === 'Escape') {
+      const selectionSnapshot = this.#selectionInteraction?.getSnapshot();
+      if (
+        selectionSnapshot?.kind === 'pressed' &&
+        this.#selectionInteraction?.cancelPress(selectionSnapshot.pointerId)
+      ) {
+        event.preventDefault();
+        this.#releaseSelectionPointerCapture(selectionSnapshot.pointerId);
+        this.#updateSelectionState();
+        return;
+      }
+      if (this.#selectionInteraction?.clearSelectionWhenIdle()) {
+        event.preventDefault();
+        this.#updateSelectionState();
+        return;
+      }
+    }
     if (event.code !== 'Space' || event.repeat || isEditableTarget(event.target)) {
+      return;
+    }
+    if (this.#selectionInteraction?.getSnapshot().kind === 'pressed') {
       return;
     }
     event.preventDefault();
@@ -190,28 +220,65 @@ export class ViewportInputController {
   };
 
   #handlePointerDown = (event: PointerEvent): void => {
-    if (!isEditableTarget(event.target)) {
+    const editable = isEditableTarget(event.target);
+    if (!editable) {
       this.#root.focus({ preventScroll: true });
     }
-    if (this.#activePan !== undefined || !shouldStartPan(event, this.#spacePressed)) {
+    if (this.#activePan !== undefined) {
       return;
     }
-    event.preventDefault();
+    if (shouldStartPan(event, this.#spacePressed)) {
+      event.preventDefault();
+      this.#camera.flushPending();
+      this.#activePan = Object.freeze({
+        pointerId: event.pointerId,
+        startFraming: this.#camera.getFramingSnapshot(),
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startTransform: this.#camera.getTransformSnapshot(),
+      });
+      this.#root.setPointerCapture?.(event.pointerId);
+      this.#updatePanState();
+      return;
+    }
+    if (
+      editable ||
+      event.button !== 0 ||
+      this.#selectionInteraction === undefined ||
+      this.#selectionInteraction.getSnapshot().kind !== 'idle'
+    ) {
+      return;
+    }
     this.#camera.flushPending();
-    this.#activePan = Object.freeze({
-      pointerId: event.pointerId,
-      startFraming: this.#camera.getFramingSnapshot(),
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startTransform: this.#camera.getTransformSnapshot(),
-    });
-    this.#root.setPointerCapture?.(event.pointerId);
-    this.#updatePanState();
+    const viewportPoint = this.#getViewportPoint(event);
+    if (viewportPoint === undefined) {
+      return;
+    }
+    if (
+      this.#selectionInteraction.beginPress({
+        pointerId: event.pointerId,
+        shiftKey: event.shiftKey,
+        viewportPoint,
+        worldPoint: viewportPointToWorld(viewportPoint, this.#camera.getTransformSnapshot()),
+      })
+    ) {
+      event.preventDefault();
+      this.#root.setPointerCapture?.(event.pointerId);
+      this.#updateSelectionState();
+    }
   };
 
   #handlePointerMove = (event: PointerEvent): void => {
     const activePan = this.#activePan;
     if (activePan === undefined || activePan.pointerId !== event.pointerId) {
+      const viewportPoint = this.#getViewportPoint(event);
+      if (
+        viewportPoint !== undefined &&
+        this.#selectionInteraction?.updatePress(event.pointerId, viewportPoint)
+      ) {
+        event.preventDefault();
+        this.#updateSelectionState();
+      }
       return;
     }
     event.preventDefault();
@@ -221,6 +288,17 @@ export class ViewportInputController {
   #handlePointerUp = (event: PointerEvent): void => {
     const activePan = this.#activePan;
     if (activePan === undefined || activePan.pointerId !== event.pointerId) {
+      const viewportPoint = this.#getViewportPoint(event);
+      if (
+        viewportPoint !== undefined &&
+        this.#selectionInteraction?.completePress(event.pointerId, viewportPoint)
+      ) {
+        event.preventDefault();
+        if (this.#root.hasPointerCapture?.(event.pointerId)) {
+          this.#root.releasePointerCapture?.(event.pointerId);
+        }
+        this.#updateSelectionState();
+      }
       return;
     }
     event.preventDefault();
@@ -236,12 +314,20 @@ export class ViewportInputController {
   #handlePointerCancel = (event: PointerEvent): void => {
     if (this.#activePan?.pointerId === event.pointerId) {
       this.#cancelPan();
+      return;
+    }
+    if (this.#selectionInteraction?.cancelPress(event.pointerId)) {
+      this.#updateSelectionState();
     }
   };
 
   #handleLostPointerCapture = (event: PointerEvent): void => {
     if (this.#activePan?.pointerId === event.pointerId) {
       this.#cancelPan();
+      return;
+    }
+    if (this.#selectionInteraction?.cancelPress(event.pointerId)) {
+      this.#updateSelectionState();
     }
   };
 
@@ -269,6 +355,7 @@ export class ViewportInputController {
   #handleWindowBlur = (): void => {
     this.#spacePressed = false;
     this.#cancelPan();
+    this.#cancelSelectionPress();
   };
 
   #schedulePanPosition(activePan: ActivePan, clientX: number, clientY: number): void {
@@ -295,8 +382,39 @@ export class ViewportInputController {
     this.#updatePanState();
   }
 
+  #cancelSelectionPress(): void {
+    const snapshot = this.#selectionInteraction?.getSnapshot();
+    if (snapshot?.kind !== 'pressed' || !this.#selectionInteraction?.cancelPress()) {
+      return;
+    }
+    this.#releaseSelectionPointerCapture(snapshot.pointerId);
+    this.#updateSelectionState();
+  }
+
+  #getViewportPoint(event: PointerEvent): ViewportPoint | undefined {
+    const bounds = this.#root.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return undefined;
+    }
+    return clientPointToViewport(
+      createClientPoint(event.clientX, event.clientY),
+      createViewportClientBounds(bounds.left, bounds.top, bounds.width, bounds.height),
+    );
+  }
+
+  #releaseSelectionPointerCapture(pointerId: number): void {
+    if (this.#root.hasPointerCapture?.(pointerId)) {
+      this.#root.releasePointerCapture?.(pointerId);
+    }
+  }
+
   #updatePanState(): void {
     this.#root.dataset.panState =
       this.#activePan === undefined ? (this.#spacePressed ? 'ready' : 'idle') : 'active';
+  }
+
+  #updateSelectionState(): void {
+    const snapshot = this.#selectionInteraction?.getSnapshot();
+    this.#root.dataset.selectionState = snapshot?.kind ?? 'idle';
   }
 }

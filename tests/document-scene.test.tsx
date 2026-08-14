@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { parseProjectDocument, type ProjectDocument } from '../src/domain';
 import { DocumentScene } from '../src/renderer/editor/DocumentScene';
+import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
 import { ViewportScene } from '../src/renderer/editor/ViewportScene';
 import {
   ViewportCameraStore,
@@ -72,6 +73,7 @@ describe('document SVG scene', () => {
       scheduler,
     });
     const initialDocument = parseFixture();
+    const model = new DocumentSceneModel();
     const view = render(
       <ViewportScene
         camera={camera}
@@ -80,6 +82,7 @@ describe('document SVG scene', () => {
             activeBoardId={DOCUMENT_FIXTURE_IDS.board}
             camera={camera}
             document={initialDocument}
+            model={model}
           />
         }
       />,
@@ -104,6 +107,7 @@ describe('document SVG scene', () => {
             activeBoardId={DOCUMENT_FIXTURE_IDS.board}
             camera={camera}
             document={movedDocument}
+            model={model}
           />
         }
       />,

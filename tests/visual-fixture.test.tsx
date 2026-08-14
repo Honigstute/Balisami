@@ -56,6 +56,7 @@ describe('visual conformance fixture contract', () => {
     ).toMatchObject({ kind: 'invalid' });
     expect(getRequestedVisualFixture('?visualFixture=popover')).toBe('popover');
     expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
+    expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
@@ -73,6 +74,17 @@ describe('visual conformance fixture contract', () => {
     const view = renderFixture('scene');
 
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders fixed-screen selection geometry without replacing the scene or shell', () => {
+    const view = renderFixture('selection');
+
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(4);
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

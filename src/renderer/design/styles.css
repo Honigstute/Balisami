@@ -543,6 +543,21 @@ p {
   stroke-width: calc(var(--border-width) * 2);
 }
 
+.selection-overlay__outline,
+.selection-overlay__handle {
+  pointer-events: none;
+  stroke: var(--color-accent-strong);
+  stroke-width: calc(var(--border-width) * 2);
+}
+
+.selection-overlay__outline {
+  fill: none;
+}
+
+.selection-overlay__handle {
+  fill: var(--color-canvas);
+}
+
 .editor-dom-overlay {
   pointer-events: none;
 }

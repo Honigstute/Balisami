@@ -11,14 +11,21 @@ import {
   createWorldRect,
   type ViewportSize,
   type ViewportTransform,
+  type WorldPoint,
   type WorldRect,
 } from './viewport-transform';
 
 export interface DocumentSceneItem {
   readonly bounds: WorldRect;
   readonly id: ElementId;
+  readonly locked: boolean;
   readonly path: string;
   readonly revision: string;
+}
+
+export interface DocumentSceneHitTestOptions {
+  /** Locked controls are normally click-through; explicit tooling may inspect them. */
+  readonly includeLocked?: boolean;
 }
 
 export interface DocumentSceneReconcileResult {
@@ -31,6 +38,7 @@ export interface DocumentSceneReconcileResult {
 interface DerivedSceneItem {
   readonly bounds: WorldRect;
   readonly id: ElementId;
+  readonly locked: boolean;
 }
 
 const boundsEqual = (first: WorldRect, second: WorldRect): boolean =>
@@ -75,7 +83,7 @@ const deriveBoardSceneItems = (
       element.frame.height,
     );
     if (element.controlType === FOUNDATION_CONTROL_TYPES.rectangle) {
-      items.push(Object.freeze({ bounds, id: element.id }));
+      items.push(Object.freeze({ bounds, id: element.id, locked: element.locked }));
     }
     for (const childId of element.childIds) {
       visit(childId, bounds.x, bounds.y);
@@ -119,6 +127,7 @@ export const getRenderableBoardWorldBounds = (
 export class DocumentSceneModel {
   readonly #index = new WorldSpatialIndex<ElementId>();
   readonly #itemsById = new Map<ElementId, DocumentSceneItem>();
+  readonly #listeners = new Set<() => void>();
   #lastBoardId: BoardId | undefined;
   #lastDocument: ProjectDocument | undefined;
   #order: readonly ElementId[] = Object.freeze([]);
@@ -128,6 +137,15 @@ export class DocumentSceneModel {
   getItem(id: ElementId): DocumentSceneItem | undefined {
     return this.#itemsById.get(id);
   }
+
+  listItemIds(): readonly ElementId[] {
+    return this.#order;
+  }
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  };
 
   reconcile(document: ProjectDocument, boardId: BoardId | undefined): DocumentSceneReconcileResult {
     if (this.#lastDocument === document && this.#lastBoardId === boardId) {
@@ -152,13 +170,19 @@ export class DocumentSceneModel {
     }
     for (const derivedItem of derivedItems) {
       const existing = this.#itemsById.get(derivedItem.id);
-      if (existing !== undefined && boundsEqual(existing.bounds, derivedItem.bounds)) {
+      const geometryChanged =
+        existing === undefined || !boundsEqual(existing.bounds, derivedItem.bounds);
+      if (!geometryChanged && existing.locked === derivedItem.locked) {
         continue;
       }
       const item = Object.freeze({
         bounds: derivedItem.bounds,
         id: derivedItem.id,
-        path: createSeededSketchRectPath(derivedItem.bounds, derivedItem.id),
+        locked: derivedItem.locked,
+        path:
+          geometryChanged || existing === undefined
+            ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
+            : existing.path,
         revision: createItemRevision(derivedItem),
       });
       this.#itemsById.set(item.id, item);
@@ -176,6 +200,11 @@ export class DocumentSceneModel {
     }
     this.#lastDocument = document;
     this.#lastBoardId = boardId;
+    if (changed) {
+      for (const listener of this.#listeners) {
+        listener();
+      }
+    }
     return Object.freeze({ changed, removedItemCount, revision: this.#revision, updatedItemCount });
   }
 
@@ -193,5 +222,35 @@ export class DocumentSceneModel {
           return item === undefined ? [] : [item];
         }),
     );
+  }
+
+  /** Returns exact hits from visually topmost to bottommost canonical order. */
+  queryHitStack(
+    point: WorldPoint,
+    options: DocumentSceneHitTestOptions = {},
+  ): readonly DocumentSceneItem[] {
+    return Object.freeze(
+      this.#index
+        .queryPoint(point)
+        .flatMap((id) => {
+          const item = this.#itemsById.get(id);
+          if (item === undefined || (item.locked && options.includeLocked !== true)) {
+            return [];
+          }
+          return [item];
+        })
+        .sort(
+          (first, second) =>
+            (this.#orderById.get(second.id) ?? Number.MIN_SAFE_INTEGER) -
+            (this.#orderById.get(first.id) ?? Number.MIN_SAFE_INTEGER),
+        ),
+    );
+  }
+
+  hitTestTopmost(
+    point: WorldPoint,
+    options: DocumentSceneHitTestOptions = {},
+  ): DocumentSceneItem | undefined {
+    return this.queryHitStack(point, options)[0];
   }
 }

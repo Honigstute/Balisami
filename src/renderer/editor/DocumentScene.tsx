@@ -1,13 +1,14 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 
 import type { BoardId, ElementId, ProjectDocument } from '../../domain';
-import { DocumentSceneModel, type DocumentSceneItem } from './document-scene-model';
+import type { DocumentSceneItem, DocumentSceneModel } from './document-scene-model';
 import type { ViewportCameraStore } from './viewport-camera-store';
 
 interface DocumentSceneProps {
   readonly activeBoardId: BoardId | undefined;
   readonly camera: ViewportCameraStore;
   readonly document: ProjectDocument;
+  readonly model: DocumentSceneModel;
 }
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
@@ -81,9 +82,8 @@ class DocumentScenePresenter {
 }
 
 /** Imperative keyed scene updates keep camera motion outside React's render path. */
-export const DocumentScene = ({ activeBoardId, camera, document }: DocumentSceneProps) => {
+export const DocumentScene = ({ activeBoardId, camera, document, model }: DocumentSceneProps) => {
   const rootRef = useRef<SVGGElement | null>(null);
-  const [model] = useState(() => new DocumentSceneModel());
   const presenterRef = useRef<DocumentScenePresenter | undefined>(undefined);
 
   const syncVisibleItems = useCallback((): void => {

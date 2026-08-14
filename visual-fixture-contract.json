@@ -5,6 +5,7 @@
   "fixtures": [
     "default",
     "scene",
+    "selection",
     "viewportZoom",
     "controls",
     "feedback",

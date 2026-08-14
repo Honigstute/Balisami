@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from './scene-layers';
+import type { SelectionInteraction } from './selection-interaction';
 import type { ViewportCameraStore } from './viewport-camera-store';
 import { ViewportInputController } from './viewport-input';
 import { createDeviceScale, createViewportSize } from './viewport-transform';
@@ -9,6 +10,7 @@ interface ViewportSceneProps {
   readonly camera: ViewportCameraStore;
   readonly domChildren?: ReactNode;
   readonly interactionChildren?: ReactNode;
+  readonly selectionInteraction?: SelectionInteraction;
   readonly worldChildren?: ReactNode;
 }
 
@@ -45,6 +47,7 @@ export const ViewportScene = ({
   camera,
   domChildren,
   interactionChildren,
+  selectionInteraction,
   worldChildren,
 }: ViewportSceneProps) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -101,10 +104,10 @@ export const ViewportScene = ({
     if (root === null) {
       return;
     }
-    const input = new ViewportInputController(root, camera);
+    const input = new ViewportInputController(root, camera, selectionInteraction);
     input.connect();
     return () => input.disconnect();
-  }, [camera]);
+  }, [camera, selectionInteraction]);
 
   return (
     <div
@@ -112,6 +115,7 @@ export const ViewportScene = ({
       className="editor-viewport"
       data-camera-revision="0"
       data-pan-state="idle"
+      data-selection-state="idle"
       ref={rootRef}
       tabIndex={-1}
     >
