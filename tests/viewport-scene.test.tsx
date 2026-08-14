@@ -295,4 +295,41 @@ describe('viewport scene layers', () => {
     expect(selection.getSnapshot().selectedIds).toEqual([]);
     store.dispose();
   });
+
+  it('cancels selection presses across pointer loss, window blur, and teardown paths', () => {
+    mockViewportBounds();
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const selection = new SelectionStore();
+    selection.selectOnly(SELECTABLE_ID);
+    const before = selection.getSnapshot();
+    const interaction = new SelectionInteraction(selection, () => undefined);
+    const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    scheduler.flushNext();
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 31 });
+    fireEvent.pointerCancel(root, { pointerId: 31 });
+    expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(selection.getSnapshot()).toBe(before);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 32 });
+    fireEvent.lostPointerCapture(root, { pointerId: 32 });
+    expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(selection.getSnapshot()).toBe(before);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 33 });
+    fireEvent.blur(window);
+    expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(selection.getSnapshot()).toBe(before);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 34 });
+    view.unmount();
+    expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(selection.getSnapshot()).toBe(before);
+    store.dispose();
+  });
 });
