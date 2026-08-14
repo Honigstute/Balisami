@@ -1,8 +1,8 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ComponentPropsWithRef } from 'react';
 
 export type AppButtonTone = 'danger' | 'neutral' | 'primary';
 
-export interface AppButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
+export interface AppButtonProps extends Omit<ComponentPropsWithRef<'button'>, 'className'> {
   readonly initialFocus?: boolean;
   readonly tone?: AppButtonTone;
 }

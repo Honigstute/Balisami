@@ -32,6 +32,7 @@ interface AppShellProps {
   readonly statusLabel: string;
   readonly statusScope?: string;
   readonly statusTone: StatusTone;
+  readonly usePersistedLayout?: boolean;
 }
 
 const categories = [
@@ -82,9 +83,10 @@ export const AppShell = ({
   statusLabel,
   statusScope = 'Foundation · local-first',
   statusTone,
+  usePersistedLayout = true,
 }: AppShellProps) => {
   const [noticeStore] = useState(() => new NoticeCenterStore());
-  const shell = useShellPreferences();
+  const shell = useShellPreferences(usePersistedLayout);
   const navigatorTrackWidth = shell.preferences.navigator.collapsed
     ? DESIGN_TOKENS.shell.collapsedPaneWidth
     : shell.preferences.navigator.width;

@@ -6,7 +6,13 @@ import started from 'electron-squirrel-startup';
 import recoveryProbeContract from '../../recovery-probe-contract.json';
 import projectWorkflowProbeContract from '../../project-workflow-probe-contract.json';
 import smokeTestContract from '../../smoke-test-contract.json';
+import visualFixtureContract from '../../visual-fixture-contract.json';
 import { DESKTOP_CHANNELS } from '../shared/desktop-api';
+import {
+  isVisualFixtureContractSynchronized,
+  parseVisualFixtureInvocation,
+  type VisualFixtureName,
+} from '../shared/visual-fixture';
 import type { NativeProjectDialogs } from './dialogs/project-dialogs';
 import { registerDesktopIpc } from './ipc';
 import { createElectronProjectDialogs } from './dialogs/electron-project-dialogs';
@@ -48,9 +54,14 @@ const projectWorkflowProbeInvocation = parseProjectWorkflowProbeInvocation(
   process.argv,
   projectWorkflowProbeContract,
 );
+const visualFixtureInvocation = parseVisualFixtureInvocation(
+  process.argv,
+  visualFixtureContract.argumentPrefix,
+);
 const isRecoveryProbe = recoveryProbeInvocation.kind !== 'none';
 const isProjectWorkflowProbe = projectWorkflowProbeInvocation.kind !== 'none';
-const isAutomatedTest = isSmokeTest || isRecoveryProbe || isProjectWorkflowProbe;
+const isVisualFixture = visualFixtureInvocation.kind !== 'none';
+const isAutomatedTest = isSmokeTest || isRecoveryProbe || isProjectWorkflowProbe || isVisualFixture;
 
 registerAppScheme();
 app.enableSandbox();
@@ -63,6 +74,7 @@ let logger: AppLogger | undefined;
 const projectControllers = new Map<number, ProjectWindowController>();
 const startupHealth =
   isSmokeTest ||
+  visualFixtureInvocation.kind === 'fixture' ||
   isProjectWorkflowProbe ||
   (recoveryProbeInvocation.kind === 'probe' && recoveryProbeInvocation.mode === 'verify')
     ? new StartupHealthMonitor()
@@ -187,6 +199,25 @@ const runSmokeTest = async (window: BrowserWindow): Promise<void> => {
   app.exit(0);
 };
 
+const runVisualFixture = async (
+  window: BrowserWindow,
+  fixture: VisualFixtureName,
+): Promise<void> => {
+  if (startupHealth === undefined) {
+    throw new Error('The visual fixture health monitor is unavailable.');
+  }
+  await startupHealth.waitForRendererReady(visualFixtureContract.readyTimeoutMs);
+  await new Promise<void>((resolve) => setTimeout(resolve, visualFixtureContract.settleMs));
+  startupHealth.assertHealthy();
+  await verifyPackagedShellGeometry(window);
+  startupHealth.assertHealthy();
+  const screenshotPath = await captureSmokeScreenshot(window, app.getPath('temp'));
+  process.stdout.write(
+    `${visualFixtureContract.screenshotMarker}${screenshotPath}\n${visualFixtureContract.marker}:${fixture}\n`,
+  );
+  app.exit(0);
+};
+
 const writeStandardOutputLine = (line: string): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     process.stdout.write(`${line}\n`, (error) => {
@@ -212,6 +243,12 @@ const runRecoveryProbe = async (
 };
 
 const startApplication = async (): Promise<void> => {
+  if (!isVisualFixtureContractSynchronized()) {
+    throw new Error('The visual fixture contract is out of sync with its registry.');
+  }
+  if (visualFixtureInvocation.kind === 'invalid') {
+    throw new Error(visualFixtureInvocation.message);
+  }
   if (recoveryProbeInvocation.kind === 'invalid') {
     throw new Error(recoveryProbeInvocation.message);
   }
@@ -220,6 +257,14 @@ const startApplication = async (): Promise<void> => {
   }
   if (recoveryProbeInvocation.kind === 'probe' && projectWorkflowProbeInvocation.kind === 'probe') {
     throw new Error('Only one packaged project probe may run at a time.');
+  }
+  if (
+    visualFixtureInvocation.kind === 'fixture' &&
+    (isSmokeTest ||
+      recoveryProbeInvocation.kind === 'probe' ||
+      projectWorkflowProbeInvocation.kind === 'probe')
+  ) {
+    throw new Error('A visual fixture cannot run with another packaged test mode.');
   }
   let activeRecoveryProbe: Extract<RecoveryProbeInvocation, { readonly kind: 'probe' }> | undefined;
   let activeProjectWorkflowProbe:
@@ -279,19 +324,23 @@ const startApplication = async (): Promise<void> => {
     resolveProjectController: (webContentsId) => projectControllers.get(webContentsId),
   });
   const window = await createWindow(
-    activeProjectWorkflowProbe !== undefined
+    visualFixtureInvocation.kind === 'fixture'
       ? {
-          projectDialogs: createProjectWorkflowProbeDialogs(
-            activeProjectWorkflowProbe.root,
-            activeProjectWorkflowProbe.contract.userFileName,
-          ),
-          rendererQuery: `${activeProjectWorkflowProbe.contract.queryKey}=${activeProjectWorkflowProbe.contract.queryValue}`,
+          rendererQuery: `${visualFixtureContract.queryKey}=${encodeURIComponent(visualFixtureInvocation.fixture)}`,
         }
-      : activeRecoveryProbe?.mode === 'verify'
+      : activeProjectWorkflowProbe !== undefined
         ? {
-            rendererQuery: `${activeRecoveryProbe.contract.rendererQueryKey}=${activeRecoveryProbe.contract.rendererQueryValue}`,
+            projectDialogs: createProjectWorkflowProbeDialogs(
+              activeProjectWorkflowProbe.root,
+              activeProjectWorkflowProbe.contract.userFileName,
+            ),
+            rendererQuery: `${activeProjectWorkflowProbe.contract.queryKey}=${activeProjectWorkflowProbe.contract.queryValue}`,
           }
-        : {},
+        : activeRecoveryProbe?.mode === 'verify'
+          ? {
+              rendererQuery: `${activeRecoveryProbe.contract.rendererQueryKey}=${activeRecoveryProbe.contract.rendererQueryValue}`,
+            }
+          : {},
   );
   if (activeProjectWorkflowProbe !== undefined) {
     if (startupHealth === undefined) {
@@ -324,6 +373,10 @@ const startApplication = async (): Promise<void> => {
     startupHealth.assertHealthy();
     await writeStandardOutputLine(activeRecoveryProbe.contract.verificationMarker);
     app.exit(0);
+    return;
+  }
+  if (visualFixtureInvocation.kind === 'fixture') {
+    await runVisualFixture(window, visualFixtureInvocation.fixture);
     return;
   }
   await runSmokeTest(window);

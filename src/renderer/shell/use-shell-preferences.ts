@@ -27,11 +27,11 @@ export interface ShellPreferenceController {
 }
 
 /** Owns the one renderer-side source for non-document shell preferences. */
-export const useShellPreferences = (): ShellPreferenceController => {
+export const useShellPreferences = (persisted = true): ShellPreferenceController => {
   const storageRef = useRef<ShellPreferenceStorage | undefined>(undefined);
   const storageInitializedRef = useRef(false);
   if (!storageInitializedRef.current) {
-    storageRef.current = getBrowserStorage();
+    storageRef.current = persisted ? getBrowserStorage() : undefined;
     storageInitializedRef.current = true;
   }
   const [preferences, setPreferences] = useState(() => loadShellPreferences(storageRef.current));

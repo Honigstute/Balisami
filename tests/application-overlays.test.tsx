@@ -51,6 +51,23 @@ describe('application overlays', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
+  it('can start open for deterministic visual fixtures', () => {
+    render(
+      <>
+        <OverlayRoot />
+        <AppTooltip content="Always visible fixture" defaultOpen>
+          {(triggerProps) => <button {...triggerProps}>Fixture trigger</button>}
+        </AppTooltip>
+      </>,
+    );
+
+    const tooltip = screen.getByRole('tooltip');
+    expect(screen.getByRole('button', { name: 'Fixture trigger' })).toHaveAttribute(
+      'aria-describedby',
+      tooltip.id,
+    );
+  });
+
   it('portals a non-modal popover, closes on Escape, and restores trigger focus', () => {
     render(<PopoverFixture />);
 

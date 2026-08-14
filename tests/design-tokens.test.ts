@@ -1,11 +1,25 @@
 // @vitest-environment node
 
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
 import { DESIGN_TOKENS } from '../src/shared/design-tokens';
+
+const collectTypeScriptSources = async (directory: string): Promise<string[]> => {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const sources = await Promise.all(
+    entries.map(async (entry): Promise<string[]> => {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return collectTypeScriptSources(entryPath);
+      }
+      return /\.tsx?$/u.test(entry.name) ? [entryPath] : [];
+    }),
+  );
+  return sources.flat();
+};
 
 describe('visual token contract', () => {
   it('keeps spacing on the four-pixel foundation grid', () => {
@@ -60,5 +74,15 @@ describe('visual token contract', () => {
     expect(stylesheet).not.toMatch(/\bcolor-mix\(/u);
     expect(stylesheet).not.toMatch(/font-weight:\s*\d/u);
     expect(stylesheet).not.toMatch(/z-index:\s*\d/u);
+
+    const tokenPath = path.join(process.cwd(), 'src/shared/design-tokens.ts');
+    const sourcePaths = await collectTypeScriptSources(path.join(process.cwd(), 'src'));
+    for (const sourcePath of sourcePaths.filter((candidate) => candidate !== tokenPath)) {
+      const source = await readFile(sourcePath, 'utf8');
+      expect(
+        source,
+        `${path.relative(process.cwd(), sourcePath)} contains a raw color`,
+      ).not.toMatch(/#(?:[0-9a-f]{3}){1,2}\b|\brgba?\(/iu);
+    }
   });
 });

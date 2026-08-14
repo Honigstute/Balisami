@@ -24,13 +24,14 @@ export interface AppTooltipTriggerProps {
 interface AppTooltipProps {
   readonly children: (triggerProps: AppTooltipTriggerProps) => ReactElement;
   readonly content: string;
+  readonly defaultOpen?: boolean;
 }
 
-export const AppTooltip = ({ children, content }: AppTooltipProps) => {
+export const AppTooltip = ({ children, content, defaultOpen = false }: AppTooltipProps) => {
   const tooltipId = `app-tooltip-${useId()}`;
   const triggerRef = useRef<HTMLElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const position = useAnchoredOverlay(open, triggerRef, surfaceRef);
   const portalTarget = document.getElementById('overlay-root') ?? document.body;
 

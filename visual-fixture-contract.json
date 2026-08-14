@@ -1,0 +1,10 @@
+{
+  "argumentPrefix": "--visual-fixture=",
+  "fixtures": ["default", "controls", "feedback", "tooltip", "popover", "modal"],
+  "marker": "BALSAMIC_VISUAL_OK",
+  "processTimeoutMs": 20000,
+  "queryKey": "visualFixture",
+  "readyTimeoutMs": 10000,
+  "screenshotMarker": "BALSAMIC_VISUAL_SCREENSHOT=",
+  "settleMs": 250
+}
