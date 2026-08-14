@@ -135,12 +135,14 @@ Current progress (2026-08-14):
 - Main-process storage opens a bounded fixed file snapshot, validates/encodes before write, flushes a randomly named exclusive sibling temporary, uses atomic replace plus directory fsync where supported, and has a regular-file-only Windows backup/restore fallback. Restore failure preserves both recovery paths; ordinary failures leave the prior user file untouched and remove temporary debris.
 - Saving a history snapshot returns the exact immutable state/token identity that reached durable storage. The caller resolves that identity against the then-current history, so an edit made while archive encoding or disk I/O is in flight remains dirty; reopening proves the file contains the captured snapshot rather than the later edit.
 - Recovery is a separate content-addressed journal under `userData`: it captures document/state without a user-save token, flushes an immutable archive before atomically advancing a strict 64-KiB pointer, preserves corrupt evidence, rejects tampering by length/SHA-256, bounds stale snapshots, and treats the chosen user-file path as inert metadata.
-- Forty-one focused M3 tests pass inside the full 20-file/112-test suite. They cover logical and physical determinism/corruption/limits, the hostile 10,003-entry archive, version routing, real filesystem round trips, sparse oversize rejection, atomic replacement, Windows fallback order, restore failure, non-file protection, save-before-touch behavior, edits during save, recovery pointer interruption, orphan cleanup, evidence preservation, and tamper detection.
-- [Quality run 31813738191](https://github.com/Honigstute/Balisami/actions/runs/31813738191) passed the 104-test storage foundation on native macOS 26 arm64 and Windows 2025 x64, then packaged, verified fuses, launched, and captured the application on both hosts.
+- Recovery discovery streams at most 1,000 journal entries, caps isolated issue reporting at 50, validates cheap pointer/archive metadata without inflating every project, and refuses per-project cleanup above 128 entries. Clear is idempotent and conditional on the exact observed pointer, so a stale discard cannot remove a newer recovery; corrupt and unrecognized evidence is retained.
+- A 750-ms main-process scheduler captures state IDs and copied asset bytes, coalesces rapid edits to the latest state, prevents concurrent writes, retains one failed state for explicit retry, and flushes active plus latest pending work during normal shutdown. It never allocates user-save tokens or performs archive/filesystem work in the renderer.
+- Fifty-three focused M3 tests pass inside the full 21-file/124-test suite. They cover logical and physical determinism/corruption/limits, the hostile 10,003-entry archive, version routing, real filesystem round trips, sparse oversize rejection, atomic replacement, Windows fallback order, restore failure, non-file protection, save-before-touch behavior, edits during save, recovery pointer interruption, bounded discovery/cleanup, exact-pointer clear races, evidence preservation, tamper detection, rapid-edit coalescing, retry, and in-flight shutdown.
+- [Quality run 31814642007](https://github.com/Honigstute/Balisami/actions/runs/31814642007) passed the 112-test recovery-journal foundation on native macOS 26 arm64 and Windows 2025 x64, then packaged, verified fuses, launched, and captured the application on both hosts. The 124-test discovery/scheduler increment is locally verified and awaits its native CI run.
 
 Exact next action:
 
-- Add bounded discovery and explicit clear/retain rules for recovery points, then build the debounced recovery autosave scheduler around state IDs. Coalesce superseded requests, never run archive work in the renderer, and test shutdown/rapid-edit races before exposing recovery or user-file dialogs.
+- Compose discovery, load, explicit restore/discard, and the autosave scheduler into the main-process project lifecycle. Then add typed native open/save/save-as and unsaved-close orchestration without exposing paths, Electron, archive work, or raw technical failures to renderer feature code.
 
 ### [ ] M4 — Stable application shell and design system
 
@@ -365,4 +367,4 @@ Exit gate:
 
 ## Next action
 
-Define the portable version-1 file envelope and deterministic JSON codec with explicit format/version/size errors. Add round-trip, canonical-output, newer-version, malformed, and truncation tests before introducing Electron filesystem I/O.
+Compose discovery, load, explicit restore/discard, and the autosave scheduler into the main-process project lifecycle. Then add typed native open/save/save-as and unsaved-close orchestration without exposing paths, Electron, archive work, or raw technical failures to renderer feature code.

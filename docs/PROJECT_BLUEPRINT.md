@@ -366,6 +366,27 @@ than silently overwritten. Loading verifies pointer schema, project identity, by
 archive limits, and the full project codec before exposing a document. The optional chosen-file path
 is metadata only; recovery never reads from or writes to it.
 
+Startup discovery streams at most 1,000 entries from `recovery-v1`, reports at most 50 isolated
+issues, and reads only each strict pointer plus the referenced archive's regular-file metadata. It
+does not inflate every archive merely to build a chooser; the full length, digest, ZIP, envelope,
+document, and asset checks run only when a recovery is selected. Per-project orphan cleanup inspects
+at most 128 snapshot-directory entries. Exceeding either limit is a typed refusal, never an unbounded
+scan or a partial deletion.
+
+Recovery points are retained until an explicit accepted action clears them. Clear requires the exact
+pointer identity observed by the caller and is serialized with writes for that project; a newer or
+different pointer wins and remains untouched. Clearing removes the pointer first, then only its
+recognized digest archive and empty directories. Missing points are idempotent, unrecognized files
+and corrupt evidence are preserved, and post-pointer cleanup failures are successful-clear warnings.
+
+One main-process autosave scheduler exists per open project. It captures immutable document/state
+identity and copies asset bytes at schedule time, waits 750 ms after the latest edit, keeps only the
+latest pending state, and allows only one journal write in flight. A state/file-path identity already
+durable or currently writing is not duplicated. Failed writes remain available for one explicit
+flush or a later edit but never self-loop into an error storm. Normal shutdown stops new schedules,
+waits for the active write, and flushes the latest pending state; an explicit discard mode cancels
+only work that has not begun. Archive encoding and filesystem work remain in the main process.
+
 Rules:
 
 - Parse untrusted project files with runtime schemas and size limits.

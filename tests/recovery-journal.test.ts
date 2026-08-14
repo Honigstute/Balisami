@@ -13,7 +13,13 @@ import {
 } from '../src/domain';
 import {
   captureProjectRecoverySnapshot,
+  clearRecoverySnapshot,
+  discoverRecoverySnapshots,
   loadRecoverySnapshot,
+  MAX_RECOVERY_DISCOVERY_ENTRIES,
+  MAX_RECOVERY_DISCOVERY_ISSUES,
+  MAX_RECOVERY_SNAPSHOT_ENTRIES_PER_PROJECT,
+  RECOVERY_LAYOUT,
   writeRecoverySnapshot,
   type ProjectRecoverySnapshot,
 } from '../src/main/recovery/recovery-journal';
@@ -64,10 +70,10 @@ const createEditedSnapshot = (history: DocumentHistoryState): ProjectRecoverySna
 };
 
 const recoveryPaths = (root: string, projectId: string) => {
-  const project = path.join(root, 'recovery-v1', projectId);
+  const project = path.join(root, RECOVERY_LAYOUT.directoryName, projectId);
   return {
-    pointer: path.join(project, 'current.json'),
-    snapshots: path.join(project, 'snapshots'),
+    pointer: path.join(project, RECOVERY_LAYOUT.pointerName),
+    snapshots: path.join(project, RECOVERY_LAYOUT.snapshotDirectoryName),
   };
 };
 
@@ -275,5 +281,149 @@ describe('recovery journal', () => {
         rendererSelection: [],
       }).success,
     ).toBe(false);
+  });
+
+  it('discovers valid pointer metadata while isolating corrupt journal entries', async () => {
+    const root = await createRecoveryRoot();
+    const { snapshot } = createFirstSnapshot();
+    const written = await writeRecoverySnapshot(root, snapshot, {}, { capturedAtEpochMs: 500 });
+    if (!written.ok) {
+      throw new Error('Expected recovery write to succeed.');
+    }
+
+    const recoveryDirectory = path.join(root, RECOVERY_LAYOUT.directoryName);
+    await writeFile(path.join(recoveryDirectory, 'unexpected-file'), 'preserve me');
+    await mkdir(path.join(recoveryDirectory, 'invalid-project-directory'));
+    const corruptPaths = recoveryPaths(root, 'project_broken01');
+    await mkdir(path.dirname(corruptPaths.pointer), { recursive: true });
+    await writeFile(corruptPaths.pointer, '{"truncated":');
+
+    const discovered = await discoverRecoverySnapshots(root);
+    expect(discovered).toMatchObject({
+      ok: true,
+      value: {
+        snapshots: [{ pointer: written.value.pointer }],
+        issues: [
+          { code: 'invalid-project-directory' },
+          { code: 'invalid-recovery-pointer', projectId: 'project_broken01' },
+          { code: 'unexpected-recovery-entry' },
+        ],
+        omittedIssueCount: 0,
+      },
+    });
+    if (!discovered.ok) {
+      throw new Error('Expected recovery discovery to succeed.');
+    }
+    expect(Object.isFrozen(discovered.value)).toBe(true);
+    expect(Object.isFrozen(discovered.value.snapshots)).toBe(true);
+    expect(Object.isFrozen(discovered.value.issues)).toBe(true);
+  });
+
+  it('caps discovery issues and rejects an unbounded recovery directory', async () => {
+    const root = await createRecoveryRoot();
+    const recoveryDirectory = path.join(root, RECOVERY_LAYOUT.directoryName);
+    await mkdir(recoveryDirectory);
+    await Promise.all(
+      Array.from({ length: MAX_RECOVERY_DISCOVERY_ISSUES + 3 }, (_, index) =>
+        writeFile(path.join(recoveryDirectory, `unexpected-${String(index)}`), ''),
+      ),
+    );
+
+    const capped = await discoverRecoverySnapshots(root);
+    expect(capped).toMatchObject({
+      ok: true,
+      value: {
+        snapshots: [],
+        issues: Array.from({ length: MAX_RECOVERY_DISCOVERY_ISSUES }, () => ({
+          code: 'unexpected-recovery-entry',
+        })),
+        omittedIssueCount: 3,
+      },
+    });
+
+    await Promise.all(
+      Array.from(
+        { length: MAX_RECOVERY_DISCOVERY_ENTRIES - MAX_RECOVERY_DISCOVERY_ISSUES - 2 },
+        (_, index) => writeFile(path.join(recoveryDirectory, `more-${String(index)}`), ''),
+      ),
+    );
+    await expect(discoverRecoverySnapshots(root)).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'recovery-discovery-limit-exceeded' },
+    });
+  });
+
+  it('clears only the exact accepted recovery point and is idempotent', async () => {
+    const root = await createRecoveryRoot();
+    const { snapshot } = createFirstSnapshot();
+    const written = await writeRecoverySnapshot(root, snapshot);
+    if (!written.ok) {
+      throw new Error('Expected recovery write to succeed.');
+    }
+
+    await expect(clearRecoverySnapshot(root, written.value.pointer)).resolves.toMatchObject({
+      ok: true,
+      value: { cleared: true, warnings: [] },
+    });
+    await expect(loadRecoverySnapshot(root, snapshot.document.id)).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'recovery-not-found' },
+    });
+    await expect(clearRecoverySnapshot(root, written.value.pointer)).resolves.toMatchObject({
+      ok: true,
+      value: { cleared: false, warnings: [] },
+    });
+  });
+
+  it('does not let a stale clear race remove a newer recovery point', async () => {
+    const root = await createRecoveryRoot();
+    const first = createFirstSnapshot();
+    const firstWrite = await writeRecoverySnapshot(root, first.snapshot);
+    if (!firstWrite.ok) {
+      throw new Error('Expected first recovery write to succeed.');
+    }
+    const secondSnapshot = createEditedSnapshot(first.history);
+
+    const secondWritePromise = writeRecoverySnapshot(root, secondSnapshot);
+    const staleClearPromise = clearRecoverySnapshot(root, firstWrite.value.pointer);
+    const [secondWrite, staleClear] = await Promise.all([secondWritePromise, staleClearPromise]);
+    expect(secondWrite).toMatchObject({ ok: true });
+    expect(staleClear).toMatchObject({
+      ok: false,
+      error: { code: 'recovery-changed' },
+    });
+
+    const loaded = await loadRecoverySnapshot(root, first.snapshot.document.id);
+    if (!loaded.ok) {
+      throw new Error('Expected the newer recovery point to remain loadable.');
+    }
+    expect(loaded.value.document).toEqual(secondSnapshot.document);
+  });
+
+  it('refuses unbounded per-project cleanup without changing the accepted pointer', async () => {
+    const root = await createRecoveryRoot();
+    const first = createFirstSnapshot();
+    const firstWrite = await writeRecoverySnapshot(root, first.snapshot);
+    if (!firstWrite.ok) {
+      throw new Error('Expected first recovery write to succeed.');
+    }
+    const paths = recoveryPaths(root, first.snapshot.document.id);
+    await Promise.all(
+      Array.from({ length: MAX_RECOVERY_SNAPSHOT_ENTRIES_PER_PROJECT }, (_, index) =>
+        writeFile(path.join(paths.snapshots, `unrecognized-${String(index)}`), ''),
+      ),
+    );
+
+    const secondSnapshot = createEditedSnapshot(first.history);
+    await expect(writeRecoverySnapshot(root, secondSnapshot)).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'recovery-cleanup-failed' },
+    });
+    const loaded = await loadRecoverySnapshot(root, first.snapshot.document.id);
+    if (!loaded.ok) {
+      throw new Error('Expected prior recovery to remain loadable after bounded cleanup refusal.');
+    }
+    expect(loaded.value.pointer).toEqual(firstWrite.value.pointer);
+    expect(loaded.value.document).toEqual(first.snapshot.document);
   });
 });

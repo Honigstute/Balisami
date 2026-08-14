@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, unlink } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { lstat, mkdir, opendir, rmdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -29,15 +30,28 @@ import {
   type RecoveryPointerV1,
 } from './recovery-schema';
 
-const RECOVERY_DIRECTORY_NAME = 'recovery-v1';
-const RECOVERY_POINTER_NAME = 'current.json';
-const RECOVERY_SNAPSHOT_DIRECTORY_NAME = 'snapshots';
+export const RECOVERY_LAYOUT = Object.freeze({
+  directoryName: 'recovery-v1',
+  pointerName: 'current.json',
+  snapshotDirectoryName: 'snapshots',
+});
+export const MAX_RECOVERY_DISCOVERY_ENTRIES = 1_000;
+export const MAX_RECOVERY_DISCOVERY_ISSUES = 50;
+export const MAX_RECOVERY_SNAPSHOT_ENTRIES_PER_PROJECT = 128;
+
 const RECOVERY_SNAPSHOT_NAME_PATTERN = /^[a-f0-9]{64}\.zip$/u;
+
+/** Serializes mutations to one project journal inside this main process. */
+const recoveryMutationTails = new Map<string, Promise<void>>();
 
 export type RecoveryJournalErrorCode =
   | 'invalid-recovery-metadata'
   | 'invalid-recovery-root'
+  | 'recovery-changed'
+  | 'recovery-clear-failed'
   | 'recovery-cleanup-failed'
+  | 'recovery-discovery-limit-exceeded'
+  | 'recovery-discovery-failed'
   | 'recovery-integrity-failed'
   | 'recovery-not-found'
   | 'recovery-project-mismatch';
@@ -48,9 +62,32 @@ export interface RecoveryJournalError {
 }
 
 export interface RecoveryJournalWarning {
-  readonly code: 'stale-recovery-cleanup-failed' | 'storage-cleanup-warning';
+  readonly code:
+    'cleared-recovery-cleanup-failed' | 'stale-recovery-cleanup-failed' | 'storage-cleanup-warning';
   readonly message: string;
   readonly recoveryPath?: string;
+}
+
+export type RecoveryDiscoveryIssueCode =
+  | 'invalid-project-directory'
+  | 'invalid-recovery-pointer'
+  | 'invalid-recovery-snapshot'
+  | 'unexpected-recovery-entry';
+
+export interface RecoveryDiscoveryIssue {
+  readonly code: RecoveryDiscoveryIssueCode;
+  readonly message: string;
+  readonly projectId?: string;
+}
+
+export interface DiscoveredRecoverySnapshot {
+  readonly pointer: RecoveryPointerV1;
+}
+
+export interface RecoveryDiscovery {
+  readonly snapshots: readonly DiscoveredRecoverySnapshot[];
+  readonly issues: readonly RecoveryDiscoveryIssue[];
+  readonly omittedIssueCount: number;
 }
 
 export type RecoveryOperationError =
@@ -83,6 +120,19 @@ export type LoadRecoverySnapshotResult =
   | { readonly ok: true; readonly value: LoadedRecoverySnapshot }
   | { readonly ok: false; readonly error: RecoveryOperationError };
 
+export type DiscoverRecoverySnapshotsResult =
+  | { readonly ok: true; readonly value: RecoveryDiscovery }
+  | { readonly ok: false; readonly error: RecoveryJournalError };
+
+export interface ClearedRecoverySnapshot {
+  readonly cleared: boolean;
+  readonly warnings: readonly RecoveryJournalWarning[];
+}
+
+export type ClearRecoverySnapshotResult =
+  | { readonly ok: true; readonly value: ClearedRecoverySnapshot }
+  | { readonly ok: false; readonly error: RecoveryOperationError };
+
 const fail = <ErrorType extends RecoveryOperationError>(
   error: ErrorType,
 ): { readonly ok: false; readonly error: ErrorType } => ({ ok: false, error });
@@ -94,13 +144,19 @@ const isValidRecoveryRoot = (value: unknown): value is string =>
   path.isAbsolute(value) &&
   value !== path.parse(value).root;
 
+const isNodeErrorCode = (error: unknown, code: string): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  (error as { readonly code?: unknown }).code === code;
+
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
 const createRecoveryPaths = (recoveryRoot: string, projectId: string) => {
-  const projectDirectory = path.join(recoveryRoot, RECOVERY_DIRECTORY_NAME, projectId);
-  const snapshotDirectory = path.join(projectDirectory, RECOVERY_SNAPSHOT_DIRECTORY_NAME);
+  const projectDirectory = path.join(recoveryRoot, RECOVERY_LAYOUT.directoryName, projectId);
+  const snapshotDirectory = path.join(projectDirectory, RECOVERY_LAYOUT.snapshotDirectoryName);
   return Object.freeze({
-    pointer: path.join(projectDirectory, RECOVERY_POINTER_NAME),
+    pointer: path.join(projectDirectory, RECOVERY_LAYOUT.pointerName),
     projectDirectory,
     snapshotDirectory,
   });
@@ -108,6 +164,41 @@ const createRecoveryPaths = (recoveryRoot: string, projectId: string) => {
 
 const getSnapshotPath = (snapshotDirectory: string, digest: string): string =>
   path.join(snapshotDirectory, `${digest}.zip`);
+
+const runSerializedRecoveryMutation = async <Result>(
+  recoveryRoot: string,
+  projectId: string,
+  operation: () => Promise<Result>,
+): Promise<Result> => {
+  const key = `${recoveryRoot}\0${projectId}`;
+  const prior = recoveryMutationTails.get(key) ?? Promise.resolve();
+  let release = (): void => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = prior.then(() => gate);
+  recoveryMutationTails.set(key, tail);
+
+  await prior;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (recoveryMutationTails.get(key) === tail) {
+      recoveryMutationTails.delete(key);
+    }
+  }
+};
+
+const pointersAreEqual = (left: RecoveryPointerV1, right: RecoveryPointerV1): boolean =>
+  left.format === right.format &&
+  left.formatVersion === right.formatVersion &&
+  left.projectId === right.projectId &&
+  left.stateId === right.stateId &&
+  left.capturedAtEpochMs === right.capturedAtEpochMs &&
+  left.archiveSha256 === right.archiveSha256 &&
+  left.archiveByteLength === right.archiveByteLength &&
+  left.sourceFilePath === right.sourceFilePath;
 
 const parsePointerBytes = (
   bytes: Uint8Array,
@@ -157,28 +248,39 @@ const readCurrentPointer = async (
 const cleanupSnapshotsExcept = async (
   snapshotDirectory: string,
   preservedDigests: ReadonlySet<string>,
-): Promise<boolean> => {
-  let entries;
+): Promise<{ readonly ok: true; readonly retainedEntryCount: number } | { readonly ok: false }> => {
+  let directory;
   try {
-    entries = await readdir(snapshotDirectory, { withFileTypes: true });
+    directory = await opendir(snapshotDirectory);
   } catch {
-    return false;
+    return { ok: false };
   }
 
+  const entries: Dirent[] = [];
   try {
-    await Promise.all(
-      entries
-        .filter(
-          (entry) =>
-            entry.isFile() &&
-            RECOVERY_SNAPSHOT_NAME_PATTERN.test(entry.name) &&
-            !preservedDigests.has(entry.name.slice(0, 64)),
-        )
-        .map((entry) => unlink(path.join(snapshotDirectory, entry.name))),
-    );
-    return true;
+    for await (const entry of directory) {
+      entries.push(entry);
+      if (entries.length > MAX_RECOVERY_SNAPSHOT_ENTRIES_PER_PROJECT) {
+        return { ok: false };
+      }
+    }
   } catch {
-    return false;
+    return { ok: false };
+  }
+
+  const staleSnapshotPaths = entries
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        RECOVERY_SNAPSHOT_NAME_PATTERN.test(entry.name) &&
+        !preservedDigests.has(entry.name.slice(0, 64)),
+    )
+    .map((entry) => path.join(snapshotDirectory, entry.name));
+  try {
+    await Promise.all(staleSnapshotPaths.map((snapshotPath) => unlink(snapshotPath)));
+    return { ok: true, retainedEntryCount: entries.length - staleSnapshotPaths.length };
+  } catch {
+    return { ok: false };
   }
 };
 
@@ -216,26 +318,13 @@ export const captureProjectRecoverySnapshot = (
 ): ProjectRecoverySnapshot =>
   Object.freeze({ document: history.document, stateId: history.currentStateId });
 
-export const writeRecoverySnapshot = async (
-  recoveryRoot: unknown,
+const writeRecoverySnapshotUnlocked = async (
+  recoveryRoot: string,
   snapshot: ProjectRecoverySnapshot,
+  projectId: string,
   assetsById: Readonly<Record<string, Uint8Array>> = {},
   options: WriteRecoverySnapshotOptions = {},
 ): Promise<WriteRecoverySnapshotResult> => {
-  if (!isValidRecoveryRoot(recoveryRoot)) {
-    return fail({
-      code: 'invalid-recovery-root',
-      message: 'The recovery root must be an absolute application-data directory.',
-    });
-  }
-  const projectId = ProjectIdSchema.safeParse(snapshot.document.id);
-  if (!projectId.success) {
-    return fail({
-      code: 'invalid-recovery-metadata',
-      message: 'The recovery snapshot has an invalid project identity.',
-    });
-  }
-
   const archive = await encodeProjectFileArchive(snapshot.document, assetsById);
   if (!archive.ok) {
     return archive;
@@ -245,7 +334,7 @@ export const writeRecoverySnapshot = async (
     return pointer;
   }
 
-  const paths = createRecoveryPaths(recoveryRoot, projectId.data);
+  const paths = createRecoveryPaths(recoveryRoot, projectId);
   try {
     await mkdir(paths.snapshotDirectory, { recursive: true, mode: 0o700 });
   } catch {
@@ -259,7 +348,7 @@ export const writeRecoverySnapshot = async (
   if (!current.ok) {
     return current;
   }
-  if (current.value !== undefined && current.value.projectId !== projectId.data) {
+  if (current.value !== undefined && current.value.projectId !== projectId) {
     return fail({
       code: 'recovery-project-mismatch',
       message: 'Existing recovery metadata belongs to a different project.',
@@ -271,7 +360,7 @@ export const writeRecoverySnapshot = async (
     paths.snapshotDirectory,
     new Set(currentDigest === undefined ? [] : [currentDigest]),
   );
-  if (!beforeWriteCleanup) {
+  if (!beforeWriteCleanup.ok) {
     return fail({
       code: 'recovery-cleanup-failed',
       message: 'Stale recovery snapshots could not be bounded safely.',
@@ -280,6 +369,15 @@ export const writeRecoverySnapshot = async (
 
   const warnings: RecoveryJournalWarning[] = [];
   const snapshotPath = getSnapshotPath(paths.snapshotDirectory, pointer.value.archiveSha256);
+  if (
+    currentDigest !== pointer.value.archiveSha256 &&
+    beforeWriteCleanup.retainedEntryCount >= MAX_RECOVERY_SNAPSHOT_ENTRIES_PER_PROJECT
+  ) {
+    return fail({
+      code: 'recovery-cleanup-failed',
+      message: 'Recovery storage has no safe capacity for another snapshot.',
+    });
+  }
   const snapshotWrite = await writeBoundedFileAtomically(
     snapshotPath,
     archive.value,
@@ -317,7 +415,7 @@ export const writeRecoverySnapshot = async (
     paths.snapshotDirectory,
     new Set([pointer.value.archiveSha256]),
   );
-  if (!afterWriteCleanup) {
+  if (!afterWriteCleanup.ok) {
     warnings.push({
       code: 'stale-recovery-cleanup-failed',
       message: 'The new recovery point is valid, but a stale snapshot remains.',
@@ -331,6 +429,266 @@ export const writeRecoverySnapshot = async (
       warnings: Object.freeze(warnings),
     }),
   };
+};
+
+export const writeRecoverySnapshot = async (
+  recoveryRoot: unknown,
+  snapshot: ProjectRecoverySnapshot,
+  assetsById: Readonly<Record<string, Uint8Array>> = {},
+  options: WriteRecoverySnapshotOptions = {},
+): Promise<WriteRecoverySnapshotResult> => {
+  if (!isValidRecoveryRoot(recoveryRoot)) {
+    return fail({
+      code: 'invalid-recovery-root',
+      message: 'The recovery root must be an absolute application-data directory.',
+    });
+  }
+  const projectId = ProjectIdSchema.safeParse(snapshot.document.id);
+  if (!projectId.success) {
+    return fail({
+      code: 'invalid-recovery-metadata',
+      message: 'The recovery snapshot has an invalid project identity.',
+    });
+  }
+
+  return runSerializedRecoveryMutation(recoveryRoot, projectId.data, () =>
+    writeRecoverySnapshotUnlocked(recoveryRoot, snapshot, projectId.data, assetsById, options),
+  );
+};
+
+const createEmptyRecoveryDiscovery = (): RecoveryDiscovery =>
+  Object.freeze({ snapshots: Object.freeze([]), issues: Object.freeze([]), omittedIssueCount: 0 });
+
+/**
+ * Lists only cheap, pointer-level recovery metadata. Full archive validation is
+ * intentionally deferred to loadRecoverySnapshot after the user chooses one.
+ */
+export const discoverRecoverySnapshots = async (
+  recoveryRoot: unknown,
+): Promise<DiscoverRecoverySnapshotsResult> => {
+  if (!isValidRecoveryRoot(recoveryRoot)) {
+    return fail({
+      code: 'invalid-recovery-root',
+      message: 'The recovery root must be an absolute application-data directory.',
+    });
+  }
+
+  const recoveryDirectory = path.join(recoveryRoot, RECOVERY_LAYOUT.directoryName);
+  let directory;
+  try {
+    directory = await opendir(recoveryDirectory);
+  } catch (error) {
+    if (isNodeErrorCode(error, 'ENOENT')) {
+      return { ok: true, value: createEmptyRecoveryDiscovery() };
+    }
+    return fail({
+      code: 'recovery-discovery-failed',
+      message: 'Recovery metadata could not be enumerated safely.',
+    });
+  }
+
+  const entries: Dirent[] = [];
+  try {
+    for await (const entry of directory) {
+      entries.push(entry);
+      if (entries.length > MAX_RECOVERY_DISCOVERY_ENTRIES) {
+        return fail({
+          code: 'recovery-discovery-limit-exceeded',
+          message: 'The recovery directory contains too many entries to inspect safely.',
+        });
+      }
+    }
+  } catch {
+    return fail({
+      code: 'recovery-discovery-failed',
+      message: 'Recovery metadata could not be enumerated safely.',
+    });
+  }
+  entries.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+
+  const snapshots: DiscoveredRecoverySnapshot[] = [];
+  const issues: RecoveryDiscoveryIssue[] = [];
+  let omittedIssueCount = 0;
+  const recordIssue = (issue: RecoveryDiscoveryIssue): void => {
+    if (issues.length < MAX_RECOVERY_DISCOVERY_ISSUES) {
+      issues.push(Object.freeze(issue));
+    } else {
+      omittedIssueCount += 1;
+    }
+  };
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      recordIssue({
+        code: 'unexpected-recovery-entry',
+        message: 'An unexpected entry in recovery storage was ignored.',
+      });
+      continue;
+    }
+
+    const projectId = ProjectIdSchema.safeParse(entry.name);
+    if (!projectId.success) {
+      recordIssue({
+        code: 'invalid-project-directory',
+        message: 'A recovery directory with an invalid project identity was ignored.',
+      });
+      continue;
+    }
+
+    const paths = createRecoveryPaths(recoveryRoot, projectId.data);
+    const pointer = await readCurrentPointer(paths.pointer, false);
+    if (!pointer.ok || pointer.value === undefined || pointer.value.projectId !== projectId.data) {
+      recordIssue({
+        code: 'invalid-recovery-pointer',
+        message: 'Recovery pointer metadata is missing, unreadable, or inconsistent.',
+        projectId: projectId.data,
+      });
+      continue;
+    }
+
+    const snapshotPath = getSnapshotPath(paths.snapshotDirectory, pointer.value.archiveSha256);
+    try {
+      const metadata = await lstat(snapshotPath);
+      if (
+        !metadata.isFile() ||
+        !Number.isSafeInteger(metadata.size) ||
+        metadata.size !== pointer.value.archiveByteLength
+      ) {
+        recordIssue({
+          code: 'invalid-recovery-snapshot',
+          message: 'The recovery archive is missing or does not match its pointer metadata.',
+          projectId: projectId.data,
+        });
+        continue;
+      }
+    } catch {
+      recordIssue({
+        code: 'invalid-recovery-snapshot',
+        message: 'The recovery archive is missing or cannot be inspected safely.',
+        projectId: projectId.data,
+      });
+      continue;
+    }
+
+    snapshots.push(Object.freeze({ pointer: Object.freeze({ ...pointer.value }) }));
+  }
+
+  snapshots.sort((left, right) => {
+    const byTime = right.pointer.capturedAtEpochMs - left.pointer.capturedAtEpochMs;
+    if (byTime !== 0) {
+      return byTime;
+    }
+    return left.pointer.projectId < right.pointer.projectId
+      ? -1
+      : left.pointer.projectId > right.pointer.projectId
+        ? 1
+        : 0;
+  });
+
+  return {
+    ok: true,
+    value: Object.freeze({
+      snapshots: Object.freeze(snapshots),
+      issues: Object.freeze(issues),
+      omittedIssueCount,
+    }),
+  };
+};
+
+const removeDirectoryWhenEmpty = async (directoryPath: string): Promise<boolean> => {
+  try {
+    await rmdir(directoryPath);
+    return true;
+  } catch (error) {
+    return (
+      isNodeErrorCode(error, 'ENOENT') ||
+      isNodeErrorCode(error, 'ENOTEMPTY') ||
+      isNodeErrorCode(error, 'EEXIST')
+    );
+  }
+};
+
+/**
+ * Clears only the exact pointer the caller observed. A newer pointer wins and
+ * is never removed by a stale discard action.
+ */
+export const clearRecoverySnapshot = async (
+  recoveryRoot: unknown,
+  expectedPointerInput: unknown,
+): Promise<ClearRecoverySnapshotResult> => {
+  if (!isValidRecoveryRoot(recoveryRoot)) {
+    return fail({
+      code: 'invalid-recovery-root',
+      message: 'The recovery root must be an absolute application-data directory.',
+    });
+  }
+  const expectedPointer = RecoveryPointerV1Schema.safeParse(expectedPointerInput);
+  if (!expectedPointer.success) {
+    return fail({
+      code: 'invalid-recovery-metadata',
+      message: 'The recovery point to clear has invalid pointer metadata.',
+    });
+  }
+
+  return runSerializedRecoveryMutation(recoveryRoot, expectedPointer.data.projectId, async () => {
+    const paths = createRecoveryPaths(recoveryRoot, expectedPointer.data.projectId);
+    const current = await readCurrentPointer(paths.pointer, true);
+    if (!current.ok) {
+      return current;
+    }
+    if (current.value === undefined) {
+      return {
+        ok: true,
+        value: Object.freeze({ cleared: false, warnings: Object.freeze([]) }),
+      };
+    }
+    if (!pointersAreEqual(current.value, expectedPointer.data)) {
+      return fail({
+        code: 'recovery-changed',
+        message: 'A newer or different recovery point exists and was not cleared.',
+      });
+    }
+
+    try {
+      await unlink(paths.pointer);
+    } catch {
+      return fail({
+        code: 'recovery-clear-failed',
+        message: 'The accepted recovery pointer could not be cleared safely.',
+      });
+    }
+
+    const warnings: RecoveryJournalWarning[] = [];
+    const snapshotPath = getSnapshotPath(
+      paths.snapshotDirectory,
+      expectedPointer.data.archiveSha256,
+    );
+    try {
+      await unlink(snapshotPath);
+    } catch (error) {
+      if (!isNodeErrorCode(error, 'ENOENT')) {
+        warnings.push({
+          code: 'cleared-recovery-cleanup-failed',
+          message: 'The recovery pointer was cleared, but its archive could not be removed.',
+          recoveryPath: snapshotPath,
+        });
+      }
+    }
+
+    const snapshotDirectoryRemoved = await removeDirectoryWhenEmpty(paths.snapshotDirectory);
+    const projectDirectoryRemoved = await removeDirectoryWhenEmpty(paths.projectDirectory);
+    if (!snapshotDirectoryRemoved || !projectDirectoryRemoved) {
+      warnings.push({
+        code: 'cleared-recovery-cleanup-failed',
+        message: 'The recovery point was cleared, but an empty journal directory remains.',
+      });
+    }
+
+    return {
+      ok: true,
+      value: Object.freeze({ cleared: true, warnings: Object.freeze(warnings) }),
+    };
+  });
 };
 
 export const loadRecoverySnapshot = async (
