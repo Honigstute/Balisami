@@ -1,12 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
+import { isViewportPerformanceProbeRequested } from '../../shared/viewport-performance';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
+import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { useProjectSession } from '../projects/use-project-session';
+import { DocumentScene } from '../editor/DocumentScene';
+import {
+  countRenderableBoardElements,
+  getRenderableBoardWorldBounds,
+} from '../editor/document-scene-model';
+import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
+import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
+import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
@@ -14,11 +24,13 @@ const getPlatformLabel = (platform: 'darwin' | 'win32'): string =>
   platform === 'darwin' ? 'macOS' : 'Windows';
 
 interface ProjectWorkspaceProps {
+  readonly platform: 'darwin' | 'win32';
   readonly quickAddShortcut: string;
   readonly runtimeLabel: string;
 }
 
-const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
+const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
+  const camera = useViewportCameraStore();
   const query = new URLSearchParams(window.location.search);
   const packagedProbeEnabled =
     query.get(projectWorkflowProbeContract.queryKey) === projectWorkflowProbeContract.queryValue;
@@ -30,6 +42,16 @@ const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspacePr
   });
   const { session, view } = project;
   const firstBoardId = view.history?.document.boardIds[0];
+  const document = view.history?.document;
+  const hasRenderableElements = useMemo(
+    () => document !== undefined && countRenderableBoardElements(document, firstBoardId) > 0,
+    [document, firstBoardId],
+  );
+  const boardBounds = useMemo(
+    () =>
+      document === undefined ? undefined : getRenderableBoardWorldBounds(document, firstBoardId),
+    [document, firstBoardId],
+  );
   const firstBoardNote =
     firstBoardId === undefined
       ? undefined
@@ -65,9 +87,31 @@ const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspacePr
           }
         : {})}
       quickAddShortcut={quickAddShortcut}
+      regionContent={{
+        canvas: (
+          <ViewportScene
+            camera={camera}
+            {...(!hasRenderableElements ? { domChildren: <ViewportEmptyState /> } : {})}
+            {...(document !== undefined
+              ? {
+                  worldChildren: (
+                    <DocumentScene
+                      activeBoardId={firstBoardId}
+                      camera={camera}
+                      document={document}
+                    />
+                  ),
+                }
+              : {})}
+          />
+        ),
+      }}
       statusLabel={view.statusLabel}
       statusScope={runtimeLabel}
       statusTone={view.statusTone}
+      viewportControls={
+        <ViewportZoomControls boardBounds={boardBounds} camera={camera} platform={platform} />
+      }
     />
   );
 };
@@ -128,15 +172,28 @@ export const App = () => {
   const runtimeLabel = `${getPlatformLabel(platform)} · ${arch} · v${appVersion} · ${mode}`;
   const visualFixture = getRequestedVisualFixture(window.location.search);
 
+  if (isViewportPerformanceProbeRequested(window.location.search)) {
+    return (
+      <ViewportPerformanceFixture quickAddShortcut={quickAddShortcut} runtimeLabel={runtimeLabel} />
+    );
+  }
+
   if (visualFixture !== undefined) {
     return (
       <VisualConformanceFixture
         fixture={visualFixture}
+        platform={platform}
         quickAddShortcut={quickAddShortcut}
         runtimeLabel={runtimeLabel}
       />
     );
   }
 
-  return <ProjectWorkspace quickAddShortcut={quickAddShortcut} runtimeLabel={runtimeLabel} />;
+  return (
+    <ProjectWorkspace
+      platform={platform}
+      quickAddShortcut={quickAddShortcut}
+      runtimeLabel={runtimeLabel}
+    />
+  );
 };

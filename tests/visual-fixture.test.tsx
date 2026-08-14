@@ -15,6 +15,7 @@ const renderFixture = (fixture: (typeof VISUAL_FIXTURE_NAMES)[number]) =>
   render(
     <VisualConformanceFixture
       fixture={fixture}
+      platform="win32"
       quickAddShortcut="Ctrl K"
       runtimeLabel="Windows · x64 · v0.1.0 · Packaged"
     />,
@@ -54,7 +55,25 @@ describe('visual conformance fixture contract', () => {
       ),
     ).toMatchObject({ kind: 'invalid' });
     expect(getRequestedVisualFixture('?visualFixture=popover')).toBe('popover');
+    expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
+    expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
+  });
+
+  it('renders the viewport percentage and command overlay without replacing the shell', () => {
+    renderFixture('viewportZoom');
+
+    expect(screen.getByRole('button', { name: 'Zoom options, 100 percent' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Zoom options' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Fit Board/u })).toBeEnabled();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('mounts the deterministic document scene fixture inside the unchanged shell', () => {
+    const view = renderFixture('scene');
+
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
   it('renders the default/loading fixture with deterministic default pane widths', () => {

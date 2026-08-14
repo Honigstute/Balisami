@@ -10,6 +10,7 @@ import {
 import { AppNoticeCenter } from '../design/AppNoticeCenter';
 import { NoticeCenterStore } from '../design/notice-center';
 import { RegionErrorBoundary } from '../design/RegionErrorBoundary';
+import { ViewportEmptyState } from '../editor/ViewportScene';
 import { FoundationMark, Icon, type IconName } from './Icon';
 import { PaneResizeHandle } from './PaneResizeHandle';
 import { useShellPreferences } from './use-shell-preferences';
@@ -33,6 +34,7 @@ interface AppShellProps {
   readonly statusScope?: string;
   readonly statusTone: StatusTone;
   readonly usePersistedLayout?: boolean;
+  readonly viewportControls?: ReactNode;
 }
 
 const categories = [
@@ -46,13 +48,37 @@ const categories = [
   'Markup',
 ] as const;
 
-const toolbarActions: ReadonlyArray<{ readonly label: string; readonly icon: IconName }> = [
+const toolbarActionsBeforeViewport: ReadonlyArray<{
+  readonly label: string;
+  readonly icon: IconName;
+}> = [
   { label: 'Undo', icon: 'undo' },
   { label: 'Redo', icon: 'redo' },
+];
+
+const defaultViewportActions: ReadonlyArray<{
+  readonly label: string;
+  readonly icon: IconName;
+}> = [
   { label: 'Zoom out', icon: 'zoomOut' },
   { label: 'Zoom in', icon: 'zoomIn' },
-  { label: 'Present', icon: 'presentation' },
 ];
+
+const toolbarActionsAfterViewport: ReadonlyArray<{
+  readonly label: string;
+  readonly icon: IconName;
+}> = [{ label: 'Present', icon: 'presentation' }];
+
+const DisabledToolbarActions = ({
+  actions,
+}: {
+  readonly actions: ReadonlyArray<{ readonly label: string; readonly icon: IconName }>;
+}) =>
+  actions.map(({ icon, label }) => (
+    <button aria-label={label} className="icon-button icon-button--dark" disabled key={label}>
+      <Icon name={icon} />
+    </button>
+  ));
 
 const shellRegion = (region: ShellRegion): Readonly<Record<string, string>> =>
   Object.freeze({ [SHELL_REGION_ATTRIBUTE]: region });
@@ -84,6 +110,7 @@ export const AppShell = ({
   statusScope = 'Foundation · local-first',
   statusTone,
   usePersistedLayout = true,
+  viewportControls,
 }: AppShellProps) => {
   const [noticeStore] = useState(() => new NoticeCenterStore());
   const shell = useShellPreferences(usePersistedLayout);
@@ -122,16 +149,9 @@ export const AppShell = ({
         </div>
 
         <div aria-label="Editor actions" className="command-bar__actions" role="toolbar">
-          {toolbarActions.map(({ icon, label }) => (
-            <button
-              aria-label={label}
-              className="icon-button icon-button--dark"
-              disabled
-              key={label}
-            >
-              <Icon name={icon} />
-            </button>
-          ))}
+          <DisabledToolbarActions actions={toolbarActionsBeforeViewport} />
+          {viewportControls ?? <DisabledToolbarActions actions={defaultViewportActions} />}
+          <DisabledToolbarActions actions={toolbarActionsAfterViewport} />
         </div>
 
         <div className="quick-add" role="search">
@@ -246,23 +266,7 @@ export const AppShell = ({
         data-testid="canvas-viewport"
       >
         <RegionErrorBoundary noticeStore={noticeStore} regionKey="canvas" regionName="Canvas">
-          {regionContent.canvas ?? (
-            <div className="canvas-empty">
-              <div aria-hidden="true" className="canvas-empty__frame">
-                <span className="canvas-empty__handle canvas-empty__handle--top-left" />
-                <span className="canvas-empty__handle canvas-empty__handle--top-right" />
-                <span className="canvas-empty__handle canvas-empty__handle--bottom-left" />
-                <span className="canvas-empty__handle canvas-empty__handle--bottom-right" />
-                <span className="canvas-empty__line" />
-                <span className="canvas-empty__button" />
-              </div>
-              <h1>Built for quick thinking</h1>
-              <p>
-                The canvas, selection model, and smart guides attach here without changing the
-                shell.
-              </p>
-            </div>
-          )}
+          {regionContent.canvas ?? <ViewportEmptyState />}
         </RegionErrorBoundary>
       </main>
 
