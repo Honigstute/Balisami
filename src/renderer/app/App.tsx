@@ -7,6 +7,8 @@ import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { useProjectSession } from '../projects/use-project-session';
+import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
+import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
@@ -19,6 +21,7 @@ interface ProjectWorkspaceProps {
 }
 
 const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
+  const camera = useViewportCameraStore();
   const query = new URLSearchParams(window.location.search);
   const packagedProbeEnabled =
     query.get(projectWorkflowProbeContract.queryKey) === projectWorkflowProbeContract.queryValue;
@@ -65,6 +68,9 @@ const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspacePr
           }
         : {})}
       quickAddShortcut={quickAddShortcut}
+      regionContent={{
+        canvas: <ViewportScene camera={camera} domChildren={<ViewportEmptyState />} />,
+      }}
       statusLabel={view.statusLabel}
       statusScope={runtimeLabel}
       statusTone={view.statusTone}

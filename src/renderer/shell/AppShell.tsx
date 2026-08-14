@@ -10,6 +10,7 @@ import {
 import { AppNoticeCenter } from '../design/AppNoticeCenter';
 import { NoticeCenterStore } from '../design/notice-center';
 import { RegionErrorBoundary } from '../design/RegionErrorBoundary';
+import { ViewportEmptyState } from '../editor/ViewportScene';
 import { FoundationMark, Icon, type IconName } from './Icon';
 import { PaneResizeHandle } from './PaneResizeHandle';
 import { useShellPreferences } from './use-shell-preferences';
@@ -246,23 +247,7 @@ export const AppShell = ({
         data-testid="canvas-viewport"
       >
         <RegionErrorBoundary noticeStore={noticeStore} regionKey="canvas" regionName="Canvas">
-          {regionContent.canvas ?? (
-            <div className="canvas-empty">
-              <div aria-hidden="true" className="canvas-empty__frame">
-                <span className="canvas-empty__handle canvas-empty__handle--top-left" />
-                <span className="canvas-empty__handle canvas-empty__handle--top-right" />
-                <span className="canvas-empty__handle canvas-empty__handle--bottom-left" />
-                <span className="canvas-empty__handle canvas-empty__handle--bottom-right" />
-                <span className="canvas-empty__line" />
-                <span className="canvas-empty__button" />
-              </div>
-              <h1>Built for quick thinking</h1>
-              <p>
-                The canvas, selection model, and smart guides attach here without changing the
-                shell.
-              </p>
-            </div>
-          )}
+          {regionContent.canvas ?? <ViewportEmptyState />}
         </RegionErrorBoundary>
       </main>
 

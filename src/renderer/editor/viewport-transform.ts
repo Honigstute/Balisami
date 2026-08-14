@@ -1,6 +1,7 @@
 const POINT_SPACE: unique symbol = Symbol('point-space');
 const VECTOR_SPACE: unique symbol = Symbol('vector-space');
 const RECT_SPACE: unique symbol = Symbol('rect-space');
+const SIZE_SPACE: unique symbol = Symbol('size-space');
 const VIEWPORT_ZOOM: unique symbol = Symbol('viewport-zoom');
 const DEVICE_SCALE: unique symbol = Symbol('device-scale');
 
@@ -24,6 +25,12 @@ type Rect<Space extends string> = Readonly<{
   readonly y: number;
 }>;
 
+type Size<Space extends string> = Readonly<{
+  readonly [SIZE_SPACE]: Space;
+  readonly height: number;
+  readonly width: number;
+}>;
+
 export type ClientPoint = Point<'client'>;
 export type WorldPoint = Point<'world'>;
 export type ViewportPoint = Point<'viewport'>;
@@ -33,6 +40,7 @@ export type ViewportVector = Vector<'viewport'>;
 export type DeviceVector = Vector<'device'>;
 export type WorldRect = Rect<'world'>;
 export type ViewportRect = Rect<'viewport'>;
+export type ViewportSize = Size<'viewport'>;
 
 export type ViewportZoom = number & { readonly [VIEWPORT_ZOOM]: true };
 export type DeviceScale = number & { readonly [DEVICE_SCALE]: true };
@@ -136,6 +144,12 @@ export const createViewportRect = (
   width: number,
   height: number,
 ): ViewportRect => createRect<'viewport'>(x, y, width, height, 'Viewport rect');
+
+export const createViewportSize = (width: number, height: number): ViewportSize =>
+  Object.freeze({
+    height: requirePositive(height, 'Viewport size height'),
+    width: requirePositive(width, 'Viewport size width'),
+  }) as ViewportSize;
 
 export const createViewportClientBounds = (
   left: number,
