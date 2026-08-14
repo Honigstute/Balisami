@@ -8,6 +8,7 @@
     "selection",
     "move",
     "resize",
+    "nudge",
     "marquee",
     "viewportZoom",
     "viewportSelectionZoom",

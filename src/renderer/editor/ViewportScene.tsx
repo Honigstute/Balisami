@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
+import type { KeyboardNudgeInteraction } from './keyboard-nudge-interaction';
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from './scene-layers';
 import type { SelectionInteraction } from './selection-interaction';
+import type { SelectionStore } from './selection-store';
 import type { ViewportCameraStore } from './viewport-camera-store';
 import { ViewportInputController } from './viewport-input';
 import { createDeviceScale, createViewportSize } from './viewport-transform';
@@ -10,6 +12,8 @@ interface ViewportSceneProps {
   readonly camera: ViewportCameraStore;
   readonly domChildren?: ReactNode;
   readonly interactionChildren?: ReactNode;
+  readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
+  readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly worldChildren?: ReactNode;
 }
@@ -47,6 +51,8 @@ export const ViewportScene = ({
   camera,
   domChildren,
   interactionChildren,
+  keyboardNudgeInteraction,
+  selection,
   selectionInteraction,
   worldChildren,
 }: ViewportSceneProps) => {
@@ -104,10 +110,16 @@ export const ViewportScene = ({
     if (root === null) {
       return;
     }
-    const input = new ViewportInputController(root, camera, selectionInteraction);
+    const input = new ViewportInputController(
+      root,
+      camera,
+      selectionInteraction,
+      keyboardNudgeInteraction,
+      selection,
+    );
     input.connect();
     return () => input.disconnect();
-  }, [camera, selectionInteraction]);
+  }, [camera, keyboardNudgeInteraction, selection, selectionInteraction]);
 
   return (
     <div

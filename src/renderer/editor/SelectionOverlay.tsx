@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 
 import type { DocumentSceneModel } from './document-scene-model';
+import type { KeyboardNudgeInteraction } from './keyboard-nudge-interaction';
 import type { MoveInteraction } from './move-interaction';
 import {
   getResizeHandlePositions,
@@ -15,6 +16,7 @@ import { worldRectToViewport } from './viewport-transform';
 
 interface SelectionOverlayProps {
   readonly camera: ViewportCameraStore;
+  readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
   readonly model: DocumentSceneModel;
   readonly moveInteraction?: MoveInteraction;
   readonly resizeInteraction?: ResizeInteraction;
@@ -24,6 +26,7 @@ interface SelectionOverlayProps {
 /** Fixed-screen selection geometry; camera publications never enter React. */
 export const SelectionOverlay = ({
   camera,
+  keyboardNudgeInteraction,
   model,
   moveInteraction,
   resizeInteraction,
@@ -44,12 +47,17 @@ export const SelectionOverlay = ({
 
     const apply = (): void => {
       const selectionSnapshot = selection.getSnapshot();
+      const keyboardNudgeSnapshot = keyboardNudgeInteraction?.getSnapshot();
       const moveSnapshot = moveInteraction?.getSnapshot();
       const resizeSnapshot = resizeInteraction?.getSnapshot();
       const worldBounds = getSceneSelectionWorldBounds(
         model,
         selectionSnapshot.selectedIds,
-        moveSnapshot?.kind === 'moving' ? moveSnapshot : undefined,
+        keyboardNudgeSnapshot?.kind === 'nudging'
+          ? keyboardNudgeSnapshot
+          : moveSnapshot?.kind === 'moving'
+            ? moveSnapshot
+            : undefined,
         resizeSnapshot?.kind === 'resizing'
           ? { bounds: resizeSnapshot.worldBounds, elementId: resizeSnapshot.elementId }
           : undefined,
@@ -87,18 +95,20 @@ export const SelectionOverlay = ({
 
     apply();
     const unsubscribeCamera = camera.subscribe(apply);
+    const unsubscribeKeyboardNudge = keyboardNudgeInteraction?.subscribe(apply);
     const unsubscribeModel = model.subscribe(apply);
     const unsubscribeMove = moveInteraction?.subscribe(apply);
     const unsubscribeResize = resizeInteraction?.subscribe(apply);
     const unsubscribeSelection = selection.subscribe(apply);
     return () => {
       unsubscribeCamera();
+      unsubscribeKeyboardNudge?.();
       unsubscribeModel();
       unsubscribeMove?.();
       unsubscribeResize?.();
       unsubscribeSelection();
     };
-  }, [camera, model, moveInteraction, resizeInteraction, selection]);
+  }, [camera, keyboardNudgeInteraction, model, moveInteraction, resizeInteraction, selection]);
 
   return (
     <g data-selection-count="0" data-selection-overlay="bounds" display="none" ref={groupRef}>

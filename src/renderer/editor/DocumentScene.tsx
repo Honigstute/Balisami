@@ -2,6 +2,10 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 
 import type { BoardId, ElementId, ProjectDocument } from '../../domain';
 import type { DocumentSceneItem, DocumentSceneModel } from './document-scene-model';
+import type {
+  KeyboardNudgeInteraction,
+  KeyboardNudgeInteractionSnapshot,
+} from './keyboard-nudge-interaction';
 import type { MoveInteraction, MoveInteractionSnapshot } from './move-interaction';
 import type { ResizeInteraction, ResizeInteractionSnapshot } from './resize-interaction';
 import { createSeededSketchRectPath } from './seeded-sketch';
@@ -11,6 +15,7 @@ interface DocumentSceneProps {
   readonly activeBoardId: BoardId | undefined;
   readonly camera: ViewportCameraStore;
   readonly document: ProjectDocument;
+  readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
   readonly model: DocumentSceneModel;
   readonly moveInteraction?: MoveInteraction;
   readonly resizeInteraction?: ResizeInteraction;
@@ -18,10 +23,15 @@ interface DocumentSceneProps {
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
+type TranslationPreviewSnapshot =
+  | Extract<KeyboardNudgeInteractionSnapshot, { readonly kind: 'nudging' }>
+  | Extract<MoveInteractionSnapshot, { readonly kind: 'moving' }>;
+
 class DocumentScenePresenter {
   readonly #canonicalItemsById = new Map<ElementId, DocumentSceneItem>();
   readonly #elementsById = new Map<ElementId, SVGGElement>();
   readonly #root: SVGGElement;
+  #keyboardNudgeSnapshot: KeyboardNudgeInteractionSnapshot | undefined;
   #moveSnapshot: MoveInteractionSnapshot | undefined;
   #resizeSnapshot: ResizeInteractionSnapshot | undefined;
   #visibleOrder: readonly ElementId[] = Object.freeze([]);
@@ -33,6 +43,7 @@ class DocumentScenePresenter {
   clear(): void {
     this.#elementsById.clear();
     this.#canonicalItemsById.clear();
+    this.#keyboardNudgeSnapshot = undefined;
     this.#moveSnapshot = undefined;
     this.#resizeSnapshot = undefined;
     this.#visibleOrder = Object.freeze([]);
@@ -63,8 +74,15 @@ class DocumentScenePresenter {
       }
     }
     this.#visibleOrder = Object.freeze(nextOrder);
-    this.#applyMovePreview();
+    this.#applyTranslationPreview();
     this.#applyResizePreview();
+  }
+
+  setKeyboardNudgePreview(snapshot: KeyboardNudgeInteractionSnapshot | undefined): void {
+    const previousIds = this.#getTranslationPreview()?.affectedIds ?? Object.freeze([]);
+    this.#keyboardNudgeSnapshot = snapshot;
+    this.#clearInactiveTranslationIds(previousIds);
+    this.#applyTranslationPreview();
   }
 
   setResizePreview(snapshot: ResizeInteractionSnapshot | undefined): void {
@@ -79,22 +97,34 @@ class DocumentScenePresenter {
   }
 
   setMovePreview(snapshot: MoveInteractionSnapshot | undefined): void {
-    const previousIds =
-      this.#moveSnapshot?.kind === 'moving' ? this.#moveSnapshot.affectedIds : Object.freeze([]);
+    const previousIds = this.#getTranslationPreview()?.affectedIds ?? Object.freeze([]);
     this.#moveSnapshot = snapshot;
-    const nextIds =
-      snapshot?.kind === 'moving' ? new Set(snapshot.affectedIds) : new Set<ElementId>();
+    this.#clearInactiveTranslationIds(previousIds);
+    this.#applyTranslationPreview();
+  }
+
+  #clearInactiveTranslationIds(previousIds: readonly ElementId[]): void {
+    const nextIds = new Set(this.#getTranslationPreview()?.affectedIds ?? []);
     for (const id of previousIds) {
       if (!nextIds.has(id)) {
         this.#elementsById.get(id)?.removeAttribute('transform');
       }
     }
-    this.#applyMovePreview();
   }
 
-  #applyMovePreview(): void {
-    const snapshot = this.#moveSnapshot;
-    if (snapshot?.kind !== 'moving') {
+  #getTranslationPreview(): TranslationPreviewSnapshot | undefined {
+    if (this.#keyboardNudgeSnapshot?.kind === 'nudging') {
+      return this.#keyboardNudgeSnapshot;
+    }
+    if (this.#moveSnapshot?.kind === 'moving') {
+      return this.#moveSnapshot;
+    }
+    return undefined;
+  }
+
+  #applyTranslationPreview(): void {
+    const snapshot = this.#getTranslationPreview();
+    if (snapshot === undefined) {
       return;
     }
     const transform = `translate(${String(snapshot.delta.x)} ${String(snapshot.delta.y)})`;
@@ -169,6 +199,7 @@ export const DocumentScene = ({
   activeBoardId,
   camera,
   document,
+  keyboardNudgeInteraction,
   model,
   moveInteraction,
   resizeInteraction,
@@ -204,6 +235,13 @@ export const DocumentScene = ({
     syncVisibleItems();
     return camera.subscribe(syncVisibleItems);
   }, [camera, syncVisibleItems]);
+
+  useLayoutEffect(() => {
+    const apply = (): void =>
+      presenterRef.current?.setKeyboardNudgePreview(keyboardNudgeInteraction?.getSnapshot());
+    apply();
+    return keyboardNudgeInteraction?.subscribe(apply);
+  }, [keyboardNudgeInteraction]);
 
   useLayoutEffect(() => {
     const apply = (): void => presenterRef.current?.setMovePreview(moveInteraction?.getSnapshot());

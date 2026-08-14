@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ViewportEmptyState, ViewportScene } from '../src/renderer/editor/ViewportScene';
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from '../src/renderer/editor/scene-layers';
+import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { SelectionInteraction } from '../src/renderer/editor/selection-interaction';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
@@ -25,6 +26,7 @@ import {
 } from '../src/renderer/editor/viewport-transform';
 
 const SELECTABLE_ID = ElementIdSchema.parse('element_viewportselect');
+const SECOND_SELECTABLE_ID = ElementIdSchema.parse('element_viewportsecond');
 
 const MOVE_CAPTURE: MoveTargetCapture = Object.freeze({
   affectedIds: Object.freeze([SELECTABLE_ID]),
@@ -569,6 +571,107 @@ describe('viewport scene layers', () => {
     expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
     expect(commits).toHaveLength(1);
     expect(resizeScheduler.callbacks.size).toBe(0);
+    store.dispose();
+  });
+
+  it('owns held-arrow nudge lifecycle without stealing editable or modified key input', () => {
+    mockViewportBounds();
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const nudgeScheduler = new TestAnimationFrameScheduler();
+    const store = createStore(cameraScheduler);
+    const commits: (readonly SetElementFrameCommand[])[] = [];
+    const nudge = new KeyboardNudgeInteraction(
+      {
+        capture: () => MOVE_CAPTURE,
+        commit: (commands) => {
+          commits.push(commands);
+          return true;
+        },
+      },
+      nudgeScheduler,
+    );
+    const selection = new SelectionStore();
+    selection.selectOnly(SELECTABLE_ID);
+    const interaction = new SelectionInteraction(selection, {
+      listSelectableIds: () => [SELECTABLE_ID, SECOND_SELECTABLE_ID],
+      queryHitStack: () => [SELECTABLE_ID],
+      querySelectionRegion: () => [],
+    });
+    const view = render(
+      <ViewportScene
+        camera={store}
+        domChildren={<input aria-label="Nudge-safe inline editor" />}
+        keyboardNudgeInteraction={nudge}
+        selection={selection}
+        selectionInteraction={interaction}
+      />,
+    );
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    const input = screen.getByLabelText('Nudge-safe inline editor');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    cameraScheduler.flushNext();
+    store.scheduleTransform(createViewportTransform({ panX: 70, panY: -35, zoom: 4 }));
+    store.scheduleDeviceScale(createDeviceScale(2));
+    cameraScheduler.flushNext();
+
+    expect(fireEvent.keyDown(input, { code: 'ArrowRight' })).toBe(true);
+    expect(nudge.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(fireEvent.keyDown(root, { code: 'ArrowRight', ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(root, { altKey: true, code: 'ArrowRight' })).toBe(true);
+    expect(fireEvent.keyDown(root, { code: 'ArrowRight', metaKey: true })).toBe(true);
+    expect(nudge.getSnapshot()).toEqual({ kind: 'idle' });
+
+    expect(fireEvent.keyDown(root, { code: 'ArrowRight' })).toBe(false);
+    expect(root).toHaveAttribute('data-selection-state', 'nudging');
+    expect(nudge.getSnapshot()).toMatchObject({ delta: { x: 1, y: 0 }, kind: 'nudging' });
+    expect(fireEvent.keyDown(root, { code: 'ArrowRight', repeat: true, shiftKey: true })).toBe(
+      false,
+    );
+    expect(fireEvent.keyDown(root, { code: 'ArrowDown' })).toBe(false);
+    expect(nudgeScheduler.callbacks.size).toBe(1);
+    const transformBeforeWheel = store.getTransformSnapshot();
+    fireEvent.wheel(root, { deltaMode: 0, deltaY: 100 });
+    expect(store.getTransformSnapshot()).toBe(transformBeforeWheel);
+
+    expect(fireEvent.keyUp(window, { code: 'ArrowRight' })).toBe(false);
+    expect(root).toHaveAttribute('data-selection-state', 'nudging');
+    expect(commits).toHaveLength(0);
+    expect(fireEvent.keyUp(window, { code: 'ArrowDown' })).toBe(false);
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    expect(commits).toEqual([
+      [
+        {
+          type: 'element.set-frame',
+          elementId: SELECTABLE_ID,
+          frame: { x: 21, y: 21, width: 100, height: 50 },
+        },
+      ],
+    ]);
+    expect(nudgeScheduler.callbacks.size).toBe(0);
+
+    fireEvent.keyDown(root, { code: 'ArrowLeft' });
+    selection.selectOnly(SECOND_SELECTABLE_ID);
+    expect(nudge.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(commits).toHaveLength(1);
+
+    selection.selectOnly(SELECTABLE_ID);
+    fireEvent.keyDown(root, { code: 'ArrowUp' });
+    fireEvent.blur(window);
+    expect(nudge.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(commits).toHaveLength(1);
+
+    fireEvent.keyDown(root, { code: 'ArrowDown' });
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(nudge.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(commits).toHaveLength(1);
+
+    fireEvent.keyDown(root, { code: 'ArrowDown' });
+    view.unmount();
+    expect(nudge.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(nudgeScheduler.callbacks.size).toBe(0);
+    expect(commits).toHaveLength(1);
     store.dispose();
   });
 });

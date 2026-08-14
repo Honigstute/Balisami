@@ -15,6 +15,7 @@ import {
   DocumentSceneModel,
   getRenderableBoardWorldBounds,
 } from '../editor/document-scene-model';
+import { KeyboardNudgeInteraction } from '../editor/keyboard-nudge-interaction';
 import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget, hitTestResizeHandle } from '../editor/resize-geometry';
@@ -55,17 +56,30 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   const [editor] = useState(() => {
     const model = new DocumentSceneModel();
     const selection = new SelectionStore();
+    const captureTranslationTargets = (targetIds: Parameters<typeof captureMoveTargets>[1]) => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? undefined
+        : captureMoveTargets(currentDocument, targetIds);
+    };
     const moveInteraction = new MoveInteraction(
       {
-        capture: (targetIds) => {
-          const currentDocument = session.getSnapshot().history?.document;
-          return currentDocument === undefined
-            ? undefined
-            : captureMoveTargets(currentDocument, targetIds);
-        },
+        capture: captureTranslationTargets,
         commit: (commands) => {
           const result = session.dispatchTransaction(commands, {
             label: commands.length === 1 ? 'Move element' : 'Move elements',
+          });
+          return result?.ok === true && result.changed;
+        },
+      },
+      createBrowserAnimationFrameScheduler(),
+    );
+    const keyboardNudgeInteraction = new KeyboardNudgeInteraction(
+      {
+        capture: captureTranslationTargets,
+        commit: (commands) => {
+          const result = session.dispatchTransaction(commands, {
+            label: commands.length === 1 ? 'Nudge element' : 'Nudge elements',
           });
           return result?.ok === true && result.changed;
         },
@@ -107,6 +121,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       resizeInteraction,
     );
     return Object.freeze({
+      keyboardNudgeInteraction,
       model,
       moveInteraction,
       resizeInteraction,
@@ -132,6 +147,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   useEffect(
     () =>
       editor.model.subscribe(() => {
+        editor.keyboardNudgeInteraction.cancel();
         editor.selectionInteraction.cancelPress();
         editor.selection.reconcile(new Set(editor.model.listItemIds()));
       }),
@@ -139,6 +155,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   );
   useEffect(() => {
     if (document === undefined) {
+      editor.keyboardNudgeInteraction.cancel();
       editor.selectionInteraction.cancelPress();
       editor.selection.clear();
     }
@@ -185,6 +202,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     <>
                       <SelectionOverlay
                         camera={camera}
+                        keyboardNudgeInteraction={editor.keyboardNudgeInteraction}
                         model={editor.model}
                         moveInteraction={editor.moveInteraction}
                         resizeInteraction={editor.resizeInteraction}
@@ -193,6 +211,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                       <MarqueeOverlay interaction={editor.selectionInteraction} />
                     </>
                   ),
+                  keyboardNudgeInteraction: editor.keyboardNudgeInteraction,
+                  selection: editor.selection,
                   selectionInteraction: editor.selectionInteraction,
                 })}
             {...(!hasRenderableElements ? { domChildren: <ViewportEmptyState /> } : {})}
@@ -203,6 +223,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                       activeBoardId={firstBoardId}
                       camera={camera}
                       document={document}
+                      keyboardNudgeInteraction={editor.keyboardNudgeInteraction}
                       model={editor.model}
                       moveInteraction={editor.moveInteraction}
                       resizeInteraction={editor.resizeInteraction}

@@ -59,6 +59,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
     expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
     expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
+    expect(getRequestedVisualFixture('?visualFixture=nudge')).toBe('nudge');
     expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
     expect(getRequestedVisualFixture('?visualFixture=viewportSelectionZoom')).toBe(
@@ -126,6 +127,20 @@ describe('visual conformance fixture contract', () => {
     expect(outline).toHaveAttribute('y', '272');
     expect(outline).toHaveAttribute('width', '208');
     expect(outline).toHaveAttribute('height', '84');
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders a coalesced keyboard nudge through the shared translation preview', () => {
+    const view = renderFixture('nudge');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '248');
+    expect(outline).toHaveAttribute('y', '302');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });

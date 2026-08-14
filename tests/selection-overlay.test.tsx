@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { parseProjectDocument, type ProjectDocument } from '../src/domain';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
+import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import { captureResizeTarget } from '../src/renderer/editor/resize-geometry';
@@ -89,6 +90,14 @@ describe('selection overlay', () => {
       },
       moveScheduler,
     );
+    const nudgeScheduler = new TestAnimationFrameScheduler();
+    const nudge = new KeyboardNudgeInteraction(
+      {
+        capture: (ids) => captureMoveTargets(document, ids),
+        commit: () => false,
+      },
+      nudgeScheduler,
+    );
     const resizeScheduler = new TestAnimationFrameScheduler();
     const resize = new ResizeInteraction(
       {
@@ -105,6 +114,7 @@ describe('selection overlay', () => {
       return (
         <SelectionOverlay
           camera={camera}
+          keyboardNudgeInteraction={nudge}
           model={model}
           moveInteraction={move}
           resizeInteraction={resize}
@@ -158,6 +168,19 @@ describe('selection overlay', () => {
     expect(outline).toHaveAttribute('x', '2');
     expect(outline).toHaveAttribute('y', '68');
     expect(overlayRenderCount).toBe(1);
+
+    nudge.begin([DOCUMENT_FIXTURE_IDS.child], 'ArrowRight', true);
+    nudge.step('ArrowDown', false);
+    nudge.flushPending();
+    expect(outline).toHaveAttribute('x', '22');
+    expect(outline).toHaveAttribute('y', '70');
+    expect(outline).toHaveAttribute('width', '240');
+    expect([...handles].every((handle) => handle.getAttribute('width') === '8')).toBe(true);
+    expect(overlayRenderCount).toBe(1);
+
+    nudge.cancel();
+    expect(outline).toHaveAttribute('x', '2');
+    expect(outline).toHaveAttribute('y', '68');
 
     resize.begin({
       elementId: DOCUMENT_FIXTURE_IDS.child,

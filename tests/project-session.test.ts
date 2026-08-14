@@ -2,7 +2,15 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { DOCUMENT_COMMAND_TYPES, ProjectIdSchema, type ProjectDocument } from '../src/domain';
+import {
+  DOCUMENT_COMMAND_TYPES,
+  ProjectIdSchema,
+  undoDocumentHistory,
+  type ProjectDocument,
+} from '../src/domain';
+import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
+import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
+import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
 import { ProjectSession } from '../src/renderer/projects/project-session';
 import type {
   DesktopApi,
@@ -31,6 +39,21 @@ const createDeferred = <Value>(): Deferred<Value> => {
   });
   return { promise, resolve };
 };
+
+class TestAnimationFrameScheduler implements AnimationFrameScheduler {
+  readonly callbacks = new Map<number, (timestamp: number) => void>();
+  #nextId = 1;
+
+  cancel = (requestId: number): void => {
+    this.callbacks.delete(requestId);
+  };
+
+  request = (callback: (timestamp: number) => void): number => {
+    const requestId = this.#nextId++;
+    this.callbacks.set(requestId, callback);
+    return requestId;
+  };
+}
 
 class FakeDesktopApi implements DesktopApi {
   readonly closeOutcomes = new Set<(outcome: ProjectCloseOutcome) => void>();
@@ -149,6 +172,68 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('commits one held-arrow nudge through ProjectSession and schedules one recovery point', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const scheduler = new TestAnimationFrameScheduler();
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    const nudge = new KeyboardNudgeInteraction(
+      {
+        capture: (ids) => {
+          const current = session.getSnapshot().history?.document;
+          return current === undefined ? undefined : captureMoveTargets(current, ids);
+        },
+        commit: (commands) => {
+          const result = session.dispatchTransaction(commands, { label: 'Nudge element' });
+          return result?.ok === true && result.changed;
+        },
+      },
+      scheduler,
+    );
+
+    expect(
+      nudge.begin([DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child], 'ArrowRight', false),
+    ).toBe(true);
+    for (let index = 1; index < 500; index += 1) {
+      nudge.step('ArrowRight', false);
+    }
+    expect(desktop.recoveryRequests).toHaveLength(1);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
+
+    expect(nudge.complete()).toBe('committed');
+    expect(desktop.recoveryRequests).toHaveLength(2);
+    expect(desktop.recoveryRequests[1]).toMatchObject({ stateId: 1 });
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Nudge integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ elementId: DOCUMENT_FIXTURE_IDS.group, type: 'element.set-frame' }],
+      label: 'Nudge element',
+    });
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.frame.x).toBe(480);
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.frame).toEqual(
+      document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.frame,
+    );
+    expect(scheduler.callbacks.size).toBe(0);
+
+    const committedDocument = history.document;
+    expect(nudge.begin([DOCUMENT_FIXTURE_IDS.group], 'ArrowUp', true)).toBe(true);
+    nudge.step('ArrowUp', true);
+    expect(nudge.cancel()).toBe(true);
+    expect(session.getSnapshot().history?.document).toBe(committedDocument);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(1);
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
   it('publishes one history entry for an explicit multi-command transaction', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);

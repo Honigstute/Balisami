@@ -10,6 +10,7 @@ import {
 } from '../src/domain';
 import { DocumentScene } from '../src/renderer/editor/DocumentScene';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
+import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import { captureResizeTarget } from '../src/renderer/editor/resize-geometry';
@@ -239,6 +240,87 @@ describe('document SVG scene', () => {
 
     move.cancel(4);
     expect(moved).not.toHaveAttribute('transform');
+    expect(unrelated).not.toHaveAttribute('transform');
+    expect(sceneRenderCount).toBe(1);
+    camera.dispose();
+  });
+
+  it('translates only affected keyed nodes during coalesced keyboard repeats', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const nudgeScheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(2),
+      initialTransform: createViewportTransform({ panX: 25, panY: -10, zoom: 4 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler: cameraScheduler,
+    });
+    const document = parseMovePreviewFixture();
+    const model = new DocumentSceneModel();
+    const nudge = new KeyboardNudgeInteraction(
+      {
+        capture: (ids) => captureMoveTargets(document, ids),
+        commit: () => false,
+      },
+      nudgeScheduler,
+    );
+    let sceneRenderCount = 0;
+    const CountedScene = () => {
+      const renders = useRef(0);
+      renders.current += 1;
+      sceneRenderCount = renders.current;
+      return (
+        <DocumentScene
+          activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+          camera={camera}
+          document={document}
+          keyboardNudgeInteraction={nudge}
+          model={model}
+        />
+      );
+    };
+    const view = render(<ViewportScene camera={camera} worldChildren={<CountedScene />} />);
+    cameraScheduler.flushNext();
+    const nudged = view.container.querySelector<SVGGElement>(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const unrelated = view.container.querySelector<SVGGElement>(
+      `[data-scene-element-id="${OTHER_ID}"]`,
+    );
+    if (nudged === null || unrelated === null) {
+      throw new Error('Keyboard nudge preview scene elements did not mount.');
+    }
+    const nudgedPath = nudged.querySelector('path')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedRevision = unrelated.dataset.sceneRevision;
+
+    nudge.begin([DOCUMENT_FIXTURE_IDS.child], 'ArrowRight', false);
+    for (let index = 1; index < 500; index += 1) {
+      nudge.step('ArrowRight', false);
+    }
+    nudge.step('ArrowDown', true);
+    expect(nudgeScheduler.callbacks.size).toBe(1);
+    nudgeScheduler.flushNext();
+
+    expect(nudged).toHaveAttribute('transform', 'translate(500 10)');
+    expect(nudged.querySelector('path')?.getAttribute('d')).toBe(nudgedPath);
+    expect(unrelated).not.toHaveAttribute('transform');
+    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
+    expect(sceneRenderCount).toBe(1);
+
+    nudge.cancel();
+    expect(nudged).not.toHaveAttribute('transform');
     expect(unrelated).not.toHaveAttribute('transform');
     expect(sceneRenderCount).toBe(1);
     camera.dispose();

@@ -12,6 +12,7 @@ import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
 import { DocumentScene } from '../editor/DocumentScene';
 import { DocumentSceneModel } from '../editor/document-scene-model';
+import { KeyboardNudgeInteraction } from '../editor/keyboard-nudge-interaction';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
@@ -146,7 +147,7 @@ const createSceneFixtureDocument = (): {
   return Object.freeze({ boardId, document: result.value, selectedId: buttonId });
 };
 
-type SceneFixtureState = 'marquee' | 'move' | 'plain' | 'resize' | 'selection';
+type SceneFixtureState = 'marquee' | 'move' | 'nudge' | 'plain' | 'resize' | 'selection';
 
 const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState }) => {
   const camera = useViewportCameraStore();
@@ -155,10 +156,17 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
     const model = new DocumentSceneModel();
     model.reconcile(fixture.document, fixture.boardId);
     const selection = new SelectionStore();
-    if (state === 'selection' || state === 'move' || state === 'resize') {
+    if (state === 'selection' || state === 'move' || state === 'nudge' || state === 'resize') {
       selection.selectOnly(fixture.selectedId);
     }
     const moveInteraction = new MoveInteraction(
+      {
+        capture: (ids) => captureMoveTargets(fixture.document, ids),
+        commit: () => false,
+      },
+      createBrowserAnimationFrameScheduler(),
+    );
+    const keyboardNudgeInteraction = new KeyboardNudgeInteraction(
       {
         capture: (ids) => captureMoveTargets(fixture.document, ids),
         commit: () => false,
@@ -212,16 +220,36 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
         worldPoint: createWorldPoint(396, 356),
       });
     }
-    return Object.freeze({ interaction, model, moveInteraction, resizeInteraction, selection });
+    if (state === 'nudge') {
+      keyboardNudgeInteraction.begin([fixture.selectedId], 'ArrowRight', true);
+      for (let index = 1; index < 6; index += 1) {
+        keyboardNudgeInteraction.step('ArrowRight', true);
+      }
+      for (let index = 0; index < 3; index += 1) {
+        keyboardNudgeInteraction.step('ArrowDown', true);
+      }
+      keyboardNudgeInteraction.flushPending();
+    }
+    return Object.freeze({
+      interaction,
+      keyboardNudgeInteraction,
+      model,
+      moveInteraction,
+      resizeInteraction,
+      selection,
+    });
   });
   return (
     <ViewportScene
       camera={camera}
-      {...(state === 'selection' || state === 'move' || state === 'resize'
+      {...(state === 'selection' || state === 'move' || state === 'nudge' || state === 'resize'
         ? {
             interactionChildren: (
               <SelectionOverlay
                 camera={camera}
+                {...(state === 'nudge'
+                  ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
+                  : {})}
                 model={editor.model}
                 {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
                 {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
@@ -237,6 +265,9 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
           activeBoardId={fixture.boardId}
           camera={camera}
           document={fixture.document}
+          {...(state === 'nudge'
+            ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
+            : {})}
           model={editor.model}
           {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
           {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
@@ -423,17 +454,19 @@ export const VisualConformanceFixture = ({
           ? { canvas: <SceneFixture state="move" /> }
           : fixture === 'resize'
             ? { canvas: <SceneFixture state="resize" /> }
-            : fixture === 'marquee'
-              ? { canvas: <SceneFixture state="marquee" /> }
-              : fixture === 'controls'
-                ? { inspector: <ControlStates /> }
-                : fixture === 'feedback'
-                  ? { canvas: <StaticRegionFailure /> }
-                  : fixture === 'tooltip'
-                    ? { canvas: <TooltipFixture /> }
-                    : fixture === 'popover'
-                      ? { canvas: <PopoverFixture /> }
-                      : undefined;
+            : fixture === 'nudge'
+              ? { canvas: <SceneFixture state="nudge" /> }
+              : fixture === 'marquee'
+                ? { canvas: <SceneFixture state="marquee" /> }
+                : fixture === 'controls'
+                  ? { inspector: <ControlStates /> }
+                  : fixture === 'feedback'
+                    ? { canvas: <StaticRegionFailure /> }
+                    : fixture === 'tooltip'
+                      ? { canvas: <TooltipFixture /> }
+                      : fixture === 'popover'
+                        ? { canvas: <PopoverFixture /> }
+                        : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

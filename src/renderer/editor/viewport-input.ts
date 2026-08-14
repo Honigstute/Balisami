@@ -1,7 +1,13 @@
 import type { ViewportCameraStore } from './viewport-camera-store';
 import type { ViewportFramingRequest } from './viewport-framing';
+import {
+  isKeyboardNudgeKey,
+  type KeyboardNudgeInteraction,
+  type KeyboardNudgeKey,
+} from './keyboard-nudge-interaction';
 import type { SelectionInteraction, SelectionPointerPosition } from './selection-interaction';
 import type { ResizeHandle } from './resize-geometry';
+import type { SelectionStore } from './selection-store';
 import {
   clientPointToViewport,
   createClientPoint,
@@ -125,23 +131,33 @@ const shouldStartPan = (event: PointerEvent, spacePressed: boolean): boolean =>
  */
 export class ViewportInputController {
   readonly #camera: ViewportCameraStore;
+  readonly #keyboardNudge: KeyboardNudgeInteraction | undefined;
   readonly #root: HTMLElement;
+  readonly #selection: SelectionStore | undefined;
   readonly #selectionInteraction: SelectionInteraction | undefined;
 
   #activePan: ActivePan | undefined;
+  #activeNudgeKeys = new Set<KeyboardNudgeKey>();
+  #activeNudgeSelectionRevision: number | undefined;
   #connected = false;
   #hoveredResizeHandle: ResizeHandle | undefined;
   #spacePressed = false;
+  #unsubscribeKeyboardNudge: (() => void) | undefined;
+  #unsubscribeSelection: (() => void) | undefined;
   #unsubscribeSelectionInteraction: (() => void) | undefined;
 
   constructor(
     root: HTMLElement,
     camera: ViewportCameraStore,
     selectionInteraction?: SelectionInteraction,
+    keyboardNudge?: KeyboardNudgeInteraction,
+    selection?: SelectionStore,
   ) {
     this.#root = root;
     this.#camera = camera;
     this.#selectionInteraction = selectionInteraction;
+    this.#keyboardNudge = keyboardNudge;
+    this.#selection = selection;
   }
 
   connect(): void {
@@ -159,6 +175,8 @@ export class ViewportInputController {
     this.#root.addEventListener('wheel', this.#handleWheel, { passive: false });
     window.addEventListener('blur', this.#handleWindowBlur);
     window.addEventListener('keyup', this.#handleKeyUp);
+    this.#unsubscribeKeyboardNudge = this.#keyboardNudge?.subscribe(this.#updateSelectionState);
+    this.#unsubscribeSelection = this.#selection?.subscribe(this.#handleSelectionChange);
     this.#unsubscribeSelectionInteraction = this.#selectionInteraction?.subscribe(
       this.#updateSelectionState,
     );
@@ -170,10 +188,15 @@ export class ViewportInputController {
       return;
     }
     this.#cancelPan();
+    this.#cancelKeyboardNudge();
     this.#cancelSelectionPress();
     this.#connected = false;
     this.#spacePressed = false;
     this.#hoveredResizeHandle = undefined;
+    this.#unsubscribeKeyboardNudge?.();
+    this.#unsubscribeKeyboardNudge = undefined;
+    this.#unsubscribeSelection?.();
+    this.#unsubscribeSelection = undefined;
     this.#unsubscribeSelectionInteraction?.();
     this.#unsubscribeSelectionInteraction = undefined;
     this.#updatePanState();
@@ -194,6 +217,10 @@ export class ViewportInputController {
     if (event.code === 'Escape' && this.#activePan !== undefined) {
       event.preventDefault();
       this.#cancelPan();
+      return;
+    }
+    if (event.code === 'Escape' && this.#cancelKeyboardNudge()) {
+      event.preventDefault();
       return;
     }
     if (event.code === 'Escape') {
@@ -221,6 +248,7 @@ export class ViewportInputController {
       !event.shiftKey &&
       !isEditableTarget(event.target) &&
       this.#activePan === undefined &&
+      !this.#isKeyboardNudgeActive() &&
       !this.#spacePressed &&
       this.#selectionInteraction?.getSnapshot().kind === 'idle'
     ) {
@@ -229,10 +257,16 @@ export class ViewportInputController {
       this.#updateSelectionState();
       return;
     }
+    if (isKeyboardNudgeKey(event.code) && this.#handleKeyboardNudgeKeyDown(event, event.code)) {
+      return;
+    }
     if (event.code !== 'Space' || event.repeat || isEditableTarget(event.target)) {
       return;
     }
-    if ((this.#selectionInteraction?.getSnapshot().kind ?? 'idle') !== 'idle') {
+    if (
+      this.#isKeyboardNudgeActive() ||
+      (this.#selectionInteraction?.getSnapshot().kind ?? 'idle') !== 'idle'
+    ) {
       return;
     }
     event.preventDefault();
@@ -243,6 +277,15 @@ export class ViewportInputController {
   };
 
   #handleKeyUp = (event: KeyboardEvent): void => {
+    if (isKeyboardNudgeKey(event.code) && this.#activeNudgeKeys.delete(event.code)) {
+      event.preventDefault();
+      if (this.#activeNudgeKeys.size === 0) {
+        this.#activeNudgeSelectionRevision = undefined;
+        this.#keyboardNudge?.complete();
+        this.#updateSelectionState();
+      }
+      return;
+    }
     if (event.code !== 'Space') {
       return;
     }
@@ -255,7 +298,7 @@ export class ViewportInputController {
     if (!editable) {
       this.#root.focus({ preventScroll: true });
     }
-    if (this.#activePan !== undefined) {
+    if (this.#activePan !== undefined || this.#isKeyboardNudgeActive()) {
       return;
     }
     if (shouldStartPan(event, this.#spacePressed)) {
@@ -303,6 +346,9 @@ export class ViewportInputController {
   };
 
   #handlePointerMove = (event: PointerEvent): void => {
+    if (this.#isKeyboardNudgeActive()) {
+      return;
+    }
     const activePan = this.#activePan;
     if (activePan === undefined) {
       const position = this.#getSelectionPosition(event);
@@ -388,6 +434,7 @@ export class ViewportInputController {
   #handleWheel = (event: WheelEvent): void => {
     if (
       this.#activePan !== undefined ||
+      this.#isKeyboardNudgeActive() ||
       (this.#selectionInteraction?.getSnapshot().kind ?? 'idle') !== 'idle'
     ) {
       event.preventDefault();
@@ -418,7 +465,51 @@ export class ViewportInputController {
     this.#spacePressed = false;
     this.#hoveredResizeHandle = undefined;
     this.#cancelPan();
+    this.#cancelKeyboardNudge();
     this.#cancelSelectionPress();
+  };
+
+  #handleKeyboardNudgeKeyDown(event: KeyboardEvent, key: KeyboardNudgeKey): boolean {
+    if (
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      isEditableTarget(event.target) ||
+      this.#activePan !== undefined ||
+      this.#spacePressed ||
+      (this.#selectionInteraction?.getSnapshot().kind ?? 'idle') !== 'idle'
+    ) {
+      return false;
+    }
+    const interaction = this.#keyboardNudge;
+    const selectionSnapshot = this.#selection?.getSnapshot();
+    if (interaction === undefined || selectionSnapshot === undefined) {
+      return false;
+    }
+
+    if (!this.#isKeyboardNudgeActive()) {
+      if (!interaction.begin(selectionSnapshot.selectedIds, key, event.shiftKey)) {
+        return false;
+      }
+      this.#activeNudgeSelectionRevision = selectionSnapshot.revision;
+    } else if (!interaction.step(key, event.shiftKey)) {
+      return false;
+    }
+    this.#activeNudgeKeys.add(key);
+    event.preventDefault();
+    this.#hoveredResizeHandle = undefined;
+    this.#updateSelectionState();
+    return true;
+  }
+
+  #handleSelectionChange = (): void => {
+    const activeRevision = this.#activeNudgeSelectionRevision;
+    if (
+      activeRevision !== undefined &&
+      this.#selection?.getSnapshot().revision !== activeRevision
+    ) {
+      this.#cancelKeyboardNudge();
+    }
   };
 
   #schedulePanPosition(activePan: ActivePan, clientX: number, clientY: number): void {
@@ -443,6 +534,16 @@ export class ViewportInputController {
       this.#root.releasePointerCapture?.(activePan.pointerId);
     }
     this.#updatePanState();
+  }
+
+  #cancelKeyboardNudge(): boolean {
+    this.#activeNudgeKeys.clear();
+    this.#activeNudgeSelectionRevision = undefined;
+    const cancelled = this.#keyboardNudge?.cancel() ?? false;
+    if (cancelled) {
+      this.#updateSelectionState();
+    }
+    return cancelled;
   }
 
   #cancelSelectionPress(): void {
@@ -486,7 +587,9 @@ export class ViewportInputController {
 
   #updateSelectionState = (): void => {
     const snapshot = this.#selectionInteraction?.getSnapshot();
-    this.#root.dataset.selectionState = snapshot?.kind ?? 'idle';
+    const nudgeSnapshot = this.#keyboardNudge?.getSnapshot();
+    this.#root.dataset.selectionState =
+      nudgeSnapshot?.kind === 'nudging' ? 'nudging' : (snapshot?.kind ?? 'idle');
     const resizeHandle =
       snapshot?.kind === 'resizing' ? snapshot.handle : this.#hoveredResizeHandle;
     if (resizeHandle === undefined) {
@@ -495,6 +598,10 @@ export class ViewportInputController {
       this.#root.dataset.resizeHandle = resizeHandle;
     }
   };
+
+  #isKeyboardNudgeActive(): boolean {
+    return this.#keyboardNudge?.getSnapshot().kind === 'nudging';
+  }
 
   #updateResizeHover(point: ViewportPoint | undefined): void {
     const handle =
