@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { lstat, mkdir, opendir, rmdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
@@ -14,6 +13,7 @@ import {
   decodeProjectFileArchive,
   encodeCanonicalJson,
   encodeProjectFileArchive,
+  sha256Bytes,
   type DecodedProjectFile,
   type ProjectFileOperationError,
 } from '../../persistence';
@@ -137,7 +137,7 @@ const fail = <ErrorType extends RecoveryOperationError>(
   error: ErrorType,
 ): { readonly ok: false; readonly error: ErrorType } => ({ ok: false, error });
 
-const isValidRecoveryRoot = (value: unknown): value is string =>
+export const isValidRecoveryRoot = (value: unknown): value is string =>
   typeof value === 'string' &&
   value.length > 0 &&
   !value.includes('\0') &&
@@ -149,8 +149,6 @@ const isNodeErrorCode = (error: unknown, code: string): boolean =>
   error !== null &&
   'code' in error &&
   (error as { readonly code?: unknown }).code === code;
-
-const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
 const createRecoveryPaths = (recoveryRoot: string, projectId: string) => {
   const projectDirectory = path.join(recoveryRoot, RECOVERY_LAYOUT.directoryName, projectId);
@@ -190,7 +188,10 @@ const runSerializedRecoveryMutation = async <Result>(
   }
 };
 
-const pointersAreEqual = (left: RecoveryPointerV1, right: RecoveryPointerV1): boolean =>
+export const recoveryPointersAreEqual = (
+  left: RecoveryPointerV1,
+  right: RecoveryPointerV1,
+): boolean =>
   left.format === right.format &&
   left.formatVersion === right.formatVersion &&
   left.projectId === right.projectId &&
@@ -299,7 +300,7 @@ const createPointer = (
     projectId: snapshot.document.id,
     stateId: snapshot.stateId,
     capturedAtEpochMs,
-    archiveSha256: sha256(archiveBytes),
+    archiveSha256: sha256Bytes(archiveBytes),
     archiveByteLength: archiveBytes.byteLength,
     sourceFilePath,
   });
@@ -642,7 +643,7 @@ export const clearRecoverySnapshot = async (
         value: Object.freeze({ cleared: false, warnings: Object.freeze([]) }),
       };
     }
-    if (!pointersAreEqual(current.value, expectedPointer.data)) {
+    if (!recoveryPointersAreEqual(current.value, expectedPointer.data)) {
       return fail({
         code: 'recovery-changed',
         message: 'A newer or different recovery point exists and was not cleared.',
@@ -734,7 +735,7 @@ export const loadRecoverySnapshot = async (
   }
   if (
     archive.value.byteLength !== pointer.value.archiveByteLength ||
-    sha256(archive.value) !== pointer.value.archiveSha256
+    sha256Bytes(archive.value) !== pointer.value.archiveSha256
   ) {
     return fail({
       code: 'recovery-integrity-failed',

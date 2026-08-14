@@ -36,6 +36,7 @@ export {
   type JsonComplexityErrorCode,
   type JsonComplexityResult,
 } from './project-file/canonical-json';
+export { sha256Bytes } from './project-file/digest';
 export {
   PROJECT_FILE_ENTRY_PATHS,
   PROJECT_FILE_FORMAT_ID,

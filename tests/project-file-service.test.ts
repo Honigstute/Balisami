@@ -45,11 +45,15 @@ describe('main-process project file service', () => {
     const filePath = await createProjectPath();
     const document = createProjectDocumentWithAsset();
 
-    await expect(
-      saveProjectFile(filePath, document, {
-        [DOCUMENT_FIXTURE_IDS.asset]: PROJECT_FILE_FIXTURE_ASSET_BYTES,
-      }),
-    ).resolves.toEqual({ ok: true, value: {} });
+    const saved = await saveProjectFile(filePath, document, {
+      [DOCUMENT_FIXTURE_IDS.asset]: PROJECT_FILE_FIXTURE_ASSET_BYTES,
+    });
+    expect(saved).toMatchObject({ ok: true });
+    if (!saved.ok) {
+      throw new Error('Expected project file save to succeed.');
+    }
+    expect(saved.value.archiveByteLength).toBeGreaterThan(0);
+    expect(saved.value.archiveSha256).toMatch(/^[a-f0-9]{64}$/u);
     const opened = await openProjectFile(filePath);
     expect(opened).toMatchObject({ ok: true });
     if (!opened.ok) {

@@ -2,6 +2,7 @@ import type { HistorySaveSnapshot, ProjectDocument } from '../../domain';
 import {
   decodeProjectFileArchive,
   encodeProjectFileArchive,
+  sha256Bytes,
   type DecodedProjectFile,
   type ProjectFileOperationError,
 } from '../../persistence';
@@ -19,10 +20,17 @@ export type OpenProjectFileResult =
   | { readonly ok: false; readonly error: ProjectFileServiceError };
 
 export type SaveProjectFileResult =
-  | { readonly ok: true; readonly value: AtomicProjectFileWriteSuccess }
+  | { readonly ok: true; readonly value: SavedProjectArchive }
   | { readonly ok: false; readonly error: ProjectFileServiceError };
 
+export interface SavedProjectArchive extends AtomicProjectFileWriteSuccess {
+  readonly archiveByteLength: number;
+  readonly archiveSha256: string;
+}
+
 export interface SavedProjectHistorySnapshot extends AtomicProjectFileWriteSuccess {
+  readonly archiveByteLength: number;
+  readonly archiveSha256: string;
   readonly stateId: HistorySaveSnapshot['stateId'];
   readonly tokenId: HistorySaveSnapshot['tokenId'];
 }
@@ -48,7 +56,19 @@ export const saveProjectFile = async (
   if (!encoded.ok) {
     return encoded;
   }
-  return writeProjectArchiveFileAtomically(filePath, encoded.value);
+  const archiveSha256 = sha256Bytes(encoded.value);
+  const written = await writeProjectArchiveFileAtomically(filePath, encoded.value);
+  if (!written.ok) {
+    return written;
+  }
+  return {
+    ok: true,
+    value: Object.freeze({
+      archiveByteLength: encoded.value.byteLength,
+      archiveSha256,
+      ...(written.value.warning === undefined ? {} : { warning: written.value.warning }),
+    }),
+  };
 };
 
 export const saveProjectHistorySnapshot = async (
@@ -65,6 +85,8 @@ export const saveProjectHistorySnapshot = async (
     value: Object.freeze({
       stateId: snapshot.stateId,
       tokenId: snapshot.tokenId,
+      archiveByteLength: saved.value.archiveByteLength,
+      archiveSha256: saved.value.archiveSha256,
       ...(saved.value.warning === undefined ? {} : { warning: saved.value.warning }),
     }),
   };

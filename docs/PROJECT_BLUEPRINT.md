@@ -387,6 +387,30 @@ flush or a later edit but never self-loop into an error storm. Normal shutdown s
 waits for the active write, and flushes the latest pending state; an explicit discard mode cancels
 only work that has not begun. Archive encoding and filesystem work remain in the main process.
 
+One `ProjectLifecycleController` exists per editor window and permits only one active persistence
+session. It validates new documents, opens user files through the bounded codec, discovers recovery
+metadata, restores only the exact pointer the user selected, and rejects a stale selection if the
+pointer changes before load. History and live document mutation remain in the renderer/domain layer;
+the controller retains only project identity, chosen file path, save-in-progress state, recovery
+identity, and the scheduler. Starting another project always requires an explicit close.
+Restoring never promotes the pointer's source-file metadata into an authorized destination: the
+restored session has no chosen file path until the user completes Save As.
+
+User saves still begin in domain history and cross the main boundary as immutable
+`{document,stateId,tokenId}` snapshots. A successful write returns the same receipt plus the exact
+archive length and SHA-256 from the bytes that reached disk. The session then flushes pending
+recovery. It clears recovery only when that exact deterministic archive identity is now present in
+the user file, which also handles a restored history whose local state IDs restarted. If an older
+save completes after a newer edit, the newer recovery digest differs and remains. Recovery refresh
+or cleanup failure is a bounded warning on an otherwise successful user save, never a false save
+failure.
+
+Normal close flushes and retains the latest recovery; a failed flush reopens scheduling so close can
+be retried rather than stranding a half-closed session. Explicit discard cancels work not yet begun,
+waits for any active write, and conditionally clears the exact known pointer. Cleanup residue is a
+warning because the project/recovery safety decision has already completed. User-file saves are
+serialized per session, and close refuses to race an active user-file save.
+
 Rules:
 
 - Parse untrusted project files with runtime schemas and size limits.

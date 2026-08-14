@@ -209,8 +209,9 @@ export class RecoveryAutosaveScheduler {
 
     this.#accepting = false;
     this.#cancelTimer();
-    this.#shutdown = this.#finishShutdown(mode);
-    return this.#shutdown;
+    const shutdown = this.#finishShutdown(mode);
+    this.#shutdown = shutdown;
+    return shutdown;
   }
 
   getStatus(): RecoveryAutosaveStatus {
@@ -397,7 +398,14 @@ export class RecoveryAutosaveScheduler {
     } else {
       result = await this.#flushPending();
     }
-    this.#closed = true;
+    if (result.ok || mode === 'discard') {
+      this.#closed = true;
+    } else {
+      // A failed close-time flush must remain retryable and must not strand the
+      // session in a half-closed state.
+      this.#accepting = true;
+      this.#shutdown = undefined;
+    }
     return result;
   }
 }

@@ -1,11 +1,10 @@
-import { createHash } from 'node:crypto';
-
 import {
   parseProjectDocument,
   type DocumentValidationIssue,
   type ProjectDocument,
 } from '../../domain';
 import { copyBytes, isUint8Array } from './binary';
+import { sha256Bytes } from './digest';
 import {
   decodeBoundedJson,
   encodeCanonicalJson,
@@ -94,8 +93,6 @@ const fail = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
 const createEntry = (path: string, bytes: Uint8Array): ProjectFileEntry =>
   Object.freeze({ path, bytes: copyBytes(bytes) });
@@ -351,7 +348,7 @@ export const encodeProjectFileEnvelope = (
         maxBytes: MAX_PROJECT_ASSET_BYTES,
       });
     }
-    if (sha256(bytes) !== reference.sha256) {
+    if (sha256Bytes(bytes) !== reference.sha256) {
       return fail({
         code: 'asset-digest-mismatch',
         message: `Project asset '${reference.id}' does not match its declared SHA-256 digest.`,
@@ -496,7 +493,7 @@ export const decodeProjectFileEnvelope = (input: unknown): DecodeProjectFileResu
         actualBytes: bytes.byteLength,
       });
     }
-    if (sha256(bytes) !== reference.sha256) {
+    if (sha256Bytes(bytes) !== reference.sha256) {
       return fail({
         code: 'asset-digest-mismatch',
         message: `Project asset '${assetId}' does not match its declared SHA-256 digest.`,

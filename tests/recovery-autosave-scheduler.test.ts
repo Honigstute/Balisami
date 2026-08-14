@@ -247,6 +247,37 @@ describe('recovery autosave scheduler', () => {
     expect(scheduler.getStatus().phase).toBe('idle');
   });
 
+  it('reopens scheduling after a failed shutdown flush so close can be retried', async () => {
+    const [, firstEdit, latest] = createSnapshots();
+    let attempts = 0;
+    const scheduler = new RecoveryAutosaveScheduler({
+      projectId: DOCUMENT_FIXTURE_IDS.project,
+      write: (request) => {
+        attempts += 1;
+        return Promise.resolve(
+          attempts === 1
+            ? { ok: false, error: { code: 'write-failed', message: 'Injected close failure.' } }
+            : successfulWrite(request),
+        );
+      },
+    });
+
+    scheduler.schedule({ snapshot: firstEdit });
+    await expect(scheduler.shutdown()).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'recovery-write-failed' },
+    });
+    expect(scheduler.getStatus().phase).toBe('failed');
+    expect(scheduler.schedule({ snapshot: latest })).toEqual({ ok: true, scheduled: true });
+
+    await expect(scheduler.shutdown()).resolves.toMatchObject({
+      ok: true,
+      value: { lastWrittenStateId: latest.stateId },
+    });
+    expect(attempts).toBe(2);
+    expect(scheduler.getStatus().phase).toBe('shutdown');
+  });
+
   it('flushes the latest state during shutdown and rejects later schedules', async () => {
     const [, firstEdit, latest] = createSnapshots();
     const requests: RecoveryAutosaveWriteRequest[] = [];
