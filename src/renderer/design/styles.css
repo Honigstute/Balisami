@@ -485,6 +485,18 @@ p {
   display: block;
 }
 
+.scene-foundation-rectangle__fill {
+  fill: var(--color-canvas);
+}
+
+.scene-foundation-rectangle__outline {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: calc(var(--border-width) * 2);
+}
+
 .editor-dom-overlay {
   pointer-events: none;
 }

@@ -1,7 +1,18 @@
 import { useState } from 'react';
 
+import {
+  BoardIdSchema,
+  ElementIdSchema,
+  FOUNDATION_CONTROL_TYPES,
+  parseProjectDocument,
+  ProjectIdSchema,
+  type ProjectDocument,
+} from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
+import { DocumentScene } from '../editor/DocumentScene';
+import { ViewportScene } from '../editor/ViewportScene';
+import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { AppShell } from '../shell/AppShell';
 import { AppButton } from './AppButton';
 import { AppScroller } from './AppEmptyState';
@@ -21,6 +32,118 @@ interface VisualConformanceFixtureProps {
   readonly quickAddShortcut: string;
   readonly runtimeLabel: string;
 }
+
+const createSceneFixtureDocument = (): {
+  readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
+  readonly document: ProjectDocument;
+} => {
+  const projectId = ProjectIdSchema.parse('project_visualscene');
+  const boardId = BoardIdSchema.parse('board_visualscene');
+  const outerId = ElementIdSchema.parse('element_visualouter');
+  const groupId = ElementIdSchema.parse('element_visualgroup');
+  const titleId = ElementIdSchema.parse('element_visualtitle');
+  const fieldId = ElementIdSchema.parse('element_visualfield');
+  const buttonId = ElementIdSchema.parse('element_visualbutton');
+  const sideId = ElementIdSchema.parse('element_visualsidecard');
+  const result = parseProjectDocument({
+    schemaVersion: 1,
+    id: projectId,
+    name: 'Scene visual fixture',
+    boardIds: [boardId],
+    boardsById: {
+      [boardId]: {
+        id: boardId,
+        name: 'Scene',
+        note: { text: '' },
+        childIds: [outerId, groupId],
+      },
+    },
+    elementsById: {
+      [outerId]: {
+        id: outerId,
+        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        frame: { x: 160, y: 100, width: 520, height: 380 },
+        locked: false,
+        properties: {},
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [groupId]: {
+        id: groupId,
+        controlType: FOUNDATION_CONTROL_TYPES.group,
+        frame: { x: 160, y: 100, width: 520, height: 380 },
+        locked: false,
+        properties: {},
+        childIds: [titleId, fieldId, buttonId, sideId],
+        assetIds: [],
+        link: null,
+      },
+      [titleId]: {
+        id: titleId,
+        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        frame: { x: 28, y: 28, width: 280, height: 28 },
+        locked: false,
+        properties: {},
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [fieldId]: {
+        id: fieldId,
+        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        frame: { x: 28, y: 96, width: 300, height: 48 },
+        locked: false,
+        properties: {},
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [buttonId]: {
+        id: buttonId,
+        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        frame: { x: 28, y: 172, width: 128, height: 44 },
+        locked: false,
+        properties: {},
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [sideId]: {
+        id: sideId,
+        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        frame: { x: 372, y: 28, width: 112, height: 304 },
+        locked: false,
+        properties: {},
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+    },
+    assetsById: {},
+  });
+  if (!result.ok) {
+    throw new Error('The deterministic scene visual fixture is invalid.');
+  }
+  return Object.freeze({ boardId, document: result.value });
+};
+
+const SceneFixture = () => {
+  const camera = useViewportCameraStore();
+  const [fixture] = useState(createSceneFixtureDocument);
+  return (
+    <ViewportScene
+      camera={camera}
+      worldChildren={
+        <DocumentScene
+          activeBoardId={fixture.boardId}
+          camera={camera}
+          document={fixture.document}
+        />
+      }
+    />
+  );
+};
 
 const ControlStates = () => {
   const [point, setPoint] = useState('left');
@@ -160,15 +283,17 @@ export const VisualConformanceFixture = ({
   runtimeLabel,
 }: VisualConformanceFixtureProps) => {
   const regionContent =
-    fixture === 'controls'
-      ? { inspector: <ControlStates /> }
-      : fixture === 'feedback'
-        ? { canvas: <StaticRegionFailure /> }
-        : fixture === 'tooltip'
-          ? { canvas: <TooltipFixture /> }
-          : fixture === 'popover'
-            ? { canvas: <PopoverFixture /> }
-            : undefined;
+    fixture === 'scene'
+      ? { canvas: <SceneFixture /> }
+      : fixture === 'controls'
+        ? { inspector: <ControlStates /> }
+        : fixture === 'feedback'
+          ? { canvas: <StaticRegionFailure /> }
+          : fixture === 'tooltip'
+            ? { canvas: <TooltipFixture /> }
+            : fixture === 'popover'
+              ? { canvas: <PopoverFixture /> }
+              : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

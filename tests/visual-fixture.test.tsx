@@ -54,7 +54,15 @@ describe('visual conformance fixture contract', () => {
       ),
     ).toMatchObject({ kind: 'invalid' });
     expect(getRequestedVisualFixture('?visualFixture=popover')).toBe('popover');
+    expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
+  });
+
+  it('mounts the deterministic document scene fixture inside the unchanged shell', () => {
+    const view = renderFixture('scene');
+
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
   it('renders the default/loading fixture with deterministic default pane widths', () => {

@@ -2,7 +2,7 @@
   "argumentPrefix": "--visual-fixture=",
   "displayScaleArgumentPrefix": "--force-device-scale-factor=",
   "displayScales": [1, 1.25, 1.5, 2],
-  "fixtures": ["default", "controls", "feedback", "tooltip", "popover", "modal"],
+  "fixtures": ["default", "scene", "controls", "feedback", "tooltip", "popover", "modal"],
   "marker": "BALSAMIC_VISUAL_OK",
   "processTimeoutMs": 20000,
   "queryKey": "visualFixture",

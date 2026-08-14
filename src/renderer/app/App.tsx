@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
@@ -7,6 +7,8 @@ import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { useProjectSession } from '../projects/use-project-session';
+import { DocumentScene } from '../editor/DocumentScene';
+import { countRenderableBoardElements } from '../editor/document-scene-model';
 import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { waitForRendererPresentation } from './renderer-readiness';
@@ -33,6 +35,11 @@ const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspacePr
   });
   const { session, view } = project;
   const firstBoardId = view.history?.document.boardIds[0];
+  const document = view.history?.document;
+  const hasRenderableElements = useMemo(
+    () => document !== undefined && countRenderableBoardElements(document, firstBoardId) > 0,
+    [document, firstBoardId],
+  );
   const firstBoardNote =
     firstBoardId === undefined
       ? undefined
@@ -69,7 +76,23 @@ const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspacePr
         : {})}
       quickAddShortcut={quickAddShortcut}
       regionContent={{
-        canvas: <ViewportScene camera={camera} domChildren={<ViewportEmptyState />} />,
+        canvas: (
+          <ViewportScene
+            camera={camera}
+            {...(!hasRenderableElements ? { domChildren: <ViewportEmptyState /> } : {})}
+            {...(document !== undefined
+              ? {
+                  worldChildren: (
+                    <DocumentScene
+                      activeBoardId={firstBoardId}
+                      camera={camera}
+                      document={document}
+                    />
+                  ),
+                }
+              : {})}
+          />
+        ),
       }}
       statusLabel={view.statusLabel}
       statusScope={runtimeLabel}
