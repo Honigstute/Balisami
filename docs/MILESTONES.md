@@ -131,11 +131,13 @@ Current progress (2026-08-14):
 - Decode treats every envelope as untrusted: exact entry shapes and paths, duplicate/missing entries, per-entry and total byte limits, fatal UTF-8, malformed/truncated JSON, nesting/value complexity, strict manifest fields, file-format compatibility, domain invariants, asset length, and SHA-256 are checked before a project is accepted.
 - Asset bytes are copied at both boundaries and identical digests occupy one logical entry while retaining separate asset IDs in the document. Failures use typed, actionable error codes and never return a partial document or asset map.
 - A pinned, zero-dependency asynchronous ZIP adapter produces fixed-metadata archives: JSON is compressed, already-compressed digest assets are stored, and entry order/timestamps/attributes are deterministic. ZIP metadata is preflighted for path, duplicates, count, per-entry expansion, and total expansion before decompression.
-- Seventeen focused persistence tests pass inside the full 15-file/88-test suite. Alongside logical corruption/integrity coverage, physical tests verify exact immutable v1 golden bytes, standard ZIP interoperability, malformed/truncated archives, path traversal rejection, compressed expansion limits, a 10,003-entry hostile archive, and asynchronous input isolation.
+- The version router owns current/older/newer/malformed compatibility outcomes. Version 1 has an intentionally empty migration route and one immutable binary golden; no unreleased legacy format is invented. Future format versions must register complete consecutive pure steps before the router accepts them.
+- Main-process storage opens a bounded fixed file snapshot, validates/encodes before write, flushes a randomly named exclusive sibling temporary, uses atomic replace plus directory fsync where supported, and has a regular-file-only Windows backup/restore fallback. Restore failure preserves both recovery paths; ordinary failures leave the prior user file untouched and remove temporary debris.
+- Thirty-three focused M3 tests pass inside the full 19-file/104-test suite. They cover logical and physical determinism/corruption/limits, the hostile 10,003-entry archive, version routing, real filesystem round trips, sparse oversize rejection, atomic replacement, Windows fallback order, restore failure, non-file protection, and save-before-touch behavior.
 
 Exact next action:
 
-- Add explicit sequential version routing around the immutable version-1 golden, then implement main-process read/open and atomic write primitives against archive bytes. Keep extension selection, dialogs, autosave, and renderer UI out of that filesystem slice.
+- Pair the main-process save service with M2 history save snapshots, then add a separate bounded recovery journal under Electron `userData`. Prove edits made during save stay dirty and interrupted recovery writes never replace the user's chosen file before adding dialogs, recent files, or autosave scheduling.
 
 ### [ ] M4 — Stable application shell and design system
 

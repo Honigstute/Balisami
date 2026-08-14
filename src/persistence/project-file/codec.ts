@@ -17,10 +17,10 @@ import {
   isProjectAssetEntryPath,
   PROJECT_FILE_ENTRY_PATHS,
   PROJECT_FILE_FORMAT_ID,
-  PROJECT_FILE_FORMAT_VERSION,
   PROJECT_FILE_MANIFEST_V1,
   ProjectFileManifestV1Schema,
 } from './manifest';
+import { routeProjectFileVersion } from './version-routing';
 
 export const MAX_PROJECT_FILE_ENTRY_COUNT = 10_002;
 export const MAX_PROJECT_MANIFEST_BYTES = 64 * 1_024;
@@ -238,23 +238,20 @@ const decodeManifest = (
     });
   }
   const version = decoded.value.formatVersion;
-  if (typeof version === 'number' && Number.isInteger(version)) {
-    if (version > PROJECT_FILE_FORMAT_VERSION) {
-      return fail({
-        code: 'newer-version',
-        message: `This project was created by a newer file format version (${String(version)}).`,
-        entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
-        foundVersion: version,
-      });
-    }
-    if (version < PROJECT_FILE_FORMAT_VERSION) {
-      return fail({
-        code: 'unsupported-version',
-        message: `Project file format version ${String(version)} has no registered migration.`,
-        entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
-        foundVersion: version,
-      });
-    }
+  const versionRoute = routeProjectFileVersion(version);
+  if (!versionRoute.ok) {
+    return fail({
+      ...versionRoute.error,
+      entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
+    });
+  }
+  if (versionRoute.steps.length > 0) {
+    return fail({
+      code: 'unsupported-version',
+      message: `Project file format version ${String(versionRoute.sourceVersion)} requires an unimplemented migration.`,
+      entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
+      foundVersion: versionRoute.sourceVersion,
+    });
   }
 
   const parsed = ProjectFileManifestV1Schema.safeParse(decoded.value);

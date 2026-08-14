@@ -46,3 +46,9 @@ export {
   isProjectAssetEntryPath,
   type ProjectFileManifestV1,
 } from './project-file/manifest';
+export {
+  routeProjectFileVersion,
+  type ProjectFileMigrationStep,
+  type ProjectFileVersionError,
+  type ProjectFileVersionRouteResult,
+} from './project-file/version-routing';

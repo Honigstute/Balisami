@@ -343,6 +343,16 @@ produces byte-identical archives on macOS and Windows. The complete archive is c
 reader checks archive size, entry count, path allowlist, duplicates, each declared expanded size, and
 the declared expanded total; the logical codec then revalidates the materialized entries and content.
 
+Main-process reads open one file descriptor, reject non-files and oversized metadata before
+allocation, and accept bytes only when a fixed-size read plus one-byte probe proves the file did not
+change mid-read. Saves validate and encode the complete archive before touching the destination,
+write a randomly named exclusive sibling temporary file, loop through partial writes, flush and close
+it, then replace the destination. POSIX uses atomic rename plus parent-directory fsync. If Windows
+rejects replace-on-rename, the prior regular file moves to a unique sibling backup; a failed promotion
+restores it, and a failed restore preserves and reports both old/new recovery paths. Non-file targets
+are never moved aside, ordinary failed writes clean their temporary file, and backup cleanup failure
+is a successful-save warning rather than a false loss report.
+
 Rules:
 
 - Parse untrusted project files with runtime schemas and size limits.
