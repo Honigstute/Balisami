@@ -57,7 +57,11 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=popover')).toBe('popover');
     expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
     expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
+    expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
+    expect(getRequestedVisualFixture('?visualFixture=viewportSelectionZoom')).toBe(
+      'viewportSelectionZoom',
+    );
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -67,6 +71,14 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Zoom options, 100 percent' })).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Zoom options' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Fit Board/u })).toBeEnabled();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an enabled Fit Selection command without replacing the shell', () => {
+    renderFixture('viewportSelectionZoom');
+
+    expect(screen.getByRole('button', { name: /Fit Selection/u })).toBeEnabled();
+    expect(screen.getByRole('dialog', { name: 'Zoom options' })).toBeInTheDocument();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
@@ -85,6 +97,16 @@ describe('visual conformance fixture contract', () => {
     expect(overlay).not.toHaveAttribute('display', 'none');
     expect(overlay).toHaveAttribute('data-selection-count', '1');
     expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(4);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders a fixed-screen directional marquee without replacing the scene or shell', () => {
+    const view = renderFixture('marquee');
+
+    const overlay = view.container.querySelector('[data-marquee-overlay="selection-region"]');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-marquee-mode', 'intersecting');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

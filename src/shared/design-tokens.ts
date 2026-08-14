@@ -99,6 +99,7 @@ export const DESIGN_TOKENS = {
     disabled: 0.48,
     enabled: 1,
     muted: 0.76,
+    selectionFill: 0.12,
   },
   shadow: {
     floatingBlur: 36,
@@ -198,6 +199,7 @@ export const DESIGN_TOKEN_CSS_VARIABLES = {
   '--opacity-disabled': String(DESIGN_TOKENS.opacity.disabled),
   '--opacity-enabled': String(DESIGN_TOKENS.opacity.enabled),
   '--opacity-muted': String(DESIGN_TOKENS.opacity.muted),
+  '--opacity-selection-fill': String(DESIGN_TOKENS.opacity.selectionFill),
   '--shadow-floating': `0 ${px(DESIGN_TOKENS.shadow.floatingOffsetY)} ${px(DESIGN_TOKENS.shadow.floatingBlur)} var(--color-shadow)`,
   '--layer-local-raised': String(DESIGN_TOKENS.layer.localRaised),
   '--layer-shell': String(DESIGN_TOKENS.layer.shell),

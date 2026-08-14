@@ -2,6 +2,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { ViewportZoomControls } from '../src/renderer/editor/ViewportZoomControls';
+import { parseProjectDocument } from '../src/domain';
+import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
+import { SelectionStore } from '../src/renderer/editor/selection-store';
 import {
   ViewportCameraStore,
   type AnimationFrameScheduler,
@@ -12,6 +15,7 @@ import {
   createViewportTransform,
   createWorldRect,
 } from '../src/renderer/editor/viewport-transform';
+import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
   readonly callbacks = new Map<number, (timestamp: number) => void>();
@@ -94,6 +98,58 @@ describe('viewport zoom controls', () => {
     expect(camera.getSnapshot()).toMatchObject({
       framing: { kind: 'fit' },
       transform: { pan: { x: 348, y: 48 }, zoom: 0.704 },
+    });
+  });
+
+  it('enables Fit Selection from external selection/model revisions only', () => {
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = createStore(scheduler);
+    const model = new DocumentSceneModel();
+    const parsed = parseProjectDocument(createValidProjectDocumentInput());
+    if (!parsed.ok) {
+      throw new Error('Fit Selection fixture is invalid.');
+    }
+    model.reconcile(parsed.value, DOCUMENT_FIXTURE_IDS.board);
+    const selection = new SelectionStore();
+    render(
+      <ViewportZoomControls
+        boardBounds={createWorldRect(-4, 36.5, 120, 48)}
+        camera={camera}
+        platform="win32"
+        sceneModel={model}
+        selection={selection}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom options, 100 percent' }));
+    expect(screen.getByRole('button', { name: /Fit Selection/u })).toBeDisabled();
+    act(() => {
+      selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
+    });
+    const fitSelection = screen.getByRole('button', { name: /Fit Selection/u });
+    expect(fitSelection).toBeEnabled();
+    fireEvent.click(fitSelection);
+    scheduler.flushNext();
+    expect(camera.getSnapshot()).toMatchObject({
+      framing: { bounds: createWorldRect(-4, 36.5, 120, 48), kind: 'fit' },
+      transform: { pan: { x: 276, y: 58 }, zoom: 4 },
+    });
+
+    const movedInput = createValidProjectDocumentInput();
+    movedInput.elementsById[DOCUMENT_FIXTURE_IDS.child]!.frame.x = 30;
+    const moved = parseProjectDocument(movedInput);
+    if (!moved.ok) {
+      throw new Error('Moved Fit Selection fixture is invalid.');
+    }
+    act(() => {
+      model.reconcile(moved.value, DOCUMENT_FIXTURE_IDS.board);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom options, 400 percent' }));
+    fireEvent.click(screen.getByRole('button', { name: /Fit Selection/u }));
+    scheduler.flushNext();
+    expect(camera.getFramingSnapshot()).toMatchObject({
+      bounds: createWorldRect(10, 36.5, 120, 48),
+      kind: 'fit',
     });
   });
 

@@ -235,8 +235,18 @@ describe('viewport scene layers', () => {
     mockViewportBounds();
     const scheduler = new TestAnimationFrameScheduler();
     const store = createStore(scheduler);
+    const selection = new SelectionStore();
+    const interaction = new SelectionInteraction(selection, {
+      listSelectableIds: () => [SELECTABLE_ID],
+      queryHitStack: () => [],
+      querySelectionRegion: () => [],
+    });
     const view = render(
-      <ViewportScene camera={store} domChildren={<input aria-label="Inline editor" />} />,
+      <ViewportScene
+        camera={store}
+        domChildren={<input aria-label="Inline editor" />}
+        selectionInteraction={interaction}
+      />,
     );
     const root = view.container.querySelector<HTMLElement>('.editor-viewport');
     const input = screen.getByLabelText('Inline editor');
@@ -247,6 +257,8 @@ describe('viewport scene layers', () => {
 
     expect(fireEvent.keyDown(input, { code: 'Space' })).toBe(true);
     expect(root).toHaveAttribute('data-pan-state', 'idle');
+    expect(fireEvent.keyDown(input, { code: 'KeyA', ctrlKey: true })).toBe(true);
+    expect(selection.getSnapshot().selectedIds).toEqual([]);
     store.dispose();
   });
 
@@ -255,9 +267,11 @@ describe('viewport scene layers', () => {
     const scheduler = new TestAnimationFrameScheduler();
     const store = createStore(scheduler);
     const selection = new SelectionStore();
-    const interaction = new SelectionInteraction(selection, (point) =>
-      point.x >= 100 && point.x <= 200 ? SELECTABLE_ID : undefined,
-    );
+    const interaction = new SelectionInteraction(selection, {
+      listSelectableIds: () => [SELECTABLE_ID],
+      queryHitStack: (point) => (point.x >= 100 && point.x <= 200 ? [SELECTABLE_ID] : []),
+      querySelectionRegion: () => [],
+    });
     const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
     const root = view.container.querySelector<HTMLElement>('.editor-viewport');
     if (root === null) {
@@ -279,6 +293,10 @@ describe('viewport scene layers', () => {
     expect(root).toHaveAttribute('data-selection-state', 'idle');
     expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
 
+    fireEvent.keyDown(root, { code: 'KeyA', ctrlKey: true });
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+    expect(root).toHaveAttribute('tabindex', '0');
+
     fireEvent.keyDown(root, { code: 'Space' });
     fireEvent.pointerDown(root, { button: 0, clientX: 350, clientY: 100, pointerId: 22 });
     expect(root).toHaveAttribute('data-pan-state', 'active');
@@ -287,12 +305,26 @@ describe('viewport scene layers', () => {
     expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
     fireEvent.keyUp(window, { code: 'Space' });
 
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 24 });
+    fireEvent.pointerMove(root, { clientX: 160, clientY: 140, pointerId: 24 });
+    expect(root).toHaveAttribute('data-selection-state', 'marquee');
+    const transformBeforeWheel = store.getTransformSnapshot();
+    fireEvent.wheel(root, { clientX: 160, clientY: 140, deltaMode: 0, deltaY: 100 });
+    expect(store.getTransformSnapshot()).toBe(transformBeforeWheel);
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+
     fireEvent.pointerDown(root, { button: 0, clientX: 350, clientY: 100, pointerId: 23 });
     fireEvent.keyDown(root, { code: 'Escape' });
     expect(root).toHaveAttribute('data-selection-state', 'idle');
     expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
     fireEvent.keyDown(root, { code: 'Escape' });
     expect(selection.getSnapshot().selectedIds).toEqual([]);
+    fireEvent.keyDown(root, { code: 'KeyA', ctrlKey: true, metaKey: true });
+    expect(selection.getSnapshot().selectedIds).toEqual([]);
+    fireEvent.keyDown(root, { code: 'KeyA', metaKey: true });
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
     store.dispose();
   });
 
@@ -303,7 +335,11 @@ describe('viewport scene layers', () => {
     const selection = new SelectionStore();
     selection.selectOnly(SELECTABLE_ID);
     const before = selection.getSnapshot();
-    const interaction = new SelectionInteraction(selection, () => undefined);
+    const interaction = new SelectionInteraction(selection, {
+      listSelectableIds: () => [SELECTABLE_ID],
+      queryHitStack: () => [],
+      querySelectionRegion: () => [],
+    });
     const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
     const root = view.container.querySelector<HTMLElement>('.editor-viewport');
     if (root === null) {
@@ -327,6 +363,12 @@ describe('viewport scene layers', () => {
     expect(selection.getSnapshot()).toBe(before);
 
     fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 34 });
+    fireEvent.pointerMove(root, { clientX: 140, clientY: 140, pointerId: 34 });
+    expect(interaction.getSnapshot()).toMatchObject({ kind: 'marquee' });
+    interaction.cancelPress(34);
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 35 });
+    fireEvent.pointerMove(root, { clientX: 140, clientY: 140, pointerId: 35 });
     view.unmount();
     expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
     expect(selection.getSnapshot()).toBe(before);

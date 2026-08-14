@@ -527,6 +527,15 @@ p {
   cursor: grabbing;
 }
 
+.editor-viewport[data-selection-state='marquee'] {
+  cursor: crosshair;
+}
+
+.editor-viewport:focus-visible {
+  outline: calc(var(--border-width) * 2) solid var(--color-accent-strong);
+  outline-offset: calc(var(--border-width) * -2);
+}
+
 .editor-scene {
   display: block;
 }
@@ -556,6 +565,18 @@ p {
 
 .selection-overlay__handle {
   fill: var(--color-canvas);
+}
+
+.marquee-overlay__rectangle {
+  pointer-events: none;
+  fill: var(--color-accent);
+  fill-opacity: var(--opacity-selection-fill);
+  stroke: var(--color-accent-strong);
+  stroke-width: var(--border-width);
+}
+
+[data-marquee-mode='intersecting'] .marquee-overlay__rectangle {
+  stroke-dasharray: var(--space-1) var(--space-1);
 }
 
 .editor-dom-overlay {

@@ -207,4 +207,40 @@ describe('document scene model', () => {
       DOCUMENT_FIXTURE_IDS.child,
     );
   });
+
+  it('queries contained or intersecting selection regions in canonical order', () => {
+    const model = new DocumentSceneModel();
+    const document = createTwoRectangleDocument();
+    model.reconcile(document, DOCUMENT_FIXTURE_IDS.board);
+
+    expect(model.querySelectionRegion(createWorldRect(-10, 30, 140, 70), 'contained')).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(model.querySelectionRegion(createWorldRect(0, 40, 50, 20), 'contained')).toEqual([]);
+    expect(model.querySelectionRegion(createWorldRect(0, 40, 50, 20), 'intersecting')).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(model.querySelectionRegion(createWorldRect(-20, 20, 400, 200), 'contained')).toEqual([
+      ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(model.listSelectableItemIds()).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.child]);
+  });
+
+  it('excludes locked items from region and Select All candidates unless explicitly requested', () => {
+    const model = new DocumentSceneModel();
+    model.reconcile(createOverlappingRectangleDocument(true), DOCUMENT_FIXTURE_IDS.board);
+    const bounds = createWorldRect(-10, 30, 140, 70);
+
+    expect(model.querySelectionRegion(bounds, 'contained')).toEqual([ROOT_ID]);
+    expect(model.listSelectableItemIds()).toEqual([ROOT_ID]);
+    expect(model.querySelectionRegion(bounds, 'contained', { includeLocked: true })).toEqual([
+      ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(model.listSelectableItemIds({ includeLocked: true })).toEqual([
+      ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+  });
 });

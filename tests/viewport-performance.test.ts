@@ -110,4 +110,22 @@ describe('viewport algorithm performance fixtures', () => {
 
     expect(percentile95(durations)).toBeLessThanOrEqual(20);
   });
+
+  it('keeps canonical marquee-region resolution below budget on a 5,000-element scene', () => {
+    const fixture = createHitTestFixture(5_000);
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const durations: number[] = [];
+
+    for (let sample = 0; sample < 250; sample += 1) {
+      const start = performance.now();
+      model.querySelectionRegion(
+        createWorldRect((sample % 50) * 20, (sample % 20) * 20, 400, 300),
+        sample % 2 === 0 ? 'contained' : 'intersecting',
+      );
+      durations.push(performance.now() - start);
+    }
+
+    expect(percentile95(durations)).toBeLessThanOrEqual(20);
+  });
 });

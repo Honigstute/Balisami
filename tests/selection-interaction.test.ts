@@ -1,57 +1,76 @@
 // @vitest-environment node
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createDocumentHistory, ElementIdSchema, parseProjectDocument } from '../src/domain';
 import {
   SELECTION_INTERACTION_POLICY,
   SelectionInteraction,
+  type SelectionInteractionGeometry,
+  type SelectionPointerPosition,
 } from '../src/renderer/editor/selection-interaction';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
-import {
-  createViewportPoint,
-  createWorldPoint,
-  type WorldPoint,
-} from '../src/renderer/editor/viewport-transform';
+import { createViewportPoint, createWorldPoint } from '../src/renderer/editor/viewport-transform';
 import { createValidProjectDocumentInput } from './fixtures/project-document';
 
 const FIRST_ID = ElementIdSchema.parse('element_press001');
 const SECOND_ID = ElementIdSchema.parse('element_press002');
+const THIRD_ID = ElementIdSchema.parse('element_press003');
 
-const hitTest = (point: WorldPoint) => {
-  if (point.x < 0) {
-    return undefined;
-  }
-  return point.x < 100 ? FIRST_ID : SECOND_ID;
-};
+const createPosition = (
+  viewportX: number,
+  viewportY = 0,
+  worldX = viewportX,
+  worldY = viewportY,
+): SelectionPointerPosition =>
+  Object.freeze({
+    viewportPoint: createViewportPoint(viewportX, viewportY),
+    worldPoint: createWorldPoint(worldX, worldY),
+  });
+
+const createGeometry = (
+  overrides: Partial<SelectionInteractionGeometry> = {},
+): SelectionInteractionGeometry => ({
+  listSelectableIds: () => [FIRST_ID, SECOND_ID, THIRD_ID],
+  queryHitStack: (point) => {
+    if (point.x < 0) {
+      return [];
+    }
+    return point.x < 100 ? [FIRST_ID] : [SECOND_ID];
+  },
+  querySelectionRegion: () => [],
+  ...overrides,
+});
 
 const beginAndComplete = (
   interaction: SelectionInteraction,
   worldX: number,
-  shiftKey = false,
+  options: { readonly altKey?: boolean; readonly shiftKey?: boolean } = {},
 ): void => {
+  const position = createPosition(20, 30, worldX, 0);
   expect(
     interaction.beginPress({
+      altKey: options.altKey ?? false,
       pointerId: 7,
-      shiftKey,
-      viewportPoint: createViewportPoint(20, 30),
-      worldPoint: createWorldPoint(worldX, 0),
+      shiftKey: options.shiftKey ?? false,
+      ...position,
     }),
   ).toBe(true);
-  expect(interaction.completePress(7, createViewportPoint(20, 30))).toBe(true);
+  expect(interaction.completePress(7, position)).toBe(true);
 };
 
 describe('selection interaction', () => {
   it('commits click, Shift-toggle, and empty-space rules only on pointer completion', () => {
     const selection = new SelectionStore();
-    const interaction = new SelectionInteraction(selection, hitTest);
+    const interaction = new SelectionInteraction(selection, createGeometry());
+    const firstPosition = createPosition(20, 30, 10, 0);
 
     expect(
       interaction.beginPress({
+        altKey: false,
         pointerId: 7,
         shiftKey: false,
-        viewportPoint: createViewportPoint(20, 30),
-        worldPoint: createWorldPoint(10, 0),
+        ...firstPosition,
       }),
     ).toBe(true);
     expect(selection.getSnapshot().selectedIds).toEqual([]);
@@ -60,45 +79,162 @@ describe('selection interaction', () => {
       kind: 'pressed',
       pointerId: 7,
     });
-    expect(interaction.completePress(7, createViewportPoint(20, 30))).toBe(true);
+    expect(interaction.completePress(7, firstPosition)).toBe(true);
     expect(selection.getSnapshot().selectedIds).toEqual([FIRST_ID]);
 
-    beginAndComplete(interaction, 120, true);
+    beginAndComplete(interaction, 120, { shiftKey: true });
     expect(selection.getSnapshot()).toMatchObject({
       primaryId: SECOND_ID,
       selectedIds: [FIRST_ID, SECOND_ID],
     });
-    beginAndComplete(interaction, 10, true);
+    beginAndComplete(interaction, 10, { shiftKey: true });
     expect(selection.getSnapshot()).toMatchObject({
       primaryId: SECOND_ID,
       selectedIds: [SECOND_ID],
     });
-    beginAndComplete(interaction, -1, true);
+    beginAndComplete(interaction, -1, { shiftKey: true });
     expect(selection.getSnapshot().selectedIds).toEqual([SECOND_ID]);
     beginAndComplete(interaction, -1);
     expect(selection.getSnapshot().selectedIds).toEqual([]);
   });
 
-  it('cancels Escape-equivalent and pointer cancellation without changing session state', () => {
+  it('cycles an overlap stack deterministically only for Alt or Option click', () => {
+    const selection = new SelectionStore();
+    const interaction = new SelectionInteraction(
+      selection,
+      createGeometry({ queryHitStack: () => [FIRST_ID, SECOND_ID, THIRD_ID] }),
+    );
+
+    beginAndComplete(interaction, 10);
+    expect(selection.getSnapshot().primaryId).toBe(FIRST_ID);
+    beginAndComplete(interaction, 10, { altKey: true });
+    expect(selection.getSnapshot().primaryId).toBe(SECOND_ID);
+    beginAndComplete(interaction, 10, { altKey: true });
+    expect(selection.getSnapshot().primaryId).toBe(THIRD_ID);
+    beginAndComplete(interaction, 10, { altKey: true });
+    expect(selection.getSnapshot().primaryId).toBe(FIRST_ID);
+    beginAndComplete(interaction, 10);
+    expect(selection.getSnapshot().primaryId).toBe(FIRST_ID);
+  });
+
+  it('promotes only an empty-space drag into directional marquee selection', () => {
+    const selection = new SelectionStore();
+    const querySelectionRegion = vi.fn<SelectionInteractionGeometry['querySelectionRegion']>(
+      (_bounds, mode) => (mode === 'contained' ? [FIRST_ID] : [SECOND_ID, THIRD_ID]),
+    );
+    const interaction = new SelectionInteraction(
+      selection,
+      createGeometry({ queryHitStack: () => [], querySelectionRegion }),
+    );
+    const start = createPosition(50, 50);
+    const containedEnd = createPosition(90, 80);
+    interaction.beginPress({ altKey: false, pointerId: 1, shiftKey: false, ...start });
+
+    expect(interaction.updatePress(1, containedEnd)).toBe(true);
+    expect(interaction.getSnapshot()).toMatchObject({
+      kind: 'marquee',
+      mode: 'contained',
+      previewIds: [FIRST_ID],
+    });
+    expect(interaction.completePress(1, containedEnd)).toBe(true);
+    expect(selection.getSnapshot().selectedIds).toEqual([FIRST_ID]);
+
+    const intersectingEnd = createPosition(10, 90);
+    interaction.beginPress({ altKey: false, pointerId: 2, shiftKey: false, ...start });
+    interaction.updatePress(2, intersectingEnd);
+    expect(interaction.getSnapshot()).toMatchObject({
+      kind: 'marquee',
+      mode: 'intersecting',
+      previewIds: [SECOND_ID, THIRD_ID],
+    });
+    interaction.completePress(2, intersectingEnd);
+    expect(selection.getSnapshot().selectedIds).toEqual([SECOND_ID, THIRD_ID]);
+    expect(querySelectionRegion).toHaveBeenCalledWith(expect.anything(), 'intersecting');
+  });
+
+  it('adds Shift-marquee candidates and preserves exact state when marquee is cancelled', () => {
+    const selection = new SelectionStore();
+    selection.selectOnly(FIRST_ID);
+    const interaction = new SelectionInteraction(
+      selection,
+      createGeometry({
+        queryHitStack: () => [],
+        querySelectionRegion: () => [SECOND_ID, THIRD_ID],
+      }),
+    );
+    const start = createPosition(0, 0);
+    const end = createPosition(20, 20);
+    interaction.beginPress({ altKey: false, pointerId: 4, shiftKey: true, ...start });
+    interaction.updatePress(4, end);
+    interaction.completePress(4, end);
+    expect(selection.getSnapshot()).toMatchObject({
+      primaryId: THIRD_ID,
+      selectedIds: [FIRST_ID, SECOND_ID, THIRD_ID],
+    });
+
+    const beforeCancel = selection.getSnapshot();
+    interaction.beginPress({ altKey: false, pointerId: 5, shiftKey: false, ...start });
+    interaction.updatePress(5, end);
+    expect(interaction.cancelPress(5)).toBe(true);
+    expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(selection.getSnapshot()).toBe(beforeCancel);
+  });
+
+  it('supports vertical line-like marquee geometry with positive world extents', () => {
+    const querySelectionRegion = vi.fn<SelectionInteractionGeometry['querySelectionRegion']>(
+      (bounds) => {
+        expect(bounds.width).toBeGreaterThan(0);
+        expect(bounds.height).toBeGreaterThan(0);
+        return [FIRST_ID];
+      },
+    );
+    const interaction = new SelectionInteraction(
+      new SelectionStore(),
+      createGeometry({ queryHitStack: () => [], querySelectionRegion }),
+    );
+    const start = createPosition(20, 10, -50, -25);
+    const end = createPosition(20, 40, -50, 5);
+
+    interaction.beginPress({ altKey: false, pointerId: 6, shiftKey: false, ...start });
+    interaction.completePress(6, end);
+    expect(querySelectionRegion).toHaveBeenCalledOnce();
+  });
+
+  it('disqualifies movement over an element until the transform state exists', () => {
     const selection = new SelectionStore();
     selection.selectOnly(FIRST_ID);
     const before = selection.getSnapshot();
-    const interaction = new SelectionInteraction(selection, hitTest);
-    interaction.beginPress({
-      pointerId: 5,
-      shiftKey: false,
-      viewportPoint: createViewportPoint(0, 0),
-      worldPoint: createWorldPoint(120, 0),
-    });
+    const interaction = new SelectionInteraction(selection, createGeometry());
+    const start = createPosition(10, 10, 120, 0);
+    const movement = SELECTION_INTERACTION_POLICY.clickMovementThresholdPixels + 0.01;
+    const end = createPosition(10 + movement, 10, 120, 0);
+    interaction.beginPress({ altKey: false, pointerId: 3, shiftKey: false, ...start });
 
-    expect(interaction.cancelPress(99)).toBe(false);
-    expect(interaction.cancelPress(5)).toBe(true);
-    expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(interaction.updatePress(3, end)).toBe(true);
+    expect(interaction.getSnapshot()).toMatchObject({ clickEligible: false, kind: 'pressed' });
+    expect(interaction.completePress(3, end)).toBe(true);
     expect(selection.getSnapshot()).toBe(before);
-    expect(interaction.completePress(5, createViewportPoint(0, 0))).toBe(false);
   });
 
-  it('cannot create a document edit or history entry for selection-only gestures', () => {
+  it('selects all available IDs only while idle and clears them on idle Escape', () => {
+    const selection = new SelectionStore();
+    const interaction = new SelectionInteraction(
+      selection,
+      createGeometry({ listSelectableIds: () => [FIRST_ID, SECOND_ID] }),
+    );
+
+    expect(interaction.selectAllWhenIdle()).toBe(true);
+    expect(selection.getSnapshot().selectedIds).toEqual([FIRST_ID, SECOND_ID]);
+    const start = createPosition(0, 0);
+    interaction.beginPress({ altKey: false, pointerId: 1, shiftKey: false, ...start });
+    expect(interaction.selectAllWhenIdle()).toBe(false);
+    expect(interaction.clearSelectionWhenIdle()).toBe(false);
+    interaction.cancelPress();
+    expect(interaction.clearSelectionWhenIdle()).toBe(true);
+    expect(selection.getSnapshot().selectedIds).toEqual([]);
+  });
+
+  it('never creates a document edit or history entry for selection scope changes', () => {
     const parsed = parseProjectDocument(createValidProjectDocumentInput());
     if (!parsed.ok) {
       throw new Error('Selection history fixture is invalid.');
@@ -106,17 +242,15 @@ describe('selection interaction', () => {
     const history = createDocumentHistory(parsed.value);
     const documentBefore = history.document;
     const stateBefore = history.currentStateId;
-    const selection = new SelectionStore();
-    const interaction = new SelectionInteraction(selection, hitTest);
+    const interaction = new SelectionInteraction(new SelectionStore(), createGeometry());
 
+    interaction.selectAllWhenIdle();
     beginAndComplete(interaction, 10);
-    beginAndComplete(interaction, 120, true);
-    interaction.beginPress({
-      pointerId: 8,
-      shiftKey: false,
-      viewportPoint: createViewportPoint(0, 0),
-      worldPoint: createWorldPoint(10, 0),
-    });
+    beginAndComplete(interaction, 120, { shiftKey: true });
+    const start = createPosition(0, 0, -1, -1);
+    const end = createPosition(20, 20, 20, 20);
+    interaction.beginPress({ altKey: false, pointerId: 8, shiftKey: false, ...start });
+    interaction.updatePress(8, end);
     interaction.cancelPress(8);
 
     expect(history.document).toBe(documentBefore);
@@ -125,59 +259,17 @@ describe('selection interaction', () => {
     expect(history.redoEntries).toHaveLength(0);
   });
 
-  it('disqualifies a click after zoom-independent screen-space movement', () => {
-    const selection = new SelectionStore();
-    selection.selectOnly(FIRST_ID);
-    const before = selection.getSnapshot();
-    const interaction = new SelectionInteraction(selection, hitTest);
-    interaction.beginPress({
-      pointerId: 3,
-      shiftKey: false,
-      viewportPoint: createViewportPoint(10, 10),
-      worldPoint: createWorldPoint(120, 0),
-    });
-
-    const movement = SELECTION_INTERACTION_POLICY.clickMovementThresholdPixels + 0.01;
-    expect(interaction.updatePress(3, createViewportPoint(10 + movement, 10))).toBe(true);
-    expect(interaction.getSnapshot()).toMatchObject({ clickEligible: false, kind: 'pressed' });
-    expect(interaction.completePress(3, createViewportPoint(10 + movement, 10))).toBe(true);
-    expect(selection.getSnapshot()).toBe(before);
-  });
-
-  it('rejects concurrent or malformed pointer ownership predictably', () => {
-    const selection = new SelectionStore();
-    const interaction = new SelectionInteraction(selection, hitTest);
-    const input = {
-      pointerId: 1,
-      shiftKey: false,
-      viewportPoint: createViewportPoint(0, 0),
-      worldPoint: createWorldPoint(0, 0),
-    };
+  it('rejects concurrent, mismatched, and malformed pointer ownership predictably', () => {
+    const interaction = new SelectionInteraction(new SelectionStore(), createGeometry());
+    const position = createPosition(0, 0);
+    const input = { altKey: false, pointerId: 1, shiftKey: false, ...position };
 
     expect(interaction.beginPress(input)).toBe(true);
     expect(interaction.beginPress({ ...input, pointerId: 2 })).toBe(false);
-    expect(interaction.updatePress(2, createViewportPoint(0, 0))).toBe(false);
-    expect(interaction.completePress(2, createViewportPoint(0, 0))).toBe(false);
+    expect(interaction.updatePress(2, position)).toBe(false);
+    expect(interaction.completePress(2, position)).toBe(false);
     interaction.cancelPress();
     expect(() => interaction.beginPress({ ...input, pointerId: -1 })).toThrow(RangeError);
     expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
-  });
-
-  it('clears selection from idle Escape but never while a press owns the gesture', () => {
-    const selection = new SelectionStore();
-    selection.selectOnly(FIRST_ID);
-    const interaction = new SelectionInteraction(selection, hitTest);
-    interaction.beginPress({
-      pointerId: 1,
-      shiftKey: false,
-      viewportPoint: createViewportPoint(0, 0),
-      worldPoint: createWorldPoint(0, 0),
-    });
-
-    expect(interaction.clearSelectionWhenIdle()).toBe(false);
-    expect(selection.getSnapshot().selectedIds).toEqual([FIRST_ID]);
-    interaction.cancelPress();
-    expect(interaction.clearSelectionWhenIdle()).toBe(true);
-    expect(selection.getSnapshot().selectedIds).toEqual([]);
   });
 });

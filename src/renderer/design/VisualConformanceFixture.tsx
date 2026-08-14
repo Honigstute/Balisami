@@ -12,12 +12,18 @@ import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
 import { DocumentScene } from '../editor/DocumentScene';
 import { DocumentSceneModel } from '../editor/document-scene-model';
+import { MarqueeOverlay } from '../editor/MarqueeOverlay';
+import { SelectionInteraction } from '../editor/selection-interaction';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
 import { ViewportScene } from '../editor/ViewportScene';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
-import { createWorldRect } from '../editor/viewport-transform';
+import {
+  createViewportPoint,
+  createWorldPoint,
+  createWorldRect,
+} from '../editor/viewport-transform';
 import { AppShell } from '../shell/AppShell';
 import { AppButton } from './AppButton';
 import { AppScroller } from './AppEmptyState';
@@ -135,28 +141,50 @@ const createSceneFixtureDocument = (): {
   return Object.freeze({ boardId, document: result.value, selectedId: buttonId });
 };
 
-const SceneFixture = ({ selected = false }: { readonly selected?: boolean }) => {
+type SceneFixtureState = 'marquee' | 'plain' | 'selection';
+
+const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState }) => {
   const camera = useViewportCameraStore();
   const [fixture] = useState(createSceneFixtureDocument);
   const [editor] = useState(() => {
     const model = new DocumentSceneModel();
     model.reconcile(fixture.document, fixture.boardId);
     const selection = new SelectionStore();
-    if (selected) {
+    if (state === 'selection') {
       selection.selectOnly(fixture.selectedId);
     }
-    return Object.freeze({ model, selection });
+    const interaction = new SelectionInteraction(selection, {
+      listSelectableIds: () => model.listSelectableItemIds(),
+      queryHitStack: (point) => model.queryHitStack(point).map((item) => item.id),
+      querySelectionRegion: (bounds, mode) => model.querySelectionRegion(bounds, mode),
+    });
+    if (state === 'marquee') {
+      interaction.beginPress({
+        altKey: false,
+        pointerId: 1,
+        shiftKey: false,
+        viewportPoint: createViewportPoint(720, 120),
+        worldPoint: createWorldPoint(720, 120),
+      });
+      interaction.updatePress(1, {
+        viewportPoint: createViewportPoint(480, 360),
+        worldPoint: createWorldPoint(480, 360),
+      });
+    }
+    return Object.freeze({ interaction, model, selection });
   });
   return (
     <ViewportScene
       camera={camera}
-      {...(selected
+      {...(state === 'selection'
         ? {
             interactionChildren: (
               <SelectionOverlay camera={camera} model={editor.model} selection={editor.selection} />
             ),
           }
-        : {})}
+        : state === 'marquee'
+          ? { interactionChildren: <MarqueeOverlay interaction={editor.interaction} /> }
+          : {})}
       worldChildren={
         <DocumentScene
           activeBoardId={fixture.boardId}
@@ -169,15 +197,32 @@ const SceneFixture = ({ selected = false }: { readonly selected?: boolean }) => 
   );
 };
 
-const ViewportZoomFixture = ({ platform }: { readonly platform: 'darwin' | 'win32' }) => {
+const ViewportZoomFixture = ({
+  platform,
+  withSelection = false,
+}: {
+  readonly platform: 'darwin' | 'win32';
+  readonly withSelection?: boolean;
+}) => {
   const camera = useViewportCameraStore();
   const [boardBounds] = useState(() => createWorldRect(0, 0, 1_200, 800));
+  const [fixture] = useState(createSceneFixtureDocument);
+  const [editor] = useState(() => {
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const selection = new SelectionStore();
+    if (withSelection) {
+      selection.selectOnly(fixture.selectedId);
+    }
+    return Object.freeze({ model, selection });
+  });
   return (
     <ViewportZoomControls
       boardBounds={boardBounds}
       camera={camera}
       defaultMenuOpen
       platform={platform}
+      {...(withSelection ? { sceneModel: editor.model, selection: editor.selection } : {})}
     />
   );
 };
@@ -324,16 +369,18 @@ export const VisualConformanceFixture = ({
     fixture === 'scene'
       ? { canvas: <SceneFixture /> }
       : fixture === 'selection'
-        ? { canvas: <SceneFixture selected /> }
-        : fixture === 'controls'
-          ? { inspector: <ControlStates /> }
-          : fixture === 'feedback'
-            ? { canvas: <StaticRegionFailure /> }
-            : fixture === 'tooltip'
-              ? { canvas: <TooltipFixture /> }
-              : fixture === 'popover'
-                ? { canvas: <PopoverFixture /> }
-                : undefined;
+        ? { canvas: <SceneFixture state="selection" /> }
+        : fixture === 'marquee'
+          ? { canvas: <SceneFixture state="marquee" /> }
+          : fixture === 'controls'
+            ? { inspector: <ControlStates /> }
+            : fixture === 'feedback'
+              ? { canvas: <StaticRegionFailure /> }
+              : fixture === 'tooltip'
+                ? { canvas: <TooltipFixture /> }
+                : fixture === 'popover'
+                  ? { canvas: <PopoverFixture /> }
+                  : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -341,7 +388,11 @@ export const VisualConformanceFixture = ({
       <ModalFixture />
     ) : undefined;
   const viewportControls =
-    fixture === 'viewportZoom' ? <ViewportZoomFixture platform={platform} /> : undefined;
+    fixture === 'viewportZoom' ? (
+      <ViewportZoomFixture platform={platform} />
+    ) : fixture === 'viewportSelectionZoom' ? (
+      <ViewportZoomFixture platform={platform} withSelection />
+    ) : undefined;
 
   return (
     <AppShell

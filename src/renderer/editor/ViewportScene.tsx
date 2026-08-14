@@ -117,7 +117,7 @@ export const ViewportScene = ({
       data-pan-state="idle"
       data-selection-state="idle"
       ref={rootRef}
-      tabIndex={-1}
+      tabIndex={0}
     >
       <svg aria-hidden="true" className="editor-scene" focusable="false">
         <g {...{ [SCENE_LAYER_ATTRIBUTE]: SCENE_LAYERS.world }} ref={worldRef}>

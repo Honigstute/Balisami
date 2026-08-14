@@ -75,38 +75,55 @@ describe('viewport commands', () => {
       executeViewportCommand(VIEWPORT_COMMAND_IDS.zoomIn, {
         boardBounds: undefined,
         camera,
+        selectionBounds: undefined,
       }),
     ).toBe(true);
     scheduler.flushNext();
     expect(camera.getZoomSnapshot()).toBe(1.2);
     expect(viewportPointToWorld(center, camera.getTransformSnapshot())).toEqual(worldAtCenter);
 
-    executeViewportCommand(VIEWPORT_COMMAND_IDS.zoomOut, { boardBounds: undefined, camera });
+    executeViewportCommand(VIEWPORT_COMMAND_IDS.zoomOut, {
+      boardBounds: undefined,
+      camera,
+      selectionBounds: undefined,
+    });
     scheduler.flushNext();
     expect(camera.getZoomSnapshot()).toBe(1);
     expect(viewportPointToWorld(center, camera.getTransformSnapshot())).toEqual(worldAtCenter);
   });
 
-  it('supports actual, fit-board, and fit-width while keeping unavailable commands explicit', () => {
+  it('supports actual and board/width/selection fitting with explicit availability', () => {
     const scheduler = new TestAnimationFrameScheduler();
     const camera = createStore(scheduler, 2);
     const bounds = createWorldRect(100, -200, 1_000, 2_000);
 
-    executeViewportCommand(VIEWPORT_COMMAND_IDS.actualSize, { boardBounds: bounds, camera });
+    executeViewportCommand(VIEWPORT_COMMAND_IDS.actualSize, {
+      boardBounds: bounds,
+      camera,
+      selectionBounds: undefined,
+    });
     scheduler.flushNext();
     expect(camera.getSnapshot()).toMatchObject({
       framing: { kind: 'actual' },
       transform: { zoom: 1 },
     });
 
-    executeViewportCommand(VIEWPORT_COMMAND_IDS.fitBoard, { boardBounds: bounds, camera });
+    executeViewportCommand(VIEWPORT_COMMAND_IDS.fitBoard, {
+      boardBounds: bounds,
+      camera,
+      selectionBounds: undefined,
+    });
     scheduler.flushNext();
     expect(camera.getSnapshot()).toMatchObject({
       framing: { kind: 'fit' },
       transform: { zoom: 0.252 },
     });
 
-    executeViewportCommand(VIEWPORT_COMMAND_IDS.fitWidth, { boardBounds: bounds, camera });
+    executeViewportCommand(VIEWPORT_COMMAND_IDS.fitWidth, {
+      boardBounds: bounds,
+      camera,
+      selectionBounds: undefined,
+    });
     scheduler.flushNext();
     expect(camera.getSnapshot()).toMatchObject({
       framing: { kind: 'width' },
@@ -117,15 +134,31 @@ describe('viewport commands', () => {
       executeViewportCommand(VIEWPORT_COMMAND_IDS.fitBoard, {
         boardBounds: undefined,
         camera,
+        selectionBounds: undefined,
       }),
     ).toBe(false);
     expect(
       executeViewportCommand(VIEWPORT_COMMAND_IDS.fitSelection, {
         boardBounds: bounds,
         camera,
+        selectionBounds: undefined,
       }),
     ).toBe(false);
     expect(scheduler.callbacks.size).toBe(0);
+
+    const selectionBounds = createWorldRect(-50, 25, 200, 100);
+    expect(
+      executeViewportCommand(VIEWPORT_COMMAND_IDS.fitSelection, {
+        boardBounds: bounds,
+        camera,
+        selectionBounds,
+      }),
+    ).toBe(true);
+    scheduler.flushNext();
+    expect(camera.getSnapshot()).toMatchObject({
+      framing: { bounds: selectionBounds, kind: 'fit' },
+      transform: { pan: { x: 300, y: 0 }, zoom: 4 },
+    });
   });
 
   it('maps exactly one native modifier and exposes matching platform labels', () => {

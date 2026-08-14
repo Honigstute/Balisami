@@ -28,6 +28,8 @@ export interface DocumentSceneHitTestOptions {
   readonly includeLocked?: boolean;
 }
 
+export type DocumentSceneSelectionRegionMode = 'contained' | 'intersecting';
+
 export interface DocumentSceneReconcileResult {
   readonly changed: boolean;
   readonly removedItemCount: number;
@@ -46,6 +48,12 @@ const boundsEqual = (first: WorldRect, second: WorldRect): boolean =>
   first.y === second.y &&
   first.width === second.width &&
   first.height === second.height;
+
+const containsBounds = (outer: WorldRect, inner: WorldRect): boolean =>
+  inner.x >= outer.x &&
+  inner.y >= outer.y &&
+  inner.x + inner.width <= outer.x + outer.width &&
+  inner.y + inner.height <= outer.y + outer.height;
 
 const orderEqual = (first: readonly ElementId[], second: readonly ElementId[]): boolean =>
   first.length === second.length && first.every((id, index) => id === second[index]);
@@ -138,8 +146,19 @@ export class DocumentSceneModel {
     return this.#itemsById.get(id);
   }
 
+  getRevisionSnapshot = (): number => this.#revision;
+
   listItemIds(): readonly ElementId[] {
     return this.#order;
+  }
+
+  listSelectableItemIds(options: DocumentSceneHitTestOptions = {}): readonly ElementId[] {
+    return Object.freeze(
+      this.#order.filter((id) => {
+        const item = this.#itemsById.get(id);
+        return item !== undefined && (!item.locked || options.includeLocked === true);
+      }),
+    );
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -252,5 +271,33 @@ export class DocumentSceneModel {
     options: DocumentSceneHitTestOptions = {},
   ): DocumentSceneItem | undefined {
     return this.queryHitStack(point, options)[0];
+  }
+
+  /** Restores canonical bottom-to-top order after a spatial region query. */
+  querySelectionRegion(
+    bounds: WorldRect,
+    mode: DocumentSceneSelectionRegionMode,
+    options: DocumentSceneHitTestOptions = {},
+  ): readonly ElementId[] {
+    return Object.freeze(
+      this.#index
+        .query(bounds)
+        .flatMap((id) => {
+          const item = this.#itemsById.get(id);
+          if (
+            item === undefined ||
+            (item.locked && options.includeLocked !== true) ||
+            (mode === 'contained' && !containsBounds(bounds, item.bounds))
+          ) {
+            return [];
+          }
+          return [id];
+        })
+        .sort(
+          (first, second) =>
+            (this.#orderById.get(first) ?? Number.MAX_SAFE_INTEGER) -
+            (this.#orderById.get(second) ?? Number.MAX_SAFE_INTEGER),
+        ),
+    );
   }
 }

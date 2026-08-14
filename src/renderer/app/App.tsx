@@ -16,6 +16,7 @@ import {
   getRenderableBoardWorldBounds,
 } from '../editor/document-scene-model';
 import { SelectionInteraction } from '../editor/selection-interaction';
+import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
 import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
@@ -38,10 +39,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   const [editor] = useState(() => {
     const model = new DocumentSceneModel();
     const selection = new SelectionStore();
-    const selectionInteraction = new SelectionInteraction(
-      selection,
-      (point) => model.hitTestTopmost(point)?.id,
-    );
+    const selectionInteraction = new SelectionInteraction(selection, {
+      listSelectableIds: () => model.listSelectableItemIds(),
+      queryHitStack: (point) => model.queryHitStack(point).map((item) => item.id),
+      querySelectionRegion: (bounds, mode) => model.querySelectionRegion(bounds, mode),
+    });
     return Object.freeze({ model, selection, selectionInteraction });
   });
   const query = new URLSearchParams(window.location.search);
@@ -72,12 +74,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   useEffect(
     () =>
       editor.model.subscribe(() => {
+        editor.selectionInteraction.cancelPress();
         editor.selection.reconcile(new Set(editor.model.listItemIds()));
       }),
     [editor],
   );
   useEffect(() => {
     if (document === undefined) {
+      editor.selectionInteraction.cancelPress();
       editor.selection.clear();
     }
   }, [document, editor]);
@@ -120,11 +124,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               ? {}
               : {
                   interactionChildren: (
-                    <SelectionOverlay
-                      camera={camera}
-                      model={editor.model}
-                      selection={editor.selection}
-                    />
+                    <>
+                      <SelectionOverlay
+                        camera={camera}
+                        model={editor.model}
+                        selection={editor.selection}
+                      />
+                      <MarqueeOverlay interaction={editor.selectionInteraction} />
+                    </>
                   ),
                   selectionInteraction: editor.selectionInteraction,
                 })}
@@ -148,7 +155,13 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       statusScope={runtimeLabel}
       statusTone={view.statusTone}
       viewportControls={
-        <ViewportZoomControls boardBounds={boardBounds} camera={camera} platform={platform} />
+        <ViewportZoomControls
+          boardBounds={boardBounds}
+          camera={camera}
+          platform={platform}
+          sceneModel={editor.model}
+          selection={editor.selection}
+        />
       }
     />
   );

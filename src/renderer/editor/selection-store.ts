@@ -35,6 +35,8 @@ export class SelectionStore {
 
   getSnapshot = (): SelectionSnapshot => this.#snapshot;
 
+  getRevisionSnapshot = (): number => this.#snapshot.revision;
+
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
