@@ -85,8 +85,8 @@ export type HistoryOperationResult =
 
 const asHistoryStateId = (value: number): HistoryStateId => value as HistoryStateId;
 
-export const asHistorySaveTokenId = (value: number): HistorySaveTokenId =>
-  value as HistorySaveTokenId;
+export const createHistorySaveTokenId = (value: number): HistorySaveTokenId | undefined =>
+  Number.isSafeInteger(value) && value >= 1 ? (value as HistorySaveTokenId) : undefined;
 
 export const createDocumentHistory = (
   document: ProjectDocument,

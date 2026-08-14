@@ -1,11 +1,36 @@
 import { useEffect, useState } from 'react';
 
+import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import { AppShell } from '../shell/AppShell';
+import { useProjectSession } from '../projects/use-project-session';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
 const getPlatformLabel = (platform: 'darwin' | 'win32'): string =>
   platform === 'darwin' ? 'macOS' : 'Windows';
+
+interface ProjectWorkspaceProps {
+  readonly quickAddShortcut: string;
+  readonly runtimeLabel: string;
+}
+
+const ProjectWorkspace = ({ quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
+  const packagedProbeEnabled =
+    new URLSearchParams(window.location.search).get(projectWorkflowProbeContract.queryKey) ===
+    projectWorkflowProbeContract.queryValue;
+  const project = useProjectSession(window.balsamicDesktop, {
+    ...(packagedProbeEnabled ? { packagedProbeNote: projectWorkflowProbeContract.note } : {}),
+  });
+  return (
+    <AppShell
+      projectName={project.displayName}
+      quickAddShortcut={quickAddShortcut}
+      statusLabel={project.statusLabel}
+      statusScope={runtimeLabel}
+      statusTone={project.statusTone}
+    />
+  );
+};
 
 export const App = () => {
   const runtime = useRuntimeInfo();
@@ -41,8 +66,8 @@ export const App = () => {
     return (
       <AppShell
         quickAddShortcut="Ctrl/Cmd K"
-        runtimeLabel="Connecting to desktop…"
-        runtimeTone="quiet"
+        statusLabel="Connecting to desktop…"
+        statusTone="quiet"
       />
     );
   }
@@ -51,8 +76,8 @@ export const App = () => {
     return (
       <AppShell
         quickAddShortcut="Ctrl/Cmd K"
-        runtimeLabel="Desktop bridge unavailable"
-        runtimeTone="problem"
+        statusLabel="Desktop bridge unavailable"
+        statusTone="problem"
       />
     );
   }
@@ -61,10 +86,9 @@ export const App = () => {
   const mode = isPackaged ? 'Packaged' : 'Development';
 
   return (
-    <AppShell
+    <ProjectWorkspace
       quickAddShortcut={platform === 'darwin' ? '⌘ K' : 'Ctrl K'}
       runtimeLabel={`${getPlatformLabel(platform)} · ${arch} · v${appVersion} · ${mode}`}
-      runtimeTone="ready"
     />
   );
 };

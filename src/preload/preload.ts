@@ -3,9 +3,40 @@ import { contextBridge, ipcRenderer } from 'electron';
 import {
   DESKTOP_CHANNELS,
   type DesktopApi,
+  type ProjectCloseOutcome,
+  type ProjectCloseRequest,
+  type ProjectCloseResponse,
+  type ProjectCommand,
+  type ProjectHistorySnapshotRequest,
+  type ProjectRecoverySnapshotRequest,
+  type ProjectStartRequest,
   isDesktopAcknowledgement,
+  isProjectCloseOutcome,
+  isProjectCloseRequest,
+  isProjectCloseResponse,
+  isProjectCommand,
+  isProjectHistorySnapshotRequest,
+  isProjectOpenedResult,
+  isProjectRecoveryScheduledResult,
+  isProjectRecoverySnapshotRequest,
+  isProjectSavedResult,
+  isProjectStartRequest,
   isRuntimeInfo,
 } from '../shared/desktop-api';
+
+const createValidatedListener = <Value>(
+  channel: string,
+  isValue: (value: unknown) => value is Value,
+  listener: (value: Value) => void,
+): (() => void) => {
+  const handler = (_event: Electron.IpcRendererEvent, value: unknown): void => {
+    if (isValue(value)) {
+      listener(value);
+    }
+  };
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
 
 const desktopApi: DesktopApi = Object.freeze({
   async getRuntimeInfo() {
@@ -14,6 +45,72 @@ const desktopApi: DesktopApi = Object.freeze({
       throw new Error('The desktop runtime returned an invalid response.');
     }
 
+    return response;
+  },
+  onProjectCloseOutcome(listener: (outcome: ProjectCloseOutcome) => void) {
+    return createValidatedListener(
+      DESKTOP_CHANNELS.projectCloseOutcome,
+      isProjectCloseOutcome,
+      listener,
+    );
+  },
+  onProjectCloseRequest(listener: (request: ProjectCloseRequest) => void) {
+    return createValidatedListener(
+      DESKTOP_CHANNELS.projectCloseRequest,
+      isProjectCloseRequest,
+      listener,
+    );
+  },
+  onProjectCommand(listener: (command: ProjectCommand) => void) {
+    return createValidatedListener(DESKTOP_CHANNELS.projectCommand, isProjectCommand, listener);
+  },
+  respondToProjectClose(response: ProjectCloseResponse) {
+    if (!isProjectCloseResponse(response)) {
+      throw new TypeError('The project close response is invalid.');
+    }
+    ipcRenderer.send(DESKTOP_CHANNELS.projectCloseResponse, response);
+  },
+  async saveProject(request: ProjectHistorySnapshotRequest) {
+    if (!isProjectHistorySnapshotRequest(request)) {
+      throw new TypeError('The project save request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.projectSave, request);
+    if (!isProjectSavedResult(response)) {
+      throw new Error('The desktop runtime returned an invalid project save result.');
+    }
+    return response;
+  },
+  async saveProjectAs(request: ProjectHistorySnapshotRequest) {
+    if (!isProjectHistorySnapshotRequest(request)) {
+      throw new TypeError('The project Save As request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.projectSaveAs, request);
+    if (!isProjectSavedResult(response)) {
+      throw new Error('The desktop runtime returned an invalid project Save As result.');
+    }
+    return response;
+  },
+  async scheduleProjectRecovery(request: ProjectRecoverySnapshotRequest) {
+    if (!isProjectRecoverySnapshotRequest(request)) {
+      throw new TypeError('The project recovery request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(
+      DESKTOP_CHANNELS.projectScheduleRecovery,
+      request,
+    );
+    if (!isProjectRecoveryScheduledResult(response)) {
+      throw new Error('The desktop runtime returned an invalid project recovery result.');
+    }
+    return response;
+  },
+  async startProject(request: ProjectStartRequest) {
+    if (!isProjectStartRequest(request)) {
+      throw new TypeError('The new project request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.projectStart, request);
+    if (!isProjectOpenedResult(response)) {
+      throw new Error('The desktop runtime returned an invalid new project result.');
+    }
     return response;
   },
   async reportRendererReady() {

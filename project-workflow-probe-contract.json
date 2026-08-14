@@ -1,0 +1,12 @@
+{
+  "argument": "--balsamic-project-workflow-probe",
+  "marker": "BALSAMIC_PROJECT_WORKFLOW_OK",
+  "note": "Packaged renderer edit reached the reopened project.",
+  "processTimeoutMs": 30000,
+  "queryKey": "balsamic-project-workflow-probe",
+  "queryValue": "v1",
+  "rootArgument": "--balsamic-project-workflow-root",
+  "rootNamePrefix": "balsamic-packaged-project-workflow-",
+  "terminationTimeoutMs": 5000,
+  "userFileName": "accepted-project.probe"
+}

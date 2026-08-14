@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import type { HistorySaveSnapshot, ProjectDocument } from '../../domain';
+import type { HistorySaveSnapshot, HistoryStateId, ProjectDocument } from '../../domain';
 import type {
   RecentProjectSummary,
   UserOperationProblem,
@@ -23,13 +23,18 @@ export interface NativeOpenedProject {
   readonly assetsById: Readonly<Record<string, Uint8Array>>;
   readonly displayName: string;
   readonly document: ProjectDocument;
-  readonly source: 'project-file';
+  readonly source: 'new' | 'project-file' | 'recovery';
 }
 
 export interface NativeSavedProject {
   readonly displayName: string;
   readonly stateId: HistorySaveSnapshot['stateId'];
   readonly tokenId: HistorySaveSnapshot['tokenId'];
+}
+
+export interface NativeScheduledRecovery {
+  readonly scheduled: boolean;
+  readonly stateId: HistoryStateId;
 }
 
 export interface NativeClosedProject {
@@ -46,7 +51,7 @@ export interface NativeCloseRequest {
 }
 
 export type NativeProjectFailureReporter = (
-  scope: 'close' | 'open' | 'recent' | 'save',
+  scope: 'close' | 'open' | 'recent' | 'recovery' | 'save',
   error: unknown,
 ) => void;
 
@@ -135,6 +140,12 @@ const createCloseProblem = (): UserOperationProblem => ({
   message: 'The project remains open. Resolve the save or recovery problem and retry.',
 });
 
+const createRecoveryProblem = (): UserOperationProblem => ({
+  code: 'recovery-failed',
+  title: 'Recovery could not be prepared',
+  message: 'Keep the project open and retry before closing the app.',
+});
+
 const appendWarning = (warnings: UserOperationWarning[], warning: UserOperationWarning): void => {
   if (
     warnings.length < MAX_OPERATION_WARNINGS &&
@@ -168,6 +179,45 @@ export class ProjectNativeWorkflow {
     this.#lifecycle = options.lifecycle;
     this.#recentProjects = options.recentProjects;
     this.#reportFailure = options.reportFailure;
+  }
+
+  startNewProject(
+    document: ProjectDocument,
+    assetsById: Readonly<Record<string, Uint8Array>> = {},
+  ): Promise<UserOperationResult<NativeOpenedProject>> {
+    return this.#runExclusive('open', () => {
+      const started = this.#lifecycle.startNewProject(document, assetsById);
+      if (!started.ok) {
+        this.#reportFailure?.('open', started.error);
+        return Promise.resolve(failed<NativeOpenedProject>(createOpenProblem(started.error)));
+      }
+      return Promise.resolve(
+        completed(
+          Object.freeze({
+            assetsById: started.value.assetsById,
+            displayName: document.name,
+            document: started.value.document,
+            source: 'new' as const,
+          }),
+        ),
+      );
+    });
+  }
+
+  scheduleRecovery(
+    document: ProjectDocument,
+    stateId: HistoryStateId,
+    assetsById: Readonly<Record<string, Uint8Array>> = {},
+  ): Promise<UserOperationResult<NativeScheduledRecovery>> {
+    const scheduled = this.#lifecycle.scheduleRecovery(
+      Object.freeze({ document, stateId }),
+      assetsById,
+    );
+    if (!scheduled.ok) {
+      this.#reportFailure?.('recovery', scheduled.error);
+      return Promise.resolve(failed<NativeScheduledRecovery>(createRecoveryProblem()));
+    }
+    return Promise.resolve(completed(Object.freeze({ scheduled: scheduled.scheduled, stateId })));
   }
 
   openFromDialog(): Promise<UserOperationResult<NativeOpenedProject>> {

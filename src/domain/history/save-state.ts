@@ -1,6 +1,6 @@
 import type { ProjectDocument } from '../document/validation';
 import {
-  asHistorySaveTokenId,
+  createHistorySaveTokenId,
   createHistoryRevision,
   type DocumentHistoryState,
   type HistorySaveTokenId,
@@ -56,7 +56,17 @@ export const beginDocumentHistorySave = (history: DocumentHistoryState): BeginHi
     };
   }
 
-  const tokenId = asHistorySaveTokenId(history.nextSaveTokenId);
+  const tokenId = createHistorySaveTokenId(history.nextSaveTokenId);
+  if (tokenId === undefined) {
+    return {
+      ok: false,
+      history,
+      error: {
+        code: 'save-token-exhausted',
+        message: 'The history save-token range is exhausted.',
+      },
+    };
+  }
   const pendingSave: PendingHistorySave = Object.freeze({
     document: history.document,
     stateId: history.currentStateId,

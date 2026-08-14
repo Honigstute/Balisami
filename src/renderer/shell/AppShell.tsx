@@ -1,11 +1,13 @@
 import { FoundationMark, Icon, type IconName } from './Icon';
 
-export type RuntimeTone = 'problem' | 'quiet' | 'ready';
+export type StatusTone = 'problem' | 'quiet' | 'ready';
 
 interface AppShellProps {
+  readonly projectName?: string;
   readonly quickAddShortcut: string;
-  readonly runtimeLabel: string;
-  readonly runtimeTone: RuntimeTone;
+  readonly statusLabel: string;
+  readonly statusScope?: string;
+  readonly statusTone: StatusTone;
 }
 
 const categories = [
@@ -39,14 +41,20 @@ const LibraryPlaceholders = () => (
   </div>
 );
 
-export const AppShell = ({ quickAddShortcut, runtimeLabel, runtimeTone }: AppShellProps) => (
+export const AppShell = ({
+  projectName = 'Untitled project',
+  quickAddShortcut,
+  statusLabel,
+  statusScope = 'Foundation · local-first',
+  statusTone,
+}: AppShellProps) => (
   <div className="app-shell" data-testid="app-shell">
     <header className="command-bar">
       <div className="project-identity">
         <FoundationMark />
         <div className="project-identity__copy">
           <span className="project-identity__app">Balsamic</span>
-          <span className="project-identity__project">Untitled project</span>
+          <span className="project-identity__project">{projectName}</span>
         </div>
       </div>
 
@@ -65,10 +73,10 @@ export const AppShell = ({ quickAddShortcut, runtimeLabel, runtimeTone }: AppShe
       </div>
     </header>
 
-    <div className={`status-bar status-bar--${runtimeTone}`} role="status">
+    <div className={`status-bar status-bar--${statusTone}`} role="status">
       <span className="status-bar__indicator" />
-      <span className="status-bar__label">{runtimeLabel}</span>
-      <span className="status-bar__scope">Foundation · local-first</span>
+      <span className="status-bar__label">{statusLabel}</span>
+      <span className="status-bar__scope">{statusScope}</span>
     </div>
 
     <nav aria-label="Control categories" className="category-bar">

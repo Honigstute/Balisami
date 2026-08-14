@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/renderer/app/App';
 import type { DesktopApi } from '../src/shared/desktop-api';
+import { createAssetFreeProjectDocument } from './fixtures/project-file';
 
 const installDesktopApi = (desktopApi: DesktopApi): void => {
   Object.defineProperty(window, 'balsamicDesktop', {
@@ -11,20 +12,47 @@ const installDesktopApi = (desktopApi: DesktopApi): void => {
   });
 };
 
+const createDesktopApi = (overrides: Partial<DesktopApi> = {}): DesktopApi => {
+  const document = createAssetFreeProjectDocument();
+  return {
+    getRuntimeInfo: vi.fn().mockResolvedValue({
+      appVersion: '0.1.0',
+      arch: 'arm64',
+      isPackaged: false,
+      platform: 'darwin',
+    }),
+    onProjectCloseOutcome: () => () => undefined,
+    onProjectCloseRequest: () => () => undefined,
+    onProjectCommand: () => () => undefined,
+    reportRendererReady: vi.fn().mockResolvedValue(undefined),
+    respondToProjectClose: () => undefined,
+    saveProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
+    saveProjectAs: vi.fn().mockResolvedValue({ status: 'cancelled' }),
+    scheduleProjectRecovery: vi.fn().mockResolvedValue({
+      status: 'completed',
+      value: { scheduled: true, stateId: 0 },
+      warnings: [],
+    }),
+    startProject: vi.fn().mockResolvedValue({
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: document.name,
+        document,
+        source: 'new',
+      },
+      warnings: [],
+    }),
+    ...overrides,
+  };
+};
+
 describe('application shell', () => {
   let reportRendererReady: DesktopApi['reportRendererReady'];
 
   beforeEach(() => {
     reportRendererReady = vi.fn<DesktopApi['reportRendererReady']>().mockResolvedValue(undefined);
-    installDesktopApi({
-      getRuntimeInfo: vi.fn().mockResolvedValue({
-        appVersion: '0.1.0',
-        arch: 'arm64',
-        isPackaged: false,
-        platform: 'darwin',
-      }),
-      reportRendererReady,
-    });
+    installDesktopApi(createDesktopApi({ reportRendererReady }));
   });
 
   it('renders every stable shell region', async () => {
@@ -40,6 +68,10 @@ describe('application shell', () => {
     await waitFor(() => {
       expect(screen.getByText('macOS · arm64 · v0.1.0 · Development')).toBeInTheDocument();
     });
+    await waitFor(() => {
+      expect(screen.getByText('Unsaved changes · Recovery active')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Foundation fixture')).toBeInTheDocument();
     expect(screen.getByText('⌘ K')).toBeInTheDocument();
     await waitFor(() => {
       expect(reportRendererReady).toHaveBeenCalledOnce();
@@ -47,15 +79,17 @@ describe('application shell', () => {
   });
 
   it('uses the Windows shortcut label when the desktop reports Windows', async () => {
-    installDesktopApi({
-      getRuntimeInfo: vi.fn().mockResolvedValue({
-        appVersion: '0.1.0',
-        arch: 'x64',
-        isPackaged: true,
-        platform: 'win32',
+    installDesktopApi(
+      createDesktopApi({
+        getRuntimeInfo: vi.fn().mockResolvedValue({
+          appVersion: '0.1.0',
+          arch: 'x64',
+          isPackaged: true,
+          platform: 'win32',
+        }),
+        reportRendererReady: vi.fn().mockResolvedValue(undefined),
       }),
-      reportRendererReady: vi.fn().mockResolvedValue(undefined),
-    });
+    );
 
     render(<App />);
 
@@ -76,10 +110,12 @@ describe('application shell', () => {
 
   it('uses the reserved status strip when the bridge fails', async () => {
     reportRendererReady = vi.fn<DesktopApi['reportRendererReady']>().mockResolvedValue(undefined);
-    installDesktopApi({
-      getRuntimeInfo: vi.fn().mockRejectedValue(new Error('Bridge unavailable')),
-      reportRendererReady,
-    });
+    installDesktopApi(
+      createDesktopApi({
+        getRuntimeInfo: vi.fn().mockRejectedValue(new Error('Bridge unavailable')),
+        reportRendererReady,
+      }),
+    );
 
     render(<App />);
 
@@ -91,15 +127,17 @@ describe('application shell', () => {
   });
 
   it('keeps renderer-readiness failure inside the reserved status strip', async () => {
-    installDesktopApi({
-      getRuntimeInfo: vi.fn().mockResolvedValue({
-        appVersion: '0.1.0',
-        arch: 'arm64',
-        isPackaged: true,
-        platform: 'darwin',
+    installDesktopApi(
+      createDesktopApi({
+        getRuntimeInfo: vi.fn().mockResolvedValue({
+          appVersion: '0.1.0',
+          arch: 'arm64',
+          isPackaged: true,
+          platform: 'darwin',
+        }),
+        reportRendererReady: vi.fn().mockRejectedValue(new Error('Readiness rejected')),
       }),
-      reportRendererReady: vi.fn().mockRejectedValue(new Error('Readiness rejected')),
-    });
+    );
 
     render(<App />);
 

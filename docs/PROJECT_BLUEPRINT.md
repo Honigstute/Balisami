@@ -396,6 +396,14 @@ identity, and the scheduler. Starting another project always requires an explici
 Restoring never promotes the pointer's source-file metadata into an authorized destination: the
 restored session has no chosen file path until the user completes Save As.
 
+One renderer `ProjectSession` is the live document/history authority for its window. It creates or
+accepts a domain-validated document, owns save-token allocation and resolution, schedules immutable
+recovery snapshots after accepted commands, and exposes a stable external-store view to React.
+Project documents remain opaque in the shared/preload contract so the domain parser stays their only
+schema owner. Preload checks exact path-free DTO shapes; main parses the document again, brands state
+and token IDs, bounds and copies asset bytes, and rejects unexpected keys before invoking native
+workflow code. No filesystem path, raw Electron response, or technical rejection crosses back.
+
 User saves still begin in domain history and cross the main boundary as immutable
 `{document,stateId,tokenId}` snapshots. A successful write returns the same receipt plus the exact
 archive length and SHA-256 from the bytes that reached disk. The session then flushes pending
@@ -423,8 +431,11 @@ file-not-found result. Malformed metadata is preserved and reported rather than 
 Unsaved close has exactly three native decisions: Save, Cancel, and Don't Save. Cancel, including a
 cancelled Save As, leaves the session active. Save must durably complete before close; a save failure
 also leaves the session active. Don't Save explicitly discards the known recovery point before the
-session is released. The future window/renderer bridge must freeze or recheck editor history while
-this decision is pending so a newer edit cannot be mistaken for the snapshot the user approved.
+session is released. The window close coordinator sends one opaque request ID; the renderer freezes
+new commands before capturing dirty state and its save token, then unlocks and rejects that exact
+token only if main reports cancellation or failure. Duplicate close attempts cannot open duplicate
+dialogs. If the renderer is gone, main flushes the last snapshot it accepted and retains recovery
+before authorizing the native window to close.
 
 Normal close flushes and retains the latest recovery; a failed flush reopens scheduling so close can
 be retried rather than stranding a half-closed session. Explicit discard cancels work not yet begun,
@@ -563,6 +574,13 @@ If a budget fails, profile before changing rendering technology. Caching, cullin
 
 Packaged smoke readiness is an explicit renderer-to-main handshake through the allowlisted preload API. A smoke pass requires the React shell to mount, runtime IPC to validate, the trusted renderer to report ready, and a short stabilization interval to remain free of load failures, preload failures, renderer crashes/unresponsiveness, and console warnings/errors. The passing run captures the rendered window, and CI uploads it per operating system for visual review. Merely resolving `BrowserWindow.loadURL()` is not sufficient evidence.
 
+The packaged project-workflow probe uses the real renderer, preload, trusted IPC, history session,
+main controller, persistence workflow, and native close handshake. Inside a fresh real-path-confined
+OS-temp `userData` root, the renderer creates a project, accepts a command, saves to one fixed safe
+probe file through injected dialogs, and closes normally. Main then reopens that file through a new
+lifecycle and verifies the exact edit. The external owner requires a clean exit, exact marker, empty
+stderr, and non-empty file; the test hook cannot target an ordinary user or project directory.
+
 ### 13.2 Required visual matrix
 
 - No selection, each representative inspector schema, and multi-selection.
@@ -605,6 +623,7 @@ A feature is done only when:
 | D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts     | Accepted                                  |
 | D-013 | Brand-neutral deterministic v1 logical file entries        | Keep schema, assets, tests, and future archive adapters stable while the public product name and extension can change | Accepted                                  |
 | D-014 | Pinned asynchronous `fflate` ZIP adapter                   | Produce portable deterministic archives without blocking the renderer or implementing security-sensitive ZIP logic    | Accepted                                  |
+| D-015 | Renderer-owned project history with opaque validated IPC   | Keep one live document authority while main exclusively owns paths, dialogs, durability, recovery, and native close   | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 
