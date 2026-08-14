@@ -405,6 +405,27 @@ save completes after a newer edit, the newer recovery digest differs and remains
 or cleanup failure is a bounded warning on an otherwise successful user save, never a false save
 failure.
 
+Electron owns project path selection through one window-scoped native-dialog adapter. Open and Save
+As cancellations are ordinary outcomes, not errors; malformed native responses fail without changing
+the active session. Suggested names are bounded and safe on macOS and Windows, but the dialog does not
+invent a public extension or file filter before that product decision is recorded. One exclusive
+main-process workflow coordinates open, save, Save As, recent projects, and close. Its renderer-facing
+result vocabulary contains completed, cancelled, or one stable problem plus at most three deduplicated
+warnings. It never returns filesystem paths, native exceptions, archive details, or recovery paths;
+technical causes go only to the structured main-process reporter.
+
+Recent projects are non-authoritative versioned metadata under `userData`. The canonical file is
+bounded to 64 KiB and 20 newest-first entries, uses opaque path-derived IDs outside the main process,
+serializes mutations, and is replaced atomically. A successful open or save remains successful if
+this convenience list cannot update. Missing recent targets are forgotten only after an actual
+file-not-found result. Malformed metadata is preserved and reported rather than silently overwritten.
+
+Unsaved close has exactly three native decisions: Save, Cancel, and Don't Save. Cancel, including a
+cancelled Save As, leaves the session active. Save must durably complete before close; a save failure
+also leaves the session active. Don't Save explicitly discards the known recovery point before the
+session is released. The future window/renderer bridge must freeze or recheck editor history while
+this decision is pending so a newer edit cannot be mistaken for the snapshot the user approved.
+
 Normal close flushes and retains the latest recovery; a failed flush reopens scheduling so close can
 be retried rather than stranding a half-closed session. Explicit discard cancels work not yet begun,
 waits for any active write, and conditionally clears the exact known pointer. Cleanup residue is a

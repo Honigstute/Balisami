@@ -4,6 +4,7 @@ import {
   type ProjectFileServiceError,
   type SavedProjectHistorySnapshot,
 } from '../files/project-file-service';
+import { isValidApplicationDataRoot } from '../files/path-validation';
 import {
   RecoveryAutosaveScheduler,
   type RecoveryAutosaveClock,
@@ -13,7 +14,6 @@ import {
 } from '../recovery/recovery-autosave-scheduler';
 import {
   clearRecoverySnapshot,
-  isValidRecoveryRoot,
   writeRecoverySnapshot,
   type ProjectRecoverySnapshot,
   type RecoveryOperationError,
@@ -142,7 +142,7 @@ export class ProjectPersistenceSession {
         : RecoveryPointerV1Schema.safeParse(options.initialRecoveryPointer);
     if (
       !projectId.success ||
-      !isValidRecoveryRoot(options.recoveryRoot) ||
+      !isValidApplicationDataRoot(options.recoveryRoot) ||
       (options.initialFilePath !== undefined &&
         options.initialFilePath !== null &&
         typeof options.initialFilePath !== 'string') ||

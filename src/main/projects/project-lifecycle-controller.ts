@@ -4,6 +4,7 @@ import {
   type OpenProjectFileResult,
   type ProjectFileServiceError,
 } from '../files/project-file-service';
+import { isValidApplicationDataRoot } from '../files/path-validation';
 import {
   ProjectPersistenceSession,
   type CloseProjectSessionResult,
@@ -18,7 +19,6 @@ import type { RecoveryAutosaveClock } from '../recovery/recovery-autosave-schedu
 import {
   clearRecoverySnapshot,
   discoverRecoverySnapshots,
-  isValidRecoveryRoot,
   loadRecoverySnapshot,
   recoveryPointersAreEqual,
   type DiscoverRecoverySnapshotsResult,
@@ -115,7 +115,7 @@ export class ProjectLifecycleController {
   #activeSession: ProjectPersistenceSession | undefined;
 
   constructor(options: ProjectLifecycleControllerOptions) {
-    if (!isValidRecoveryRoot(options.recoveryRoot)) {
+    if (!isValidApplicationDataRoot(options.recoveryRoot)) {
       throw new RangeError('Project lifecycle recovery root is invalid.');
     }
     this.#recoveryRoot = options.recoveryRoot;

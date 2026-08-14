@@ -9,6 +9,7 @@ import {
   type AtomicReplaceOperations,
   type AtomicReplaceWarning,
 } from './atomic-replace';
+import { isValidAbsoluteNonRootPath } from './path-validation';
 
 export type ProjectFileStorageErrorCode =
   | 'directory-sync-failed'
@@ -51,13 +52,6 @@ const isNodeErrorCode = (error: unknown, code: string): boolean =>
   error !== null &&
   'code' in error &&
   (error as { readonly code?: unknown }).code === code;
-
-const isValidAbsoluteFilePath = (filePath: unknown): filePath is string =>
-  typeof filePath === 'string' &&
-  filePath.length > 0 &&
-  !filePath.includes('\0') &&
-  path.isAbsolute(filePath) &&
-  filePath !== path.parse(filePath).root;
 
 const createSiblingWorkPath = (targetPath: string, role: 'backup' | 'temporary'): string => {
   const token = randomBytes(12).toString('hex');
@@ -119,7 +113,7 @@ export const readBoundedFile = async (
   filePath: unknown,
   maxBytes: number,
 ): Promise<ReadProjectArchiveResult> => {
-  if (!isValidAbsoluteFilePath(filePath)) {
+  if (!isValidAbsoluteNonRootPath(filePath)) {
     return fail({
       code: 'invalid-file-path',
       message: 'A project file path must be an absolute file path.',
@@ -179,7 +173,7 @@ export const writeBoundedFileAtomically = async (
   input: unknown,
   maxBytes: number,
 ): Promise<WriteProjectArchiveResult> => {
-  if (!isValidAbsoluteFilePath(targetPath)) {
+  if (!isValidAbsoluteNonRootPath(targetPath)) {
     return fail({
       code: 'invalid-file-path',
       message: 'A project file path must be an absolute file path.',

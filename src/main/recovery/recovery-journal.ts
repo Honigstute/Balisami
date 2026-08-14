@@ -22,6 +22,7 @@ import {
   writeBoundedFileAtomically,
   type ProjectFileStorageError,
 } from '../files/project-file-storage';
+import { isValidApplicationDataRoot } from '../files/path-validation';
 import {
   MAX_RECOVERY_POINTER_BYTES,
   RECOVERY_FORMAT_ID,
@@ -136,13 +137,6 @@ export type ClearRecoverySnapshotResult =
 const fail = <ErrorType extends RecoveryOperationError>(
   error: ErrorType,
 ): { readonly ok: false; readonly error: ErrorType } => ({ ok: false, error });
-
-export const isValidRecoveryRoot = (value: unknown): value is string =>
-  typeof value === 'string' &&
-  value.length > 0 &&
-  !value.includes('\0') &&
-  path.isAbsolute(value) &&
-  value !== path.parse(value).root;
 
 const isNodeErrorCode = (error: unknown, code: string): boolean =>
   typeof error === 'object' &&
@@ -438,7 +432,7 @@ export const writeRecoverySnapshot = async (
   assetsById: Readonly<Record<string, Uint8Array>> = {},
   options: WriteRecoverySnapshotOptions = {},
 ): Promise<WriteRecoverySnapshotResult> => {
-  if (!isValidRecoveryRoot(recoveryRoot)) {
+  if (!isValidApplicationDataRoot(recoveryRoot)) {
     return fail({
       code: 'invalid-recovery-root',
       message: 'The recovery root must be an absolute application-data directory.',
@@ -467,7 +461,7 @@ const createEmptyRecoveryDiscovery = (): RecoveryDiscovery =>
 export const discoverRecoverySnapshots = async (
   recoveryRoot: unknown,
 ): Promise<DiscoverRecoverySnapshotsResult> => {
-  if (!isValidRecoveryRoot(recoveryRoot)) {
+  if (!isValidApplicationDataRoot(recoveryRoot)) {
     return fail({
       code: 'invalid-recovery-root',
       message: 'The recovery root must be an absolute application-data directory.',
@@ -617,7 +611,7 @@ export const clearRecoverySnapshot = async (
   recoveryRoot: unknown,
   expectedPointerInput: unknown,
 ): Promise<ClearRecoverySnapshotResult> => {
-  if (!isValidRecoveryRoot(recoveryRoot)) {
+  if (!isValidApplicationDataRoot(recoveryRoot)) {
     return fail({
       code: 'invalid-recovery-root',
       message: 'The recovery root must be an absolute application-data directory.',
@@ -696,7 +690,7 @@ export const loadRecoverySnapshot = async (
   recoveryRoot: unknown,
   projectIdInput: unknown,
 ): Promise<LoadRecoverySnapshotResult> => {
-  if (!isValidRecoveryRoot(recoveryRoot)) {
+  if (!isValidApplicationDataRoot(recoveryRoot)) {
     return fail({
       code: 'invalid-recovery-root',
       message: 'The recovery root must be an absolute application-data directory.',
