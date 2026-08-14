@@ -11,6 +11,7 @@ import {
   createDeviceScale,
   createViewportSize,
   createViewportTransform,
+  createViewportVector,
   createViewportZoom,
   viewportPointToWorld,
 } from '../src/renderer/editor/viewport-transform';
@@ -93,6 +94,37 @@ describe('viewport camera store', () => {
     expect(finalWorldPoint.x).toBe(initialWorldPoint.x);
     expect(finalWorldPoint.y).toBe(initialWorldPoint.y);
     expect(store.getTransformSnapshot().zoom).toBe(2);
+  });
+
+  it('accumulates relative wheel zoom and pan against pending camera state', () => {
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const anchor = createViewportPoint(500, 300);
+    const initialWorldPoint = viewportPointToWorld(anchor, store.getTransformSnapshot());
+
+    store.scheduleZoomByFactor(1.25, anchor);
+    store.scheduleZoomByFactor(1.2, anchor);
+    store.scheduleTranslation(createViewportVector(40, -20));
+    scheduler.flushNext();
+
+    expect(store.getTransformSnapshot().zoom).toBe(1.5);
+    expect(store.getTransformSnapshot().pan).toMatchObject({ x: -210, y: -170 });
+    const translatedAnchorWorldPoint = viewportPointToWorld(
+      createViewportPoint(anchor.x + 40, anchor.y - 20),
+      store.getTransformSnapshot(),
+    );
+    expect(translatedAnchorWorldPoint).toEqual(initialWorldPoint);
+    expect(scheduler.requestCount).toBe(1);
+  });
+
+  it('rejects invalid relative zoom factors before scheduling work', () => {
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const anchor = createViewportPoint(500, 300);
+
+    expect(() => store.scheduleZoomByFactor(0, anchor)).toThrow(RangeError);
+    expect(() => store.scheduleZoomByFactor(Number.NaN, anchor)).toThrow(RangeError);
+    expect(scheduler.requestCount).toBe(0);
   });
 
   it('coalesces a pending transform and resize without reading stale published state', () => {

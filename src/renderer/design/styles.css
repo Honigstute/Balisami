@@ -469,7 +469,16 @@ p {
 }
 
 .editor-viewport {
+  cursor: default;
   overflow: hidden;
+}
+
+.editor-viewport[data-pan-state='ready'] {
+  cursor: grab;
+}
+
+.editor-viewport[data-pan-state='active'] {
+  cursor: grabbing;
 }
 
 .editor-scene {

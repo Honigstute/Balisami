@@ -1,10 +1,13 @@
 import { reframeViewportOnResize, type ViewportFramingRequest } from './viewport-framing';
 import {
+  clampViewportZoom,
   setViewportZoomAtPoint,
+  translateViewport,
   type DeviceScale,
   type ViewportPoint,
   type ViewportSize,
   type ViewportTransform,
+  type ViewportVector,
   type ViewportZoom,
 } from './viewport-transform';
 
@@ -119,6 +122,33 @@ export class ViewportCameraStore {
     this.#schedule({
       deviceScale: base.deviceScale,
       transform: setViewportZoomAtPoint(base.transform, zoom, anchor),
+      viewport: base.viewport,
+    });
+  }
+
+  /** Applies relative wheel/pinch zoom against the latest pending camera. */
+  scheduleZoomByFactor(factor: number, anchor: ViewportPoint): void {
+    if (!Number.isFinite(factor) || factor <= 0) {
+      throw new RangeError('Viewport zoom factor must be finite and positive.');
+    }
+    const base = this.#getPendingOrCurrent();
+    this.#schedule({
+      deviceScale: base.deviceScale,
+      transform: setViewportZoomAtPoint(
+        base.transform,
+        clampViewportZoom(base.transform.zoom * factor),
+        anchor,
+      ),
+      viewport: base.viewport,
+    });
+  }
+
+  /** Applies relative wheel pan against the latest pending camera. */
+  scheduleTranslation(delta: ViewportVector): void {
+    const base = this.#getPendingOrCurrent();
+    this.#schedule({
+      deviceScale: base.deviceScale,
+      transform: translateViewport(base.transform, delta),
       viewport: base.viewport,
     });
   }

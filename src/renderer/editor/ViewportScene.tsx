@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from './scene-layers';
 import type { ViewportCameraStore } from './viewport-camera-store';
+import { ViewportInputController } from './viewport-input';
 import { createDeviceScale, createViewportSize } from './viewport-transform';
 
 interface ViewportSceneProps {
@@ -95,8 +96,25 @@ export const ViewportScene = ({
     };
   }, [camera]);
 
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (root === null) {
+      return;
+    }
+    const input = new ViewportInputController(root, camera);
+    input.connect();
+    return () => input.disconnect();
+  }, [camera]);
+
   return (
-    <div className="editor-viewport" data-camera-revision="0" ref={rootRef}>
+    <div
+      aria-label="Interactive canvas"
+      className="editor-viewport"
+      data-camera-revision="0"
+      data-pan-state="idle"
+      ref={rootRef}
+      tabIndex={-1}
+    >
       <svg aria-hidden="true" className="editor-scene" focusable="false">
         <g {...{ [SCENE_LAYER_ATTRIBUTE]: SCENE_LAYERS.world }} ref={worldRef}>
           <g {...{ [SCENE_LAYER_ATTRIBUTE]: SCENE_LAYERS.background }} />
