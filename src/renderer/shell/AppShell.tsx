@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { SHELL_REGION_ATTRIBUTE, SHELL_REGIONS, type ShellRegion } from '../../shared/shell-layout';
 import { FoundationMark, Icon, type IconName } from './Icon';
 
 export type StatusTone = 'problem' | 'quiet' | 'ready';
@@ -33,6 +34,9 @@ const toolbarActions: ReadonlyArray<{ readonly label: string; readonly icon: Ico
   { label: 'Present', icon: 'presentation' },
 ];
 
+const shellRegion = (region: ShellRegion): Readonly<Record<string, string>> =>
+  Object.freeze({ [SHELL_REGION_ATTRIBUTE]: region });
+
 const LibraryPlaceholders = () => (
   <div aria-label="Control library is loading" className="library-placeholders" role="status">
     {Array.from({ length: 10 }, (_, index) => (
@@ -58,10 +62,11 @@ export const AppShell = ({
     {...(projectProbeState === undefined
       ? {}
       : { [projectProbeState.attributeName]: projectProbeState.value })}
+    {...shellRegion(SHELL_REGIONS.root)}
     className="app-shell"
     data-testid="app-shell"
   >
-    <header className="command-bar">
+    <header {...shellRegion(SHELL_REGIONS.command)} className="command-bar">
       <div className="project-identity">
         <FoundationMark />
         <div className="project-identity__copy">
@@ -85,13 +90,21 @@ export const AppShell = ({
       </div>
     </header>
 
-    <div className={`status-bar status-bar--${statusTone}`} role="status">
+    <div
+      {...shellRegion(SHELL_REGIONS.status)}
+      className={`status-bar status-bar--${statusTone}`}
+      role="status"
+    >
       <span className="status-bar__indicator" />
       <span className="status-bar__label">{statusLabel}</span>
       <span className="status-bar__scope">{statusScope}</span>
     </div>
 
-    <nav aria-label="Control categories" className="category-bar">
+    <nav
+      {...shellRegion(SHELL_REGIONS.categories)}
+      aria-label="Control categories"
+      className="category-bar"
+    >
       {categories.map((category, index) => (
         <button
           aria-current={index === 0 ? 'page' : undefined}
@@ -104,14 +117,22 @@ export const AppShell = ({
       ))}
     </nav>
 
-    <section aria-label="Control library" className="control-shelf">
+    <section
+      {...shellRegion(SHELL_REGIONS.shelf)}
+      aria-label="Control library"
+      className="control-shelf"
+    >
       <LibraryPlaceholders />
       <button aria-label="More controls" className="icon-button" disabled>
         <Icon name="more" />
       </button>
     </section>
 
-    <aside aria-label="Wireframes" className="navigator-panel">
+    <aside
+      {...shellRegion(SHELL_REGIONS.navigator)}
+      aria-label="Wireframes"
+      className="navigator-panel"
+    >
       <div className="panel-header">
         <h2>Wireframes</h2>
         <button aria-label="Wireframe options" className="icon-button" disabled>
@@ -129,7 +150,12 @@ export const AppShell = ({
       </div>
     </aside>
 
-    <main aria-label="Canvas viewport" className="canvas-viewport" data-testid="canvas-viewport">
+    <main
+      {...shellRegion(SHELL_REGIONS.canvas)}
+      aria-label="Canvas viewport"
+      className="canvas-viewport"
+      data-testid="canvas-viewport"
+    >
       <div className="canvas-empty">
         <div aria-hidden="true" className="canvas-empty__frame">
           <span className="canvas-empty__handle canvas-empty__handle--top-left" />
@@ -144,7 +170,11 @@ export const AppShell = ({
       </div>
     </main>
 
-    <aside aria-label="Inspector" className="inspector-panel">
+    <aside
+      {...shellRegion(SHELL_REGIONS.inspector)}
+      aria-label="Inspector"
+      className="inspector-panel"
+    >
       <div className="panel-header panel-header--inspector">
         <h2>Inspector</h2>
         <Icon name="chevron" />

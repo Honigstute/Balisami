@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/renderer/app/App';
 import type { DesktopApi } from '../src/shared/desktop-api';
+import { SHELL_REGION_ATTRIBUTE, SHELL_REGIONS } from '../src/shared/shell-layout';
 import { createAssetFreeProjectDocument } from './fixtures/project-file';
 
 const installDesktopApi = (desktopApi: DesktopApi): void => {
@@ -78,6 +79,9 @@ describe('application shell', () => {
     expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Inspector' })).toBeInTheDocument();
     expect(screen.getByRole('status', { name: 'Control library is loading' })).toBeInTheDocument();
+    for (const region of Object.values(SHELL_REGIONS)) {
+      expect(document.querySelectorAll(`[${SHELL_REGION_ATTRIBUTE}="${region}"]`)).toHaveLength(1);
+    }
 
     await waitFor(() => {
       expect(screen.getByText('macOS · arm64 · v0.1.0 · Development')).toBeInTheDocument();
@@ -150,6 +154,33 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: 'Start New and Keep Recovery' })).toBeEnabled();
     expect(screen.getByText(/damaged recovery item/u)).toBeInTheDocument();
     expect(startProject).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Restore' })).toHaveFocus();
+    });
+  });
+
+  it('keeps the shell mounted behind one bounded startup error overlay', async () => {
+    installDesktopApi(
+      createDesktopApi({
+        getProjectStartupOptions: vi.fn().mockResolvedValue({
+          status: 'failed',
+          problem: {
+            code: 'recovery-failed',
+            title: 'Recovery could not be checked',
+            message: 'Existing recovery files were not changed.',
+          },
+        }),
+      }),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Recovery could not be checked' }),
+    ).toHaveAccessibleDescription('Existing recovery files were not changed.');
+    expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Start New' })).toHaveFocus();
   });
 
   it('contains no enabled placeholder actions', () => {

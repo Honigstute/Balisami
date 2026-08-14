@@ -163,6 +163,13 @@ Depends on: M1; integrates with M3 status
 
 Objective: freeze layout grammar early so later features cannot make the interface jump or visually drift.
 
+Current progress (2026-08-14):
+
+- The shared visual contract now owns semantic application colors, the two bundled font roles and weights, four-pixel spacing, compact control geometry, pane defaults and bounds, reduced-motion timing, opacity, shadow, and ordered overlay tiers. Renderer CSS consumes those variables; an automated source guard rejects feature-local colors, numeric font weights, and numeric z-indexes.
+- The startup recovery, recent-project, and startup-failure chooser now uses reusable token-owned button, modal, heading, notice, bounded-list, row, and action primitives. Required decisions cannot be dismissed accidentally; dismissible dialogs handle Escape; modal focus enters deterministically, remains trapped, and returns to its prior owner.
+- Every fixed shell region has one stable semantic marker. A pure shared geometry contract derives its expected border box from the same tokens used by CSS and native window setup, and the packaged smoke test now resizes the real Electron content viewport to 1024×680 and 1440×900 and rejects any anchor error above 0.5 CSS pixel before capturing its screenshot.
+- Focused coverage proves unique shell anchors, center-only horizontal flexibility, invalid viewport rejection, recovery/startup-error overlays that leave the canvas mounted, two-font and token ownership, modal accessibility/focus behavior, and stable button tones. The full local 34-file/198-test source gate, package, fuse readback, geometry-aware smoke, create/edit/save/close/reopen workflow, and forced-crash ordinary-launch recovery all pass; the prior 531-byte user file remains byte-identical.
+
 Deliverables:
 
 - Tokenized typography, palette, spacing, controls, icons, pane sizes, motion, states, and overlay tiers.

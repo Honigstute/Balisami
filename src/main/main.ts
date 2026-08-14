@@ -36,6 +36,7 @@ import {
 } from './projects/project-workflow-probe-contract';
 import { ProjectWindowController } from './projects/project-window-controller';
 import { RecentProjectStore } from './recent/recent-project-store';
+import { verifyPackagedShellGeometry } from './shell-geometry-check';
 import { captureSmokeScreenshot } from './smoke-test';
 import { StartupHealthMonitor } from './startup-health';
 import { installWindowDiagnostics, type WindowProblem } from './window-diagnostics';
@@ -176,6 +177,8 @@ const runSmokeTest = async (window: BrowserWindow): Promise<void> => {
 
   await startupHealth.waitForRendererReady(smokeTestContract.readyTimeoutMs);
   await new Promise<void>((resolve) => setTimeout(resolve, smokeTestContract.settleMs));
+  startupHealth.assertHealthy();
+  await verifyPackagedShellGeometry(window);
   startupHealth.assertHealthy();
   const screenshotPath = await captureSmokeScreenshot(window, app.getPath('temp'));
   process.stdout.write(
