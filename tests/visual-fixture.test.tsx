@@ -59,6 +59,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
     expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
     expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
+    expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
     expect(getRequestedVisualFixture('?visualFixture=nudge')).toBe('nudge');
     expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
@@ -142,6 +143,15 @@ describe('visual conformance fixture contract', () => {
     expect(outline).toHaveAttribute('y', '302');
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an accepted delete result without leaving transient selection UI', () => {
+    const view = renderFixture('delete');
+
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toBeNull();
+    expect(screen.getByText('Visual fixture · delete')).toBeInTheDocument();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

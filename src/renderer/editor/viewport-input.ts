@@ -25,6 +25,9 @@ export const VIEWPORT_INPUT_POLICY = Object.freeze({
   zoomSensitivity: 0.002,
 });
 
+export const VIEWPORT_DELETE_KEYS = Object.freeze(['Delete', 'Backspace'] as const);
+export type ViewportDeleteKey = (typeof VIEWPORT_DELETE_KEYS)[number];
+
 export interface ViewportWheelInput {
   readonly clientX: number;
   readonly clientY: number;
@@ -40,6 +43,13 @@ export type ViewportWheelAction =
   | { readonly factor: number; readonly kind: 'zoom' }
   | { readonly deltaX: number; readonly deltaY: number; readonly kind: 'pan' };
 
+export interface ViewportInputControllerOptions {
+  readonly deleteSelection?: () => boolean;
+  readonly keyboardNudge?: KeyboardNudgeInteraction;
+  readonly selection?: SelectionStore;
+  readonly selectionInteraction?: SelectionInteraction;
+}
+
 interface ActivePan {
   readonly startFraming: ViewportFramingRequest;
   readonly pointerId: number;
@@ -51,6 +61,10 @@ interface ActivePan {
 const PIXEL_DELTA_MODE = 0;
 const LINE_DELTA_MODE = 1;
 const PAGE_DELTA_MODE = 2;
+const VIEWPORT_DELETE_KEY_SET = new Set<string>(VIEWPORT_DELETE_KEYS);
+
+export const isViewportDeleteKey = (code: string): code is ViewportDeleteKey =>
+  VIEWPORT_DELETE_KEY_SET.has(code);
 
 const clampWheelDelta = (value: number): number =>
   Math.max(
@@ -131,6 +145,7 @@ const shouldStartPan = (event: PointerEvent, spacePressed: boolean): boolean =>
  */
 export class ViewportInputController {
   readonly #camera: ViewportCameraStore;
+  readonly #deleteSelection: (() => boolean) | undefined;
   readonly #keyboardNudge: KeyboardNudgeInteraction | undefined;
   readonly #root: HTMLElement;
   readonly #selection: SelectionStore | undefined;
@@ -149,15 +164,14 @@ export class ViewportInputController {
   constructor(
     root: HTMLElement,
     camera: ViewportCameraStore,
-    selectionInteraction?: SelectionInteraction,
-    keyboardNudge?: KeyboardNudgeInteraction,
-    selection?: SelectionStore,
+    options: ViewportInputControllerOptions = {},
   ) {
     this.#root = root;
     this.#camera = camera;
-    this.#selectionInteraction = selectionInteraction;
-    this.#keyboardNudge = keyboardNudge;
-    this.#selection = selection;
+    this.#selectionInteraction = options.selectionInteraction;
+    this.#keyboardNudge = options.keyboardNudge;
+    this.#selection = options.selection;
+    this.#deleteSelection = options.deleteSelection;
   }
 
   connect(): void {
@@ -240,6 +254,9 @@ export class ViewportInputController {
         this.#updateSelectionState();
         return;
       }
+    }
+    if (isViewportDeleteKey(event.code) && this.#handleDeleteKeyDown(event)) {
+      return;
     }
     if (
       event.code === 'KeyA' &&
@@ -499,6 +516,27 @@ export class ViewportInputController {
     event.preventDefault();
     this.#hoveredResizeHandle = undefined;
     this.#updateSelectionState();
+    return true;
+  }
+
+  #handleDeleteKeyDown(event: KeyboardEvent): boolean {
+    if (
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      isEditableTarget(event.target) ||
+      this.#activePan !== undefined ||
+      this.#isKeyboardNudgeActive() ||
+      this.#spacePressed ||
+      (this.#selectionInteraction?.getSnapshot().kind ?? 'idle') !== 'idle'
+    ) {
+      return false;
+    }
+    event.preventDefault();
+    if (!event.repeat) {
+      this.#deleteSelection?.();
+    }
     return true;
   }
 

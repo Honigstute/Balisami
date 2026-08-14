@@ -10,6 +10,8 @@ import {
 } from '../src/domain';
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
+import { deleteSelectedElements } from '../src/renderer/editor/selection-delete';
+import { SelectionStore } from '../src/renderer/editor/selection-store';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
 import { ProjectSession } from '../src/renderer/projects/project-session';
 import type {
@@ -172,6 +174,47 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('commits one selection delete and reconciles only after ProjectSession accepts it', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const selection = new SelectionStore();
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      deleteSelectedElements(
+        document,
+        selection,
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+        {
+          commit: (commands) => {
+            const result = session.dispatchTransaction(commands, { label: 'Delete element' });
+            return result?.ok === true && result.changed ? result.history.document : undefined;
+          },
+        },
+      ),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Selection delete integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ elementId: DOCUMENT_FIXTURE_IDS.child, type: 'element.delete' }],
+      label: 'Delete element',
+    });
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toBeUndefined();
+    expect(selection.getSnapshot()).toMatchObject({ primaryId: undefined, selectedIds: [] });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
   it('commits one held-arrow nudge through ProjectSession and schedules one recovery point', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);

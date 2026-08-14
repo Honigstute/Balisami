@@ -4,7 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   ElementIdSchema,
+  DOCUMENT_COMMAND_TYPES,
   FOUNDATION_CONTROL_TYPES,
+  dispatchDocumentCommand,
   parseProjectDocument,
   type ProjectDocument,
 } from '../src/domain';
@@ -323,6 +325,67 @@ describe('document SVG scene', () => {
     expect(nudged).not.toHaveAttribute('transform');
     expect(unrelated).not.toHaveAttribute('transform');
     expect(sceneRenderCount).toBe(1);
+    camera.dispose();
+  });
+
+  it('removes a deleted keyed node without regenerating an unrelated sibling', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const document = parseMovePreviewFixture();
+    const model = new DocumentSceneModel();
+    const renderScene = (currentDocument: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={currentDocument}
+            model={model}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(document));
+    scheduler.flushNext();
+    const deletedSelector = `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`;
+    const unrelatedSelector = `[data-scene-element-id="${OTHER_ID}"]`;
+    const deleted = view.container.querySelector(deletedSelector);
+    const unrelated = view.container.querySelector<SVGGElement>(unrelatedSelector);
+    if (deleted === null || unrelated === null) {
+      throw new Error('Delete preview scene elements did not mount.');
+    }
+    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedRevision = unrelated.dataset.sceneRevision;
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.deleteElement,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('Delete preview command was not accepted.');
+    }
+
+    view.rerender(renderScene(result.document));
+    expect(view.container.querySelector(deletedSelector)).toBeNull();
+    expect(view.container.querySelector(unrelatedSelector)).toBe(unrelated);
+    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     camera.dispose();
   });
 

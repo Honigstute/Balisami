@@ -6,6 +6,7 @@ export const VISUAL_FIXTURE_NAMES = Object.freeze([
   'selection',
   'move',
   'resize',
+  'delete',
   'nudge',
   'marquee',
   'viewportZoom',

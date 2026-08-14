@@ -2,8 +2,10 @@ import { useState } from 'react';
 
 import {
   BoardIdSchema,
+  DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  dispatchDocumentCommand,
   parseProjectDocument,
   ProjectIdSchema,
   type ProjectDocument,
@@ -147,35 +149,48 @@ const createSceneFixtureDocument = (): {
   return Object.freeze({ boardId, document: result.value, selectedId: buttonId });
 };
 
-type SceneFixtureState = 'marquee' | 'move' | 'nudge' | 'plain' | 'resize' | 'selection';
+type SceneFixtureState = 'delete' | 'marquee' | 'move' | 'nudge' | 'plain' | 'resize' | 'selection';
 
 const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState }) => {
   const camera = useViewportCameraStore();
   const [fixture] = useState(createSceneFixtureDocument);
+  const [document] = useState(() => {
+    if (state !== 'delete') {
+      return fixture.document;
+    }
+    const result = dispatchDocumentCommand(fixture.document, {
+      type: DOCUMENT_COMMAND_TYPES.deleteElement,
+      elementId: fixture.selectedId,
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic delete visual fixture could not be created.');
+    }
+    return result.document;
+  });
   const [editor] = useState(() => {
     const model = new DocumentSceneModel();
-    model.reconcile(fixture.document, fixture.boardId);
+    model.reconcile(document, fixture.boardId);
     const selection = new SelectionStore();
     if (state === 'selection' || state === 'move' || state === 'nudge' || state === 'resize') {
       selection.selectOnly(fixture.selectedId);
     }
     const moveInteraction = new MoveInteraction(
       {
-        capture: (ids) => captureMoveTargets(fixture.document, ids),
+        capture: (ids) => captureMoveTargets(document, ids),
         commit: () => false,
       },
       createBrowserAnimationFrameScheduler(),
     );
     const keyboardNudgeInteraction = new KeyboardNudgeInteraction(
       {
-        capture: (ids) => captureMoveTargets(fixture.document, ids),
+        capture: (ids) => captureMoveTargets(document, ids),
         commit: () => false,
       },
       createBrowserAnimationFrameScheduler(),
     );
     const resizeInteraction = new ResizeInteraction(
       {
-        capture: (id) => captureResizeTarget(fixture.document, id),
+        capture: (id) => captureResizeTarget(document, id),
         commit: () => false,
       },
       createBrowserAnimationFrameScheduler(),
@@ -264,7 +279,7 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
         <DocumentScene
           activeBoardId={fixture.boardId}
           camera={camera}
-          document={fixture.document}
+          document={document}
           {...(state === 'nudge'
             ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
             : {})}
@@ -454,19 +469,21 @@ export const VisualConformanceFixture = ({
           ? { canvas: <SceneFixture state="move" /> }
           : fixture === 'resize'
             ? { canvas: <SceneFixture state="resize" /> }
-            : fixture === 'nudge'
-              ? { canvas: <SceneFixture state="nudge" /> }
-              : fixture === 'marquee'
-                ? { canvas: <SceneFixture state="marquee" /> }
-                : fixture === 'controls'
-                  ? { inspector: <ControlStates /> }
-                  : fixture === 'feedback'
-                    ? { canvas: <StaticRegionFailure /> }
-                    : fixture === 'tooltip'
-                      ? { canvas: <TooltipFixture /> }
-                      : fixture === 'popover'
-                        ? { canvas: <PopoverFixture /> }
-                        : undefined;
+            : fixture === 'delete'
+              ? { canvas: <SceneFixture state="delete" /> }
+              : fixture === 'nudge'
+                ? { canvas: <SceneFixture state="nudge" /> }
+                : fixture === 'marquee'
+                  ? { canvas: <SceneFixture state="marquee" /> }
+                  : fixture === 'controls'
+                    ? { inspector: <ControlStates /> }
+                    : fixture === 'feedback'
+                      ? { canvas: <StaticRegionFailure /> }
+                      : fixture === 'tooltip'
+                        ? { canvas: <TooltipFixture /> }
+                        : fixture === 'popover'
+                          ? { canvas: <PopoverFixture /> }
+                          : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   VIEWPORT_INPUT_POLICY,
+  isViewportDeleteKey,
   normalizeViewportWheel,
   type ViewportWheelInput,
 } from '../src/renderer/editor/viewport-input';
@@ -21,6 +22,12 @@ const wheelInput = (overrides: Partial<ViewportWheelInput> = {}): ViewportWheelI
 });
 
 describe('viewport wheel normalization', () => {
+  it('recognizes only the platform-neutral Delete and Backspace codes', () => {
+    expect(isViewportDeleteKey('Delete')).toBe(true);
+    expect(isViewportDeleteKey('Backspace')).toBe(true);
+    expect(isViewportDeleteKey('KeyD')).toBe(false);
+  });
+
   it('normalizes pixel, line, and page wheel units into viewport-pixel pan', () => {
     expect(normalizeViewportWheel(wheelInput({ deltaX: 8, deltaY: 20 }), 600)).toEqual({
       deltaX: -8,

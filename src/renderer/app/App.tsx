@@ -20,6 +20,7 @@ import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget, hitTestResizeHandle } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
+import { deleteSelectedElements, type SelectionDeleteSource } from '../editor/selection-delete';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
@@ -120,7 +121,28 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       moveInteraction,
       resizeInteraction,
     );
+    const deleteSelectionSource: SelectionDeleteSource = {
+      commit(commands) {
+        const result = session.dispatchTransaction(commands, {
+          label: commands.length === 1 ? 'Delete element' : 'Delete elements',
+        });
+        return result?.ok === true && result.changed ? result.history.document : undefined;
+      },
+    };
+    const deleteSelection = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      if (currentDocument === undefined) {
+        return false;
+      }
+      return deleteSelectedElements(
+        currentDocument,
+        selection,
+        model.listItemIds(),
+        deleteSelectionSource,
+      );
+    };
     return Object.freeze({
+      deleteSelection,
       keyboardNudgeInteraction,
       model,
       moveInteraction,
@@ -212,6 +234,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     </>
                   ),
                   keyboardNudgeInteraction: editor.keyboardNudgeInteraction,
+                  onDeleteSelection: editor.deleteSelection,
                   selection: editor.selection,
                   selectionInteraction: editor.selectionInteraction,
                 })}

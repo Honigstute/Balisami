@@ -13,6 +13,7 @@ interface ViewportSceneProps {
   readonly domChildren?: ReactNode;
   readonly interactionChildren?: ReactNode;
   readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
+  readonly onDeleteSelection?: () => boolean;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly worldChildren?: ReactNode;
@@ -52,6 +53,7 @@ export const ViewportScene = ({
   domChildren,
   interactionChildren,
   keyboardNudgeInteraction,
+  onDeleteSelection,
   selection,
   selectionInteraction,
   worldChildren,
@@ -110,16 +112,17 @@ export const ViewportScene = ({
     if (root === null) {
       return;
     }
-    const input = new ViewportInputController(
-      root,
-      camera,
-      selectionInteraction,
-      keyboardNudgeInteraction,
-      selection,
-    );
+    const input = new ViewportInputController(root, camera, {
+      ...(onDeleteSelection === undefined ? {} : { deleteSelection: onDeleteSelection }),
+      ...(keyboardNudgeInteraction === undefined
+        ? {}
+        : { keyboardNudge: keyboardNudgeInteraction }),
+      ...(selection === undefined ? {} : { selection }),
+      ...(selectionInteraction === undefined ? {} : { selectionInteraction }),
+    });
     input.connect();
     return () => input.disconnect();
-  }, [camera, keyboardNudgeInteraction, selection, selectionInteraction]);
+  }, [camera, keyboardNudgeInteraction, onDeleteSelection, selection, selectionInteraction]);
 
   return (
     <div

@@ -674,4 +674,74 @@ describe('viewport scene layers', () => {
     expect(commits).toHaveLength(1);
     store.dispose();
   });
+
+  it('routes one exact Delete or Backspace keydown only while the viewport is idle', () => {
+    mockViewportBounds();
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const nudgeScheduler = new TestAnimationFrameScheduler();
+    const store = createStore(cameraScheduler);
+    const deleteSelection = vi.fn(() => true);
+    const nudge = new KeyboardNudgeInteraction(
+      { capture: () => MOVE_CAPTURE, commit: () => true },
+      nudgeScheduler,
+    );
+    const selection = new SelectionStore();
+    selection.selectOnly(SELECTABLE_ID);
+    const interaction = new SelectionInteraction(selection, {
+      listSelectableIds: () => [SELECTABLE_ID],
+      queryHitStack: () => [SELECTABLE_ID],
+      querySelectionRegion: () => [],
+    });
+    const view = render(
+      <ViewportScene
+        camera={store}
+        domChildren={<input aria-label="Delete-safe inline editor" />}
+        keyboardNudgeInteraction={nudge}
+        onDeleteSelection={deleteSelection}
+        selection={selection}
+        selectionInteraction={interaction}
+      />,
+    );
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    const input = screen.getByLabelText('Delete-safe inline editor');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    cameraScheduler.flushNext();
+
+    expect(fireEvent.keyDown(input, { code: 'Delete' })).toBe(true);
+    expect(fireEvent.keyDown(root, { code: 'Delete', ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(root, { code: 'Delete', metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(root, { altKey: true, code: 'Backspace' })).toBe(true);
+    expect(fireEvent.keyDown(root, { code: 'Backspace', shiftKey: true })).toBe(true);
+    expect(deleteSelection).not.toHaveBeenCalled();
+
+    expect(fireEvent.keyDown(root, { code: 'Delete', repeat: true })).toBe(false);
+    expect(deleteSelection).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(root, { code: 'Backspace' })).toBe(false);
+    expect(deleteSelection).toHaveBeenCalledTimes(1);
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 70 });
+    expect(root).toHaveAttribute('data-selection-state', 'pressed');
+    expect(fireEvent.keyDown(root, { code: 'Delete' })).toBe(true);
+    expect(deleteSelection).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(root, { code: 'Escape' });
+
+    fireEvent.keyDown(root, { code: 'Space' });
+    expect(fireEvent.keyDown(root, { code: 'Delete' })).toBe(true);
+    expect(deleteSelection).toHaveBeenCalledTimes(1);
+    fireEvent.keyUp(window, { code: 'Space' });
+
+    fireEvent.keyDown(root, { code: 'ArrowRight' });
+    expect(root).toHaveAttribute('data-selection-state', 'nudging');
+    expect(fireEvent.keyDown(root, { code: 'Backspace' })).toBe(true);
+    expect(deleteSelection).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(root, { code: 'Escape' });
+
+    expect(fireEvent.keyDown(root, { code: 'Delete' })).toBe(false);
+    expect(deleteSelection).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(nudgeScheduler.callbacks.size).toBe(0);
+    store.dispose();
+  });
 });
