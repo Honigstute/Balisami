@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M5 active
+Status: M6 active
 Last reviewed: 2026-08-14
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
