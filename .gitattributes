@@ -1,0 +1,11 @@
+# Keep source formatting deterministic across macOS and Windows checkouts.
+* text=auto eol=lf
+
+# Never apply text normalization to packaged visual assets.
+*.gif binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.woff binary
+*.woff2 binary
