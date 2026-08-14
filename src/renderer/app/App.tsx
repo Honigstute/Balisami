@@ -76,6 +76,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       }),
     [editor],
   );
+  useEffect(() => {
+    if (document === undefined) {
+      editor.selection.clear();
+    }
+  }, [document, editor]);
   return (
     <AppShell
       projectName={view.displayName}
@@ -111,10 +116,18 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         canvas: (
           <ViewportScene
             camera={camera}
-            interactionChildren={
-              <SelectionOverlay camera={camera} model={editor.model} selection={editor.selection} />
-            }
-            selectionInteraction={editor.selectionInteraction}
+            {...(document === undefined
+              ? {}
+              : {
+                  interactionChildren: (
+                    <SelectionOverlay
+                      camera={camera}
+                      model={editor.model}
+                      selection={editor.selection}
+                    />
+                  ),
+                  selectionInteraction: editor.selectionInteraction,
+                })}
             {...(!hasRenderableElements ? { domChildren: <ViewportEmptyState /> } : {})}
             {...(document !== undefined
               ? {
