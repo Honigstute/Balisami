@@ -23,6 +23,8 @@ import { ResizeInteraction } from '../editor/resize-interaction';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
+import { TextEditOverlay } from '../editor/TextEditOverlay';
+import { createTextEditViewportRoute, TextEditInteraction } from '../editor/text-edit-interaction';
 import { ViewportScene } from '../editor/ViewportScene';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { createBrowserAnimationFrameScheduler } from '../editor/viewport-camera-store';
@@ -167,9 +169,16 @@ type SceneFixtureState =
   | 'paste'
   | 'plain'
   | 'resize'
-  | 'selection';
+  | 'selection'
+  | 'textEdit';
 
-const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState }) => {
+const SceneFixture = ({
+  platform = 'win32',
+  state = 'plain',
+}: {
+  readonly platform?: 'darwin' | 'win32';
+  readonly state?: SceneFixtureState;
+}) => {
   const camera = useViewportCameraStore();
   const [fixture] = useState(createSceneFixtureDocument);
   const [document] = useState(() => {
@@ -218,7 +227,8 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
       state === 'nudge' ||
       state === 'resize' ||
       state === 'duplicate' ||
-      state === 'paste'
+      state === 'paste' ||
+      state === 'textEdit'
     ) {
       selection.selectOnly(selectedId);
     }
@@ -247,6 +257,27 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
       listSelectableIds: () => model.listSelectableItemIds(),
       queryHitStack: (point) => model.queryHitStack(point).map((item) => item.id),
       querySelectionRegion: (bounds, mode) => model.querySelectionRegion(bounds, mode),
+    });
+    const textEditInteraction = new TextEditInteraction({
+      capture: (elementId) => {
+        const item = model.getItem(elementId);
+        return item === undefined
+          ? undefined
+          : {
+              accessibleLabel: 'Edit button label',
+              elementId,
+              fontSizeWorldUnits: 16,
+              mode: 'single-line',
+              text: 'Edit this label',
+              worldBounds: item.bounds,
+            };
+      },
+      commit: () => false,
+    });
+    const textEdit = createTextEditViewportRoute({
+      interaction: textEditInteraction,
+      queryPointerTarget: (point) => model.queryHitStack(point)[0]?.id,
+      selection,
     });
     if (state === 'marquee') {
       // Keep both endpoints inside the minimum packaged viewport. This fixture
@@ -293,6 +324,9 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
       }
       keyboardNudgeInteraction.flushPending();
     }
+    if (state === 'textEdit' && !textEdit.beginFromSelection()) {
+      throw new Error('The deterministic text-edit visual fixture could not be created.');
+    }
     return Object.freeze({
       interaction,
       keyboardNudgeInteraction,
@@ -300,6 +334,8 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
       moveInteraction,
       resizeInteraction,
       selection,
+      textEdit,
+      textEditInteraction,
     });
   });
   return (
@@ -310,7 +346,8 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
       state === 'nudge' ||
       state === 'resize' ||
       state === 'duplicate' ||
-      state === 'paste'
+      state === 'paste' ||
+      state === 'textEdit'
         ? {
             interactionChildren: (
               <SelectionOverlay
@@ -328,6 +365,18 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
         : state === 'marquee'
           ? { interactionChildren: <MarqueeOverlay interaction={editor.interaction} /> }
           : {})}
+      {...(state === 'textEdit'
+        ? {
+            domChildren: (
+              <TextEditOverlay
+                camera={camera}
+                interaction={editor.textEditInteraction}
+                platform={platform}
+              />
+            ),
+            textEdit: editor.textEdit,
+          }
+        : {})}
       worldChildren={
         <DocumentScene
           activeBoardId={fixture.boardId}
@@ -528,19 +577,21 @@ export const VisualConformanceFixture = ({
                 ? { canvas: <SceneFixture state="duplicate" /> }
                 : fixture === 'paste'
                   ? { canvas: <SceneFixture state="paste" /> }
-                  : fixture === 'nudge'
-                    ? { canvas: <SceneFixture state="nudge" /> }
-                    : fixture === 'marquee'
-                      ? { canvas: <SceneFixture state="marquee" /> }
-                      : fixture === 'controls'
-                        ? { inspector: <ControlStates /> }
-                        : fixture === 'feedback'
-                          ? { canvas: <StaticRegionFailure /> }
-                          : fixture === 'tooltip'
-                            ? { canvas: <TooltipFixture /> }
-                            : fixture === 'popover'
-                              ? { canvas: <PopoverFixture /> }
-                              : undefined;
+                  : fixture === 'textEdit'
+                    ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
+                    : fixture === 'nudge'
+                      ? { canvas: <SceneFixture state="nudge" /> }
+                      : fixture === 'marquee'
+                        ? { canvas: <SceneFixture state="marquee" /> }
+                        : fixture === 'controls'
+                          ? { inspector: <ControlStates /> }
+                          : fixture === 'feedback'
+                            ? { canvas: <StaticRegionFailure /> }
+                            : fixture === 'tooltip'
+                              ? { canvas: <TooltipFixture /> }
+                              : fixture === 'popover'
+                                ? { canvas: <PopoverFixture /> }
+                                : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

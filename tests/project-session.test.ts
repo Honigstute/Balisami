@@ -19,6 +19,8 @@ import {
 import { deleteSelectedElements } from '../src/renderer/editor/selection-delete';
 import { duplicateSelectedElements } from '../src/renderer/editor/selection-duplicate';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
+import { TextEditInteraction } from '../src/renderer/editor/text-edit-interaction';
+import { createWorldRect } from '../src/renderer/editor/viewport-transform';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
 import { ProjectSession } from '../src/renderer/projects/project-session';
 import type {
@@ -424,6 +426,82 @@ describe('renderer project session', () => {
       label: 'Compound edit',
     });
     expect(desktop.recoveryRequests).toHaveLength(2);
+  });
+
+  it('keeps an in-place text draft outside the document and commits one undoable recovery point', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    const interaction = new TextEditInteraction({
+      capture: (elementId) => {
+        const element = session.getSnapshot().history?.document.elementsById[elementId];
+        if (element === undefined) {
+          return undefined;
+        }
+        const text = element.properties.text;
+        return {
+          accessibleLabel: 'Edit element text',
+          elementId,
+          fontSizeWorldUnits: 16,
+          mode: 'single-line',
+          text: typeof text === 'string' ? text : '',
+          worldBounds: createWorldRect(10, 20, element.frame.width, element.frame.height),
+        };
+      },
+      commit: (target, text) => {
+        const element = session.getSnapshot().history?.document.elementsById[target.elementId];
+        if (element === undefined) {
+          return false;
+        }
+        const result = session.dispatch(
+          {
+            type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+            elementId: target.elementId,
+            properties: { ...element.properties, text },
+          },
+          { label: 'Edit text' },
+        );
+        return result?.ok === true && result.changed;
+      },
+    });
+
+    const documentBeforeDraft = session.getSnapshot().history?.document;
+    expect(interaction.begin(DOCUMENT_FIXTURE_IDS.child)).toBe(true);
+    expect(interaction.updateDraft('Accepted label')).toBe(true);
+    expect(session.getSnapshot().history?.document).toBe(documentBeforeDraft);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(interaction.complete()).toBe('committed');
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Text-edit integration history was not created.');
+    }
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.properties).toMatchObject({
+      opacity: 0.75,
+      text: 'Accepted label',
+    });
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]?.label).toBe('Edit text');
+    expect(history.undoEntries[0]?.forwardCommands).toEqual([
+      {
+        elementId: DOCUMENT_FIXTURE_IDS.child,
+        properties: {
+          opacity: 0.75,
+          tags: ['example', true, null],
+          text: 'Accepted label',
+        },
+        type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      },
+    ]);
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
   });
 
   it('waits for an explicit opaque recovery choice before creating a new history', async () => {

@@ -7,6 +7,10 @@ import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from '../src/renderer/editor/scen
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { SelectionInteraction } from '../src/renderer/editor/selection-interaction';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
+import {
+  createTextEditViewportRoute,
+  TextEditInteraction,
+} from '../src/renderer/editor/text-edit-interaction';
 import { ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import type { MoveTargetCapture } from '../src/renderer/editor/move-geometry';
@@ -174,6 +178,67 @@ describe('viewport scene layers', () => {
     const worldAfter = viewportPointToWorld(anchor, store.getTransformSnapshot());
     expect(worldAfter.x).toBeCloseTo(worldBefore.x, 12);
     expect(worldAfter.y).toBeCloseTo(worldBefore.y, 12);
+    store.dispose();
+  });
+
+  it('enters text editing from exact Enter or a transformed double-click and isolates canvas keys', () => {
+    mockViewportBounds();
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const selection = new SelectionStore();
+    selection.selectOnly(SELECTABLE_ID);
+    const commit = vi.fn(() => true);
+    const interaction = new TextEditInteraction({
+      capture: (elementId) =>
+        elementId === SELECTABLE_ID
+          ? {
+              accessibleLabel: 'Edit selected label',
+              elementId,
+              fontSizeWorldUnits: 16,
+              mode: 'single-line',
+              text: 'Before',
+              worldBounds: createWorldRect(10, 20, 100, 50),
+            }
+          : undefined,
+      commit,
+    });
+    const queryPointerTarget = vi.fn(() => SELECTABLE_ID);
+    const route = createTextEditViewportRoute({
+      interaction,
+      queryPointerTarget,
+      selection,
+    });
+    const deleteSelection = vi.fn(() => true);
+    const view = render(
+      <ViewportScene
+        camera={store}
+        onDeleteSelection={deleteSelection}
+        selection={selection}
+        textEdit={route}
+      />,
+    );
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    scheduler.flushNext();
+
+    fireEvent.keyDown(root, { code: 'Enter', repeat: true });
+    fireEvent.keyDown(root, { code: 'Enter', shiftKey: true });
+    expect(interaction.getSnapshot()).toMatchObject({ kind: 'idle' });
+    fireEvent.keyDown(root, { code: 'Enter' });
+    expect(root).toHaveAttribute('data-selection-state', 'editingText');
+    fireEvent.keyDown(root, { code: 'Delete' });
+    expect(deleteSelection).not.toHaveBeenCalled();
+    fireEvent.keyDown(root, { code: 'Escape' });
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+
+    store.scheduleTransform(createViewportTransform({ panX: 100, panY: 50, zoom: 2 }));
+    scheduler.flushNext();
+    fireEvent.doubleClick(root, { button: 0, clientX: 140, clientY: 90 });
+    expect(queryPointerTarget).toHaveBeenCalledWith(expect.objectContaining({ x: 20, y: 20 }));
+    expect(root).toHaveAttribute('data-selection-state', 'editingText');
+    expect(commit).not.toHaveBeenCalled();
     store.dispose();
   });
 

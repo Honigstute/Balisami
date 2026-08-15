@@ -4,6 +4,7 @@ import type { KeyboardNudgeInteraction } from './keyboard-nudge-interaction';
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from './scene-layers';
 import type { SelectionInteraction } from './selection-interaction';
 import type { SelectionStore } from './selection-store';
+import type { TextEditViewportRoute } from './text-edit-interaction';
 import type { ViewportShortcutPlatform } from './viewport-commands';
 import type { ViewportCameraStore } from './viewport-camera-store';
 import { ViewportInputController } from './viewport-input';
@@ -22,6 +23,7 @@ interface ViewportSceneProps {
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly shortcutPlatform?: ViewportShortcutPlatform;
+  readonly textEdit?: TextEditViewportRoute;
   readonly worldChildren?: ReactNode;
 }
 
@@ -67,6 +69,7 @@ export const ViewportScene = ({
   selection,
   selectionInteraction,
   shortcutPlatform,
+  textEdit,
   worldChildren,
 }: ViewportSceneProps) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -135,6 +138,7 @@ export const ViewportScene = ({
       ...(selectionInteraction === undefined ? {} : { selectionInteraction }),
       ...(onPasteSelection === undefined ? {} : { pasteSelection: onPasteSelection }),
       ...(shortcutPlatform === undefined ? {} : { shortcutPlatform }),
+      ...(textEdit === undefined ? {} : { textEdit }),
     });
     input.connect();
     return () => input.disconnect();
@@ -149,6 +153,7 @@ export const ViewportScene = ({
     selection,
     selectionInteraction,
     shortcutPlatform,
+    textEdit,
   ]);
 
   return (

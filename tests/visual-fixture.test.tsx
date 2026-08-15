@@ -62,6 +62,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
     expect(getRequestedVisualFixture('?visualFixture=duplicate')).toBe('duplicate');
     expect(getRequestedVisualFixture('?visualFixture=paste')).toBe('paste');
+    expect(getRequestedVisualFixture('?visualFixture=textEdit')).toBe('textEdit');
     expect(getRequestedVisualFixture('?visualFixture=nudge')).toBe('nudge');
     expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
@@ -180,6 +181,25 @@ describe('visual conformance fixture contract', () => {
     expect(outline).toHaveAttribute('y', '282');
     expect(screen.getByText('Visual fixture · paste')).toBeInTheDocument();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an active fixed-screen text editor without replacing selection or shell geometry', () => {
+    const view = renderFixture('textEdit');
+
+    const editor = screen.getByRole('textbox', { name: 'Edit button label' });
+    expect(editor).toHaveValue('Edit this label');
+    expect(editor).toHaveAttribute('data-text-edit-state', 'editing');
+    expect(editor).not.toHaveAttribute('hidden');
+    expect(view.container.querySelector('.editor-viewport')).toHaveAttribute(
+      'data-selection-state',
+      'editingText',
+    );
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+    expect(screen.getByText('Visual fixture · textEdit')).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
   });
 
   it('renders a fixed-screen directional marquee without replacing the scene or shell', () => {

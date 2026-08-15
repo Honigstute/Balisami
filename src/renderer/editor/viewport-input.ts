@@ -8,6 +8,7 @@ import {
 import type { SelectionInteraction, SelectionPointerPosition } from './selection-interaction';
 import type { ResizeHandle } from './resize-geometry';
 import type { SelectionStore } from './selection-store';
+import type { TextEditViewportRoute } from './text-edit-interaction';
 import type { ViewportShortcutPlatform } from './viewport-commands';
 import {
   clientPointToViewport,
@@ -71,6 +72,7 @@ export interface ViewportInputControllerOptions {
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly shortcutPlatform?: ViewportShortcutPlatform;
+  readonly textEdit?: TextEditViewportRoute;
 }
 
 interface ActivePan {
@@ -209,6 +211,7 @@ export class ViewportInputController {
   readonly #selection: SelectionStore | undefined;
   readonly #selectionInteraction: SelectionInteraction | undefined;
   readonly #shortcutPlatform: ViewportShortcutPlatform | undefined;
+  readonly #textEdit: TextEditViewportRoute | undefined;
 
   #activePan: ActivePan | undefined;
   #activeNudgeKeys = new Set<KeyboardNudgeKey>();
@@ -219,6 +222,7 @@ export class ViewportInputController {
   #unsubscribeKeyboardNudge: (() => void) | undefined;
   #unsubscribeSelection: (() => void) | undefined;
   #unsubscribeSelectionInteraction: (() => void) | undefined;
+  #unsubscribeTextEdit: (() => void) | undefined;
 
   constructor(
     root: HTMLElement,
@@ -236,6 +240,7 @@ export class ViewportInputController {
     this.#duplicateSelection = options.duplicateSelection;
     this.#pasteSelection = options.pasteSelection;
     this.#shortcutPlatform = options.shortcutPlatform;
+    this.#textEdit = options.textEdit;
   }
 
   connect(): void {
@@ -244,6 +249,7 @@ export class ViewportInputController {
     }
     this.#connected = true;
     this.#root.addEventListener('keydown', this.#handleKeyDown);
+    this.#root.addEventListener('dblclick', this.#handleDoubleClick);
     this.#root.addEventListener('pointercancel', this.#handlePointerCancel);
     this.#root.addEventListener('pointerdown', this.#handlePointerDown);
     this.#root.addEventListener('pointerleave', this.#handlePointerLeave);
@@ -258,6 +264,7 @@ export class ViewportInputController {
     this.#unsubscribeSelectionInteraction = this.#selectionInteraction?.subscribe(
       this.#updateSelectionState,
     );
+    this.#unsubscribeTextEdit = this.#textEdit?.subscribe(this.#updateSelectionState);
     this.#updateSelectionState();
   }
 
@@ -277,9 +284,12 @@ export class ViewportInputController {
     this.#unsubscribeSelection = undefined;
     this.#unsubscribeSelectionInteraction?.();
     this.#unsubscribeSelectionInteraction = undefined;
+    this.#unsubscribeTextEdit?.();
+    this.#unsubscribeTextEdit = undefined;
     this.#updatePanState();
     this.#updateSelectionState();
     this.#root.removeEventListener('keydown', this.#handleKeyDown);
+    this.#root.removeEventListener('dblclick', this.#handleDoubleClick);
     this.#root.removeEventListener('pointercancel', this.#handlePointerCancel);
     this.#root.removeEventListener('pointerdown', this.#handlePointerDown);
     this.#root.removeEventListener('pointerleave', this.#handlePointerLeave);
@@ -292,6 +302,19 @@ export class ViewportInputController {
   }
 
   #handleKeyDown = (event: KeyboardEvent): void => {
+    // Text controls retain native editing, clipboard, and IME behavior. This
+    // guard must precede every viewport shortcut, including Escape.
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+    if (this.#isTextEditing()) {
+      if (event.code === 'Escape') {
+        event.preventDefault();
+        this.#textEdit?.cancel();
+        this.#updateSelectionState();
+      }
+      return;
+    }
     if (event.code === 'Escape' && this.#activePan !== undefined) {
       event.preventDefault();
       this.#cancelPan();
@@ -318,6 +341,21 @@ export class ViewportInputController {
         this.#updateSelectionState();
         return;
       }
+    }
+    if (
+      event.code === 'Enter' &&
+      !event.repeat &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey &&
+      this.#isIdleEditTarget(event) &&
+      this.#textEdit?.beginFromSelection()
+    ) {
+      event.preventDefault();
+      this.#hoveredResizeHandle = undefined;
+      this.#updateSelectionState();
+      return;
     }
     if (isViewportDeleteKey(event.code) && this.#handleDeleteKeyDown(event)) {
       return;
@@ -382,6 +420,11 @@ export class ViewportInputController {
     if (!editable) {
       this.#root.focus({ preventScroll: true });
     }
+    // Focusing the viewport synchronously blurs the editor. A rejected commit
+    // keeps edit ownership and blocks the pointer gesture from leaking through.
+    if (this.#isTextEditing()) {
+      return;
+    }
     if (this.#activePan !== undefined || this.#isKeyboardNudgeActive()) {
       return;
     }
@@ -430,6 +473,10 @@ export class ViewportInputController {
   };
 
   #handlePointerMove = (event: PointerEvent): void => {
+    if (this.#isTextEditing()) {
+      this.#updateResizeHover(undefined);
+      return;
+    }
     if (this.#isKeyboardNudgeActive()) {
       return;
     }
@@ -458,6 +505,9 @@ export class ViewportInputController {
   };
 
   #handlePointerUp = (event: PointerEvent): void => {
+    if (this.#isTextEditing()) {
+      return;
+    }
     const activePan = this.#activePan;
     if (activePan === undefined || activePan.pointerId !== event.pointerId) {
       const position = this.#getSelectionPosition(event);
@@ -487,6 +537,9 @@ export class ViewportInputController {
   };
 
   #handlePointerCancel = (event: PointerEvent): void => {
+    if (this.#isTextEditing()) {
+      return;
+    }
     if (this.#activePan?.pointerId === event.pointerId) {
       this.#cancelPan();
       return;
@@ -503,6 +556,28 @@ export class ViewportInputController {
     ) {
       this.#updateResizeHover(undefined);
     }
+  };
+
+  #handleDoubleClick = (event: MouseEvent): void => {
+    if (
+      event.button !== 0 ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      isEditableTarget(event.target) ||
+      !this.#isIdleEditTarget(event)
+    ) {
+      return;
+    }
+    this.#camera.flushPending();
+    const position = this.#getSelectionPosition(event);
+    if (position === undefined || !this.#textEdit?.beginFromWorldPoint(position.worldPoint)) {
+      return;
+    }
+    event.preventDefault();
+    this.#hoveredResizeHandle = undefined;
+    this.#updateSelectionState();
   };
 
   #handleLostPointerCapture = (event: PointerEvent): void => {
@@ -634,9 +709,10 @@ export class ViewportInputController {
     }
   }
 
-  #isIdleEditTarget(event: KeyboardEvent): boolean {
+  #isIdleEditTarget(event: Event): boolean {
     return (
       !isEditableTarget(event.target) &&
+      !this.#isTextEditing() &&
       this.#activePan === undefined &&
       !this.#isKeyboardNudgeActive() &&
       !this.#spacePressed &&
@@ -651,6 +727,15 @@ export class ViewportInputController {
       this.#selection?.getSnapshot().revision !== activeRevision
     ) {
       this.#cancelKeyboardNudge();
+    }
+    const textSnapshot = this.#textEdit?.getSnapshot();
+    const selectionSnapshot = this.#selection?.getSnapshot();
+    if (
+      textSnapshot?.kind === 'editingText' &&
+      (selectionSnapshot?.selectedIds.length !== 1 ||
+        selectionSnapshot.primaryId !== textSnapshot.target.elementId)
+    ) {
+      this.#textEdit?.cancel();
     }
   };
 
@@ -701,7 +786,10 @@ export class ViewportInputController {
     this.#updateSelectionState();
   }
 
-  #getSelectionPosition(event: PointerEvent): SelectionPointerPosition | undefined {
+  #getSelectionPosition(event: {
+    readonly clientX: number;
+    readonly clientY: number;
+  }): SelectionPointerPosition | undefined {
     const bounds = this.#root.getBoundingClientRect();
     if (bounds.width <= 0 || bounds.height <= 0) {
       return undefined;
@@ -730,10 +818,19 @@ export class ViewportInputController {
   #updateSelectionState = (): void => {
     const snapshot = this.#selectionInteraction?.getSnapshot();
     const nudgeSnapshot = this.#keyboardNudge?.getSnapshot();
+    const textSnapshot = this.#textEdit?.getSnapshot();
     this.#root.dataset.selectionState =
-      nudgeSnapshot?.kind === 'nudging' ? 'nudging' : (snapshot?.kind ?? 'idle');
+      textSnapshot?.kind === 'editingText'
+        ? 'editingText'
+        : nudgeSnapshot?.kind === 'nudging'
+          ? 'nudging'
+          : (snapshot?.kind ?? 'idle');
     const resizeHandle =
-      snapshot?.kind === 'resizing' ? snapshot.handle : this.#hoveredResizeHandle;
+      textSnapshot?.kind === 'editingText'
+        ? undefined
+        : snapshot?.kind === 'resizing'
+          ? snapshot.handle
+          : this.#hoveredResizeHandle;
     if (resizeHandle === undefined) {
       delete this.#root.dataset.resizeHandle;
     } else {
@@ -743,6 +840,10 @@ export class ViewportInputController {
 
   #isKeyboardNudgeActive(): boolean {
     return this.#keyboardNudge?.getSnapshot().kind === 'nudging';
+  }
+
+  #isTextEditing(): boolean {
+    return this.#textEdit?.getSnapshot().kind === 'editingText';
   }
 
   #updateResizeHover(point: ViewportPoint | undefined): void {
