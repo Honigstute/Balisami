@@ -12,10 +12,17 @@ import {
 } from '../src/domain';
 import { captureResizeTarget } from '../src/renderer/editor/resize-geometry';
 import { ResizeInteraction } from '../src/renderer/editor/resize-interaction';
+import { resolveResizeSnap } from '../src/renderer/editor/resize-snapping';
+import { createBoundsSnapCandidates } from '../src/renderer/editor/snap-engine';
 import { SelectionInteraction } from '../src/renderer/editor/selection-interaction';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
-import { createViewportPoint, createWorldPoint } from '../src/renderer/editor/viewport-transform';
+import {
+  createViewportPoint,
+  createViewportZoom,
+  createWorldPoint,
+  createWorldRect,
+} from '../src/renderer/editor/viewport-transform';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
@@ -61,6 +68,24 @@ describe('resize gesture integration', () => {
           history = result.history;
           return true;
         },
+        resolveSnap: (request) =>
+          resolveResizeSnap({
+            aspectLocked: request.aspectLocked,
+            bypass: request.snapBypassed,
+            candidates: createBoundsSnapCandidates({
+              bounds: createWorldRect(170, 110, 40, 40),
+              kind: 'object',
+              sourceId: 'element_resize_integration_target',
+              sourceOrder: 0,
+            }),
+            capture: request.capture,
+            currentWorldPoint: request.currentWorldPoint,
+            handle: request.handle,
+            previousLocks: request.previousLocks,
+            raw: request.raw,
+            startWorldPoint: request.startWorldPoint,
+            zoom: createViewportZoom(1),
+          }),
       },
       scheduler,
     );
@@ -112,8 +137,8 @@ describe('resize gesture integration', () => {
     expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.frame).toEqual({
       x: 16,
       y: 24,
-      width: 170,
-      height: 73,
+      width: 174,
+      height: 73.5,
     });
     expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.frame).toEqual(
       originalDocument.elementsById[DOCUMENT_FIXTURE_IDS.group]?.frame,
@@ -121,8 +146,8 @@ describe('resize gesture integration', () => {
     expect(selectElementWorldBounds(history.document, DOCUMENT_FIXTURE_IDS.child)).toEqual({
       x: -4,
       y: 36.5,
-      width: 170,
-      height: 73,
+      width: 174,
+      height: 73.5,
     });
     expect(selection.getSnapshot().selectedIds).toEqual([DOCUMENT_FIXTURE_IDS.child]);
     expect(resize.getSnapshot()).toEqual({ kind: 'idle' });

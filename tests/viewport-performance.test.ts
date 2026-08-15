@@ -12,6 +12,11 @@ import {
   type ElementId,
 } from '../src/domain';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
+import {
+  resolveResizeFrame,
+  type ResizeTargetCapture,
+} from '../src/renderer/editor/resize-geometry';
+import { getResizeSnapProfile, resolveResizeSnap } from '../src/renderer/editor/resize-snapping';
 import { createSceneSnapCandidates } from '../src/renderer/editor/scene-snap-candidates';
 import { resolveSnap } from '../src/renderer/editor/snap-engine';
 import { WorldSpatialIndex } from '../src/renderer/editor/spatial-index';
@@ -159,6 +164,51 @@ describe('viewport algorithm performance fixtures', () => {
         candidates,
         movingBounds,
         rawDelta,
+        zoom,
+      });
+      durations.push(performance.now() - start);
+    }
+
+    expect(percentile95(durations)).toBeLessThanOrEqual(20);
+  });
+
+  it('keeps one-edge resize snapping below the same 5,000-element budget', () => {
+    const fixture = createHitTestFixture(5_000);
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const zoom = createViewportZoom(1);
+    const movingId = ElementIdSchema.parse('element_hit002449');
+    const capture: ResizeTargetCapture = Object.freeze({
+      elementId: movingId,
+      frame: Object.freeze({ x: 980, y: 480, width: 12, height: 12 }),
+      worldBounds: createWorldRect(980, 480, 12, 12),
+    });
+    const startWorldPoint = createWorldPoint(992, 486);
+    const profile = getResizeSnapProfile('east');
+    const durations: number[] = [];
+
+    for (let sample = 0; sample < 100; sample += 1) {
+      const currentWorldPoint = createWorldPoint(992 + (sample % 20) - 10, 486);
+      const raw = resolveResizeFrame(capture, 'east', startWorldPoint, currentWorldPoint, false);
+      const start = performance.now();
+      const candidates = createSceneSnapCandidates(model, {
+        activeAxes: profile.activeAxes,
+        excludedIds: [movingId],
+        movingAnchors: profile.movingAnchors,
+        movingBounds: raw.worldBounds,
+        rawDelta: createWorldVector(0, 0),
+        zoom,
+      });
+      resolveResizeSnap({
+        aspectLocked: false,
+        bypass: false,
+        candidates,
+        capture,
+        currentWorldPoint,
+        handle: 'east',
+        previousLocks: {},
+        raw,
+        startWorldPoint,
         zoom,
       });
       durations.push(performance.now() - start);

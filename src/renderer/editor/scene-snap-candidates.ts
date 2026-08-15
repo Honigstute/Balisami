@@ -1,10 +1,14 @@
 import type { ElementId } from '../../domain';
 import type { DocumentSceneModel } from './document-scene-model';
 import {
+  SNAP_ANCHORS,
   SNAP_POLICY,
   createBoundsSnapCandidates,
   createSnapCandidateQueryRegions,
+  type SnapActiveAxes,
+  type SnapAnchor,
   type SnapCandidate,
+  type SnapMovingAnchors,
 } from './snap-engine';
 import {
   createWorldRect,
@@ -14,21 +18,24 @@ import {
 } from './viewport-transform';
 
 export interface SceneSnapCandidateRequest {
+  readonly activeAxes?: SnapActiveAxes;
   /** Moved roots plus descendants that follow them in world space. */
   readonly excludedIds: readonly ElementId[];
   readonly movingBounds: WorldRect;
+  readonly movingAnchors?: SnapMovingAnchors;
   readonly rawDelta: WorldVector;
   readonly tolerancePixels?: number;
   readonly zoom: ViewportZoom;
 }
 
-const getMovingAnchorPositions = (
+const getMovingAnchorPosition = (
   bounds: WorldRect,
   axis: SnapCandidate['axis'],
-): readonly number[] => {
+  anchor: SnapAnchor,
+): number => {
   const start = axis === 'x' ? bounds.x : bounds.y;
   const size = axis === 'x' ? bounds.width : bounds.height;
-  return Object.freeze([start, start + size / 2, start + size]);
+  return start + (anchor === 'start' ? 0 : anchor === 'center' ? size / 2 : size);
 };
 
 /**
@@ -40,11 +47,16 @@ export const createSceneSnapCandidates = (
   request: SceneSnapCandidateRequest,
 ): readonly SnapCandidate[] => {
   const tolerancePixels = request.tolerancePixels ?? SNAP_POLICY.tolerancePixels;
+  const activeAxes = request.activeAxes ?? Object.freeze({ x: true, y: true });
+  const movingAnchors =
+    request.movingAnchors ?? Object.freeze({ x: SNAP_ANCHORS, y: SNAP_ANCHORS });
   const queryRegions = createSnapCandidateQueryRegions(
     request.movingBounds,
     request.rawDelta,
     request.zoom,
     tolerancePixels,
+    activeAxes,
+    movingAnchors,
   );
   const rawBounds = createWorldRect(
     request.movingBounds.x + request.rawDelta.x,
@@ -54,9 +66,9 @@ export const createSceneSnapCandidates = (
   );
   const retentionTolerance =
     (tolerancePixels * SNAP_POLICY.releaseToleranceMultiplier) / request.zoom;
-  const movingAnchors = Object.freeze({
-    x: getMovingAnchorPositions(rawBounds, 'x'),
-    y: getMovingAnchorPositions(rawBounds, 'y'),
+  const movingAnchorPositions = Object.freeze({
+    x: movingAnchors.x.map((anchor) => getMovingAnchorPosition(rawBounds, 'x', anchor)),
+    y: movingAnchors.y.map((anchor) => getMovingAnchorPosition(rawBounds, 'y', anchor)),
   });
   return Object.freeze(
     model.querySnapItems(queryRegions, request.excludedIds).flatMap((item, sourceOrder) =>
@@ -65,10 +77,12 @@ export const createSceneSnapCandidates = (
         kind: 'object',
         sourceId: item.id,
         sourceOrder,
-      }).filter((candidate) =>
-        movingAnchors[candidate.axis].some(
-          (position) => Math.abs(candidate.position - position) <= retentionTolerance,
-        ),
+      }).filter(
+        (candidate) =>
+          activeAxes[candidate.axis] &&
+          movingAnchorPositions[candidate.axis].some(
+            (position) => Math.abs(candidate.position - position) <= retentionTolerance,
+          ),
       ),
     ),
   );

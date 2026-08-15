@@ -21,6 +21,7 @@ import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget, hitTestResizeHandle } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
+import { getResizeSnapProfile, resolveResizeSnap } from '../editor/resize-snapping';
 import { createSceneSnapCandidates } from '../editor/scene-snap-candidates';
 import {
   SelectionClipboardStore,
@@ -45,7 +46,7 @@ import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { createBrowserAnimationFrameScheduler } from '../editor/viewport-camera-store';
-import { worldRectToViewport } from '../editor/viewport-transform';
+import { createWorldVector, worldRectToViewport } from '../editor/viewport-transform';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
@@ -102,6 +103,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             activeAxes,
             bypass: snapBypassed,
             candidates: createSceneSnapCandidates(model, {
+              activeAxes,
               excludedIds: capture.affectedIds,
               movingBounds: capture.worldBounds,
               rawDelta,
@@ -139,6 +141,29 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         commit: (command) => {
           const result = session.dispatchTransaction([command], { label: 'Resize element' });
           return result?.ok === true && result.changed;
+        },
+        resolveSnap: (request) => {
+          const zoom = camera.getTransformSnapshot().zoom;
+          const profile = getResizeSnapProfile(request.handle);
+          return resolveResizeSnap({
+            aspectLocked: request.aspectLocked,
+            bypass: request.snapBypassed,
+            candidates: createSceneSnapCandidates(model, {
+              activeAxes: profile.activeAxes,
+              excludedIds: [request.capture.elementId],
+              movingAnchors: profile.movingAnchors,
+              movingBounds: request.raw.worldBounds,
+              rawDelta: createWorldVector(0, 0),
+              zoom,
+            }),
+            capture: request.capture,
+            currentWorldPoint: request.currentWorldPoint,
+            handle: request.handle,
+            previousLocks: request.previousLocks,
+            raw: request.raw,
+            startWorldPoint: request.startWorldPoint,
+            zoom,
+          });
         },
       },
       createBrowserAnimationFrameScheduler(),
@@ -334,7 +359,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               : {
                   interactionChildren: (
                     <>
-                      <SnapGuideOverlay camera={camera} moveInteraction={editor.moveInteraction} />
+                      <SnapGuideOverlay
+                        camera={camera}
+                        moveInteraction={editor.moveInteraction}
+                        resizeInteraction={editor.resizeInteraction}
+                      />
                       <SelectionOverlay
                         camera={camera}
                         keyboardNudgeInteraction={editor.keyboardNudgeInteraction}

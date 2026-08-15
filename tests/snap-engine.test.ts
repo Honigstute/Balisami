@@ -118,6 +118,19 @@ describe('snap candidate generation', () => {
       { x: -580, y: 10.5, width: 1_300, height: 59 },
     ]);
   });
+
+  it('narrows indexed queries to only the active resize edge and axis', () => {
+    expect(
+      createSnapCandidateQueryRegions(
+        createWorldRect(-10, 20, 100, 50),
+        createWorldVector(30, -5),
+        createViewportZoom(2),
+        SNAP_POLICY.tolerancePixels,
+        { x: true, y: false },
+        { x: ['end'], y: [] },
+      ),
+    ).toEqual([{ x: 115.5, y: -585, width: 9, height: 1_250 }]);
+  });
 });
 
 describe('pure snap resolution', () => {
@@ -285,6 +298,17 @@ describe('pure snap resolution', () => {
     });
     expect(result.adjustedDelta).toEqual({ x: 20, y: 0 });
     expect(result.guides).toEqual([]);
+  });
+
+  it('considers only explicitly exposed moving anchors', () => {
+    const result = resolve({
+      candidates: [createLineCandidate({ position: 100 })],
+      movingAnchors: { x: ['end'], y: [] },
+      movingBounds: createWorldRect(0, 0, 96, 20),
+    });
+    expect(result.adjustedDelta.x).toBe(4);
+    expect(result.locks.x?.movingAnchor).toBe('end');
+    expect(result.locks.y).toBeUndefined();
   });
 
   it('generates deterministic negative grid lines and uses object guides before grid ties', () => {

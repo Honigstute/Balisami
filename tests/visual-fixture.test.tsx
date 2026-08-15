@@ -124,7 +124,7 @@ describe('visual conformance fixture contract', () => {
   it('renders fixed-screen smart guides without changing the scene or shell layout', () => {
     const view = renderFixture('smartGuides');
 
-    const guides = view.container.querySelector('[data-snap-guide-overlay="move-guides"]');
+    const guides = view.container.querySelector('[data-snap-guide-overlay="gesture-guides"]');
     const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
     expect(guides).not.toHaveAttribute('display', 'none');
     expect(guides).toHaveAttribute('data-guide-count', '2');
@@ -140,13 +140,16 @@ describe('visual conformance fixture contract', () => {
     const view = renderFixture('resize');
 
     const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const guides = view.container.querySelector('[data-snap-guide-overlay="gesture-guides"]');
     const outline = overlay?.querySelector('.selection-overlay__outline');
     expect(overlay).not.toHaveAttribute('display', 'none');
     expect(overlay).toHaveAttribute('data-selection-count', '1');
     expect(outline).toHaveAttribute('x', '188');
     expect(outline).toHaveAttribute('y', '272');
-    expect(outline).toHaveAttribute('width', '208');
-    expect(outline).toHaveAttribute('height', '84');
+    expect(outline).toHaveAttribute('width', '344');
+    expect(outline).toHaveAttribute('height', '160');
+    expect(guides).not.toHaveAttribute('display', 'none');
+    expect(guides).toHaveAttribute('data-guide-count', '2');
     expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });

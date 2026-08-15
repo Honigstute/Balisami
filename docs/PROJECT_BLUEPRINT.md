@@ -305,9 +305,11 @@ Candidate classes are:
 - Equal horizontal or vertical gaps.
 - Board/content center and edges.
 
-Resolution is deterministic: explicit grid setting, closest distance, candidate priority, stable element/order tie-break. X and Y resolve independently. Acquire/release hysteresis prevents a guide from flickering near the threshold. A documented modifier bypasses snapping without changing the committed pointer delta unexpectedly.
+Resolution is deterministic: closest distance, object/container/grid priority, anchor affinity, canonical element order, position, and stable identity form one documented tie-break chain. X and Y resolve independently whenever the gesture geometry permits it. Acquire/release hysteresis prevents a guide from flickering near the threshold. A documented modifier bypasses snapping without changing the committed pointer delta unexpectedly.
 
 The M7 move implementation acquires within six CSS pixels and retains the current lock through a 1.5× release threshold. Candidate discovery converts both values exactly once by zoom and queries two narrow spatial-index bands: an X-alignment band and a Y-alignment band, each extending at most 1,200 CSS pixels in the perpendicular direction. It never uses a dense square scan. Locked controls remain valid alignment geometry, while moved roots and all affected descendants are excluded. Object candidates win container candidates, which win grid candidates only after geometric distance; canonical scene order and stable IDs resolve remaining ties. Holding the exact platform primary modifier (`Command` on macOS, `Control` on Windows) bypasses snapping and clears hysteresis locks without changing the raw pointer delta. Move resolution runs at most once per animation frame, and resolver failure falls back to raw movement without crossing or disabling the existing command boundary.
+
+Resize reuses that resolver and candidate-index path rather than owning a parallel snapping system. Each of the eight handles exposes only its moving start/end edge and active axes; the fixed opposite edge is never offered as a moving anchor. Ordinary corners may resolve both axes. A Shift-corner is one aspect-ratio scale, so it selects exactly one deterministic guide driver: a still-valid hysteresis lock first, otherwise the closest axis with X as the final tie. The selected target derives the shared scale while preserving the existing opposite-corner anchor. Shift edge handles retain their existing opposite-edge midpoint. Matches below the control minimum are discarded, and a guide is emitted only when the final clamped world frame actually satisfies it. Raw resize input, candidate work, and guide publication coalesce to one animation frame; bypass, cancellation, and resolver failure clear locks/guides and preserve the existing one-command completion and exact undo contract.
 
 Guides are ephemeral overlays and never export or enter history. Align/distribute actions use the same geometry vocabulary but execute as commands.
 
@@ -516,7 +518,8 @@ The initial core palette is deliberately small:
 | Panel      | `#E4E6E8` | Inspector fields and selected neutral surfaces |
 | Divider    | `#C8CDD2` | Borders, separators, and disabled outlines     |
 | Canvas     | `#FFFFFF` | Board and high-contrast field surface          |
-| Draft blue | `#2E9DDF` | Selection, focus, active category, and guides  |
+| Draft blue | `#2D9CDE` | Selection, focus, and active category          |
+| Guide red  | `#E04B4B` | Ephemeral smart guides only                    |
 
 Semantic error, warning, and success colors are separate accessibility tokens, not alternative accents. M4 may tune these starting values only through a full-shell visual review on both platforms; feature work may not invent additional accent families.
 
@@ -524,18 +527,19 @@ Semantic error, warning, and success colors are separate accessibility tokens, n
 
 These are implementation starting points and will be frozen by screenshot review, not duplicated as local constants:
 
-| Metric                          |                                       Initial target |
-| ------------------------------- | ---------------------------------------------------: |
-| Base spacing unit               |                                                 4 px |
-| UI body size                    |                                                13 px |
-| Caption size                    |                                                11 px |
-| Standard control height         |                                                24 px |
-| Compact control radius          |                                                 6 px |
-| Navigator default/min/max width |                                   224 / 180 / 360 px |
-| Inspector default/min/max width |                                   320 / 288 / 420 px |
-| Inspector horizontal inset      |                                                16 px |
-| Control shelf height            |                                                84 px |
-| Selection/guide accent          | tokenized blue; final value after visual calibration |
+| Metric                          |                                    Initial target |
+| ------------------------------- | ------------------------------------------------: |
+| Base spacing unit               |                                              4 px |
+| UI body size                    |                                             13 px |
+| Caption size                    |                                             11 px |
+| Standard control height         |                                             24 px |
+| Compact control radius          |                                              6 px |
+| Navigator default/min/max width |                                224 / 180 / 360 px |
+| Inspector default/min/max width |                                320 / 288 / 420 px |
+| Inspector horizontal inset      |                                             16 px |
+| Control shelf height            |                                             84 px |
+| Selection accent                | tokenized blue after cross-platform visual review |
+| Smart-guide accent              |  tokenized red after cross-platform visual review |
 
 ### 10.4 No-layout-shift rules
 

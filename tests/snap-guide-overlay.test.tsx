@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { ElementIdSchema } from '../src/domain';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import type { MoveTargetCapture } from '../src/renderer/editor/move-geometry';
+import { ResizeInteraction } from '../src/renderer/editor/resize-interaction';
+import { resolveResizeSnap } from '../src/renderer/editor/resize-snapping';
 import { createBoundsSnapCandidates, resolveSnap } from '../src/renderer/editor/snap-engine';
 import { SnapGuideOverlay } from '../src/renderer/editor/SnapGuideOverlay';
 import {
@@ -125,6 +127,80 @@ describe('snap guide overlay', () => {
     move.flushPending();
     expect(group).toHaveAttribute('display', 'none');
     expect(group).toHaveAttribute('data-guide-count', '0');
+    camera.dispose();
+  });
+
+  it('consumes resize guides from the same stable overlay nodes', () => {
+    const scheduler = new TestScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(800, 600),
+      scheduler,
+    });
+    const move = new MoveInteraction({ capture: () => CAPTURE, commit: () => true }, scheduler);
+    const resize = new ResizeInteraction(
+      {
+        capture: () => ({
+          elementId: MOVING_ID,
+          frame: { x: 10, y: 20, width: 100, height: 50 },
+          worldBounds: createWorldRect(10, 20, 100, 50),
+        }),
+        commit: () => true,
+        resolveSnap: (request) =>
+          resolveResizeSnap({
+            aspectLocked: request.aspectLocked,
+            bypass: request.snapBypassed,
+            candidates: createBoundsSnapCandidates({
+              bounds: createWorldRect(200, 0, 100, 100),
+              kind: 'object',
+              sourceId: 'element_resize_guide_target',
+              sourceOrder: 0,
+            }),
+            capture: request.capture,
+            currentWorldPoint: request.currentWorldPoint,
+            handle: request.handle,
+            previousLocks: request.previousLocks,
+            raw: request.raw,
+            startWorldPoint: request.startWorldPoint,
+            zoom: camera.getTransformSnapshot().zoom,
+          }),
+      },
+      scheduler,
+    );
+    const view = render(
+      <svg>
+        <SnapGuideOverlay camera={camera} moveInteraction={move} resizeInteraction={resize} />
+      </svg>,
+    );
+    const group = view.container.querySelector<SVGGElement>('[data-snap-guide-overlay]');
+    const xLine = group?.querySelector<SVGLineElement>('[data-guide-axis="x"]');
+    if (group === null || xLine === null || xLine === undefined) {
+      throw new Error('Shared snap guide overlay did not mount.');
+    }
+
+    resize.begin({
+      elementId: MOVING_ID,
+      handle: 'east',
+      pointerId: 2,
+      snapBypassed: false,
+      shiftKey: false,
+      startWorldPoint: createWorldPoint(110, 45),
+      worldPoint: createWorldPoint(198, 45),
+    });
+    expect(group).not.toHaveAttribute('display');
+    expect(group).toHaveAttribute('data-guide-count', '1');
+    expect(xLine).toHaveAttribute('x1', '200');
+    expect(xLine).toHaveAttribute('data-guide-source', 'element_resize_guide_target');
+
+    resize.update({
+      pointerId: 2,
+      snapBypassed: true,
+      shiftKey: false,
+      worldPoint: createWorldPoint(198, 45),
+    });
+    resize.flushPending();
+    expect(group).toHaveAttribute('display', 'none');
     camera.dispose();
   });
 });

@@ -536,6 +536,7 @@ describe('document SVG scene', () => {
       elementId: DOCUMENT_FIXTURE_IDS.child,
       handle: 'southEast',
       pointerId: 10,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(116, 84.5),
       worldPoint: createWorldPoint(116, 84.5),
@@ -543,6 +544,7 @@ describe('document SVG scene', () => {
     for (let index = 1; index <= 500; index += 1) {
       resize.update({
         pointerId: 10,
+        snapBypassed: false,
         shiftKey: false,
         worldPoint: createWorldPoint(116 + index / 10, 84.5 + index / 20),
       });

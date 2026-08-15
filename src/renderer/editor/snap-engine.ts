@@ -54,6 +54,12 @@ export interface SnapActiveAxes {
   readonly y: boolean;
 }
 
+/** Moving anchors exposed by the active gesture on each axis. */
+export interface SnapMovingAnchors {
+  readonly x: readonly SnapAnchor[];
+  readonly y: readonly SnapAnchor[];
+}
+
 export interface SnapAxisLock {
   readonly candidate: SnapCandidate;
   readonly movingAnchor: SnapAnchor;
@@ -81,6 +87,7 @@ export interface SnapResolutionInput {
   readonly candidates: readonly SnapCandidate[];
   readonly grid?: SnapGrid;
   readonly movingBounds: WorldRect;
+  readonly movingAnchors?: SnapMovingAnchors;
   readonly previousLocks?: SnapLocks;
   readonly rawDelta: WorldVector;
   readonly tolerancePixels?: number;
@@ -118,6 +125,10 @@ const CANDIDATE_KIND_PRIORITY: Readonly<Record<SnapCandidateKind, number>> = Obj
   object: 0,
   container: 1,
   grid: 2,
+});
+const ALL_MOVING_ANCHORS: SnapMovingAnchors = Object.freeze({
+  x: SNAP_ANCHORS,
+  y: SNAP_ANCHORS,
 });
 
 const requireFinite = (value: number, label: string): number => {
@@ -254,6 +265,30 @@ const normalizeGrid = (grid: SnapGrid): SnapGrid =>
     spacing: requirePositive(grid.spacing, 'Snap grid spacing'),
   });
 
+const normalizeMovingAnchors = (
+  movingAnchors: SnapMovingAnchors | undefined,
+): SnapMovingAnchors => {
+  if (movingAnchors === undefined) {
+    return ALL_MOVING_ANCHORS;
+  }
+  const normalizeAxis = (anchors: readonly SnapAnchor[]): readonly SnapAnchor[] => {
+    const unknownAnchors: unknown = anchors;
+    if (
+      !Array.isArray(unknownAnchors) ||
+      unknownAnchors.some(
+        (anchor: unknown) => typeof anchor !== 'string' || !ANCHOR_SET.has(anchor),
+      )
+    ) {
+      throw new TypeError('Moving snap anchors are unsupported.');
+    }
+    return Object.freeze(SNAP_ANCHORS.filter((anchor) => anchors.includes(anchor)));
+  };
+  return Object.freeze({
+    x: normalizeAxis(movingAnchors.x),
+    y: normalizeAxis(movingAnchors.y),
+  });
+};
+
 const listSurroundingGridPositions = (
   position: number,
   origin: number,
@@ -264,13 +299,17 @@ const listSurroundingGridPositions = (
   return lower === upper ? Object.freeze([lower]) : Object.freeze([lower, upper]);
 };
 
-const createGridCandidates = (bounds: WorldRect, gridInput: SnapGrid): readonly SnapCandidate[] => {
+const createGridCandidates = (
+  bounds: WorldRect,
+  gridInput: SnapGrid,
+  movingAnchors: SnapMovingAnchors,
+): readonly SnapCandidate[] => {
   const grid = normalizeGrid(gridInput);
   const candidates: SnapCandidate[] = [];
   for (const axis of SNAP_AXES) {
     const origin = axis === 'x' ? grid.originX : grid.originY;
     const positions = new Set<number>();
-    for (const anchor of SNAP_ANCHORS) {
+    for (const anchor of movingAnchors[axis]) {
       for (const position of listSurroundingGridPositions(
         getAnchorPosition(bounds, axis, anchor),
         origin,
@@ -346,10 +385,11 @@ const resolveAxis = (
   axis: SnapAxis,
   movedBounds: WorldRect,
   candidates: readonly SnapCandidate[],
+  movingAnchors: readonly SnapAnchor[],
   toleranceWorldUnits: number,
   previousLock: SnapAxisLock | undefined,
 ): AxisProposal | undefined => {
-  if (previousLock !== undefined) {
+  if (previousLock !== undefined && movingAnchors.includes(previousLock.movingAnchor)) {
     const currentCandidate = candidates.find((candidate) =>
       candidateIdentityEqual(candidate, previousLock.candidate),
     );
@@ -369,7 +409,7 @@ const resolveAxis = (
     if (candidate.axis !== axis) {
       continue;
     }
-    for (const movingAnchor of SNAP_ANCHORS) {
+    for (const movingAnchor of movingAnchors) {
       const proposal = createProposal(movedBounds, axis, movingAnchor, candidate);
       if (Math.abs(proposal.adjustment) <= toleranceWorldUnits) {
         proposals.push(proposal);
@@ -393,6 +433,37 @@ const createGuide = (proposal: AxisProposal, snappedBounds: WorldRect): SnapGuid
     start: Math.min(proposal.candidate.spanStart, movingStart),
     targetAnchor: proposal.candidate.anchor,
   });
+};
+
+/** Rebuilds guide extents from final gesture geometry rather than DOM layout. */
+export const createSnapGuidesForLocks = (
+  snappedBoundsInput: WorldRect,
+  locks: SnapLocks,
+): readonly SnapGuideDescriptor[] => {
+  const snappedBounds = createWorldRect(
+    snappedBoundsInput.x,
+    snappedBoundsInput.y,
+    snappedBoundsInput.width,
+    snappedBoundsInput.height,
+  );
+  return Object.freeze(
+    SNAP_AXES.flatMap((axis) => {
+      const lock = locks[axis];
+      if (lock === undefined) {
+        return [];
+      }
+      const candidate = normalizeCandidate(lock.candidate);
+      if (candidate.axis !== axis || !ANCHOR_SET.has(lock.movingAnchor)) {
+        throw new TypeError('Snap lock does not match its axis.');
+      }
+      return [
+        createGuide(
+          Object.freeze({ adjustment: 0, candidate, movingAnchor: lock.movingAnchor }),
+          snappedBounds,
+        ),
+      ];
+    }),
+  );
 };
 
 const createLocks = (
@@ -455,6 +526,7 @@ export const resolveSnap = (input: SnapResolutionInput): SnapResolution => {
   );
   const rawDelta = createWorldVector(input.rawDelta.x, input.rawDelta.y);
   const zoom = createViewportZoom(input.zoom);
+  const movingAnchors = normalizeMovingAnchors(input.movingAnchors);
   const tolerancePixels = requirePositive(
     input.tolerancePixels ?? SNAP_POLICY.tolerancePixels,
     'Snap tolerance',
@@ -470,14 +542,28 @@ export const resolveSnap = (input: SnapResolutionInput): SnapResolution => {
   }
   const candidates = [
     ...input.candidates.map(normalizeCandidate),
-    ...(input.grid === undefined ? [] : createGridCandidates(rawBounds, input.grid)),
+    ...(input.grid === undefined ? [] : createGridCandidates(rawBounds, input.grid, movingAnchors)),
   ];
   const toleranceWorldUnits = tolerancePixels / zoom;
   const xProposal = input.activeAxes.x
-    ? resolveAxis('x', rawBounds, candidates, toleranceWorldUnits, input.previousLocks?.x)
+    ? resolveAxis(
+        'x',
+        rawBounds,
+        candidates,
+        movingAnchors.x,
+        toleranceWorldUnits,
+        input.previousLocks?.x,
+      )
     : undefined;
   const yProposal = input.activeAxes.y
-    ? resolveAxis('y', rawBounds, candidates, toleranceWorldUnits, input.previousLocks?.y)
+    ? resolveAxis(
+        'y',
+        rawBounds,
+        candidates,
+        movingAnchors.y,
+        toleranceWorldUnits,
+        input.previousLocks?.y,
+      )
     : undefined;
   const adjustedDelta = createWorldVector(
     rawDelta.x + (xProposal?.adjustment ?? 0),
@@ -519,7 +605,9 @@ export const createSnapCandidateQueryRegions = (
   rawDeltaInput: WorldVector,
   zoomInput: ViewportZoom,
   tolerancePixelsInput: number = SNAP_POLICY.tolerancePixels,
-): readonly [WorldRect, WorldRect] => {
+  activeAxes: SnapActiveAxes = Object.freeze({ x: true, y: true }),
+  movingAnchorsInput?: SnapMovingAnchors,
+): readonly WorldRect[] => {
   const movingBounds = createWorldRect(
     movingBoundsInput.x,
     movingBoundsInput.y,
@@ -529,6 +617,7 @@ export const createSnapCandidateQueryRegions = (
   const rawDelta = createWorldVector(rawDeltaInput.x, rawDeltaInput.y);
   const zoom = createViewportZoom(zoomInput);
   const tolerancePixels = requirePositive(tolerancePixelsInput, 'Snap query tolerance');
+  const movingAnchors = normalizeMovingAnchors(movingAnchorsInput);
   const radius = SNAP_POLICY.candidateSearchRadiusPixels / zoom;
   const alignmentRadius = (tolerancePixels * SNAP_POLICY.releaseToleranceMultiplier) / zoom;
   const rawBounds = createWorldRect(
@@ -537,18 +626,28 @@ export const createSnapCandidateQueryRegions = (
     movingBounds.width,
     movingBounds.height,
   );
-  return Object.freeze([
-    createWorldRect(
-      rawBounds.x - alignmentRadius,
-      rawBounds.y - radius,
-      rawBounds.width + alignmentRadius * 2,
-      rawBounds.height + radius * 2,
-    ),
-    createWorldRect(
-      rawBounds.x - radius,
-      rawBounds.y - alignmentRadius,
-      rawBounds.width + radius * 2,
-      rawBounds.height + alignmentRadius * 2,
-    ),
-  ]);
+  const createAxisRegion = (axis: SnapAxis): WorldRect | undefined => {
+    const positions = movingAnchors[axis].map((anchor) =>
+      getAnchorPosition(rawBounds, axis, anchor),
+    );
+    if (!activeAxes[axis] || positions.length === 0) {
+      return undefined;
+    }
+    const minimum = Math.min(...positions);
+    const maximum = Math.max(...positions);
+    return axis === 'x'
+      ? createWorldRect(
+          minimum - alignmentRadius,
+          rawBounds.y - radius,
+          maximum - minimum + alignmentRadius * 2,
+          rawBounds.height + radius * 2,
+        )
+      : createWorldRect(
+          rawBounds.x - radius,
+          minimum - alignmentRadius,
+          rawBounds.width + radius * 2,
+          maximum - minimum + alignmentRadius * 2,
+        );
+  };
+  return Object.freeze(SNAP_AXES.flatMap((axis) => createAxisRegion(axis) ?? []));
 };

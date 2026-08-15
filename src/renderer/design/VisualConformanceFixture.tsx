@@ -20,6 +20,7 @@ import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
+import { getResizeSnapProfile, resolveResizeSnap } from '../editor/resize-snapping';
 import { createSceneSnapCandidates } from '../editor/scene-snap-candidates';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
@@ -36,6 +37,7 @@ import {
   createViewportPoint,
   createWorldPoint,
   createWorldRect,
+  createWorldVector,
 } from '../editor/viewport-transform';
 import { AppShell } from '../shell/AppShell';
 import { AppButton } from './AppButton';
@@ -249,6 +251,7 @@ const SceneFixture = ({
                   activeAxes,
                   bypass: snapBypassed,
                   candidates: createSceneSnapCandidates(model, {
+                    activeAxes,
                     excludedIds: capture.affectedIds,
                     movingBounds: capture.worldBounds,
                     rawDelta,
@@ -276,6 +279,33 @@ const SceneFixture = ({
       {
         capture: (id) => captureResizeTarget(document, id),
         commit: () => false,
+        ...(state === 'resize'
+          ? {
+              resolveSnap: (request) => {
+                const zoom = camera.getTransformSnapshot().zoom;
+                const profile = getResizeSnapProfile(request.handle);
+                return resolveResizeSnap({
+                  aspectLocked: request.aspectLocked,
+                  bypass: request.snapBypassed,
+                  candidates: createSceneSnapCandidates(model, {
+                    activeAxes: profile.activeAxes,
+                    excludedIds: [request.capture.elementId],
+                    movingAnchors: profile.movingAnchors,
+                    movingBounds: request.raw.worldBounds,
+                    rawDelta: createWorldVector(0, 0),
+                    zoom,
+                  }),
+                  capture: request.capture,
+                  currentWorldPoint: request.currentWorldPoint,
+                  handle: request.handle,
+                  previousLocks: request.previousLocks,
+                  raw: request.raw,
+                  startWorldPoint: request.startWorldPoint,
+                  zoom,
+                });
+              },
+            }
+          : {}),
       },
       createBrowserAnimationFrameScheduler(),
     );
@@ -336,9 +366,10 @@ const SceneFixture = ({
         elementId: fixture.selectedId,
         handle: 'southEast',
         pointerId: 3,
+        snapBypassed: false,
         shiftKey: false,
         startWorldPoint: createWorldPoint(316, 316),
-        worldPoint: createWorldPoint(396, 356),
+        worldPoint: createWorldPoint(530, 430),
       });
     }
     if (state === 'nudge') {
@@ -379,8 +410,12 @@ const SceneFixture = ({
         ? {
             interactionChildren: (
               <>
-                {state === 'smartGuides' ? (
-                  <SnapGuideOverlay camera={camera} moveInteraction={editor.moveInteraction} />
+                {state === 'smartGuides' || state === 'resize' ? (
+                  <SnapGuideOverlay
+                    camera={camera}
+                    moveInteraction={editor.moveInteraction}
+                    {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
+                  />
                 ) : null}
                 <SelectionOverlay
                   camera={camera}

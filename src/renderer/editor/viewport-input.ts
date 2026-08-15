@@ -475,6 +475,10 @@ export class ViewportInputController {
       this.#selectionInteraction.beginPress({
         altKey: event.altKey,
         pointerId: event.pointerId,
+        snapBypassed:
+          this.#shortcutPlatform === undefined
+            ? false
+            : isViewportSnapBypassed(event, this.#shortcutPlatform),
         shiftKey: event.shiftKey,
         ...position,
       })

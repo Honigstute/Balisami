@@ -6,15 +6,31 @@ import {
   type ResizeHandle,
   type ResizeTargetCapture,
 } from './resize-geometry';
+import type { ResolvedResizeSnap } from './resize-snapping';
+import type { SnapGuideDescriptor, SnapLocks } from './snap-engine';
 import type { WorldPoint, WorldRect } from './viewport-transform';
+import { createWorldPoint } from './viewport-transform';
+
+export interface ResizeSnapRequest {
+  readonly aspectLocked: boolean;
+  readonly capture: ResizeTargetCapture;
+  readonly currentWorldPoint: WorldPoint;
+  readonly handle: ResizeHandle;
+  readonly previousLocks: SnapLocks;
+  readonly raw: ReturnType<typeof resolveResizeFrame>;
+  readonly snapBypassed: boolean;
+  readonly startWorldPoint: WorldPoint;
+}
 
 export interface ResizeInteractionSource {
   readonly capture: (elementId: ElementId) => ResizeTargetCapture | undefined;
   readonly commit: (command: SetElementFrameCommand) => boolean;
+  readonly resolveSnap?: (request: ResizeSnapRequest) => ResolvedResizeSnap;
 }
 
 export interface ResizePointerInput {
   readonly pointerId: number;
+  readonly snapBypassed: boolean;
   readonly shiftKey: boolean;
   readonly worldPoint: WorldPoint;
 }
@@ -30,6 +46,7 @@ export type ResizeCompletion = 'committed' | 'failed' | 'unchanged';
 export interface ResizingSnapshot {
   readonly elementId: ElementId;
   readonly frame: ElementFrame;
+  readonly guides: readonly SnapGuideDescriptor[];
   readonly handle: ResizeHandle;
   readonly kind: 'resizing';
   readonly pointerId: number;
@@ -46,6 +63,8 @@ interface ActiveResize {
 }
 
 const IDLE_SNAPSHOT: ResizeInteractionSnapshot = Object.freeze({ kind: 'idle' });
+const EMPTY_GUIDES: readonly SnapGuideDescriptor[] = Object.freeze([]);
+const EMPTY_LOCKS: SnapLocks = Object.freeze({});
 
 const requirePointerId = (pointerId: number): number => {
   if (!Number.isSafeInteger(pointerId) || pointerId < 0) {
@@ -62,19 +81,13 @@ const framesEqual = (first: ElementFrame, second: ElementFrame): boolean =>
 
 const createResizingSnapshot = (
   active: ActiveResize,
-  worldPoint: WorldPoint,
-  aspectLocked: boolean,
+  resolved: ReturnType<typeof resolveResizeFrame>,
+  guides: readonly SnapGuideDescriptor[],
 ): ResizingSnapshot => {
-  const resolved = resolveResizeFrame(
-    active.capture,
-    active.handle,
-    active.startWorldPoint,
-    worldPoint,
-    aspectLocked,
-  );
   return Object.freeze({
     elementId: active.capture.elementId,
     frame: resolved.frame,
+    guides,
     handle: active.handle,
     kind: 'resizing',
     pointerId: active.pointerId,
@@ -93,7 +106,8 @@ export class ResizeInteraction {
   readonly #source: ResizeInteractionSource;
 
   #active: ActiveResize | undefined;
-  #pending: ResizingSnapshot | undefined;
+  #locks: SnapLocks = EMPTY_LOCKS;
+  #pendingInput: ResizePointerInput | undefined;
   #scheduledFrameId: number | undefined;
   #snapshot: ResizeInteractionSnapshot = IDLE_SNAPSHOT;
 
@@ -113,7 +127,8 @@ export class ResizeInteraction {
     if (this.#active !== undefined) {
       return false;
     }
-    const pointerId = requirePointerId(input.pointerId);
+    const normalizedInput = this.#copyPointerInput(input);
+    const pointerId = normalizedInput.pointerId;
     const capture = this.#source.capture(input.elementId);
     if (capture === undefined) {
       return false;
@@ -122,10 +137,11 @@ export class ResizeInteraction {
       capture,
       handle: input.handle,
       pointerId,
-      startWorldPoint: input.startWorldPoint,
+      startWorldPoint: createWorldPoint(input.startWorldPoint.x, input.startWorldPoint.y),
     });
     this.#active = active;
-    this.#publish(createResizingSnapshot(active, input.worldPoint, input.shiftKey));
+    this.#locks = EMPTY_LOCKS;
+    this.#publish(this.#resolveSnapshot(active, normalizedInput));
     return true;
   }
 
@@ -134,12 +150,7 @@ export class ResizeInteraction {
     if (active === undefined || active.pointerId !== input.pointerId) {
       return false;
     }
-    const next = createResizingSnapshot(active, input.worldPoint, input.shiftKey);
-    const latest = this.#pending ?? this.#snapshot;
-    if (latest.kind === 'resizing' && framesEqual(latest.frame, next.frame)) {
-      return true;
-    }
-    this.#pending = next;
+    this.#pendingInput = this.#copyPointerInput(input);
     if (this.#scheduledFrameId === undefined) {
       this.#scheduledFrameId = this.#scheduler.request(this.#handleAnimationFrame);
     }
@@ -185,10 +196,11 @@ export class ResizeInteraction {
       this.#scheduler.cancel(this.#scheduledFrameId);
       this.#scheduledFrameId = undefined;
     }
-    const pending = this.#pending;
-    this.#pending = undefined;
-    if (pending !== undefined) {
-      this.#publish(pending);
+    const pendingInput = this.#pendingInput;
+    this.#pendingInput = undefined;
+    const active = this.#active;
+    if (pendingInput !== undefined && active !== undefined) {
+      this.#publish(this.#resolveSnapshot(active, pendingInput));
     }
   }
 
@@ -197,17 +209,19 @@ export class ResizeInteraction {
       this.#scheduler.cancel(this.#scheduledFrameId);
     }
     this.#scheduledFrameId = undefined;
-    this.#pending = undefined;
+    this.#pendingInput = undefined;
     this.#active = undefined;
+    this.#locks = EMPTY_LOCKS;
     this.#publish(IDLE_SNAPSHOT);
   }
 
   #handleAnimationFrame = (): void => {
     this.#scheduledFrameId = undefined;
-    const pending = this.#pending;
-    this.#pending = undefined;
-    if (pending !== undefined) {
-      this.#publish(pending);
+    const pendingInput = this.#pendingInput;
+    this.#pendingInput = undefined;
+    const active = this.#active;
+    if (pendingInput !== undefined && active !== undefined) {
+      this.#publish(this.#resolveSnapshot(active, pendingInput));
     }
   };
 
@@ -216,5 +230,49 @@ export class ResizeInteraction {
     for (const listener of this.#listeners) {
       listener();
     }
+  }
+
+  #copyPointerInput(input: ResizePointerInput): ResizePointerInput {
+    if (typeof input.snapBypassed !== 'boolean' || typeof input.shiftKey !== 'boolean') {
+      throw new TypeError('Resize modifiers must be boolean values.');
+    }
+    return Object.freeze({
+      pointerId: requirePointerId(input.pointerId),
+      snapBypassed: input.snapBypassed,
+      shiftKey: input.shiftKey,
+      worldPoint: createWorldPoint(input.worldPoint.x, input.worldPoint.y),
+    });
+  }
+
+  #resolveSnapshot(active: ActiveResize, input: ResizePointerInput): ResizingSnapshot {
+    const normalizedInput = this.#copyPointerInput(input);
+    const raw = resolveResizeFrame(
+      active.capture,
+      active.handle,
+      active.startWorldPoint,
+      normalizedInput.worldPoint,
+      normalizedInput.shiftKey,
+    );
+    try {
+      const resolved = this.#source.resolveSnap?.({
+        aspectLocked: normalizedInput.shiftKey,
+        capture: active.capture,
+        currentWorldPoint: normalizedInput.worldPoint,
+        handle: active.handle,
+        previousLocks: this.#locks,
+        raw,
+        snapBypassed: normalizedInput.snapBypassed,
+        startWorldPoint: active.startWorldPoint,
+      });
+      if (resolved !== undefined) {
+        this.#locks = resolved.locks;
+        return createResizingSnapshot(active, resolved, resolved.guides);
+      }
+    } catch {
+      // Snapping is assistive. Preserve resize ownership and raw geometry if
+      // candidate generation or resolution fails for one pointer frame.
+    }
+    this.#locks = EMPTY_LOCKS;
+    return createResizingSnapshot(active, raw, EMPTY_GUIDES);
   }
 }

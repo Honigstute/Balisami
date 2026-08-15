@@ -178,6 +178,55 @@ const resolveAspectLockedSize = (
   return Object.freeze([frame.width * clampedScale, frame.height * clampedScale]);
 };
 
+const createResolvedResizeFrame = (
+  capture: ResizeTargetCapture,
+  handle: ResizeHandle,
+  width: number,
+  height: number,
+  aspectLocked: boolean,
+): ResolvedResizeFrame => {
+  const frame = capture.frame;
+  let x = movesWest(handle) ? frame.x + frame.width - width : frame.x;
+  let y = movesNorth(handle) ? frame.y + frame.height - height : frame.y;
+  if (aspectLocked && !movesNorth(handle) && !movesSouth(handle)) {
+    y = frame.y + (frame.height - height) / 2;
+  }
+  if (aspectLocked && !movesWest(handle) && !movesEast(handle)) {
+    x = frame.x + (frame.width - width) / 2;
+  }
+
+  const nextFrame = Object.freeze({ x, y, width, height });
+  const parentWorldX = capture.worldBounds.x - frame.x;
+  const parentWorldY = capture.worldBounds.y - frame.y;
+  return Object.freeze({
+    frame: nextFrame,
+    worldBounds: createWorldRect(parentWorldX + x, parentWorldY + y, width, height),
+  });
+};
+
+/** Resolves a Shift resize from one scale while retaining the documented anchor. */
+export const resolveAspectLockedResizeScale = (
+  capture: ResizeTargetCapture,
+  handle: ResizeHandle,
+  scale: number,
+): ResolvedResizeFrame => {
+  if (!Number.isFinite(scale)) {
+    throw new RangeError('Resize scale must be finite.');
+  }
+  const minimumScale = Math.max(
+    RESIZE_INTERACTION_POLICY.minimumWidthWorldUnits / capture.frame.width,
+    RESIZE_INTERACTION_POLICY.minimumHeightWorldUnits / capture.frame.height,
+  );
+  const clampedScale = Math.max(minimumScale, scale);
+  return createResolvedResizeFrame(
+    capture,
+    handle,
+    capture.frame.width * clampedScale,
+    capture.frame.height * clampedScale,
+    true,
+  );
+};
+
 /**
  * Recomputes from the immutable local frame and pointer start. West/east and
  * north/south handles retain the opposite edge; Shift also retains the
@@ -213,22 +262,7 @@ export const resolveResizeFrame = (
     [width, height] = resolveAspectLockedSize(frame, handle, deltaX, deltaY);
   }
 
-  let x = movesWest(handle) ? frame.x + frame.width - width : frame.x;
-  let y = movesNorth(handle) ? frame.y + frame.height - height : frame.y;
-  if (aspectLocked && !vertical) {
-    y = frame.y + (frame.height - height) / 2;
-  }
-  if (aspectLocked && !horizontal) {
-    x = frame.x + (frame.width - width) / 2;
-  }
-
-  const nextFrame = Object.freeze({ x, y, width, height });
-  const parentWorldX = capture.worldBounds.x - frame.x;
-  const parentWorldY = capture.worldBounds.y - frame.y;
-  return Object.freeze({
-    frame: nextFrame,
-    worldBounds: createWorldRect(parentWorldX + x, parentWorldY + y, width, height),
-  });
+  return createResolvedResizeFrame(capture, handle, width, height, aspectLocked);
 };
 
 export const createResizeCommand = (

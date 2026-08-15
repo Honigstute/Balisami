@@ -50,4 +50,23 @@ describe('scene snap candidate adapter', () => {
 
     expect(candidates).toEqual([]);
   });
+
+  it('filters indexed work to one exposed resize edge', () => {
+    const candidates = createSceneSnapCandidates(createModel(), {
+      activeAxes: { x: true, y: false },
+      excludedIds: [],
+      movingAnchors: { x: ['start'], y: [] },
+      movingBounds: createWorldRect(-4, 36.5, 120, 48),
+      rawDelta: createWorldVector(0, 0),
+      zoom: createViewportZoom(1),
+    });
+
+    expect(candidates).toEqual([
+      expect.objectContaining({
+        axis: 'x',
+        position: -4,
+        sourceId: DOCUMENT_FIXTURE_IDS.child,
+      }),
+    ]);
+  });
 });

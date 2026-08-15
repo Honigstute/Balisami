@@ -41,6 +41,7 @@ export interface SelectionPointerUpdate extends SelectionPointerPosition {
 export interface SelectionPressInput extends SelectionPointerPosition {
   readonly altKey: boolean;
   readonly pointerId: number;
+  readonly snapBypassed?: boolean;
   readonly shiftKey: boolean;
 }
 
@@ -227,6 +228,7 @@ export class SelectionInteraction {
         elementId: resizeTargetId,
         handle: resizeHandle,
         pointerId,
+        snapBypassed: input.snapBypassed ?? false,
         shiftKey: input.shiftKey,
         startWorldPoint: input.worldPoint,
         worldPoint: input.worldPoint,
@@ -280,6 +282,7 @@ export class SelectionInteraction {
       return (
         this.#resize?.update({
           pointerId,
+          snapBypassed: position.snapBypassed ?? false,
           shiftKey: position.shiftKey,
           worldPoint: position.worldPoint,
         }) ?? false
@@ -341,6 +344,7 @@ export class SelectionInteraction {
       this.#setActiveGesture(undefined);
       const completion = this.#resize?.complete({
         pointerId,
+        snapBypassed: position.snapBypassed ?? false,
         shiftKey: position.shiftKey,
         worldPoint: position.worldPoint,
       });

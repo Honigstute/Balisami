@@ -187,6 +187,7 @@ describe('selection overlay', () => {
       elementId: DOCUMENT_FIXTURE_IDS.child,
       handle: 'southEast',
       pointerId: 9,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(116, 84.5),
       worldPoint: createWorldPoint(136, 94.5),

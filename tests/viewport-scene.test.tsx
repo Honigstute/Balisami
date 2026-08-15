@@ -572,12 +572,21 @@ describe('viewport scene layers', () => {
     const resizeScheduler = new TestAnimationFrameScheduler();
     const store = createStore(cameraScheduler);
     const commits: SetElementFrameCommand[] = [];
+    const resizeSnapBypassRequests: boolean[] = [];
     const resize = new ResizeInteraction(
       {
         capture: () => RESIZE_CAPTURE,
         commit: (command) => {
           commits.push(command);
           return true;
+        },
+        resolveSnap: (request) => {
+          resizeSnapBypassRequests.push(request.snapBypassed);
+          return {
+            ...request.raw,
+            guides: [],
+            locks: {},
+          };
         },
       },
       resizeScheduler,
@@ -596,11 +605,15 @@ describe('viewport scene layers', () => {
       undefined,
       resize,
     );
-    const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
+    const view = render(
+      <ViewportScene camera={store} selectionInteraction={interaction} shortcutPlatform="win32" />,
+    );
     const root = view.container.querySelector<HTMLElement>('.editor-viewport');
     if (root === null) {
       throw new Error('Viewport root did not mount.');
     }
+    cameraScheduler.flushNext();
+    store.scheduleDeviceScale(createDeviceScale(2));
     cameraScheduler.flushNext();
 
     fireEvent.pointerMove(root, { clientX: 100, clientY: 100, pointerId: 50 });
@@ -612,6 +625,7 @@ describe('viewport scene layers', () => {
     expect(root).toHaveAttribute('data-selection-state', 'resizing');
     expect(root).toHaveAttribute('data-resize-handle', 'southEast');
     fireEvent.pointerMove(root, { clientX: 140, clientY: 115, pointerId: 51 });
+    expect(resizeSnapBypassRequests.at(-1)).toBe(false);
     expect(resizeScheduler.callbacks.size).toBe(1);
     resizeScheduler.flushNext();
     expect(resize.getSnapshot()).toMatchObject({
@@ -625,8 +639,20 @@ describe('viewport scene layers', () => {
     expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
     expect(commits).toHaveLength(0);
 
-    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 52 });
-    fireEvent.pointerMove(root, { clientX: 130, clientY: 110, pointerId: 52 });
+    fireEvent.pointerDown(root, {
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+      ctrlKey: true,
+      pointerId: 52,
+    });
+    fireEvent.pointerMove(root, {
+      clientX: 130,
+      clientY: 110,
+      ctrlKey: true,
+      pointerId: 52,
+    });
+    expect(resizeSnapBypassRequests.at(-1)).toBe(true);
     fireEvent.pointerCancel(root, { pointerId: 52 });
     expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
 

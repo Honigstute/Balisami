@@ -3,10 +3,19 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
-import { ResizeInteraction } from '../src/renderer/editor/resize-interaction';
+import {
+  ResizeInteraction,
+  type ResizeSnapRequest,
+} from '../src/renderer/editor/resize-interaction';
 import type { ResizeTargetCapture } from '../src/renderer/editor/resize-geometry';
+import { resolveResizeSnap } from '../src/renderer/editor/resize-snapping';
+import { createBoundsSnapCandidates } from '../src/renderer/editor/snap-engine';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
-import { createWorldPoint, createWorldRect } from '../src/renderer/editor/viewport-transform';
+import {
+  createViewportZoom,
+  createWorldPoint,
+  createWorldRect,
+} from '../src/renderer/editor/viewport-transform';
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
   readonly callbacks = new Map<number, (timestamp: number) => void>();
@@ -54,6 +63,7 @@ describe('resize interaction', () => {
         elementId: DOCUMENT_FIXTURE_IDS.child,
         handle: 'southEast',
         pointerId: 3,
+        snapBypassed: false,
         shiftKey: false,
         startWorldPoint: createWorldPoint(116, 84.5),
         worldPoint: createWorldPoint(116, 84.5),
@@ -64,6 +74,7 @@ describe('resize interaction', () => {
     for (let index = 1; index <= 500; index += 1) {
       resize.update({
         pointerId: 3,
+        snapBypassed: false,
         shiftKey: false,
         worldPoint: createWorldPoint(116 + index / 10, 84.5 + index / 20),
       });
@@ -80,6 +91,7 @@ describe('resize interaction', () => {
     expect(
       resize.complete({
         pointerId: 3,
+        snapBypassed: false,
         shiftKey: false,
         worldPoint: createWorldPoint(176, 114.5),
       }),
@@ -101,6 +113,7 @@ describe('resize interaction', () => {
       elementId: DOCUMENT_FIXTURE_IDS.child,
       handle: 'east',
       pointerId: 4,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(116, 60.5),
       worldPoint: createWorldPoint(176, 60.5),
@@ -110,6 +123,7 @@ describe('resize interaction', () => {
     });
     resize.update({
       pointerId: 4,
+      snapBypassed: false,
       shiftKey: true,
       worldPoint: createWorldPoint(176, 999),
     });
@@ -127,12 +141,14 @@ describe('resize interaction', () => {
       elementId: DOCUMENT_FIXTURE_IDS.child,
       handle: 'west',
       pointerId: 5,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(-4, 60.5),
       worldPoint: createWorldPoint(-4, 60.5),
     });
     resize.update({
       pointerId: 5,
+      snapBypassed: false,
       shiftKey: false,
       worldPoint: createWorldPoint(20, 60.5),
     });
@@ -153,6 +169,7 @@ describe('resize interaction', () => {
       elementId: DOCUMENT_FIXTURE_IDS.child,
       handle: 'south' as const,
       pointerId: 6,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(56, 84.5),
       worldPoint: createWorldPoint(56, 84.5),
@@ -165,6 +182,7 @@ describe('resize interaction', () => {
     expect(
       resize.complete({
         pointerId: 7,
+        snapBypassed: false,
         shiftKey: false,
         worldPoint: createWorldPoint(56, 94.5),
       }),
@@ -176,5 +194,94 @@ describe('resize interaction', () => {
       scheduler,
     );
     expect(missing.begin(beginInput)).toBe(false);
+  });
+
+  it('resolves snapping once per published frame, supports bypass, and contains resolver failure', () => {
+    const scheduler = new TestAnimationFrameScheduler();
+    const resolveSnap = vi.fn((request: ResizeSnapRequest) =>
+      resolveResizeSnap({
+        aspectLocked: request.aspectLocked,
+        bypass: request.snapBypassed,
+        candidates: createBoundsSnapCandidates({
+          bounds: createWorldRect(170, 36.5, 40, 80),
+          kind: 'object',
+          sourceId: 'element_resize_target',
+          sourceOrder: 0,
+        }),
+        capture: request.capture,
+        currentWorldPoint: request.currentWorldPoint,
+        handle: request.handle,
+        previousLocks: request.previousLocks,
+        raw: request.raw,
+        startWorldPoint: request.startWorldPoint,
+        zoom: createViewportZoom(1),
+      }),
+    );
+    const resize = new ResizeInteraction(
+      { capture: createCapture, commit: () => true, resolveSnap },
+      scheduler,
+    );
+    resize.begin({
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      handle: 'east',
+      pointerId: 8,
+      snapBypassed: false,
+      shiftKey: false,
+      startWorldPoint: createWorldPoint(116, 60.5),
+      worldPoint: createWorldPoint(166, 60.5),
+    });
+    expect(resolveSnap).toHaveBeenCalledTimes(1);
+    expect(resize.getSnapshot()).toMatchObject({
+      frame: { x: 16, y: 24, width: 174, height: 48 },
+      guides: [expect.objectContaining({ axis: 'x', position: 170 })],
+    });
+
+    for (let index = 0; index < 500; index += 1) {
+      resize.update({
+        pointerId: 8,
+        snapBypassed: false,
+        shiftKey: false,
+        worldPoint: createWorldPoint(166 + index / 1_000, 60.5),
+      });
+    }
+    expect(resolveSnap).toHaveBeenCalledTimes(1);
+    scheduler.flushNext();
+    expect(resolveSnap).toHaveBeenCalledTimes(2);
+
+    resize.update({
+      pointerId: 8,
+      snapBypassed: true,
+      shiftKey: false,
+      worldPoint: createWorldPoint(166, 60.5),
+    });
+    resize.flushPending();
+    expect(resize.getSnapshot()).toMatchObject({ guides: [], kind: 'resizing' });
+    expect(resize.getSnapshot()).toMatchObject({ frame: { width: 170 } });
+    resize.cancel();
+
+    const failedResolver = new ResizeInteraction(
+      {
+        capture: createCapture,
+        commit: () => true,
+        resolveSnap: () => {
+          throw new Error('Expected assistive failure');
+        },
+      },
+      scheduler,
+    );
+    failedResolver.begin({
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      handle: 'east',
+      pointerId: 9,
+      snapBypassed: false,
+      shiftKey: false,
+      startWorldPoint: createWorldPoint(116, 60.5),
+      worldPoint: createWorldPoint(166, 60.5),
+    });
+    expect(failedResolver.getSnapshot()).toMatchObject({
+      frame: { width: 170 },
+      guides: [],
+      kind: 'resizing',
+    });
   });
 });
