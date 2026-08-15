@@ -1,6 +1,9 @@
 import {
+  containsControlHitPoint,
+  getControlHitShapePadding,
   getControlSpec,
   type BoardId,
+  type ControlDefinition,
   type ControlTypeId,
   type ControlVisualKind,
   type ElementId,
@@ -8,7 +11,7 @@ import {
   type ElementProperties,
   type ProjectDocument,
 } from '../../domain';
-import { createSeededSketchRectPath } from './seeded-sketch';
+import { createControlSceneOutlinePath } from '../controls/control-scene-geometry';
 import { WorldSpatialIndex } from './spatial-index';
 import { getVisibleWorldRange } from './visible-world-range';
 import {
@@ -58,6 +61,13 @@ interface DerivedSceneItem {
   readonly visualKind: ControlVisualKind;
 }
 
+export type ControlDefinitionResolver = (type: string) => ControlDefinition | undefined;
+
+export interface DocumentSceneModelOptions {
+  /** Explicit test seam; production always resolves the canonical registry. */
+  readonly resolveControlDefinition?: ControlDefinitionResolver;
+}
+
 const boundsEqual = (first: WorldRect, second: WorldRect): boolean =>
   first.x === second.x &&
   first.y === second.y &&
@@ -82,12 +92,20 @@ const ownersEqual = (first: ElementOwner, second: ElementOwner): boolean =>
 const getOwnerKey = (owner: ElementOwner): string =>
   owner.kind === 'board' ? `board:${owner.boardId}` : `element:${owner.elementId}`;
 
-const createItemRevision = (item: DerivedSceneItem): string => {
-  const spec = getControlSpec(item.controlType);
+const createItemRevision = (
+  item: DerivedSceneItem,
+  resolveControlDefinition: ControlDefinitionResolver = getControlSpec,
+): string => {
+  const spec = resolveControlDefinition(item.controlType);
   if (spec === undefined) {
     throw new Error(`Document scene received unknown control type '${item.controlType}'.`);
   }
-  const renderProperties = spec.renderPropertyKeys.map((key) => item.properties[key]);
+  const presentationPropertyKeys = new Set([
+    ...spec.scene.propertyKeys,
+    ...(spec.accessibility.nameProperty === null ? [] : [spec.accessibility.nameProperty]),
+    ...(spec.accessibility.checkedProperty === null ? [] : [spec.accessibility.checkedProperty]),
+  ]);
+  const renderProperties = [...presentationPropertyKeys].map((key) => item.properties[key]);
   return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}`;
 };
 
@@ -95,6 +113,7 @@ const createItemRevision = (item: DerivedSceneItem): string => {
 const deriveBoardSceneItems = (
   document: ProjectDocument,
   boardId: BoardId | undefined,
+  resolveControlDefinition: ControlDefinitionResolver = getControlSpec,
 ): readonly DerivedSceneItem[] => {
   if (boardId === undefined) {
     return Object.freeze([]);
@@ -129,7 +148,7 @@ const deriveBoardSceneItems = (
     // `locked` on a scene item is effective interaction state. The persisted
     // direct bit remains owned only by the element record.
     const effectivelyLocked = ancestorLocked || element.locked;
-    const spec = getControlSpec(element.controlType);
+    const spec = resolveControlDefinition(element.controlType);
     if (spec === undefined) {
       throw new Error(`Document scene received unknown control type '${element.controlType}'.`);
     }
@@ -140,11 +159,11 @@ const deriveBoardSceneItems = (
         bounds,
         controlType: element.controlType,
         id: element.id,
-        kind: spec.visualKind === 'transparent' ? 'container' : 'object',
+        kind: spec.scene.kind === 'transparent' ? 'container' : 'object',
         locked: effectivelyLocked,
         owner,
         properties: element.properties,
-        visualKind: spec.visualKind,
+        visualKind: spec.scene.kind,
       }),
     );
     for (const childId of element.childIds) {
@@ -197,11 +216,17 @@ export class DocumentSceneModel {
   readonly #index = new WorldSpatialIndex<ElementId>();
   readonly #itemsById = new Map<ElementId, DocumentSceneItem>();
   readonly #listeners = new Set<() => void>();
+  readonly #resolveControlDefinition: ControlDefinitionResolver;
   #lastBoardId: BoardId | undefined;
   #lastDocument: ProjectDocument | undefined;
+  #maximumHitShapePadding = 0;
   #order: readonly ElementId[] = Object.freeze([]);
   #orderById = new Map<ElementId, number>();
   #revision = 0;
+
+  constructor(options: DocumentSceneModelOptions = {}) {
+    this.#resolveControlDefinition = options.resolveControlDefinition ?? getControlSpec;
+  }
 
   getItem(id: ElementId): DocumentSceneItem | undefined {
     return this.#itemsById.get(id);
@@ -236,7 +261,13 @@ export class DocumentSceneModel {
         updatedItemCount: 0,
       });
     }
-    const derivedItems = deriveBoardSceneItems(document, boardId);
+    const derivedItems = deriveBoardSceneItems(document, boardId, this.#resolveControlDefinition);
+    this.#maximumHitShapePadding = derivedItems.reduce((maximum, item) => {
+      const definition = this.#resolveControlDefinition(item.controlType);
+      return definition === undefined
+        ? maximum
+        : Math.max(maximum, getControlHitShapePadding(definition));
+    }, 0);
     const nextIds = new Set(derivedItems.map((item) => item.id));
     let removedItemCount = 0;
     let updatedItemCount = 0;
@@ -250,12 +281,13 @@ export class DocumentSceneModel {
     }
     for (const derivedItem of derivedItems) {
       const existing = this.#itemsById.get(derivedItem.id);
-      const revision = createItemRevision(derivedItem);
+      const revision = createItemRevision(derivedItem, this.#resolveControlDefinition);
       const geometryChanged =
         existing === undefined ||
         existing.kind !== derivedItem.kind ||
         existing.controlType !== derivedItem.controlType ||
         !boundsEqual(existing.bounds, derivedItem.bounds);
+      const presentationChanged = existing === undefined || existing.revision !== revision;
       if (
         !geometryChanged &&
         existing.locked === derivedItem.locked &&
@@ -274,8 +306,13 @@ export class DocumentSceneModel {
         path:
           derivedItem.kind === 'container' || derivedItem.visualKind === 'text'
             ? ''
-            : geometryChanged || existing === undefined
-              ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
+            : geometryChanged || presentationChanged
+              ? createControlSceneOutlinePath(
+                  derivedItem.controlType,
+                  derivedItem.bounds,
+                  derivedItem.id,
+                  derivedItem.properties,
+                )
               : existing.path,
         properties: derivedItem.properties,
         revision,
@@ -326,11 +363,27 @@ export class DocumentSceneModel {
     options: DocumentSceneHitTestOptions = {},
   ): readonly DocumentSceneItem[] {
     return Object.freeze(
-      this.#index
-        .queryPoint(point)
+      (this.#maximumHitShapePadding === 0
+        ? this.#index.queryPoint(point)
+        : this.#index.query(
+            createWorldRect(
+              point.x - this.#maximumHitShapePadding,
+              point.y - this.#maximumHitShapePadding,
+              this.#maximumHitShapePadding * 2,
+              this.#maximumHitShapePadding * 2,
+            ),
+          )
+      )
         .flatMap((id) => {
           const item = this.#itemsById.get(id);
           if (item === undefined || (item.locked && options.includeLocked !== true)) {
+            return [];
+          }
+          const definition = this.#resolveControlDefinition(item.controlType);
+          if (
+            definition === undefined ||
+            !containsControlHitPoint(definition, item.bounds, item.properties, point)
+          ) {
             return [];
           }
           return [item];

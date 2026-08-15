@@ -19,6 +19,7 @@ export const VISUAL_FIXTURE_NAMES = Object.freeze([
   'viewportZoom',
   'viewportSelectionZoom',
   'mvpAlpha',
+  'registryControl',
   'controls',
   'feedback',
   'tooltip',

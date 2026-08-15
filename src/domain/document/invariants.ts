@@ -127,10 +127,17 @@ const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: A
       continue;
     }
 
-    if (!spec.canOwnChildren && element.childIds.length > 0) {
+    if (spec.capabilities.grouping !== 'container' && element.childIds.length > 0) {
       addIssue(
         ['elementsById', elementKey, 'childIds'],
         `Control type '${element.controlType}' cannot own child elements.`,
+      );
+    }
+
+    if (element.controlVersion !== spec.fileVersion) {
+      addIssue(
+        ['elementsById', elementKey, 'controlVersion'],
+        `Control type '${element.controlType}' must use current property version ${String(spec.fileVersion)}.`,
       );
     }
 

@@ -68,7 +68,11 @@ describe('visual token contract', () => {
   });
 
   it('owns the two allowed font families and visual literals centrally', async () => {
-    expect(new Set([DESIGN_TOKENS.font.ui, DESIGN_TOKENS.font.wireframe]).size).toBe(2);
+    expect(new Set(Object.values(DESIGN_TOKENS.font.family))).toEqual(
+      new Set(['IBM Plex Sans', 'Comic Neue']),
+    );
+    expect(DESIGN_TOKENS.font.ui).toContain(DESIGN_TOKENS.font.family.ui);
+    expect(DESIGN_TOKENS.font.wireframe).toContain(DESIGN_TOKENS.font.family.wireframe);
 
     const stylesheet = await readFile(
       path.join(process.cwd(), 'src/renderer/design/styles.css'),

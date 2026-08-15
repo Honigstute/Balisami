@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, readFile, rm, stat } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -48,11 +49,21 @@ if (executable === null) {
 const visualDirectory = path.join(packageRoot, 'visual');
 await rm(visualDirectory, { force: true, recursive: true });
 await mkdir(visualDirectory, { recursive: true });
+const profileRoot = await mkdtemp(path.join(tmpdir(), 'balsamic-visual-profile-'));
 
 const runFixture = async (fixture, artifactSuffix = '', additionalArguments = []) => {
+  const profileDirectory = path.join(
+    profileRoot,
+    `${fixture}${artifactSuffix.length === 0 ? '-scale-100' : artifactSuffix}`,
+  );
+  await mkdir(profileDirectory, { recursive: true });
   const child = spawn(
     executable,
-    [`${contract.argumentPrefix}${fixture}`, ...additionalArguments],
+    [
+      `${contract.argumentPrefix}${fixture}`,
+      ...additionalArguments,
+      `--user-data-dir=${profileDirectory}`,
+    ],
     {
       stdio: ['ignore', 'pipe', 'pipe'],
     },
@@ -120,19 +131,23 @@ const runFixture = async (fixture, artifactSuffix = '', additionalArguments = []
 };
 
 const screenshots = [];
-for (const fixture of contract.fixtures) {
-  const additionalArguments =
-    fixture === 'default'
-      ? [`${contract.displayScaleArgumentPrefix}${String(contract.displayScales[0])}`]
-      : [];
-  screenshots.push(await runFixture(fixture, '', additionalArguments));
-}
-for (const scale of contract.displayScales.slice(1)) {
-  screenshots.push(
-    await runFixture('default', `-scale-${String(Math.round(scale * 100))}`, [
-      `${contract.displayScaleArgumentPrefix}${String(scale)}`,
-    ]),
-  );
+try {
+  for (const fixture of contract.fixtures) {
+    const additionalArguments =
+      fixture === 'default'
+        ? [`${contract.displayScaleArgumentPrefix}${String(contract.displayScales[0])}`]
+        : [];
+    screenshots.push(await runFixture(fixture, '', additionalArguments));
+  }
+  for (const scale of contract.displayScales.slice(1)) {
+    screenshots.push(
+      await runFixture('default', `-scale-${String(Math.round(scale * 100))}`, [
+        `${contract.displayScaleArgumentPrefix}${String(scale)}`,
+      ]),
+    );
+  }
+} finally {
+  await rm(profileRoot, { force: true, recursive: true });
 }
 
 process.stdout.write(

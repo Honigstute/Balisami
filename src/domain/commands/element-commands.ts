@@ -147,7 +147,7 @@ const applyCreateElement = (
   if (command.owner.kind === 'element') {
     const owner = document.elementsById[command.owner.elementId];
     const spec = owner === undefined ? undefined : getControlSpec(owner.controlType);
-    if (spec?.canOwnChildren !== true) {
+    if (spec?.capabilities.grouping !== 'container') {
       return {
         ok: false,
         code: 'conflict',
@@ -155,11 +155,19 @@ const applyCreateElement = (
       };
     }
   }
-  if (getControlSpec(command.element.controlType) === undefined) {
+  const definition = getControlSpec(command.element.controlType);
+  if (definition === undefined) {
     return {
       ok: false,
       code: 'conflict',
       message: `Control type '${command.element.controlType}' is not registered.`,
+    };
+  }
+  if (command.element.controlVersion !== definition.fileVersion) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Control type '${command.element.controlType}' must be created at property version ${String(definition.fileVersion)}.`,
     };
   }
 
@@ -272,7 +280,7 @@ const applyGroupElements = (
     if (ownerElement === undefined) {
       return notFound('Owner', command.owner.elementId);
     }
-    if (getControlSpec(ownerElement.controlType)?.canOwnChildren !== true) {
+    if (getControlSpec(ownerElement.controlType)?.capabilities.grouping !== 'container') {
       return {
         ok: false,
         code: 'conflict',

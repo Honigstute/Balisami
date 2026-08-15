@@ -1,7 +1,10 @@
+import { migrateProjectDocumentV1ToV2, type ProjectDocumentMigrationResult } from '../../domain';
+
 import { PROJECT_FILE_FORMAT_VERSION } from './manifest';
 
 export interface ProjectFileMigrationStep {
   readonly fromVersion: number;
+  readonly migrateDocument: (input: unknown) => ProjectDocumentMigrationResult;
   readonly toVersion: number;
 }
 
@@ -21,10 +24,16 @@ export type ProjectFileVersionRouteResult =
   | { readonly ok: false; readonly error: ProjectFileVersionError };
 
 /**
- * This registry stays empty while v1 is the only released format. When v2 exists,
- * it gains one pure 1→2 step; migrations are never skipped or guessed.
+ * Released file migrations are complete, sequential, and pure. A source file is
+ * never accepted merely because its JSON happens to resemble the current shape.
  */
-const PROJECT_FILE_MIGRATION_STEPS: readonly ProjectFileMigrationStep[] = Object.freeze([]);
+const PROJECT_FILE_MIGRATION_STEPS: readonly ProjectFileMigrationStep[] = Object.freeze([
+  Object.freeze({
+    fromVersion: 1,
+    migrateDocument: migrateProjectDocumentV1ToV2,
+    toVersion: 2,
+  }),
+]);
 
 export const routeProjectFileVersion = (version: unknown): ProjectFileVersionRouteResult => {
   if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0) {

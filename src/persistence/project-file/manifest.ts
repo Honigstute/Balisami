@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const PROJECT_FILE_FORMAT_ID = 'wireframe-project' as const;
-export const PROJECT_FILE_FORMAT_VERSION = 1 as const;
+export const PROJECT_FILE_FORMAT_VERSION = 2 as const;
 
 export const PROJECT_FILE_ENTRY_PATHS = Object.freeze({
   assetDirectory: 'assets/sha256/',
@@ -9,18 +9,31 @@ export const PROJECT_FILE_ENTRY_PATHS = Object.freeze({
   manifest: 'manifest.json',
 } as const);
 
-export const ProjectFileManifestV1Schema = z
-  .strictObject({
-    format: z.literal(PROJECT_FILE_FORMAT_ID),
-    formatVersion: z.literal(PROJECT_FILE_FORMAT_VERSION),
-    documentEntry: z.literal(PROJECT_FILE_ENTRY_PATHS.document),
-    assetDirectory: z.literal(PROJECT_FILE_ENTRY_PATHS.assetDirectory),
-  })
-  .readonly();
+const ProjectFileManifestBaseSchema = z.strictObject({
+  format: z.literal(PROJECT_FILE_FORMAT_ID),
+  documentEntry: z.literal(PROJECT_FILE_ENTRY_PATHS.document),
+  assetDirectory: z.literal(PROJECT_FILE_ENTRY_PATHS.assetDirectory),
+});
+
+export const ProjectFileManifestV1Schema = ProjectFileManifestBaseSchema.extend({
+  formatVersion: z.literal(1),
+}).readonly();
+
+export const ProjectFileManifestV2Schema = ProjectFileManifestBaseSchema.extend({
+  formatVersion: z.literal(PROJECT_FILE_FORMAT_VERSION),
+}).readonly();
 
 export type ProjectFileManifestV1 = z.infer<typeof ProjectFileManifestV1Schema>;
+export type ProjectFileManifestV2 = z.infer<typeof ProjectFileManifestV2Schema>;
 
 export const PROJECT_FILE_MANIFEST_V1: ProjectFileManifestV1 = ProjectFileManifestV1Schema.parse({
+  format: PROJECT_FILE_FORMAT_ID,
+  formatVersion: 1,
+  documentEntry: PROJECT_FILE_ENTRY_PATHS.document,
+  assetDirectory: PROJECT_FILE_ENTRY_PATHS.assetDirectory,
+});
+
+export const PROJECT_FILE_MANIFEST_V2: ProjectFileManifestV2 = ProjectFileManifestV2Schema.parse({
   format: PROJECT_FILE_FORMAT_ID,
   formatVersion: PROJECT_FILE_FORMAT_VERSION,
   documentEntry: PROJECT_FILE_ENTRY_PATHS.document,

@@ -300,7 +300,7 @@ export const selectElementCommandAvailability = (
   }
 
   return Object.freeze({
-    canCreateChild: getControlSpec(element.controlType)?.canOwnChildren === true,
+    canCreateChild: getControlSpec(element.controlType)?.capabilities.grouping === 'container',
     canDelete: element.childIds.length === 0,
     canMoveBackward: location.index > 0,
     canMoveForward: location.index < siblings.length - 1,

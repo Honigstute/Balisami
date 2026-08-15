@@ -37,6 +37,7 @@ export const createControlInsertionCommand = (
       assetIds: Object.freeze([]),
       childIds: Object.freeze([]),
       controlType: spec.type,
+      controlVersion: spec.fileVersion,
       frame: Object.freeze({
         height: spec.defaultSize.height,
         width: spec.defaultSize.width,

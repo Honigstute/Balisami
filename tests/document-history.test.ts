@@ -25,7 +25,11 @@ import {
   type HistoryOperationResult,
   type ProjectDocument,
 } from '../src/domain';
-import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
+import {
+  createValidProjectDocumentInput,
+  DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
+} from './fixtures/project-document';
 
 type ChangedHistory = Extract<
   HistoryOperationResult,
@@ -381,6 +385,7 @@ const createHistoryElement = () =>
   ElementNodeSchema.parse({
     id: HISTORY_ELEMENT_ID,
     controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+    controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: 40, y: 40, width: 180, height: 80 },
     locked: false,
     properties: { label: 'History fixture' },

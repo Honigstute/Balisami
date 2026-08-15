@@ -178,7 +178,7 @@ describe('project file codec', () => {
     expect(encodeFixture(decoded.value.document)).toEqual(canonical);
   });
 
-  it('reports unsupported formats, older versions, and newer versions distinctly', () => {
+  it('reports unsupported formats, missing migration paths, and newer versions distinctly', () => {
     const envelope = encodeFixture();
 
     expect(
@@ -207,7 +207,10 @@ describe('project file codec', () => {
           manifestBytes({ formatVersion: PROJECT_FILE_FORMAT_VERSION + 1 }),
         ),
       ),
-    ).toMatchObject({ code: 'newer-version', foundVersion: 2 });
+    ).toMatchObject({
+      code: 'newer-version',
+      foundVersion: PROJECT_FILE_FORMAT_VERSION + 1,
+    });
   });
 
   it('reports invalid manifests, malformed or truncated JSON, and invalid UTF-8', () => {

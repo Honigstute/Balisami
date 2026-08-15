@@ -120,7 +120,8 @@ const isOwnerAvailable = (document: ProjectDocument, owner: ElementOwner): boole
   }
   const ownerElement = document.elementsById[owner.elementId];
   return (
-    ownerElement !== undefined && getControlSpec(ownerElement.controlType)?.canOwnChildren === true
+    ownerElement !== undefined &&
+    getControlSpec(ownerElement.controlType)?.capabilities.grouping === 'container'
   );
 };
 

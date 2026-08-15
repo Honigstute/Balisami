@@ -2,16 +2,21 @@ import { useEffect, useState, useSyncExternalStore, type KeyboardEvent } from 'r
 
 import {
   getControlSpec,
+  type ControlInspectorPropertyField,
   type ElementId,
   type ElementProperties,
   type ProjectDocument,
   type WorldRect,
 } from '../../domain';
+import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
+import { AppButton } from '../design/AppButton';
 import { AppInput } from '../design/AppInput';
+import { AppSegmentedControl } from '../design/AppSegmentedControl';
 import type { SelectionStore } from '../editor/selection-store';
 
 interface ControlInspectorProps {
   readonly document: ProjectDocument;
+  readonly onAutoSize: (elementId: ElementId) => Promise<boolean>;
   readonly onSetFrame: (elementId: ElementId, frame: WorldRect) => boolean;
   readonly onSetProperties: (elementId: ElementId, properties: ElementProperties) => boolean;
   readonly selection: SelectionStore;
@@ -19,8 +24,10 @@ interface ControlInspectorProps {
 
 interface InspectorNumberInputProps {
   readonly label: string;
+  readonly maximum?: number;
   readonly minimum?: number;
   readonly onCommit: (value: number) => boolean;
+  readonly step?: number | 'any';
   readonly value: number;
 }
 
@@ -34,7 +41,14 @@ const blurOnEnter = (event: KeyboardEvent<HTMLInputElement>): void => {
   }
 };
 
-const InspectorNumberInput = ({ label, minimum, onCommit, value }: InspectorNumberInputProps) => {
+const InspectorNumberInput = ({
+  label,
+  maximum,
+  minimum,
+  onCommit,
+  step = 'any',
+  value,
+}: InspectorNumberInputProps) => {
   const canonical = formatInspectorNumber(value);
   const [draft, setDraft] = useState(canonical);
   const [validation, setValidation] = useState<string>();
@@ -46,12 +60,18 @@ const InspectorNumberInput = ({ label, minimum, onCommit, value }: InspectorNumb
 
   const commit = (): void => {
     const parsed = Number(draft);
-    if (!Number.isFinite(parsed) || (minimum !== undefined && parsed < minimum)) {
-      setValidation(
-        minimum === undefined
-          ? 'Enter a finite number.'
-          : `Minimum ${formatInspectorNumber(minimum)}.`,
-      );
+    if (
+      !Number.isFinite(parsed) ||
+      (minimum !== undefined && parsed < minimum) ||
+      (maximum !== undefined && parsed > maximum)
+    ) {
+      if (!Number.isFinite(parsed)) {
+        setValidation('Enter a finite number.');
+      } else if (minimum !== undefined && parsed < minimum) {
+        setValidation(`Minimum ${formatInspectorNumber(minimum)}.`);
+      } else if (maximum !== undefined) {
+        setValidation(`Maximum ${formatInspectorNumber(maximum)}.`);
+      }
       return;
     }
     if (parsed === value || onCommit(parsed)) {
@@ -67,11 +87,12 @@ const InspectorNumberInput = ({ label, minimum, onCommit, value }: InspectorNumb
     <AppInput
       kind="number"
       label={label}
+      max={maximum}
       min={minimum}
       onBlur={commit}
       onChange={(event) => setDraft(event.currentTarget.value)}
       onKeyDown={blurOnEnter}
-      step="any"
+      step={step}
       {...(validation === undefined ? {} : { validation })}
       value={draft}
     />
@@ -105,7 +126,7 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
   return (
     <AppInput
       label={label}
-      maxLength={100_000}
+      maxLength={CONTROL_TEXT_POLICY.maximumLength}
       onBlur={commit}
       onChange={(event) => setDraft(event.currentTarget.value)}
       onKeyDown={blurOnEnter}
@@ -113,6 +134,61 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
       value={draft}
     />
   );
+};
+
+interface InspectorPropertyFieldProps {
+  readonly field: ControlInspectorPropertyField;
+  readonly onCommit: (property: string, value: boolean | number | string) => boolean;
+  readonly value: boolean | number | string;
+}
+
+/** Property field kinds are registry vocabulary, not control-type branches. */
+const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFieldProps) => {
+  if (field.kind === 'boolean' && typeof value === 'boolean') {
+    return (
+      <AppSegmentedControl
+        label={field.label}
+        onChange={(nextValue) => onCommit(field.property, nextValue === 'true')}
+        options={[
+          { label: 'Unchecked', value: 'false' },
+          { label: 'Checked', value: 'true' },
+        ]}
+        value={String(value)}
+      />
+    );
+  }
+  if (field.kind === 'text' && typeof value === 'string') {
+    return (
+      <InspectorTextInput
+        label={field.label}
+        onCommit={(nextValue) => onCommit(field.property, nextValue)}
+        value={value}
+      />
+    );
+  }
+  if (field.kind === 'choice' && typeof value === 'string') {
+    return (
+      <AppSegmentedControl
+        label={field.label}
+        onChange={(nextValue) => onCommit(field.property, nextValue)}
+        options={field.options}
+        value={value}
+      />
+    );
+  }
+  if (field.kind === 'number' && typeof value === 'number') {
+    return (
+      <InspectorNumberInput
+        label={field.label}
+        maximum={field.maximum}
+        minimum={field.minimum}
+        onCommit={(nextValue) => onCommit(field.property, nextValue)}
+        step={field.step}
+        value={value}
+      />
+    );
+  }
+  throw new Error(`Inspector field '${field.property}' does not match its control property.`);
 };
 
 const InspectorFooter = () => (
@@ -124,6 +200,7 @@ const InspectorFooter = () => (
 
 export const ControlInspector = ({
   document,
+  onAutoSize,
   onSetFrame,
   onSetProperties,
   selection,
@@ -136,6 +213,13 @@ export const ControlInspector = ({
   const elementId =
     selectionSnapshot.selectedIds.length === 1 ? selectionSnapshot.primaryId : undefined;
   const element = elementId === undefined ? undefined : document.elementsById[elementId];
+  const [autoSizePending, setAutoSizePending] = useState(false);
+  const [autoSizeValidation, setAutoSizeValidation] = useState<string>();
+
+  useEffect(() => {
+    setAutoSizePending(false);
+    setAutoSizeValidation(undefined);
+  }, [elementId]);
 
   if (selectionSnapshot.selectedIds.length > 1) {
     return (
@@ -175,8 +259,21 @@ export const ControlInspector = ({
   const label = spec.palette?.label ?? 'Group';
   const commitFrame = (patch: Partial<WorldRect>): boolean =>
     onSetFrame(element.id, Object.freeze({ ...element.frame, ...patch }));
-  const textMetadata = spec.text;
-  const textValue = textMetadata === null ? undefined : element.properties[textMetadata.property];
+  const textMetadata = spec.capabilities.text;
+
+  const autoSize = async (): Promise<void> => {
+    setAutoSizePending(true);
+    setAutoSizeValidation(undefined);
+    try {
+      if (!(await onAutoSize(element.id))) {
+        setAutoSizeValidation('The control could not be auto-sized.');
+      }
+    } catch {
+      setAutoSizeValidation('The control could not be auto-sized.');
+    } finally {
+      setAutoSizePending(false);
+    }
+  };
 
   return (
     <>
@@ -208,6 +305,7 @@ export const ControlInspector = ({
             <InspectorNumberInput
               key={`${element.id}-width`}
               label="Width"
+              {...(spec.maximumSize === null ? {} : { maximum: spec.maximumSize.width })}
               minimum={spec.minimumSize.width}
               onCommit={(width) => commitFrame({ width })}
               value={element.frame.width}
@@ -215,29 +313,54 @@ export const ControlInspector = ({
             <InspectorNumberInput
               key={`${element.id}-height`}
               label="Height"
+              {...(spec.maximumSize === null ? {} : { maximum: spec.maximumSize.height })}
               minimum={spec.minimumSize.height}
               onCommit={(height) => commitFrame({ height })}
               value={element.frame.height}
             />
           </div>
+          {spec.autoSize === null ? null : (
+            <div className="inspector-auto-size">
+              <AppButton disabled={autoSizePending} onClick={() => void autoSize()}>
+                {autoSizePending ? 'Auto-Sizing…' : '↔ Auto-Size'}
+              </AppButton>
+              <span aria-live="polite">{autoSizeValidation ?? ''}</span>
+            </div>
+          )}
         </section>
-        {textMetadata !== null && typeof textValue === 'string' ? (
-          <section className="inspector-section">
-            <h3>Text</h3>
-            <InspectorTextInput
-              key={`${element.id}-text`}
-              label="Content"
-              onCommit={(text) =>
-                onSetProperties(
-                  element.id,
-                  Object.freeze({ ...element.properties, [textMetadata.property]: text }),
-                )
+        {spec.inspector.map((section) => (
+          <section className="inspector-section" key={section.label}>
+            <h3>{section.label}</h3>
+            {section.fields.map((field) => {
+              const value = element.properties[field.property];
+              if (
+                typeof value !== 'boolean' &&
+                typeof value !== 'number' &&
+                typeof value !== 'string'
+              ) {
+                throw new Error(
+                  `Inspector property '${field.property}' is missing from '${element.controlType}'.`,
+                );
               }
-              value={textValue}
-            />
-            <p>Double-click the control or press Enter to edit on canvas.</p>
+              return (
+                <InspectorPropertyField
+                  field={field}
+                  key={`${element.id}-${field.property}`}
+                  onCommit={(property, nextValue) =>
+                    onSetProperties(
+                      element.id,
+                      Object.freeze({ ...element.properties, [property]: nextValue }),
+                    )
+                  }
+                  value={value}
+                />
+              );
+            })}
+            {textMetadata === null ? null : (
+              <p>Double-click the control or press Enter to edit on canvas.</p>
+            )}
           </section>
-        ) : null}
+        ))}
       </div>
       <InspectorFooter />
     </>

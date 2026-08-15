@@ -10,7 +10,11 @@ import {
   createWorldRect,
   createWorldVector,
 } from '../src/renderer/editor/viewport-transform';
-import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
+import {
+  createValidProjectDocumentInput,
+  DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
+} from './fixtures/project-document';
 
 const createModel = (): DocumentSceneModel => {
   const result = parseProjectDocument(createValidProjectDocumentInput());
@@ -99,6 +103,7 @@ describe('scene snap candidate adapter', () => {
     const createRectangle = (id: typeof beforeId, x: number) => ({
       id,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x, y: 300, width: id === movingId ? 20 : 40, height: 20 },
       locked: false,
       properties: {},

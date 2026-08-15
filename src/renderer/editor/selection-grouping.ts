@@ -5,6 +5,7 @@ import {
   GroupElementsCommandSchema,
   UngroupElementCommandSchema,
   createElementLocationIndex,
+  getControlSpec,
   selectElementLockState,
   selectOwnerChildIds,
   type ElementId,
@@ -163,7 +164,8 @@ export const planSelectionGroup = (
     .slice(0, topmostSelectedIndex)
     .filter((childId) => !selectedSet.has(childId)).length;
   const childFrames = createTranslatedChildFrames(document, childIds, -frame.x, -frame.y);
-  if (childFrames === undefined) {
+  const groupDefinition = getControlSpec(FOUNDATION_CONTROL_TYPES.group);
+  if (childFrames === undefined || groupDefinition === undefined) {
     return undefined;
   }
   const command = GroupElementsCommandSchema.safeParse({
@@ -172,6 +174,7 @@ export const planSelectionGroup = (
     group: {
       id: allocatedId.data,
       controlType: FOUNDATION_CONTROL_TYPES.group,
+      controlVersion: groupDefinition.fileVersion,
       frame,
       locked: false,
       properties: {},

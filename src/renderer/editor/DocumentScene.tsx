@@ -1,6 +1,24 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
-import { getControlSpec, type BoardId, type ElementId, type ProjectDocument } from '../../domain';
+import {
+  getControlAccessibleName,
+  getControlSpec,
+  type BoardId,
+  type ElementId,
+  type ProjectDocument,
+} from '../../domain';
+import {
+  createControlSceneMarkPath,
+  createControlSceneOutlinePath,
+  controlSceneHasFill,
+  controlSceneHasOutline,
+  getControlScenePrimitiveBounds,
+} from '../controls/control-scene-geometry';
+import { calculateControlSceneTextLayout } from '../controls/control-scene-text-layout';
+import {
+  getBrowserControlTextMeasurementService,
+  type ControlTextMeasurementService,
+} from '../controls/control-text-measurement';
 import type { DocumentSceneItem, DocumentSceneModel } from './document-scene-model';
 import type {
   KeyboardNudgeInteraction,
@@ -8,7 +26,6 @@ import type {
 } from './keyboard-nudge-interaction';
 import type { MoveInteraction, MoveInteractionSnapshot } from './move-interaction';
 import type { ResizeInteraction, ResizeInteractionSnapshot } from './resize-interaction';
-import { createSeededSketchRectPath } from './seeded-sketch';
 import type { ViewportCameraStore } from './viewport-camera-store';
 
 interface DocumentSceneProps {
@@ -19,6 +36,8 @@ interface DocumentSceneProps {
   readonly model: DocumentSceneModel;
   readonly moveInteraction?: MoveInteraction;
   readonly resizeInteraction?: ResizeInteraction;
+  /** Tests and non-browser hosts may inject the same deterministic measurement contract. */
+  readonly textMeasurementService?: ControlTextMeasurementService;
 }
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
@@ -34,6 +53,7 @@ class DocumentScenePresenter {
   #keyboardNudgeSnapshot: KeyboardNudgeInteractionSnapshot | undefined;
   #moveSnapshot: MoveInteractionSnapshot | undefined;
   #resizeSnapshot: ResizeInteractionSnapshot | undefined;
+  #textMeasurementService: ControlTextMeasurementService | undefined;
   #visibleOrder: readonly ElementId[] = Object.freeze([]);
 
   constructor(root: SVGGElement) {
@@ -97,6 +117,21 @@ class DocumentScenePresenter {
     this.#applyResizePreview();
   }
 
+  setTextMeasurementService(service: ControlTextMeasurementService): void {
+    if (this.#textMeasurementService === service) {
+      return;
+    }
+    this.#textMeasurementService = service;
+    for (const [id, item] of this.#canonicalItemsById) {
+      const element = this.#elementsById.get(id);
+      const text = element?.children[3];
+      if (text?.localName === 'text') {
+        this.#updateElementText(text as SVGTextElement, item.bounds, item);
+      }
+    }
+    this.#applyResizePreview();
+  }
+
   setMovePreview(snapshot: MoveInteractionSnapshot | undefined): void {
     const previousIds = this.#getTranslationPreview()?.affectedIds ?? Object.freeze([]);
     this.#moveSnapshot = snapshot;
@@ -147,7 +182,13 @@ class DocumentScenePresenter {
     this.#updateElementGeometry(
       element,
       snapshot.worldBounds,
-      createSeededSketchRectPath(snapshot.worldBounds, snapshot.elementId),
+      createControlSceneOutlinePath(
+        item.controlType,
+        snapshot.worldBounds,
+        snapshot.elementId,
+        item.properties,
+      ),
+      item.properties,
       item,
     );
   }
@@ -156,7 +197,7 @@ class DocumentScenePresenter {
     const element = this.#elementsById.get(id);
     const item = this.#canonicalItemsById.get(id);
     if (element !== undefined && item !== undefined) {
-      this.#updateElementGeometry(element, item.bounds, item.path, item);
+      this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
     }
   }
 
@@ -164,20 +205,34 @@ class DocumentScenePresenter {
     const element = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const fill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
     const outline = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
+    const mark = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const text = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'text');
     element.dataset.sceneElementId = id;
     fill.setAttribute('class', 'scene-control__fill');
     outline.setAttribute('class', 'scene-control__outline');
+    mark.setAttribute('class', 'scene-control__mark');
     text.setAttribute('class', 'scene-control__text');
-    element.append(fill, outline, text);
+    element.append(fill, outline, mark, text);
     this.#elementsById.set(id, element);
     return element;
   }
 
   #updateElement(element: SVGGElement, item: DocumentSceneItem): void {
+    const spec = getControlSpec(item.controlType);
+    if (spec === undefined) {
+      throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
+    }
     element.dataset.controlType = item.controlType;
     element.dataset.controlVisual = item.visualKind;
-    this.#updateElementGeometry(element, item.bounds, item.path, item);
+    element.setAttribute('aria-label', getControlAccessibleName(spec, item.properties));
+    element.setAttribute('role', spec.accessibility.role);
+    const checkedProperty = spec.accessibility.checkedProperty;
+    if (checkedProperty === null) {
+      element.removeAttribute('aria-checked');
+    } else {
+      element.setAttribute('aria-checked', String(item.properties[checkedProperty] === true));
+    }
+    this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
     element.dataset.sceneRevision = item.revision;
   }
 
@@ -185,55 +240,117 @@ class DocumentScenePresenter {
     element: SVGGElement,
     bounds: DocumentSceneItem['bounds'],
     path: string,
+    properties: DocumentSceneItem['properties'],
     item: DocumentSceneItem,
   ): void {
     const fill = element.children[0];
     const outline = element.children[1];
-    const text = element.children[2];
-    if (fill?.localName !== 'rect' || outline?.localName !== 'path' || text?.localName !== 'text') {
+    const mark = element.children[2];
+    const text = element.children[3];
+    if (
+      fill?.localName !== 'rect' ||
+      outline?.localName !== 'path' ||
+      mark?.localName !== 'path' ||
+      text?.localName !== 'text'
+    ) {
       throw new Error('Document scene element structure was changed unexpectedly.');
     }
     const fillElement = fill as SVGRectElement;
     const outlineElement = outline as SVGPathElement;
+    const markElement = mark as SVGPathElement;
     const textElement = text as SVGTextElement;
-    fillElement.setAttribute('x', String(bounds.x));
-    fillElement.setAttribute('y', String(bounds.y));
-    fillElement.setAttribute('width', String(bounds.width));
-    fillElement.setAttribute('height', String(bounds.height));
+    const primitiveBounds = getControlScenePrimitiveBounds(item.controlType, bounds);
+    fillElement.setAttribute('x', String(primitiveBounds.x));
+    fillElement.setAttribute('y', String(primitiveBounds.y));
+    fillElement.setAttribute('width', String(primitiveBounds.width));
+    fillElement.setAttribute('height', String(primitiveBounds.height));
     outlineElement.setAttribute('d', path);
+    const markPath = createControlSceneMarkPath(item.controlType, bounds, item.id, properties);
+    markElement.setAttribute('d', markPath);
+    markElement.setAttribute('display', markPath.length === 0 ? 'none' : 'inline');
 
     const spec = getControlSpec(item.controlType);
     if (spec === undefined) {
       throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
     }
-    const hasOutline = item.visualKind !== 'text' && item.visualKind !== 'transparent';
-    fillElement.setAttribute('display', hasOutline ? 'inline' : 'none');
-    outlineElement.setAttribute('display', hasOutline ? 'inline' : 'none');
+    fillElement.setAttribute('display', controlSceneHasFill(spec) ? 'inline' : 'none');
+    outlineElement.setAttribute('display', controlSceneHasOutline(spec) ? 'inline' : 'none');
 
-    const textMetadata = spec.text;
-    const textValue = textMetadata === null ? undefined : item.properties[textMetadata.property];
-    if (textMetadata === null || typeof textValue !== 'string') {
+    const color = properties.color;
+    fillElement.style.removeProperty('fill');
+    outlineElement.style.removeProperty('stroke');
+    markElement.style.removeProperty('stroke');
+    if (typeof color === 'string' && color !== 'default') {
+      if (spec.scene.kind === 'browser') {
+        fillElement.style.fill = color;
+      } else {
+        outlineElement.style.stroke = color;
+        markElement.style.stroke = color;
+      }
+    }
+    element.style.opacity =
+      typeof properties.opacity === 'number' ? String(properties.opacity) : '';
+    const strokeStyle = properties.strokeStyle;
+    if (typeof strokeStyle === 'string') {
+      element.dataset.controlStrokeStyle = strokeStyle;
+    } else {
+      delete element.dataset.controlStrokeStyle;
+    }
+    if (typeof properties.borderMode === 'string') {
+      element.dataset.controlBorderMode = properties.borderMode;
+    } else {
+      delete element.dataset.controlBorderMode;
+    }
+    if (typeof properties.showBorder === 'boolean') {
+      element.dataset.controlShowBorder = String(properties.showBorder);
+    } else {
+      delete element.dataset.controlShowBorder;
+    }
+
+    this.#updateElementText(textElement, bounds, item);
+  }
+
+  #updateElementText(
+    textElement: SVGTextElement,
+    bounds: DocumentSceneItem['bounds'],
+    item: DocumentSceneItem,
+  ): void {
+    const spec = getControlSpec(item.controlType);
+    if (spec === undefined) {
+      throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
+    }
+    const service = this.#textMeasurementService;
+    const layout =
+      service === undefined
+        ? undefined
+        : calculateControlSceneTextLayout(spec, bounds, item.properties, service);
+    if (layout === undefined) {
       textElement.setAttribute('display', 'none');
-      textElement.textContent = '';
+      textElement.replaceChildren();
       return;
     }
     textElement.setAttribute('display', 'inline');
-    textElement.setAttribute('dominant-baseline', 'middle');
-    textElement.setAttribute('font-size', String(textMetadata.fontSize));
-    textElement.setAttribute(
-      'text-anchor',
-      textMetadata.alignment === 'center' ? 'middle' : 'start',
-    );
-    textElement.setAttribute(
-      'x',
-      String(
-        textMetadata.alignment === 'center'
-          ? bounds.x + bounds.width / 2
-          : bounds.x + textMetadata.inset,
-      ),
-    );
-    textElement.setAttribute('y', String(bounds.y + bounds.height / 2));
-    textElement.textContent = textValue;
+    textElement.setAttribute('dominant-baseline', 'alphabetic');
+    textElement.setAttribute('font-size', String(layout.fontSize));
+    textElement.setAttribute('text-anchor', layout.textAnchor);
+    while (textElement.children.length > layout.lines.length) {
+      textElement.lastElementChild?.remove();
+    }
+    layout.lines.forEach((line, index) => {
+      const existing = textElement.children[index];
+      const span =
+        existing?.localName === 'tspan'
+          ? (existing as SVGTSpanElement)
+          : this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'tspan');
+      if (existing === undefined) {
+        textElement.append(span);
+      } else if (existing !== span) {
+        existing.replaceWith(span);
+      }
+      span.setAttribute('x', String(line.x));
+      span.setAttribute('y', String(line.baselineY));
+      span.textContent = line.text;
+    });
   }
 }
 
@@ -246,6 +363,7 @@ export const DocumentScene = ({
   model,
   moveInteraction,
   resizeInteraction,
+  textMeasurementService,
 }: DocumentSceneProps) => {
   const rootRef = useRef<SVGGElement | null>(null);
   const presenterRef = useRef<DocumentScenePresenter | undefined>(undefined);
@@ -268,6 +386,35 @@ export const DocumentScene = ({
       presenterRef.current = undefined;
     };
   }, []);
+
+  useLayoutEffect(() => {
+    const presenter = presenterRef.current;
+    const ownerDocument = rootRef.current?.ownerDocument;
+    if (presenter === undefined || ownerDocument === undefined) {
+      return;
+    }
+    if (textMeasurementService !== undefined) {
+      presenter.setTextMeasurementService(textMeasurementService);
+      return;
+    }
+    if (ownerDocument.fonts === undefined) {
+      return;
+    }
+    let disposed = false;
+    void getBrowserControlTextMeasurementService(ownerDocument)
+      .then((service) => {
+        if (!disposed) {
+          presenter.setTextMeasurementService(service);
+        }
+      })
+      .catch(() => {
+        // Renderer readiness consumes the same cached rejection and owns the actionable startup
+        // failure. Avoid a second unhandled rejection from this presentation-only subscriber.
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [textMeasurementService]);
 
   useLayoutEffect(() => {
     model.reconcile(document, activeBoardId);

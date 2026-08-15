@@ -18,6 +18,7 @@ import {
 import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
   type ProjectDocumentInputFixture,
 } from './fixtures/project-document';
 
@@ -66,6 +67,8 @@ const createElement = (
   ElementNodeSchema.parse({
     id,
     controlType,
+    controlVersion:
+      controlType === 'foundation.unknown' ? 1 : getFixtureControlVersion(controlType),
     frame: { x: 40, y: 60, width: 160, height: 80 },
     locked: false,
     properties: { label: 'New element' },
@@ -443,6 +446,14 @@ describe('element document commands', () => {
     });
     expect(unsupported.error.code).toBe('conflict');
 
+    const staleVersion = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: { ...createElement(), controlVersion: 2 },
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 0,
+    });
+    expect(staleVersion.error.code).toBe('conflict');
+
     const outOfRange = expectFailure(document, {
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: createElement(),
@@ -451,7 +462,15 @@ describe('element document commands', () => {
     });
     expect(outOfRange.error.code).toBe('out-of-range');
 
-    for (const failure of [duplicate, nonEmpty, missingOwner, leafOwner, unsupported, outOfRange]) {
+    for (const failure of [
+      duplicate,
+      nonEmpty,
+      missingOwner,
+      leafOwner,
+      unsupported,
+      staleVersion,
+      outOfRange,
+    ]) {
       expect(failure.document).toBe(document);
     }
   });

@@ -7,6 +7,7 @@ import {
   BoardIdSchema,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
   parseProjectDocument,
   ProjectIdSchema,
   type ElementId,
@@ -27,6 +28,7 @@ import {
   createWorldVector,
 } from '../src/renderer/editor/viewport-transform';
 import { createEditorSpatialFixture } from './fixtures/editor-spatial-fixture';
+import { getFixtureControlVersion } from './fixtures/project-document';
 
 const percentile95 = (samples: readonly number[]): number => {
   const ordered = [...samples].sort((first, second) => first - second);
@@ -45,6 +47,7 @@ const createHitTestFixture = (elementCount: number) => {
     elementsById[id] = {
       id,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: {
         x: (index % columnCount) * 20,
         y: Math.floor(index / columnCount) * 20,
@@ -59,7 +62,7 @@ const createHitTestFixture = (elementCount: number) => {
     };
   }
   const parsed = parseProjectDocument({
-    schemaVersion: 1,
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     id: projectId,
     name: 'Hit-test performance fixture',
     boardIds: [boardId],

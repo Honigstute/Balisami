@@ -1,3 +1,8 @@
+const FONT_FAMILIES = Object.freeze({
+  ui: 'IBM Plex Sans',
+  wireframe: 'Comic Neue',
+});
+
 export const DESIGN_TOKENS = {
   color: {
     ink: '#202428',
@@ -29,8 +34,9 @@ export const DESIGN_TOKENS = {
     shadow: 'rgba(32, 36, 40, 0.12)',
   },
   font: {
-    ui: '"IBM Plex Sans", sans-serif',
-    wireframe: '"Comic Neue", cursive',
+    family: FONT_FAMILIES,
+    ui: `"${FONT_FAMILIES.ui}", sans-serif`,
+    wireframe: `"${FONT_FAMILIES.wireframe}", cursive`,
     captionSize: 11,
     bodySize: 13,
     titleSize: 14,

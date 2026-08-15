@@ -1,10 +1,11 @@
 import { ElementIdSchema, type ElementId } from '../../domain';
+import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
 import type { SelectionStore } from './selection-store';
 import { createWorldRect, type WorldPoint, type WorldRect } from './viewport-transform';
 
 export const TEXT_EDIT_POLICY = Object.freeze({
   maximumAccessibleLabelLength: 120,
-  maximumTextLength: 100_000,
+  maximumTextLength: CONTROL_TEXT_POLICY.maximumLength,
 });
 
 export type TextEditMode = 'multiline' | 'single-line';

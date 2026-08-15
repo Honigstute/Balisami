@@ -21,6 +21,7 @@
     "viewportZoom",
     "viewportSelectionZoom",
     "mvpAlpha",
+    "registryControl",
     "controls",
     "feedback",
     "tooltip",

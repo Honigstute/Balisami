@@ -135,13 +135,19 @@ describe('project document schema', () => {
     expect(paths).toContain(`assetsById.${mismatchedAssetKey}.id`);
   });
 
-  it('rejects unknown controls and child ownership by leaf controls', () => {
+  it('rejects unknown controls, stale control versions, and child ownership by leaf controls', () => {
     const unknownControl = createValidProjectDocumentInput();
     getElement(unknownControl, DOCUMENT_FIXTURE_IDS.child).controlType = 'foundation.unknown';
 
     const unknownResult = expectFailure(unknownControl);
     expect(issuePaths(unknownResult)).toContain(
       `elementsById.${DOCUMENT_FIXTURE_IDS.child}.controlType`,
+    );
+
+    const staleVersion = createValidProjectDocumentInput();
+    getElement(staleVersion, DOCUMENT_FIXTURE_IDS.child).controlVersion += 1;
+    expect(issuePaths(expectFailure(staleVersion))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.child}.controlVersion`,
     );
 
     const illegalContainer = createValidProjectDocumentInput();

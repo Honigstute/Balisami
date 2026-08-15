@@ -1,38 +1,66 @@
+import { useEffect, useState } from 'react';
+
 import { listPaletteControlSpecs, type ControlTypeId } from '../../domain';
+import { ControlThumbnail } from './ControlThumbnail';
+import {
+  getBrowserControlTextMeasurementService,
+  type ControlTextMeasurementService,
+} from './control-text-measurement';
 
 interface ControlShelfProps {
   readonly onInsert: (controlType: ControlTypeId) => boolean;
+  /** Tests and non-browser hosts may inject the canonical synchronous service. */
+  readonly textMeasurementService?: ControlTextMeasurementService;
 }
 
 /** Fixed slots prevent labels and preview geometry from resizing the shelf. */
-export const ControlShelf = ({ onInsert }: ControlShelfProps) => (
-  <div aria-label="Available controls" className="control-library" role="toolbar">
-    {listPaletteControlSpecs().map((spec) => {
-      const palette = spec.palette;
-      if (palette === null) {
-        return null;
-      }
-      const textValue = spec.text === null ? undefined : spec.defaultProperties[spec.text.property];
-      const previewText = typeof textValue === 'string' ? textValue : undefined;
-      return (
-        <button
-          aria-label={`Insert ${palette.label}`}
-          className="control-library__item"
-          key={spec.type}
-          onClick={() => onInsert(spec.type)}
-          title={`Insert ${palette.label}`}
-          type="button"
-        >
-          <span
-            aria-hidden="true"
-            className="control-library__preview"
-            data-control-preview={spec.visualKind}
+export const ControlShelf = ({ onInsert, textMeasurementService }: ControlShelfProps) => {
+  const [browserMeasurementService, setBrowserMeasurementService] = useState<
+    ControlTextMeasurementService | undefined
+  >();
+
+  useEffect(() => {
+    if (textMeasurementService !== undefined || document.fonts === undefined) {
+      return;
+    }
+    let disposed = false;
+    void getBrowserControlTextMeasurementService(document)
+      .then((service) => {
+        if (!disposed) {
+          setBrowserMeasurementService(service);
+        }
+      })
+      .catch(() => {
+        // Renderer readiness consumes the same cached rejection and owns the actionable startup
+        // failure. The fixed thumbnail slots remain stable while text projection is unavailable.
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [textMeasurementService]);
+
+  const measurementService = textMeasurementService ?? browserMeasurementService;
+  return (
+    <div aria-label="Available controls" className="control-library" role="toolbar">
+      {listPaletteControlSpecs().map((spec) => {
+        const palette = spec.palette;
+        if (palette === null) {
+          return null;
+        }
+        return (
+          <button
+            aria-label={`Insert ${palette.label}`}
+            className="control-library__item"
+            key={spec.type}
+            onClick={() => onInsert(spec.type)}
+            title={`Insert ${palette.label}`}
+            type="button"
           >
-            {previewText === undefined ? null : <span>{previewText}</span>}
-          </span>
-          <span className="control-library__label">{palette.label}</span>
-        </button>
-      );
-    })}
-  </div>
-);
+            <ControlThumbnail definition={spec} textMeasurementService={measurementService} />
+            <span className="control-library__label">{palette.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};

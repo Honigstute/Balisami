@@ -6,10 +6,13 @@ import {
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
   dispatchDocumentCommand,
+  getControlSpec,
   parseProjectDocument,
   ProjectIdSchema,
   type ProjectDocument,
+  type ControlTypeId,
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
@@ -72,6 +75,14 @@ interface VisualConformanceFixtureProps {
   readonly runtimeLabel: string;
 }
 
+const requireControlVersion = (type: ControlTypeId): number => {
+  const definition = getControlSpec(type);
+  if (definition === undefined) {
+    throw new Error(`Visual fixture control '${type}' is not registered.`);
+  }
+  return definition.fileVersion;
+};
+
 const createSceneFixtureDocument = (): {
   readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
   readonly document: ProjectDocument;
@@ -89,7 +100,7 @@ const createSceneFixtureDocument = (): {
   const duplicateId = ElementIdSchema.parse('element_visualduplicate');
   const sideId = ElementIdSchema.parse('element_visualsidecard');
   const result = parseProjectDocument({
-    schemaVersion: 1,
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     id: projectId,
     name: 'Scene visual fixture',
     boardIds: [boardId],
@@ -105,6 +116,7 @@ const createSceneFixtureDocument = (): {
       [outerId]: {
         id: outerId,
         controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
         frame: { x: 160, y: 100, width: 520, height: 380 },
         locked: false,
         properties: {},
@@ -115,6 +127,7 @@ const createSceneFixtureDocument = (): {
       [groupId]: {
         id: groupId,
         controlType: FOUNDATION_CONTROL_TYPES.group,
+        controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.group),
         frame: { x: 160, y: 100, width: 520, height: 380 },
         locked: false,
         properties: {},
@@ -125,6 +138,7 @@ const createSceneFixtureDocument = (): {
       [titleId]: {
         id: titleId,
         controlType: CONTROL_TYPES.textLabel,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textLabel),
         frame: { x: 28, y: 28, width: 280, height: 28 },
         locked: false,
         properties: { text: 'Account settings' },
@@ -135,6 +149,7 @@ const createSceneFixtureDocument = (): {
       [fieldId]: {
         id: fieldId,
         controlType: CONTROL_TYPES.textInput,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textInput),
         frame: { x: 28, y: 96, width: 300, height: 48 },
         locked: false,
         properties: { text: 'Email address' },
@@ -145,6 +160,7 @@ const createSceneFixtureDocument = (): {
       [buttonId]: {
         id: buttonId,
         controlType: CONTROL_TYPES.button,
+        controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: { x: 28, y: 172, width: 128, height: 44 },
         locked: false,
         properties: { text: 'Continue' },
@@ -155,6 +171,7 @@ const createSceneFixtureDocument = (): {
       [sideId]: {
         id: sideId,
         controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
         frame: { x: 372, y: 28, width: 112, height: 304 },
         locked: false,
         properties: {},
@@ -185,7 +202,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
   const buttonId = ElementIdSchema.parse('element_alphabutton');
   const inputId = ElementIdSchema.parse('element_alphainput');
   const result = parseProjectDocument({
-    schemaVersion: 1,
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     id: projectId,
     name: 'Alpha visual fixture',
     boardIds: [boardId],
@@ -201,6 +218,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
       [rectangleId]: {
         id: rectangleId,
         controlType: CONTROL_TYPES.rectangle,
+        controlVersion: requireControlVersion(CONTROL_TYPES.rectangle),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.rectangle,
         locked: false,
         properties: {},
@@ -211,6 +229,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
       [titleId]: {
         id: titleId,
         controlType: CONTROL_TYPES.textLabel,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textLabel),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textLabel,
         locked: false,
         properties: { text: 'Account settings' },
@@ -221,6 +240,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
       [buttonId]: {
         id: buttonId,
         controlType: CONTROL_TYPES.button,
+        controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
         locked: false,
         properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
@@ -231,6 +251,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
       [inputId]: {
         id: inputId,
         controlType: CONTROL_TYPES.textInput,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textInput),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textInput,
         locked: false,
         properties: { text: 'Email address' },
@@ -251,6 +272,98 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
     groupId: ElementIdSchema.parse('element_alphagroup'),
     selectedId: buttonId,
   });
+};
+
+const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const fixture = createAlphaFixtureDocument();
+  const checkboxId = ElementIdSchema.parse('element_registrycheckbox');
+  const browserId = ElementIdSchema.parse('element_registrybrowser');
+  const imageId = ElementIdSchema.parse('element_registryimage');
+  const arrowId = ElementIdSchema.parse('element_registryarrow');
+  let document = fixture.document;
+  const commands = [
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.browser,
+        controlVersion: requireControlVersion(CONTROL_TYPES.browser),
+        frame: { x: 390, y: 50, width: 160, height: 220 },
+        id: browserId,
+        link: null,
+        locked: false,
+        properties: { borderMode: 'visual-1', color: 'default', scrollbar: true },
+      },
+      index: fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.imagePlaceholder,
+        controlVersion: requireControlVersion(CONTROL_TYPES.imagePlaceholder),
+        frame: { x: 12, y: 64, width: 56, height: 56 },
+        id: imageId,
+        link: null,
+        locked: false,
+        properties: { showBorder: true },
+      },
+      index: 0,
+      owner: { elementId: browserId, kind: 'element' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.arrow,
+        controlVersion: requireControlVersion(CONTROL_TYPES.arrow),
+        frame: { x: 82, y: 72, width: 64, height: 72 },
+        id: arrowId,
+        link: null,
+        locked: false,
+        properties: {
+          color: 'default',
+          endArrow: true,
+          labelPosition: 0.5,
+          opacity: 1,
+          routing: 'visual-2',
+          startArrow: true,
+          strokeStyle: 'dashed',
+          text: 'Flow',
+        },
+      },
+      index: 1,
+      owner: { elementId: browserId, kind: 'element' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.checkbox,
+        controlVersion: requireControlVersion(CONTROL_TYPES.checkbox),
+        frame: { x: 76, y: 312, width: 180, height: 32 },
+        id: checkboxId,
+        link: null,
+        locked: false,
+        properties: { checked: true, text: 'Remember me' },
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+  ] as const;
+  for (const command of commands) {
+    const result = dispatchDocumentCommand(document, command);
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic registry-control fixture is invalid.');
+    }
+    document = result.document;
+  }
+  return Object.freeze({ ...fixture, document, selectedId: checkboxId });
 };
 
 const createGroupSelectionFixtureDocument = (
@@ -332,6 +445,7 @@ type SceneFixtureState =
   | 'nudge'
   | 'paste'
   | 'plain'
+  | 'registryControl'
   | 'resize'
   | 'selection'
   | 'smartGuides'
@@ -344,9 +458,16 @@ const SceneFixture = ({
   readonly platform?: 'darwin' | 'win32';
   readonly state?: SceneFixtureState;
 }) => {
-  const camera = useViewportCameraStore();
+  // The representative Browser sits beside the alpha controls. A fixed
+  // session-only zoom keeps it and both children visible inside the minimum
+  // native canvas without changing document geometry or shell tracks.
+  const camera = useViewportCameraStore(state === 'registryControl' ? 0.8 : 1);
   const [fixture] = useState(() =>
-    state === 'alpha' ? createAlphaFixtureDocument() : createSceneFixtureDocument(),
+    state === 'alpha'
+      ? createAlphaFixtureDocument()
+      : state === 'registryControl'
+        ? createRegistryControlFixtureDocument()
+        : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
     if (state === 'alignSelection') {
@@ -416,7 +537,8 @@ const SceneFixture = ({
       state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
-      state === 'textEdit'
+      state === 'textEdit' ||
+      state === 'registryControl'
     ) {
       selection.selectOnly(selectedId);
     }
@@ -601,7 +723,8 @@ const SceneFixture = ({
       state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
-      state === 'textEdit'
+      state === 'textEdit' ||
+      state === 'registryControl'
         ? {
             interactionChildren: (
               <>
@@ -833,6 +956,25 @@ const AlphaInspectorFixture = () => {
   return (
     <ControlInspector
       document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrame={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const RegistryControlInspectorFixture = () => {
+  const [fixture] = useState(createRegistryControlFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
       onSetFrame={() => false}
       onSetProperties={() => false}
       selection={selection}
@@ -887,15 +1029,21 @@ export const VisualConformanceFixture = ({
                                       navigator: <AlphaNavigatorFixture />,
                                       shelf: <ControlShelf onInsert={() => false} />,
                                     }
-                                  : fixture === 'controls'
-                                    ? { inspector: <ControlStates /> }
-                                    : fixture === 'feedback'
-                                      ? { canvas: <StaticRegionFailure /> }
-                                      : fixture === 'tooltip'
-                                        ? { canvas: <TooltipFixture /> }
-                                        : fixture === 'popover'
-                                          ? { canvas: <PopoverFixture /> }
-                                          : undefined;
+                                  : fixture === 'registryControl'
+                                    ? {
+                                        canvas: <SceneFixture state="registryControl" />,
+                                        inspector: <RegistryControlInspectorFixture />,
+                                        shelf: <ControlShelf onInsert={() => false} />,
+                                      }
+                                    : fixture === 'controls'
+                                      ? { inspector: <ControlStates /> }
+                                      : fixture === 'feedback'
+                                        ? { canvas: <StaticRegionFailure /> }
+                                        : fixture === 'tooltip'
+                                          ? { canvas: <TooltipFixture /> }
+                                          : fixture === 'popover'
+                                            ? { canvas: <PopoverFixture /> }
+                                            : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

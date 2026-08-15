@@ -11,6 +11,18 @@ afterEach(() => {
 });
 
 describe('useViewportCameraStore', () => {
+  it('captures a validated session-only starting zoom', () => {
+    let camera: ViewportCameraStore | undefined;
+    const Consumer = () => {
+      camera = useViewportCameraStore(0.8);
+      return null;
+    };
+
+    render(<Consumer />);
+
+    expect(camera?.getZoomSnapshot()).toBe(0.8);
+  });
+
   it('keeps its store usable after Strict Mode replays effect cleanup', () => {
     const requestAnimationFrame = vi
       .spyOn(window, 'requestAnimationFrame')

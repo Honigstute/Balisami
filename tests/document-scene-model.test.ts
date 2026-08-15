@@ -3,8 +3,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CONTROL_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  getControlSpec,
   parseProjectDocument,
   type ProjectDocument,
 } from '../src/domain';
@@ -22,6 +24,7 @@ import {
 import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
   type ProjectDocumentInputFixture,
 } from './fixtures/project-document';
 
@@ -35,12 +38,13 @@ const parseFixture = (input: ProjectDocumentInputFixture): ProjectDocument => {
   return result.value;
 };
 
-const createTwoRectangleDocument = (): ProjectDocument => {
+const createTwoRectangleDocument = (rootX = 200, rootY = 100): ProjectDocument => {
   const input = createValidProjectDocumentInput();
   input.elementsById[ROOT_ID] = {
     id: ROOT_ID,
     controlType: FOUNDATION_CONTROL_TYPES.rectangle,
-    frame: { x: 200, y: 100, width: 80, height: 60 },
+    controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
+    frame: { x: rootX, y: rootY, width: 80, height: 60 },
     locked: false,
     properties: {},
     childIds: [],
@@ -56,6 +60,7 @@ const createOverlappingRectangleDocument = (topLocked = false): ProjectDocument 
   input.elementsById[ROOT_ID] = {
     id: ROOT_ID,
     controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+    controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: -4, y: 36.5, width: 120, height: 48 },
     locked: false,
     properties: {},
@@ -64,6 +69,36 @@ const createOverlappingRectangleDocument = (topLocked = false): ProjectDocument 
     link: null,
   };
   input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.locked = topLocked;
+  input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
+  return parseFixture(input);
+};
+
+const createArrowDocument = (routing: 'visual-1' | 'visual-2' = 'visual-1'): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const definition = getControlSpec(CONTROL_TYPES.arrow);
+  if (definition === undefined) {
+    throw new Error('Arrow definition is missing.');
+  }
+  input.elementsById[ROOT_ID] = {
+    assetIds: [],
+    childIds: [],
+    controlType: CONTROL_TYPES.arrow,
+    controlVersion: definition.fileVersion,
+    frame: { height: 100, width: 100, x: 200, y: 100 },
+    id: ROOT_ID,
+    link: null,
+    locked: false,
+    properties: {
+      color: 'default',
+      endArrow: true,
+      labelPosition: 0.5,
+      opacity: 1,
+      routing,
+      startArrow: false,
+      strokeStyle: 'solid',
+      text: '',
+    },
+  };
   input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
   return parseFixture(input);
 };
@@ -188,6 +223,7 @@ describe('document scene model', () => {
     reorderedInput.elementsById[ROOT_ID] = {
       id: ROOT_ID,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 200, y: 100, width: 80, height: 60 },
       locked: false,
       properties: {},
@@ -253,6 +289,79 @@ describe('document scene model', () => {
     );
   });
 
+  it('expands the spatial broad phase for definition-owned line tolerance', () => {
+    const rectangle = getControlSpec(FOUNDATION_CONTROL_TYPES.rectangle);
+    if (rectangle === undefined) {
+      throw new Error('Rectangle definition is missing.');
+    }
+    const lineRectangle = {
+      ...rectangle,
+      scene: {
+        ...rectangle.scene,
+        hitShape: {
+          end: { x: 1, y: 1 },
+          kind: 'line' as const,
+          start: { x: 0, y: 0 },
+          tolerance: 10,
+        },
+      },
+    };
+    const model = new DocumentSceneModel({
+      resolveControlDefinition: (type) =>
+        type === FOUNDATION_CONTROL_TYPES.rectangle ? lineRectangle : getControlSpec(type),
+    });
+    model.reconcile(createTwoRectangleDocument(400, 300), DOCUMENT_FIXTURE_IDS.board);
+
+    // ROOT_ID ends at (480, 360); this point is outside its frame but within tolerance.
+    expect(model.hitTestTopmost(createWorldPoint(486, 366))?.id).toBe(ROOT_ID);
+    expect(model.hitTestTopmost(createWorldPoint(492, 372))).toBeUndefined();
+  });
+
+  it('uses the registered Arrow tolerance outside its raw frame', () => {
+    const model = new DocumentSceneModel();
+    model.reconcile(createArrowDocument(), DOCUMENT_FIXTURE_IDS.board);
+
+    expect(model.hitTestTopmost(createWorldPoint(304, 204))?.id).toBe(ROOT_ID);
+    expect(model.hitTestTopmost(createWorldPoint(308, 208))).toBeUndefined();
+  });
+
+  it('rebuilds property-driven Arrow geometry without a control-type scene branch', () => {
+    const model = new DocumentSceneModel();
+    model.reconcile(createArrowDocument(), DOCUMENT_FIXTURE_IDS.board);
+    const straightPath = model.getItem(ROOT_ID)?.path;
+    model.reconcile(createArrowDocument('visual-2'), DOCUMENT_FIXTURE_IDS.board);
+
+    expect(model.getItem(ROOT_ID)?.path).not.toBe(straightPath);
+  });
+
+  it('renders Browser as a visible child-owning container', () => {
+    const input = createValidProjectDocumentInput();
+    const browser = getControlSpec(CONTROL_TYPES.browser);
+    if (browser === undefined) {
+      throw new Error('Browser definition is missing.');
+    }
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.controlType = CONTROL_TYPES.browser;
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.controlVersion = browser.fileVersion;
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.properties = {
+      borderMode: 'visual-1',
+      color: 'default',
+      scrollbar: false,
+    };
+    const document = parseFixture(input);
+    const model = new DocumentSceneModel();
+    model.reconcile(document, DOCUMENT_FIXTURE_IDS.board);
+
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)).toMatchObject({
+      kind: 'object',
+      visualKind: 'browser',
+    });
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)?.path).not.toBe('');
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.owner).toEqual({
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+      kind: 'element',
+    });
+  });
+
   it('queries contained or intersecting selection regions in canonical order', () => {
     const model = new DocumentSceneModel();
     const document = createTwoRectangleDocument();
@@ -301,6 +410,7 @@ describe('document scene model', () => {
     input.elementsById[ROOT_ID] = {
       id: ROOT_ID,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: -4, y: 36.5, width: 120, height: 48 },
       locked: false,
       properties: {},

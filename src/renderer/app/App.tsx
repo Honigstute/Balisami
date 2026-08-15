@@ -7,6 +7,7 @@ import {
   CONTROL_TYPES,
   ElementIdSchema,
   getControlSpec,
+  getControlAccessibleName,
   selectRedoLabel,
   selectUndoLabel,
   type ControlTypeId,
@@ -21,7 +22,9 @@ import {
 } from '../../shared/project-workflow-alpha';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { ControlInspector } from '../controls/ControlInspector';
+import { calculateControlAutoSizeFrame } from '../controls/control-auto-size';
 import { ControlShelf } from '../controls/ControlShelf';
+import { getBrowserControlTextMeasurementService } from '../controls/control-text-measurement';
 import { createControlInsertionCommand } from '../controls/control-insertion';
 import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture';
@@ -133,7 +136,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         const element = currentDocument?.elementsById[elementId];
         const item = model.getItem(elementId);
         const spec = element === undefined ? undefined : getControlSpec(element.controlType);
-        const text = spec?.text === null ? undefined : spec?.text;
+        const text = spec?.capabilities.text === null ? undefined : spec?.capabilities.text;
         const value = text === undefined ? undefined : element?.properties[text.property];
         if (
           element === undefined ||
@@ -145,7 +148,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           return undefined;
         }
         return Object.freeze({
-          accessibleLabel: `Edit ${spec.palette?.label ?? 'control'} text`,
+          accessibleLabel: `Edit ${getControlAccessibleName(spec, element.properties)} text`,
           elementId,
           fontSizeWorldUnits: text.fontSize,
           mode: text.mode,
@@ -157,7 +160,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         const currentDocument = session.getSnapshot().history?.document;
         const element = currentDocument?.elementsById[target.elementId];
         const spec = element === undefined ? undefined : getControlSpec(element.controlType);
-        if (element === undefined || spec?.text === null || spec?.text === undefined) {
+        if (
+          element === undefined ||
+          spec?.capabilities.text === null ||
+          spec?.capabilities.text === undefined
+        ) {
           return false;
         }
         const result = session.dispatch(
@@ -166,7 +173,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             elementId: element.id,
             properties: Object.freeze({
               ...element.properties,
-              [spec.text.property]: text,
+              [spec.capabilities.text.property]: text,
             }),
           },
           { label: 'Edit text' },
@@ -752,6 +759,28 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               inspector: (
                 <ControlInspector
                   document={document}
+                  onAutoSize={async (elementId) => {
+                    const measurementService = await getBrowserControlTextMeasurementService();
+                    const currentDocument = session.getSnapshot().history?.document;
+                    const element = currentDocument?.elementsById[elementId];
+                    if (element === undefined) {
+                      return false;
+                    }
+                    const frame = calculateControlAutoSizeFrame(element, measurementService);
+                    if (frame === undefined) {
+                      return false;
+                    }
+                    const result = session.dispatch(
+                      {
+                        type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+                        elementId,
+                        frame,
+                      },
+                      { label: 'Auto-size control' },
+                    );
+                    // Already-canonical geometry is a successful semantic no-op and adds no history.
+                    return result?.ok === true;
+                  }}
                   onSetFrame={(elementId, frame: WorldRect) => {
                     const result = session.dispatch(
                       {

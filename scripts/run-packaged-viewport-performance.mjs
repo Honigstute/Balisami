@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -37,52 +38,65 @@ if (executable === null) {
   throw new Error(`No packaged Balsamic executable was found under ${packageRoot}.`);
 }
 
-const child = spawn(executable, [contract.argument], { stdio: ['ignore', 'pipe', 'pipe'] });
-let standardOutput = '';
-let standardError = '';
-child.stdout.setEncoding('utf8');
-child.stderr.setEncoding('utf8');
-child.stdout.on('data', (chunk) => {
-  standardOutput += chunk;
-});
-child.stderr.on('data', (chunk) => {
-  standardError += chunk;
-});
-
-const exitCode = await new Promise((resolve, reject) => {
-  const timeout = setTimeout(() => {
-    child.kill();
-    reject(new Error('Packaged viewport performance probe timed out.'));
-  }, contract.processTimeoutMs);
-  child.once('error', (error) => {
-    clearTimeout(timeout);
-    reject(error);
+const runProbe = async (profileDirectory) => {
+  const child = spawn(executable, [contract.argument, `--user-data-dir=${profileDirectory}`], {
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
-  child.once('exit', (code) => {
-    clearTimeout(timeout);
-    resolve(code);
+  let standardOutput = '';
+  let standardError = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    standardOutput += chunk;
   });
-});
+  child.stderr.on('data', (chunk) => {
+    standardError += chunk;
+  });
 
-const resultLine = standardOutput
-  .split(/\r?\n/u)
-  .find((line) => line.startsWith(contract.resultMarker));
-if (exitCode !== 0 || standardError.trim().length > 0 || resultLine === undefined) {
-  throw new Error(
-    `Packaged viewport performance probe failed (exit ${String(exitCode)}).\nstdout:\n${standardOutput}\nstderr:\n${standardError}`,
-  );
-}
+  const exitCode = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      child.kill();
+      reject(new Error('Packaged viewport performance probe timed out.'));
+    }, contract.processTimeoutMs);
+    child.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once('exit', (code) => {
+      clearTimeout(timeout);
+      resolve(code);
+    });
+  });
 
-const serializedResult = resultLine.slice(contract.resultMarker.length);
-const result = JSON.parse(serializedResult);
-if (
-  typeof result !== 'object' ||
-  result === null ||
-  typeof result.frameSampleCount !== 'number' ||
-  typeof result.frameWorkP95Ms !== 'number' ||
-  typeof result.inputLatencyP95Ms !== 'number'
-) {
-  throw new Error('Packaged viewport performance probe returned malformed metrics.');
+  const resultLine = standardOutput
+    .split(/\r?\n/u)
+    .find((line) => line.startsWith(contract.resultMarker));
+  if (exitCode !== 0 || standardError.trim().length > 0 || resultLine === undefined) {
+    throw new Error(
+      `Packaged viewport performance probe failed (exit ${String(exitCode)}).\nstdout:\n${standardOutput}\nstderr:\n${standardError}`,
+    );
+  }
+
+  const serializedResult = resultLine.slice(contract.resultMarker.length);
+  const result = JSON.parse(serializedResult);
+  if (
+    typeof result !== 'object' ||
+    result === null ||
+    typeof result.frameSampleCount !== 'number' ||
+    typeof result.frameWorkP95Ms !== 'number' ||
+    typeof result.inputLatencyP95Ms !== 'number'
+  ) {
+    throw new Error('Packaged viewport performance probe returned malformed metrics.');
+  }
+  return result;
+};
+
+const profileDirectory = await mkdtemp(path.join(tmpdir(), 'balsamic-performance-profile-'));
+let result;
+try {
+  result = await runProbe(profileDirectory);
+} finally {
+  await rm(profileDirectory, { force: true, recursive: true });
 }
 
 const resultDirectory = path.join(packageRoot, 'performance');
