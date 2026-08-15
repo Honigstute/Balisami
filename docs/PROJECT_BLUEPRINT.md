@@ -334,7 +334,7 @@ User ungroup accepts exactly one unlocked foundation group with at least one unl
 It replaces the group at its current sibling position with its canonical children. Grouping and
 ungrouping each cross history/recovery once and reconcile session selection only from the accepted
 document: group selects the new container; ungroup selects its former direct children. Exact
-`Command/Ctrl+G` groups and `Command/Ctrl+Shift+G` ungroups only while the viewport is idle and not
+`Cmd/Ctrl+G` groups and `Cmd/Ctrl+Shift+G` ungroups only while the viewport is idle and not
 editing text. Groups are transparent scene/container items: they provide bounds for selection,
 movement, fit, and container snapping, but the SVG presenter draws only their controls and the
 selection overlay deliberately exposes no group-resize handles.
