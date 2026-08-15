@@ -5,8 +5,10 @@
   "processTimeoutMs": 30000,
   "queryKey": "balsamic-project-workflow-probe",
   "queryValue": "v1",
+  "readyAttribute": "data-balsamic-project-workflow-ready",
   "rootArgument": "--balsamic-project-workflow-root",
   "rootNamePrefix": "balsamic-packaged-project-workflow-",
+  "screenshotMarker": "BALSAMIC_PROJECT_WORKFLOW_SCREENSHOT=",
   "terminationTimeoutMs": 5000,
   "userFileName": "accepted-project.probe"
 }

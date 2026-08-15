@@ -189,6 +189,26 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('publishes undo and redo through the same history and recovery authority', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    const initialRecoveryCount = desktop.recoveryRequests.length;
+
+    expect(session.dispatch(setBoardNote('Alpha history'))).toMatchObject({
+      changed: true,
+      ok: true,
+    });
+    expect(session.undo()).toBe(true);
+    expect(session.getSnapshot().history?.document).toEqual(document);
+    expect(session.redo()).toBe(true);
+    expect(
+      session.getSnapshot().history?.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.note.text,
+    ).toBe('Alpha history');
+    expect(desktop.recoveryRequests).toHaveLength(initialRecoveryCount + 3);
+  });
+
   it('commits multi-element alignment as one history entry and one recovery schedule', async () => {
     const baseDocument = createAssetFreeProjectDocument();
     const board = baseDocument.boardsById[DOCUMENT_FIXTURE_IDS.board];

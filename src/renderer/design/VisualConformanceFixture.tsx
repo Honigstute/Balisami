@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import {
   BoardIdSchema,
+  CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
@@ -12,6 +13,9 @@ import {
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
+import { ControlInspector } from '../controls/ControlInspector';
+import { ControlShelf } from '../controls/ControlShelf';
+import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { DocumentScene } from '../editor/DocumentScene';
 import { DocumentSceneModel } from '../editor/document-scene-model';
 import { KeyboardNudgeInteraction } from '../editor/keyboard-nudge-interaction';
@@ -116,30 +120,30 @@ const createSceneFixtureDocument = (): {
       },
       [titleId]: {
         id: titleId,
-        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlType: CONTROL_TYPES.textLabel,
         frame: { x: 28, y: 28, width: 280, height: 28 },
         locked: false,
-        properties: {},
+        properties: { text: 'Account settings' },
         childIds: [],
         assetIds: [],
         link: null,
       },
       [fieldId]: {
         id: fieldId,
-        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlType: CONTROL_TYPES.textInput,
         frame: { x: 28, y: 96, width: 300, height: 48 },
         locked: false,
-        properties: {},
+        properties: { text: 'Email address' },
         childIds: [],
         assetIds: [],
         link: null,
       },
       [buttonId]: {
         id: buttonId,
-        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlType: CONTROL_TYPES.button,
         frame: { x: 28, y: 172, width: 128, height: 44 },
         locked: false,
-        properties: {},
+        properties: { text: 'Continue' },
         childIds: [],
         assetIds: [],
         link: null,
@@ -734,6 +738,28 @@ const ModalFixture = () => (
   </AppModal>
 );
 
+const AlphaInspectorFixture = () => {
+  const [fixture] = useState(createSceneFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onSetFrame={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const AlphaNavigatorFixture = () => {
+  const [fixture] = useState(createSceneFixtureDocument);
+  return <WireframeNavigator activeBoardId={fixture.boardId} document={fixture.document} />;
+};
+
 export const VisualConformanceFixture = ({
   fixture,
   platform,
@@ -769,15 +795,22 @@ export const VisualConformanceFixture = ({
                               ? { canvas: <SceneFixture state="nudge" /> }
                               : fixture === 'marquee'
                                 ? { canvas: <SceneFixture state="marquee" /> }
-                                : fixture === 'controls'
-                                  ? { inspector: <ControlStates /> }
-                                  : fixture === 'feedback'
-                                    ? { canvas: <StaticRegionFailure /> }
-                                    : fixture === 'tooltip'
-                                      ? { canvas: <TooltipFixture /> }
-                                      : fixture === 'popover'
-                                        ? { canvas: <PopoverFixture /> }
-                                        : undefined;
+                                : fixture === 'mvpAlpha'
+                                  ? {
+                                      canvas: <SceneFixture state="selection" />,
+                                      inspector: <AlphaInspectorFixture />,
+                                      navigator: <AlphaNavigatorFixture />,
+                                      shelf: <ControlShelf onInsert={() => false} />,
+                                    }
+                                  : fixture === 'controls'
+                                    ? { inspector: <ControlStates /> }
+                                    : fixture === 'feedback'
+                                      ? { canvas: <StaticRegionFailure /> }
+                                      : fixture === 'tooltip'
+                                        ? { canvas: <TooltipFixture /> }
+                                        : fixture === 'popover'
+                                          ? { canvas: <PopoverFixture /> }
+                                          : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

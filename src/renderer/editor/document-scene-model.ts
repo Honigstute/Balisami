@@ -1,8 +1,11 @@
 import {
-  FOUNDATION_CONTROL_TYPES,
+  getControlSpec,
   type BoardId,
+  type ControlTypeId,
+  type ControlVisualKind,
   type ElementId,
   type ElementOwner,
+  type ElementProperties,
   type ProjectDocument,
 } from '../../domain';
 import { createSeededSketchRectPath } from './seeded-sketch';
@@ -18,13 +21,16 @@ import {
 
 export interface DocumentSceneItem {
   readonly bounds: WorldRect;
+  readonly controlType: ControlTypeId;
   readonly id: ElementId;
   readonly kind: 'container' | 'object';
   readonly locked: boolean;
   /** Disposable ownership metadata for sibling-scoped editor geometry. */
   readonly owner: ElementOwner;
   readonly path: string;
+  readonly properties: ElementProperties;
   readonly revision: string;
+  readonly visualKind: ControlVisualKind;
 }
 
 export interface DocumentSceneHitTestOptions {
@@ -43,10 +49,13 @@ export interface DocumentSceneReconcileResult {
 
 interface DerivedSceneItem {
   readonly bounds: WorldRect;
+  readonly controlType: ControlTypeId;
   readonly id: ElementId;
   readonly kind: 'container' | 'object';
   readonly locked: boolean;
   readonly owner: ElementOwner;
+  readonly properties: ElementProperties;
+  readonly visualKind: ControlVisualKind;
 }
 
 const boundsEqual = (first: WorldRect, second: WorldRect): boolean =>
@@ -73,8 +82,14 @@ const ownersEqual = (first: ElementOwner, second: ElementOwner): boolean =>
 const getOwnerKey = (owner: ElementOwner): string =>
   owner.kind === 'board' ? `board:${owner.boardId}` : `element:${owner.elementId}`;
 
-const createItemRevision = (item: DerivedSceneItem): string =>
-  `${item.id}|${item.kind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}`;
+const createItemRevision = (item: DerivedSceneItem): string => {
+  const spec = getControlSpec(item.controlType);
+  if (spec === undefined) {
+    throw new Error(`Document scene received unknown control type '${item.controlType}'.`);
+  }
+  const renderProperties = spec.renderPropertyKeys.map((key) => item.properties[key]);
+  return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}`;
+};
 
 /** Flattens canonical childIds order while accumulating local container origins once. */
 const deriveBoardSceneItems = (
@@ -114,23 +129,24 @@ const deriveBoardSceneItems = (
     // `locked` on a scene item is effective interaction state. The persisted
     // direct bit remains owned only by the element record.
     const effectivelyLocked = ancestorLocked || element.locked;
-    if (element.controlType === FOUNDATION_CONTROL_TYPES.rectangle) {
-      items.push(
-        Object.freeze({ bounds, id: element.id, kind: 'object', locked: effectivelyLocked, owner }),
-      );
-    } else if (element.controlType === FOUNDATION_CONTROL_TYPES.group) {
-      // Groups participate in selection, movement, snapping, and bounds but
-      // remain visually transparent in the document presenter.
-      items.push(
-        Object.freeze({
-          bounds,
-          id: element.id,
-          kind: 'container',
-          locked: effectivelyLocked,
-          owner,
-        }),
-      );
+    const spec = getControlSpec(element.controlType);
+    if (spec === undefined) {
+      throw new Error(`Document scene received unknown control type '${element.controlType}'.`);
     }
+    // Transparent structural controls participate in editor geometry without
+    // inventing visible chrome. Every visible control uses registry metadata.
+    items.push(
+      Object.freeze({
+        bounds,
+        controlType: element.controlType,
+        id: element.id,
+        kind: spec.visualKind === 'transparent' ? 'container' : 'object',
+        locked: effectivelyLocked,
+        owner,
+        properties: element.properties,
+        visualKind: spec.visualKind,
+      }),
+    );
     for (const childId of element.childIds) {
       visit(
         childId,
@@ -234,30 +250,36 @@ export class DocumentSceneModel {
     }
     for (const derivedItem of derivedItems) {
       const existing = this.#itemsById.get(derivedItem.id);
+      const revision = createItemRevision(derivedItem);
       const geometryChanged =
         existing === undefined ||
         existing.kind !== derivedItem.kind ||
+        existing.controlType !== derivedItem.controlType ||
         !boundsEqual(existing.bounds, derivedItem.bounds);
       if (
         !geometryChanged &&
         existing.locked === derivedItem.locked &&
-        ownersEqual(existing.owner, derivedItem.owner)
+        ownersEqual(existing.owner, derivedItem.owner) &&
+        existing.revision === revision
       ) {
         continue;
       }
       const item = Object.freeze({
         bounds: derivedItem.bounds,
+        controlType: derivedItem.controlType,
         id: derivedItem.id,
         kind: derivedItem.kind,
         locked: derivedItem.locked,
         owner: derivedItem.owner,
         path:
-          derivedItem.kind === 'container'
+          derivedItem.kind === 'container' || derivedItem.visualKind === 'text'
             ? ''
             : geometryChanged || existing === undefined
               ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
               : existing.path,
-        revision: createItemRevision(derivedItem),
+        properties: derivedItem.properties,
+        revision,
+        visualKind: derivedItem.visualKind,
       });
       this.#itemsById.set(item.id, item);
       this.#index.upsert(item);

@@ -1,11 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
-import { ElementIdSchema } from '../../domain';
+import {
+  DOCUMENT_COMMAND_TYPES,
+  CONTROL_TYPES,
+  ElementIdSchema,
+  getControlSpec,
+  selectRedoLabel,
+  selectUndoLabel,
+  type ControlTypeId,
+  type ElementProperties,
+  type WorldRect,
+} from '../../domain';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
 import { isViewportPerformanceProbeRequested } from '../../shared/viewport-performance';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
+import { ControlInspector } from '../controls/ControlInspector';
+import { ControlShelf } from '../controls/ControlShelf';
+import { createControlInsertionCommand } from '../controls/control-insertion';
+import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
@@ -62,11 +76,18 @@ import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
 import { resolveSnap } from '../editor/snap-engine';
 import { SnapGuideOverlay } from '../editor/SnapGuideOverlay';
+import { TextEditOverlay } from '../editor/TextEditOverlay';
+import { createTextEditViewportRoute, TextEditInteraction } from '../editor/text-edit-interaction';
 import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { createBrowserAnimationFrameScheduler } from '../editor/viewport-camera-store';
-import { createWorldVector, worldRectToViewport } from '../editor/viewport-transform';
+import {
+  createViewportPoint,
+  createWorldVector,
+  viewportPointToWorld,
+  worldRectToViewport,
+} from '../editor/viewport-transform';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
 
@@ -94,14 +115,66 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   const packagedRecoveryRestore =
     query.get(recoveryProbeContract.rendererQueryKey) === recoveryProbeContract.rendererQueryValue;
   const project = useProjectSession(window.balsamicDesktop, {
-    ...(packagedProbeEnabled ? { packagedProbeNote: projectWorkflowProbeContract.note } : {}),
     ...(packagedRecoveryRestore ? { packagedRecoveryRestore: true } : {}),
   });
   const { session, view } = project;
+  const packagedProbeStarted = useRef(false);
   const [editor] = useState(() => {
     const clipboard = new SelectionClipboardStore();
     const model = new DocumentSceneModel();
     const selection = new SelectionStore();
+    const textEditInteraction = new TextEditInteraction({
+      capture: (elementId) => {
+        const currentDocument = session.getSnapshot().history?.document;
+        const element = currentDocument?.elementsById[elementId];
+        const item = model.getItem(elementId);
+        const spec = element === undefined ? undefined : getControlSpec(element.controlType);
+        const text = spec?.text === null ? undefined : spec?.text;
+        const value = text === undefined ? undefined : element?.properties[text.property];
+        if (
+          element === undefined ||
+          item === undefined ||
+          spec === undefined ||
+          text === undefined ||
+          typeof value !== 'string'
+        ) {
+          return undefined;
+        }
+        return Object.freeze({
+          accessibleLabel: `Edit ${spec.palette?.label ?? 'control'} text`,
+          elementId,
+          fontSizeWorldUnits: text.fontSize,
+          mode: text.mode,
+          text: value,
+          worldBounds: item.bounds,
+        });
+      },
+      commit: (target, text) => {
+        const currentDocument = session.getSnapshot().history?.document;
+        const element = currentDocument?.elementsById[target.elementId];
+        const spec = element === undefined ? undefined : getControlSpec(element.controlType);
+        if (element === undefined || spec?.text === null || spec?.text === undefined) {
+          return false;
+        }
+        const result = session.dispatch(
+          {
+            type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+            elementId: element.id,
+            properties: Object.freeze({
+              ...element.properties,
+              [spec.text.property]: text,
+            }),
+          },
+          { label: 'Edit text' },
+        );
+        return result?.ok === true && result.changed;
+      },
+    });
+    const textEdit = createTextEditViewportRoute({
+      interaction: textEditInteraction,
+      queryPointerTarget: (point) => model.hitTestTopmost(point)?.id,
+      selection,
+    });
     const captureTranslationTargets = (targetIds: Parameters<typeof captureMoveTargets>[1]) => {
       const currentDocument = session.getSnapshot().history?.document;
       return currentDocument === undefined
@@ -361,6 +434,41 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         ? false
         : arrangeSelectedElements(currentDocument, selection, action, arrangementSource);
     };
+    const insertControl = (controlType: ControlTypeId) => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const boardId = currentDocument?.boardIds[0];
+      const elementId = allocateEditorElementId();
+      if (currentDocument === undefined || boardId === undefined || elementId === undefined) {
+        return undefined;
+      }
+      const viewport = camera.getViewportSnapshot();
+      const center = viewportPointToWorld(
+        createViewportPoint(viewport.width / 2, viewport.height / 2),
+        camera.getTransformSnapshot(),
+      );
+      const command = createControlInsertionCommand({
+        boardId,
+        center,
+        controlType,
+        document: currentDocument,
+        elementId,
+      });
+      if (command === undefined) {
+        return undefined;
+      }
+      const result = session.dispatch(command, {
+        label: `Insert ${getControlSpec(controlType)?.palette?.label ?? 'control'}`,
+      });
+      if (
+        result?.ok !== true ||
+        !result.changed ||
+        result.history.document.elementsById[elementId] === undefined
+      ) {
+        return undefined;
+      }
+      selection.selectOnly(elementId);
+      return elementId;
+    };
     return Object.freeze({
       arrangeSelection,
       bringSelectionForward: () => layerSelection(SELECTION_LAYER_ACTIONS.bringForward),
@@ -370,6 +478,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       deleteSelection,
       duplicateSelection,
       groupSelection,
+      insertControl,
       keyboardNudgeInteraction,
       lockSelection,
       model,
@@ -379,6 +488,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       sendSelectionToBack: () => layerSelection(SELECTION_LAYER_ACTIONS.sendToBack),
       selection,
       selectionInteraction,
+      textEdit,
+      textEditInteraction,
       pasteSelection,
       ungroupSelection,
       unlockAll,
@@ -399,12 +510,96 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     firstBoardId === undefined
       ? undefined
       : view.history?.document.boardsById[firstBoardId]?.note.text;
+  useEffect(() => {
+    if (
+      packagedProbeStarted.current ||
+      !packagedProbeEnabled ||
+      !view.isReady ||
+      view.history === undefined ||
+      firstBoardId === undefined
+    ) {
+      return;
+    }
+    packagedProbeStarted.current = true;
+    camera.flushPending();
+    const insertedIds = [
+      CONTROL_TYPES.rectangle,
+      CONTROL_TYPES.textLabel,
+      CONTROL_TYPES.button,
+      CONTROL_TYPES.textInput,
+    ].map((controlType) => editor.insertControl(controlType));
+    const [cardId, titleId, buttonId, inputId] = insertedIds;
+    if (
+      cardId === undefined ||
+      titleId === undefined ||
+      buttonId === undefined ||
+      inputId === undefined
+    ) {
+      throw new Error('The packaged alpha probe could not insert all representative controls.');
+    }
+    const edited = session.dispatchTransaction(
+      [
+        {
+          type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+          elementId: cardId,
+          frame: { x: 320, y: 220, width: 420, height: 280 },
+        },
+        {
+          type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+          elementId: titleId,
+          frame: { x: 356, y: 252, width: 300, height: 36 },
+        },
+        {
+          type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+          elementId: inputId,
+          frame: { x: 356, y: 320, width: 320, height: 44 },
+        },
+        {
+          type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+          elementId: buttonId,
+          frame: { x: 356, y: 392, width: 136, height: 44 },
+        },
+        {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId: buttonId,
+          properties: { text: 'Alpha button' },
+        },
+      ],
+      { label: 'Edit alpha button' },
+    );
+    if (edited?.ok !== true || !edited.changed || !session.undo() || !session.redo()) {
+      throw new Error('The packaged alpha probe could not verify button editing and history.');
+    }
+    editor.selection.selectOnly(buttonId);
+    const noted = session.dispatch({
+      type: DOCUMENT_COMMAND_TYPES.setBoardNote,
+      boardId: firstBoardId,
+      note: { text: projectWorkflowProbeContract.note },
+    });
+    if (noted?.ok !== true || !noted.changed) {
+      throw new Error('The packaged alpha probe could not prepare its saved project.');
+    }
+    void session.save().then(() => {
+      const savedView = session.getSnapshot();
+      if (savedView.isDirty || savedView.isSaving || savedView.statusTone === 'problem') {
+        throw new Error('The packaged alpha probe did not finish saving cleanly.');
+      }
+      globalThis.document.documentElement.setAttribute(
+        projectWorkflowProbeContract.readyAttribute,
+        'true',
+      );
+    });
+  }, [camera, editor, firstBoardId, packagedProbeEnabled, session, view.history, view.isReady]);
   useEffect(
     () =>
       editor.model.subscribe(() => {
         editor.keyboardNudgeInteraction.cancel();
         editor.selectionInteraction.cancelPress();
         editor.selection.reconcile(new Set(editor.model.listSelectableItemIds()));
+        const snapshot = editor.selection.getSnapshot();
+        editor.textEditInteraction.reconcileTarget(
+          snapshot.selectedIds.length === 1 ? snapshot.primaryId : undefined,
+        );
       }),
     [editor],
   );
@@ -413,10 +608,33 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       editor.keyboardNudgeInteraction.cancel();
       editor.selectionInteraction.cancelPress();
       editor.selection.clear();
+      editor.textEditInteraction.cancel();
     }
   }, [document, editor]);
+  useEffect(
+    () =>
+      editor.selection.subscribe(() => {
+        const snapshot = editor.selection.getSnapshot();
+        editor.textEditInteraction.reconcileTarget(
+          snapshot.selectedIds.length === 1 ? snapshot.primaryId : undefined,
+        );
+      }),
+    [editor],
+  );
   return (
     <AppShell
+      historyControls={{
+        canRedo: (view.history?.redoEntries.length ?? 0) > 0,
+        canUndo: (view.history?.undoEntries.length ?? 0) > 0,
+        onRedo: () => session.redo(),
+        onUndo: () => session.undo(),
+        ...(view.history === undefined || selectRedoLabel(view.history) === undefined
+          ? {}
+          : { redoLabel: `Redo ${selectRedoLabel(view.history) as string}` }),
+        ...(view.history === undefined || selectUndoLabel(view.history) === undefined
+          ? {}
+          : { undoLabel: `Undo ${selectUndoLabel(view.history) as string}` }),
+      }}
       projectName={view.displayName}
       projectOverlay={
         view.dialog === undefined ? undefined : (
@@ -489,8 +707,20 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   selection: editor.selection,
                   selectionInteraction: editor.selectionInteraction,
                   shortcutPlatform: platform,
+                  textEdit: editor.textEdit,
                 })}
-            {...(!hasRenderableElements ? { domChildren: <ViewportEmptyState /> } : {})}
+            domChildren={
+              <>
+                {!hasRenderableElements ? <ViewportEmptyState /> : null}
+                {document === undefined ? null : (
+                  <TextEditOverlay
+                    camera={camera}
+                    interaction={editor.textEditInteraction}
+                    platform={platform}
+                  />
+                )}
+              </>
+            }
             {...(document !== undefined
               ? {
                   worldChildren: (
@@ -508,6 +738,47 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               : {})}
           />
         ),
+        ...(document === undefined
+          ? {}
+          : {
+              inspector: (
+                <ControlInspector
+                  document={document}
+                  onSetFrame={(elementId, frame: WorldRect) => {
+                    const result = session.dispatch(
+                      {
+                        type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+                        elementId,
+                        frame,
+                      },
+                      { coalesceKey: `inspector-frame:${elementId}`, label: 'Edit geometry' },
+                    );
+                    return result?.ok === true && result.changed;
+                  }}
+                  onSetProperties={(elementId, properties: ElementProperties) => {
+                    const result = session.dispatch(
+                      {
+                        type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+                        elementId,
+                        properties,
+                      },
+                      {
+                        coalesceKey: `inspector-properties:${elementId}`,
+                        label: 'Edit properties',
+                      },
+                    );
+                    return result?.ok === true && result.changed;
+                  }}
+                  selection={editor.selection}
+                />
+              ),
+              navigator: <WireframeNavigator activeBoardId={firstBoardId} document={document} />,
+              shelf: (
+                <ControlShelf
+                  onInsert={(controlType) => editor.insertControl(controlType) !== undefined}
+                />
+              ),
+            }),
       }}
       statusLabel={view.statusLabel}
       statusScope={runtimeLabel}

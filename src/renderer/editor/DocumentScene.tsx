@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
-import type { BoardId, ElementId, ProjectDocument } from '../../domain';
+import { getControlSpec, type BoardId, type ElementId, type ProjectDocument } from '../../domain';
 import type { DocumentSceneItem, DocumentSceneModel } from './document-scene-model';
 import type {
   KeyboardNudgeInteraction,
@@ -140,13 +140,15 @@ class DocumentScenePresenter {
       return;
     }
     const element = this.#elementsById.get(snapshot.elementId);
-    if (element === undefined) {
+    const item = this.#canonicalItemsById.get(snapshot.elementId);
+    if (element === undefined || item === undefined) {
       return;
     }
     this.#updateElementGeometry(
       element,
       snapshot.worldBounds,
       createSeededSketchRectPath(snapshot.worldBounds, snapshot.elementId),
+      item,
     );
   }
 
@@ -154,7 +156,7 @@ class DocumentScenePresenter {
     const element = this.#elementsById.get(id);
     const item = this.#canonicalItemsById.get(id);
     if (element !== undefined && item !== undefined) {
-      this.#updateElementGeometry(element, item.bounds, item.path);
+      this.#updateElementGeometry(element, item.bounds, item.path, item);
     }
   }
 
@@ -162,16 +164,20 @@ class DocumentScenePresenter {
     const element = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const fill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
     const outline = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
+    const text = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'text');
     element.dataset.sceneElementId = id;
-    fill.setAttribute('class', 'scene-foundation-rectangle__fill');
-    outline.setAttribute('class', 'scene-foundation-rectangle__outline');
-    element.append(fill, outline);
+    fill.setAttribute('class', 'scene-control__fill');
+    outline.setAttribute('class', 'scene-control__outline');
+    text.setAttribute('class', 'scene-control__text');
+    element.append(fill, outline, text);
     this.#elementsById.set(id, element);
     return element;
   }
 
   #updateElement(element: SVGGElement, item: DocumentSceneItem): void {
-    this.#updateElementGeometry(element, item.bounds, item.path);
+    element.dataset.controlType = item.controlType;
+    element.dataset.controlVisual = item.visualKind;
+    this.#updateElementGeometry(element, item.bounds, item.path, item);
     element.dataset.sceneRevision = item.revision;
   }
 
@@ -179,19 +185,55 @@ class DocumentScenePresenter {
     element: SVGGElement,
     bounds: DocumentSceneItem['bounds'],
     path: string,
+    item: DocumentSceneItem,
   ): void {
     const fill = element.children[0];
     const outline = element.children[1];
-    if (fill?.localName !== 'rect' || outline?.localName !== 'path') {
+    const text = element.children[2];
+    if (fill?.localName !== 'rect' || outline?.localName !== 'path' || text?.localName !== 'text') {
       throw new Error('Document scene element structure was changed unexpectedly.');
     }
     const fillElement = fill as SVGRectElement;
     const outlineElement = outline as SVGPathElement;
+    const textElement = text as SVGTextElement;
     fillElement.setAttribute('x', String(bounds.x));
     fillElement.setAttribute('y', String(bounds.y));
     fillElement.setAttribute('width', String(bounds.width));
     fillElement.setAttribute('height', String(bounds.height));
     outlineElement.setAttribute('d', path);
+
+    const spec = getControlSpec(item.controlType);
+    if (spec === undefined) {
+      throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
+    }
+    const hasOutline = item.visualKind !== 'text' && item.visualKind !== 'transparent';
+    fillElement.setAttribute('display', hasOutline ? 'inline' : 'none');
+    outlineElement.setAttribute('display', hasOutline ? 'inline' : 'none');
+
+    const textMetadata = spec.text;
+    const textValue = textMetadata === null ? undefined : item.properties[textMetadata.property];
+    if (textMetadata === null || typeof textValue !== 'string') {
+      textElement.setAttribute('display', 'none');
+      textElement.textContent = '';
+      return;
+    }
+    textElement.setAttribute('display', 'inline');
+    textElement.setAttribute('dominant-baseline', 'middle');
+    textElement.setAttribute('font-size', String(textMetadata.fontSize));
+    textElement.setAttribute(
+      'text-anchor',
+      textMetadata.alignment === 'center' ? 'middle' : 'start',
+    );
+    textElement.setAttribute(
+      'x',
+      String(
+        textMetadata.alignment === 'center'
+          ? bounds.x + bounds.width / 2
+          : bounds.x + textMetadata.inset,
+      ),
+    );
+    textElement.setAttribute('y', String(bounds.y + bounds.height / 2));
+    textElement.textContent = textValue;
   }
 }
 

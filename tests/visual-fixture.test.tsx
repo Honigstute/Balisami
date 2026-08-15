@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import visualFixtureContract from '../visual-fixture-contract.json';
 import { VisualConformanceFixture } from '../src/renderer/design/VisualConformanceFixture';
@@ -72,6 +72,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=viewportSelectionZoom')).toBe(
       'viewportSelectionZoom',
     );
+    expect(getRequestedVisualFixture('?visualFixture=mvpAlpha')).toBe('mvpAlpha');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -96,6 +97,39 @@ describe('visual conformance fixture contract', () => {
     const view = renderFixture('scene');
 
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders the representative alpha workflow across every fixed shell region', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('mvpAlpha');
+
+    expect(screen.getByRole('button', { name: 'Insert Rectangle' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Text Label' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Button' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Text Input' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Scene' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Button' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue('Continue');
+    await waitFor(() => {
+      expect(view.container.querySelector('[data-control-visual="text"]')).not.toBeNull();
+      expect(view.container.querySelector('[data-control-visual="input"]')).not.toBeNull();
+      expect(view.container.querySelector('[data-control-visual="button"]')).not.toBeNull();
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

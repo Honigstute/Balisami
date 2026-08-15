@@ -149,7 +149,7 @@ describe('viewport algorithm performance fixtures', () => {
     const movingBounds = createWorldRect(980, 480, 12, 12);
     const durations: number[] = [];
 
-    for (let sample = 0; sample < 100; sample += 1) {
+    const runSnapFrame = (sample: number): number => {
       const rawDelta = createWorldVector((sample % 20) - 10, (sample % 12) - 6);
       const start = performance.now();
       const candidates = createSceneSnapCandidates(model, {
@@ -167,7 +167,18 @@ describe('viewport algorithm performance fixtures', () => {
         rawDelta,
         zoom,
       });
-      durations.push(performance.now() - start);
+      return performance.now() - start;
+    };
+
+    // Measure steady-state pointer work after the JS engine has compiled the
+    // interaction path. Packaged input latency separately protects startup and
+    // first-frame responsiveness; including JIT compilation here made the
+    // source microbenchmark host-scheduling-sensitive on Windows CI.
+    for (let sample = 0; sample < 20; sample += 1) {
+      runSnapFrame(sample);
+    }
+    for (let sample = 0; sample < 100; sample += 1) {
+      durations.push(runSnapFrame(sample));
     }
 
     expect(percentile95(durations)).toBeLessThanOrEqual(20);

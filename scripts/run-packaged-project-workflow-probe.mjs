@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -31,8 +31,12 @@ if (
   !isBoundedInteger(contract.processTimeoutMs) ||
   typeof contract.queryKey !== 'string' ||
   typeof contract.queryValue !== 'string' ||
+  typeof contract.readyAttribute !== 'string' ||
+  !/^data-[a-z0-9-]{1,100}$/u.test(contract.readyAttribute) ||
   !isArgument(contract.rootArgument) ||
   !isRootPrefix(contract.rootNamePrefix) ||
+  typeof contract.screenshotMarker !== 'string' ||
+  !/^[A-Z0-9_]{1,100}=$/u.test(contract.screenshotMarker) ||
   !isBoundedInteger(contract.terminationTimeoutMs) ||
   !isFileName(contract.userFileName)
 ) {
@@ -107,8 +111,37 @@ try {
   if (!userFile.isFile() || userFile.size === 0) {
     throw new Error('The packaged project workflow did not leave a non-empty user project.');
   }
+  const screenshotLine = standardOutput
+    .split(/\r?\n/u)
+    .find((line) => line.startsWith(contract.screenshotMarker));
+  if (screenshotLine === undefined) {
+    throw new Error('The packaged project workflow did not report its alpha screenshot.');
+  }
+  // macOS may expose the same temporary directory through `/var` to the
+  // parent and `/private/var` to Electron. Authorize canonical filesystem
+  // paths so that alias cannot look like an escape from the isolated root.
+  const screenshotPath = await realpath(
+    path.resolve(screenshotLine.slice(contract.screenshotMarker.length)),
+  );
+  const canonicalProbeRoot = await realpath(probeRoot);
+  const relativeScreenshotPath = path.relative(canonicalProbeRoot, screenshotPath);
+  if (
+    relativeScreenshotPath.length === 0 ||
+    relativeScreenshotPath.startsWith('..') ||
+    path.isAbsolute(relativeScreenshotPath)
+  ) {
+    throw new Error('The packaged project workflow reported an unauthorized screenshot path.');
+  }
+  const screenshotFile = await stat(screenshotPath);
+  if (!screenshotFile.isFile() || screenshotFile.size === 0) {
+    throw new Error('The packaged project workflow alpha screenshot is empty.');
+  }
+  const artifactDirectory = path.join(packageRoot, 'alpha');
+  const artifactPath = path.join(artifactDirectory, `${process.platform}-${process.arch}.png`);
+  await mkdir(artifactDirectory, { recursive: true });
+  await copyFile(screenshotPath, artifactPath);
   process.stdout.write(
-    `Packaged create/edit/save/close/reopen workflow passed: ${executable}\nSaved project: ${String(userFile.size)} bytes.\n`,
+    `Packaged alpha create/edit/undo/redo/save/close/reopen workflow passed: ${executable}\nSaved project: ${String(userFile.size)} bytes.\nScreenshot: ${artifactPath}\n`,
   );
 } finally {
   if (child.exitCode === null && child.signalCode === null) {

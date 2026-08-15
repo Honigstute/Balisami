@@ -20,6 +20,7 @@
     "marquee",
     "viewportZoom",
     "viewportSelectionZoom",
+    "mvpAlpha",
     "controls",
     "feedback",
     "tooltip",

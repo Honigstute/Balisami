@@ -43,10 +43,17 @@ export {
   type UngroupElementCommand,
 } from './commands/schema';
 export {
+  CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
   getControlSpec,
+  listPaletteControlSpecs,
   listControlSpecs,
+  type ControlCategory,
+  type ControlPaletteMetadata,
+  type ControlSize,
   type ControlSpec,
+  type ControlTextMetadata,
+  type ControlVisualKind,
 } from './controls/control-spec';
 export {
   AssetIdSchema,

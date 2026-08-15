@@ -384,12 +384,15 @@ const startApplication = async (): Promise<void> => {
     }
     await startupHealth.waitForRendererReady(activeProjectWorkflowProbe.contract.processTimeoutMs);
     startupHealth.assertHealthy();
-    await runPackagedProjectWorkflowProbe(
+    const screenshotPath = await runPackagedProjectWorkflowProbe(
       window,
       activeProjectWorkflowProbe.root,
       activeProjectWorkflowProbe.contract,
     );
     startupHealth.assertHealthy();
+    await writeStandardOutputLine(
+      `${activeProjectWorkflowProbe.contract.screenshotMarker}${screenshotPath}`,
+    );
     await writeStandardOutputLine(activeProjectWorkflowProbe.contract.marker);
     app.exit(0);
     return;

@@ -60,6 +60,9 @@ jobs:
       - name: Verify packaged forced-crash recovery
         run: npm run verify:recovery:packaged
 
+      - name: Make native alpha distributable
+        run: npm run make
+
       - name: Upload rendered smoke screenshot
         uses: actions/upload-artifact@v7
         with:
@@ -68,4 +71,13 @@ jobs:
             out/smoke/
             out/visual/
             out/performance/
+          if-no-files-found: error
+
+      - name: Upload testable alpha application
+        uses: actions/upload-artifact@v7
+        with:
+          name: balsamic-alpha-${{ matrix.artifact }}
+          path: |
+            out/alpha/
+            out/make/
           if-no-files-found: error

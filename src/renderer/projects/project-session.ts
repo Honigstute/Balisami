@@ -7,6 +7,8 @@ import {
   failDocumentHistorySave,
   isDocumentHistoryDirty,
   parseProjectDocument,
+  redoDocumentHistory,
+  undoDocumentHistory,
   type DocumentHistoryState,
   type HistoryOperationResult,
   type HistorySaveSnapshot,
@@ -371,6 +373,45 @@ export class ProjectSession {
       this.#scheduleRecovery();
     }
     return result;
+  }
+
+  undo(): boolean {
+    return this.#navigateHistory(undoDocumentHistory);
+  }
+
+  redo(): boolean {
+    return this.#navigateHistory(redoDocumentHistory);
+  }
+
+  #navigateHistory(operation: (history: DocumentHistoryState) => HistoryOperationResult): boolean {
+    const history = this.#history;
+    if (
+      history === undefined ||
+      this.#closingRequestId !== undefined ||
+      this.#interactionFrozen ||
+      this.#dialog !== undefined
+    ) {
+      return false;
+    }
+    const result = operation(history);
+    if (!result.ok) {
+      this.#lastProblem = Object.freeze({
+        code: 'unexpected-native-failure',
+        message: 'The project remains open and unchanged.',
+        title: 'History could not be restored',
+      });
+      this.#publish();
+      return false;
+    }
+    if (!result.changed) {
+      return false;
+    }
+    this.#history = result.history;
+    this.#lastProblem = undefined;
+    this.#lastWarnings = Object.freeze([]);
+    this.#publish();
+    this.#scheduleRecovery();
+    return true;
   }
 
   save(forceSaveAs = false): Promise<void> {

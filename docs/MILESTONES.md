@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M7 active
+Status: MVP alpha active
 Last reviewed: 2026-08-15
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -11,10 +11,11 @@ This file is the only source of truth for roadmap order and progress. Do not mir
 - `[~]` Active — exactly one milestone may have this state
 - `[x]` Complete — every exit gate passed
 - `[!]` Blocked — blocker and owner recorded directly below the item
+- `[>]` Paused — verified partial delivery is frozen and the remaining scope is explicitly deferred
 
-## Foundation rule
+## Foundation and MVP-cut rule
 
-Milestones M0 through M7 form the editor foundation. Do not begin broad catalog production, presentation polish, or distribution work until M7 is complete. A narrow vertical slice is built earlier only to prove the architecture.
+Milestones M0 through M7 form the complete editor foundation. On 2026-08-15 the product owner explicitly chose a testable-alpha cut after the verified equal-gap slice of M7. The unfinished M7 targets are paused, not silently treated as complete. MVP-A may build a narrow registry-backed vertical slice on the verified foundation; broad catalog production, presentation polish, and release distribution still wait for the post-alpha roadmap.
 
 ## Roadmap
 
@@ -298,7 +299,7 @@ Exit gate:
 - Selecting or transforming one item does not rerender unrelated scene nodes and meets the 1,000-element gesture budget.
 - Interaction matrix passes on mouse and trackpad paths for macOS and Windows shortcut mappings.
 
-### [~] M7 — Smart guides, snapping, grouping, and arrangement
+### [>] M7 — Smart guides, snapping, grouping, and arrangement
 
 Depends on: M6
 
@@ -338,12 +339,65 @@ Verified progress:
 - Exact idle `Cmd/Ctrl+Alt/Option+1…6` routes the six documented alignment actions on both platforms without stealing editable, repeat, Shift, alternate, or cross-platform chords. Distribution intentionally exposes the same planner/availability/action API without inventing an undocumented shortcut, ready for the later multi-selection toolbar or menu. One accepted multi-command alignment crosses `ProjectSession` once, schedules recovery once, and canonicalizes selection only after exact accepted-output verification. The deterministic `alignSelection` fixture is generated through the real planner rather than hand-positioned.
 - Commit `377965f` passes the local source gate at 80 files / 520 tests across 137 source modules with zero runtime vulnerabilities. Coverage includes all six primary-anchor alignments, both equal-gap axes, outer-pair identity, no-op and rejection boundaries, 200 seeded flat/nested exact undo/redo fixtures, exact platform shortcut routing, accepted-output reconciliation, one history/recovery boundary, and stable visual geometry. The final local macOS package passes fuses, smoke, all 24 visual/scale captures, performance, save/reopen, and forced-crash recovery while preserving the prior file byte-for-byte; the ten-second probe measured 0.90 ms p95 / 1.50 ms maximum frame work and 17.90 ms input latency, with zero long tasks and zero React commits.
 - Native artifact review caught that the first alignment composition placed its common right edge under the inspector boundary at the minimum runner viewport even though DOM geometry assertions passed. Commit `bb81377` keeps the same real planner and three-element selection but uses the smaller primary root so the entire outline and common edge remain visible; the unchanged complete local matrix passed again without a viewport-specific exception. Corrected push run `31861896573` and independent PR run `31861898150` pass source, package, fuses, smoke, 24 visual/scale captures, performance, save/reopen, and forced-crash recovery on native macOS 26 arm64 and Windows 2025 x64. Both corrected `alignSelection` artifacts were inspected at original resolution: all three differently sized controls terminate on the same visible primary edge inside a complete selection outline, with matching geometry, stable navigator/canvas/inspector tracks, and no error surface. The independent PR measured 0.40 ms p95 / 1.60 ms maximum frame work and 22.40 ms input latency on macOS, and 0.40 / 0.90 ms plus 16.70 ms on Windows, with zero long tasks and zero React commits on both.
+- Equal-gap snapping now extends the existing move resolver for same-owner selection roots without adding a parallel gesture or history path. Bounded row/column corridors inspect adjacent stationary siblings only, support bridge/repeat-before/repeat-after relations, retain the existing zoom-independent hysteresis and bypass behavior, and render two constant-screen dimension spans through the fixed overlay. Cross-owner movement and resize deliberately retain ordinary snapping rather than claiming undefined spacing semantics.
+- Commit `403f491` passes the local 81-file / 543-test source gate across 138 source modules with zero runtime vulnerabilities, then passes package, fuse, smoke, 25 visual/scale captures, performance, save/reopen, and forced-crash recovery. Independent [PR run 31872033178](https://github.com/Honigstute/Balisami/actions/runs/31872033178) passes the same complete matrix on native macOS 26 arm64 and Windows 2025 x64. Both original-resolution `equalGaps` artifacts were inspected with complete selected geometry, matching red dimension spans, stable navigator/canvas/inspector tracks, and no error surface. The PR measured 0.40 ms p95 / 0.90 ms maximum frame work and 18.90 ms input latency on macOS, and 0.70 / 1.20 ms plus 16.50 ms on Windows, with zero long tasks and zero React commits on both.
+- Push run `31872031489` independently passed the complete macOS matrix, but its Windows source job measured one 20.66-ms snap-query p95 against the 20-ms source budget and stopped before packaging; the same commit's independent Windows PR job passed source and every packaged gate. This is recorded as a timing-gate stability issue to fix during MVP-A rather than hidden with a retry or used to invalidate the separate successful native evidence.
+
+Paused after the verified MVP foundation cut (2026-08-15):
+
+- Text-baseline snapping until the canonical control text-layout service exposes real baselines.
+- Parent/container-padding and board/content edge/center targets.
+- Equal-size resize suggestions and any further advanced snap-target vocabulary.
+- Final M7 exit-gate consolidation across those deferred target classes.
 
 Exit gate:
 
 - Golden geometry tests cover ambiguous candidates, negative coordinates, nested groups, all zoom bounds, and modifier changes.
 - Guide visuals never enter persisted state, history, hit testing, thumbnails, or export.
 - Snap/hit-test performance meets the 5,000-element p95 budget.
+
+### [~] MVP-A — Testable wireframing alpha
+
+Depends on: M0–M6 and the verified M7 slices recorded above
+
+Objective: deliver the shortest honest desktop workflow that a user can install and test now, then use that feedback to prioritize the paused and later milestones.
+
+Committed alpha scope:
+
+- Expand the existing control registry, not a parallel catalog, for Rectangle, Text Label, Button, and Text Input with validated defaults, minimum sizes, scene rendering, text capability, and compact inspector metadata.
+- Replace the loading shelf with a stable fixed-slot library and click-to-insert; add deterministic insertion position/offset and select the accepted new element.
+- Replace navigator and inspector placeholders with the active Wireframe 1 card plus a schema-driven selection inspector for position, size, and representative text properties.
+- Expose working undo/redo in the command surface and preserve existing move, resize, snap, keyboard, duplicate/delete, clipboard, group, lock, layer, align, save, Save As, Open, recovery, and pane behavior.
+- Add one packaged alpha acceptance flow that creates each representative control, edits text and geometry through the production command surface, undoes/redoes, saves, closes, reopens, and verifies the same document without console or shell-layout errors. The existing packaged move/resize/snap fixtures remain part of the same required matrix.
+- Produce unsigned test artifacts suitable for immediate trusted-tester use: a macOS application ZIP and a Windows x64 installer. Signing, notarization, automatic update, polished icons, and public distribution remain M13.
+
+Explicitly outside this alpha cut:
+
+- Drag-from-shelf creation, Quick Add ranking, full category/search behavior, thumbnails, multi-board CRUD, notes editing, links, alternates, presentation, assets, symbols, broad catalog parity, export, public file association, signing/notarization, and automatic updates.
+- The paused advanced M7 targets listed above. These resume from the same resolver after alpha feedback; they are not reimplemented inside controls.
+
+Acceptance flow:
+
+1. Launch the packaged app and see the active Wireframe 1 in the navigator.
+2. Insert Rectangle, Text Label, Button, and Text Input from the shelf.
+3. Select, move, resize, snap, edit representative text/geometry in the inspector, and use undo/redo.
+4. Save As, close, reopen, and confirm control type, text, geometry, and stacking are unchanged.
+5. Complete the flow on native macOS arm64 and Windows x64 with stable shell anchors, no uncaught/console errors, and recovery still passing.
+
+Current progress (2026-08-15):
+
+- One canonical registry now owns the five structural/alpha control types, validated defaults and properties, default/minimum sizes, palette metadata, text capability, and visual kind. The scene presenter, insertion path, inspector, resize minima, and document invariants consume that registry instead of duplicating control facts.
+- The live shell exposes four fixed insertion slots, the real Wireframe 1 card, stable no/single/multi-selection inspector states, position/size/text editing, inline text editing, and enabled history controls. Selection changes replace only inspector content; the shell, navigator, canvas, notification, and inspector tracks remain fixed.
+- The packaged alpha probe uses the production insertion and history boundaries to create all four controls, lays out a representative card, changes button geometry/text, undoes and redoes the transaction, saves through the real native workflow, waits for a settled clean state, closes, reopens through the production codec, and verifies exact type/order/frame/text. It also emits a durable original-resolution alpha screenshot.
+- Source verification passes 83 files / 549 tests across 142 source modules with strict formatting, lint, boundary, and type checks plus zero runtime vulnerabilities. The snap microbenchmark now excludes 20 explicitly documented warmup frames while retaining the same measured 100-frame/20-ms steady-state budget; packaged input latency continues to protect startup behavior.
+- The latest local macOS arm64 package passes fuse readback, launch smoke, all 26 visual/scale captures, the alpha create/edit/undo/redo/save/close/reopen probe, forced-crash recovery, and performance at 0.60-ms p95 frame work / 9.90-ms p95 input latency. Both the deterministic `mvpAlpha` artifact and live saved-project alpha artifact were inspected at original resolution with complete controls, stable shell tracks, and no error surface.
+- `npm run make` produces `out/make/zip/darwin/arm64/Balsamic-darwin-arm64-0.1.0.zip`, a 120,271,702-byte archive containing `Balsamic.app`. Native CI now runs the same maker after all gates and uploads separate macOS arm64 and Windows x64 tester artifacts; signatures and public trust remain intentionally deferred.
+
+Exit gate:
+
+- The complete acceptance flow passes locally in a packaged build and in native macOS/Windows CI.
+- Original-resolution alpha artifacts are reviewed on both platforms; selecting every representative control leaves the navigator, canvas, and inspector tracks fixed.
+- A tester can install or unpack the provided platform-specific artifact and complete the documented flow without development tools.
 
 ### [ ] M8 — Control registry and representative vertical slice
 
@@ -486,4 +540,4 @@ Exit gate:
 
 ## Next action
 
-Continue M7 by extending the shared snap vocabulary with equal-gap, text-baseline, parent/container-padding, and board/content targets without creating a parallel resolver or weakening the 5,000-element budget. Specify candidate identity, priority, guide descriptors, acquire/release behavior, nested ownership, and dense-board query bounds before wiring each target class into move and resize. Keep align/distribute as the completed command foundation; expose distribution through the later multi-selection toolbar or menu rather than inventing an undocumented keyboard chord.
+Push the coherent MVP-A slice, run the complete native macOS arm64 and Windows x64 matrix, inspect both live alpha screenshots and distributable contents, and publish the exact artifact links/test instructions. Mark MVP-A complete only after both native jobs and tester artifacts pass; otherwise keep its active status and fix the failing boundary without expanding scope.
