@@ -104,6 +104,20 @@ export interface ControlSceneDefinition {
   readonly propertyKeys: readonly string[];
 }
 
+/**
+ * Thumbnail policy only selects whether the canonical scene is projected. It
+ * intentionally owns no duplicate geometry, defaults, or text metadata.
+ */
+export type ControlThumbnailDefinition = Readonly<{ kind: 'none' }> | Readonly<{ kind: 'scene' }>;
+
+/**
+ * Export policy describes how a definition participates in a future export
+ * traversal. M12 owns file generation; M8 only guarantees deterministic scene
+ * support and explicit transparent-container semantics.
+ */
+export type ControlExportDefinition =
+  Readonly<{ kind: 'scene' }> | Readonly<{ kind: 'transparent-container' }>;
+
 export interface ControlPropertyMigration {
   readonly fromVersion: number;
   readonly migrate: (properties: ElementProperties) => ElementProperties;
@@ -120,6 +134,7 @@ export interface ControlDefinition {
   readonly capabilities: ControlCapabilities;
   readonly defaultProperties: ElementProperties;
   readonly defaultSize: ControlSize;
+  readonly export: ControlExportDefinition;
   readonly fileVersion: number;
   readonly inspector: readonly ControlInspectorSection[];
   readonly maximumSize: ControlSize | null;
@@ -129,6 +144,7 @@ export interface ControlDefinition {
   readonly propertiesSchema: z.ZodType;
   readonly scene: ControlSceneDefinition;
   readonly search: Readonly<{ aliases: readonly string[]; tags: readonly string[] }>;
+  readonly thumbnail: ControlThumbnailDefinition;
   readonly type: ControlTypeId;
 }
 
@@ -292,6 +308,22 @@ export const assertControlDefinitionsConform = (
       }
     } else if (definition.scene.checkbox !== undefined) {
       throw new Error(`Control '${definition.type}' has unexpected checkbox geometry.`);
+    }
+
+    if (
+      !['none', 'scene'].includes(definition.thumbnail.kind) ||
+      (definition.palette !== null && definition.thumbnail.kind !== 'scene')
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid thumbnail metadata.`);
+    }
+    if (
+      !['scene', 'transparent-container'].includes(definition.export.kind) ||
+      (definition.export.kind === 'transparent-container' &&
+        (definition.capabilities.grouping !== 'container' ||
+          definition.scene.kind !== 'transparent')) ||
+      (definition.export.kind === 'scene' && definition.scene.kind === 'transparent')
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid export metadata.`);
     }
 
     if (definition.palette !== null) {

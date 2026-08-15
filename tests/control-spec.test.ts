@@ -27,7 +27,7 @@ describe('control definition registry', () => {
     expect(() => assertControlDefinitionsConform(definitions)).not.toThrow();
   });
 
-  it('owns palette, search, scene, inspector, file, and capability metadata once', () => {
+  it('owns palette, search, scene, inspector, thumbnail, export, file, and capability metadata once', () => {
     expect(listPaletteControlSpecs().map((definition) => definition.palette?.label)).toEqual([
       'Rectangle',
       'Text Label',
@@ -38,6 +38,8 @@ describe('control definition registry', () => {
     for (const definition of listControlSpecs()) {
       expect(definition.fileVersion).toBe(1);
       expect(definition.migrations).toEqual([]);
+      expect(['none', 'scene']).toContain(definition.thumbnail.kind);
+      expect(['scene', 'transparent-container']).toContain(definition.export.kind);
       expect(definition.propertiesSchema.safeParse(definition.defaultProperties).success).toBe(
         true,
       );
@@ -69,6 +71,12 @@ describe('control definition registry', () => {
       defaultProperties: { checked: false, text: 'Checkbox' },
       scene: { hitShape: { kind: 'bounds' }, kind: 'checkbox', propertyKeys: ['checked', 'text'] },
       search: { aliases: ['check', 'tick'] },
+      thumbnail: { kind: 'scene' },
+      export: { kind: 'scene' },
+    });
+    expect(getControlSpec(FOUNDATION_CONTROL_TYPES.group)).toMatchObject({
+      export: { kind: 'transparent-container' },
+      thumbnail: { kind: 'none' },
     });
   });
 
@@ -134,6 +142,22 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/capability metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          thumbnail: { kind: 'none' },
+        },
+      ]),
+    ).toThrow(/thumbnail metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          export: { kind: 'transparent-container' },
+        },
+      ]),
+    ).toThrow(/export metadata/u);
   });
 
   it('owns child-container capability and rejects unknown control types', () => {

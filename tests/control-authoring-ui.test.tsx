@@ -15,6 +15,7 @@ import {
 import { ControlInspector } from '../src/renderer/controls/ControlInspector';
 import { ControlShelf } from '../src/renderer/controls/ControlShelf';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
+import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
 
@@ -42,6 +43,17 @@ const createControlDocument = (controlType = CONTROL_TYPES.button) => {
   return Object.freeze({ document: result.document, elementId });
 };
 
+const thumbnailTextMeasurementService: ControlTextMeasurementService = {
+  measure: ({ fontSize, text }) => ({
+    baselineOffsets: [fontSize],
+    height: fontSize * 1.2,
+    lineCount: 1,
+    lineHeight: fontSize * 1.2,
+    lines: [text],
+    width: text.length * fontSize * 0.5,
+  }),
+};
+
 describe('alpha control authoring UI', () => {
   it('exposes every representative control as a stable insert action', () => {
     const onInsert = vi.fn<(controlType: ControlTypeId) => boolean>(() => true);
@@ -57,6 +69,32 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
     ]);
+  });
+
+  it('renders every palette preview through a definition-derived SVG projection', () => {
+    render(
+      <ControlShelf
+        onInsert={() => true}
+        textMeasurementService={thumbnailTextMeasurementService}
+      />,
+    );
+
+    for (const type of [
+      CONTROL_TYPES.rectangle,
+      CONTROL_TYPES.textLabel,
+      CONTROL_TYPES.button,
+      CONTROL_TYPES.textInput,
+      CONTROL_TYPES.checkbox,
+    ]) {
+      const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
+      expect(thumbnail).toBeInstanceOf(SVGSVGElement);
+      expect(thumbnail).toHaveAttribute('viewBox');
+    }
+    expect(document.querySelector('[data-control-preview]')).toBeNull();
+    expect(screen.getByText('Text label', { selector: 'tspan' })).toBeInTheDocument();
+    expect(screen.getByText('Button', { selector: 'tspan' })).toBeInTheDocument();
+    expect(screen.getByText('Text input', { selector: 'tspan' })).toBeInTheDocument();
+    expect(screen.getByText('Checkbox', { selector: 'tspan' })).toBeInTheDocument();
   });
 
   it('edits selected geometry and text while reserving validation space', () => {

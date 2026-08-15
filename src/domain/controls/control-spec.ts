@@ -13,11 +13,13 @@ import {
   type ControlAutoSizePolicy,
   type ControlCapabilities,
   type ControlDefinition,
+  type ControlExportDefinition,
   type ControlInspectorSection,
   type ControlPaletteMetadata,
   type ControlSceneDefinition,
   type ControlSize,
   type ControlTextCapability,
+  type ControlThumbnailDefinition,
 } from './control-definition';
 
 export const CONTROL_TYPES = Object.freeze({
@@ -84,6 +86,12 @@ const createAccessibility = (
 ): ControlAccessibilityDefinition =>
   Object.freeze({ checkedProperty, fallbackLabel, nameProperty, role });
 
+const createThumbnail = (kind: ControlThumbnailDefinition['kind']): ControlThumbnailDefinition =>
+  Object.freeze({ kind });
+
+const createExport = (kind: ControlExportDefinition['kind']): ControlExportDefinition =>
+  Object.freeze({ kind });
+
 const createScene = (
   kind: ControlSceneDefinition['kind'],
   propertyKeys: readonly string[],
@@ -109,6 +117,7 @@ const createDefinition = (input: {
   capabilities: ControlCapabilities;
   defaultProperties: ElementProperties;
   defaultSize: ControlSize;
+  export: ControlExportDefinition;
   inspector?: readonly ControlInspectorSection[];
   maximumSize: ControlSize | null;
   minimumSize: ControlSize;
@@ -116,6 +125,7 @@ const createDefinition = (input: {
   propertiesSchema: ControlDefinition['propertiesSchema'];
   scene: ControlSceneDefinition;
   tags?: readonly string[];
+  thumbnail: ControlThumbnailDefinition;
   type: ControlTypeId;
 }): ControlDefinition =>
   Object.freeze({
@@ -124,6 +134,7 @@ const createDefinition = (input: {
     capabilities: input.capabilities,
     defaultProperties: Object.freeze(input.defaultProperties),
     defaultSize: input.defaultSize,
+    export: input.export,
     fileVersion: 1,
     inspector: Object.freeze(input.inspector ?? []),
     maximumSize: input.maximumSize,
@@ -136,6 +147,7 @@ const createDefinition = (input: {
       aliases: Object.freeze(input.aliases ?? []),
       tags: Object.freeze(input.tags ?? []),
     }),
+    thumbnail: input.thumbnail,
     type: input.type,
   });
 
@@ -157,11 +169,13 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ),
     defaultProperties: {},
     defaultSize: createSize(240, 160),
+    export: createExport('transparent-container'),
     minimumSize: createSize(24, 24),
     maximumSize: null,
     palette: null,
     propertiesSchema: ElementPropertiesSchema,
     scene: createScene('transparent', []),
+    thumbnail: createThumbnail('none'),
     type: CONTROL_TYPES.group,
   }),
   createDefinition({
@@ -182,12 +196,14 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ),
     defaultProperties: {},
     defaultSize: createSize(180, 120),
+    export: createExport('scene'),
     minimumSize: createSize(24, 24),
     maximumSize: null,
     palette: createPalette('Rectangle', 'Common', 10),
     propertiesSchema: ElementPropertiesSchema,
     scene: createScene('rectangle', []),
     tags: ['container', 'panel'],
+    thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.rectangle,
   }),
   createDefinition({
@@ -208,6 +224,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ),
     defaultProperties: { text: 'Text label' },
     defaultSize: createSize(160, 36),
+    export: createExport('scene'),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
     minimumSize: createSize(32, 24),
     maximumSize: null,
@@ -215,6 +232,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     propertiesSchema: textPropertiesSchema,
     scene: createScene('text', ['text']),
     tags: ['typography'],
+    thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.textLabel,
   }),
   createDefinition({
@@ -235,6 +253,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ),
     defaultProperties: { text: 'Button' },
     defaultSize: createSize(120, 40),
+    export: createExport('scene'),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
     minimumSize: createSize(48, 28),
     maximumSize: null,
@@ -242,6 +261,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     propertiesSchema: textPropertiesSchema,
     scene: createScene('button', ['text']),
     tags: ['action'],
+    thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.button,
   }),
   createDefinition({
@@ -262,6 +282,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ),
     defaultProperties: { text: 'Text input' },
     defaultSize: createSize(180, 40),
+    export: createExport('scene'),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
     minimumSize: createSize(72, 28),
     maximumSize: null,
@@ -269,6 +290,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     propertiesSchema: textPropertiesSchema,
     scene: createScene('input', ['text']),
     tags: ['form', 'field'],
+    thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.textInput,
   }),
   createDefinition({
@@ -289,6 +311,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ),
     defaultProperties: { checked: false, text: 'Checkbox' },
     defaultSize: createSize(160, 32),
+    export: createExport('scene'),
     inspector: createInspector('Properties', [
       { kind: 'text', label: 'Label', property: 'text' },
       { kind: 'boolean', label: 'State', property: 'checked' },
@@ -299,6 +322,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     propertiesSchema: checkboxPropertiesSchema,
     scene: createScene('checkbox', ['checked', 'text'], { boxSize: 18, gap: 8 }),
     tags: ['form', 'selection', 'toggle'],
+    thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.checkbox,
   }),
 ]);

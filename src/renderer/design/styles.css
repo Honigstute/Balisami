@@ -411,46 +411,17 @@ p {
 }
 
 .control-library__preview {
-  display: grid;
+  display: block;
   width: calc(var(--space-6) * 2 + var(--space-2));
   height: calc(var(--space-6) + var(--space-2));
-  place-items: center;
-  overflow: hidden;
-  background: var(--color-canvas);
-  border: calc(var(--border-width) * 2) solid var(--color-ink);
-  border-radius: var(--space-1);
+  overflow: visible;
   font-family: var(--font-wireframe);
-  font-size: var(--font-size-caption);
-  white-space: nowrap;
+  pointer-events: none;
 }
 
-.control-library__preview[data-control-preview='text'] {
-  justify-content: start;
-  background: transparent;
-  border-color: transparent;
-}
-
-.control-library__preview[data-control-preview='input'] {
-  justify-content: start;
-  padding-left: var(--space-1);
-  background: var(--color-chrome);
-}
-
-.control-library__preview[data-control-preview='checkbox'] {
-  position: relative;
-  justify-content: start;
-  padding-left: calc(var(--space-4) + var(--space-2));
-  background: transparent;
-  border-color: transparent;
-}
-
-.control-library__preview[data-control-preview='checkbox']::before {
-  position: absolute;
-  left: var(--space-1);
-  width: var(--space-3);
-  height: var(--space-3);
-  content: '';
-  border: calc(var(--border-width) * 2) solid var(--color-ink);
+.control-library__preview .scene-control__outline,
+.control-library__preview .scene-control__mark {
+  vector-effect: non-scaling-stroke;
 }
 
 .control-library__label {
@@ -730,7 +701,8 @@ p {
   user-select: none;
 }
 
-[data-control-visual='input'] .scene-control__fill {
+[data-control-visual='input'] .scene-control__fill,
+[data-control-thumbnail-visual='input'] .scene-control__fill {
   fill: var(--color-chrome);
 }
 

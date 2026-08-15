@@ -59,6 +59,7 @@ export {
   type ControlCapabilities,
   type ControlCategory,
   type ControlDefinition,
+  type ControlExportDefinition,
   type ControlGroupingCapability,
   type ControlHitShape,
   type ControlHitShapePoint,
@@ -70,6 +71,7 @@ export {
   type ControlSceneDefinition,
   type ControlSize,
   type ControlTextCapability,
+  type ControlThumbnailDefinition,
   type ControlVisualKind,
 } from './controls/control-definition';
 export {
