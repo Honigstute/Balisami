@@ -14,8 +14,11 @@ interface ViewportSceneProps {
   readonly domChildren?: ReactNode;
   readonly interactionChildren?: ReactNode;
   readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
+  readonly onCopySelection?: () => boolean;
+  readonly onCutSelection?: () => boolean;
   readonly onDeleteSelection?: () => boolean;
   readonly onDuplicateSelection?: () => boolean;
+  readonly onPasteSelection?: () => boolean;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly shortcutPlatform?: ViewportShortcutPlatform;
@@ -56,8 +59,11 @@ export const ViewportScene = ({
   domChildren,
   interactionChildren,
   keyboardNudgeInteraction,
+  onCopySelection,
+  onCutSelection,
   onDeleteSelection,
   onDuplicateSelection,
+  onPasteSelection,
   selection,
   selectionInteraction,
   shortcutPlatform,
@@ -118,6 +124,8 @@ export const ViewportScene = ({
       return;
     }
     const input = new ViewportInputController(root, camera, {
+      ...(onCopySelection === undefined ? {} : { copySelection: onCopySelection }),
+      ...(onCutSelection === undefined ? {} : { cutSelection: onCutSelection }),
       ...(onDeleteSelection === undefined ? {} : { deleteSelection: onDeleteSelection }),
       ...(onDuplicateSelection === undefined ? {} : { duplicateSelection: onDuplicateSelection }),
       ...(keyboardNudgeInteraction === undefined
@@ -125,6 +133,7 @@ export const ViewportScene = ({
         : { keyboardNudge: keyboardNudgeInteraction }),
       ...(selection === undefined ? {} : { selection }),
       ...(selectionInteraction === undefined ? {} : { selectionInteraction }),
+      ...(onPasteSelection === undefined ? {} : { pasteSelection: onPasteSelection }),
       ...(shortcutPlatform === undefined ? {} : { shortcutPlatform }),
     });
     input.connect();
@@ -132,8 +141,11 @@ export const ViewportScene = ({
   }, [
     camera,
     keyboardNudgeInteraction,
+    onCopySelection,
+    onCutSelection,
     onDeleteSelection,
     onDuplicateSelection,
+    onPasteSelection,
     selection,
     selectionInteraction,
     shortcutPlatform,

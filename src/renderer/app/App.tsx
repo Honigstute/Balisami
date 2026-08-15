@@ -21,6 +21,13 @@ import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget, hitTestResizeHandle } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
+import {
+  SelectionClipboardStore,
+  copySelectedElements,
+  cutSelectedElements,
+  pasteClipboardElements,
+  type SelectionPasteSource,
+} from '../editor/selection-clipboard';
 import { deleteSelectedElements, type SelectionDeleteSource } from '../editor/selection-delete';
 import {
   duplicateSelectedElements,
@@ -68,6 +75,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   });
   const { session, view } = project;
   const [editor] = useState(() => {
+    const clipboard = new SelectionClipboardStore();
     const model = new DocumentSceneModel();
     const selection = new SelectionStore();
     const captureTranslationTargets = (targetIds: Parameters<typeof captureMoveTargets>[1]) => {
@@ -175,7 +183,55 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         duplicateSelectionSource,
       );
     };
+    const copySelection = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? false
+        : copySelectedElements(currentDocument, selection, model.listItemIds(), clipboard);
+    };
+    const cutSelectionSource: SelectionDeleteSource = {
+      commit(commands) {
+        const result = session.dispatchTransaction(commands, {
+          label: commands.length === 1 ? 'Cut element' : 'Cut elements',
+        });
+        return result?.ok === true && result.changed ? result.history.document : undefined;
+      },
+    };
+    const cutSelection = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? false
+        : cutSelectedElements(
+            currentDocument,
+            selection,
+            model.listItemIds(),
+            clipboard,
+            cutSelectionSource,
+          );
+    };
+    const pasteSelectionSource: SelectionPasteSource = {
+      commit(commands) {
+        const result = session.dispatchTransaction(commands, {
+          label: commands.length === 1 ? 'Paste element' : 'Paste elements',
+        });
+        return result?.ok === true && result.changed ? result.history.document : undefined;
+      },
+    };
+    const pasteSelection = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? false
+        : pasteClipboardElements(
+            currentDocument,
+            selection,
+            clipboard,
+            allocateEditorElementId,
+            pasteSelectionSource,
+          );
+    };
     return Object.freeze({
+      copySelection,
+      cutSelection,
       deleteSelection,
       duplicateSelection,
       keyboardNudgeInteraction,
@@ -184,6 +240,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       resizeInteraction,
       selection,
       selectionInteraction,
+      pasteSelection,
     });
   });
   const firstBoardId = view.history?.document.boardIds[0];
@@ -269,8 +326,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     </>
                   ),
                   keyboardNudgeInteraction: editor.keyboardNudgeInteraction,
+                  onCopySelection: editor.copySelection,
+                  onCutSelection: editor.cutSelection,
                   onDeleteSelection: editor.deleteSelection,
                   onDuplicateSelection: editor.duplicateSelection,
+                  onPasteSelection: editor.pasteSelection,
                   selection: editor.selection,
                   selectionInteraction: editor.selectionInteraction,
                   shortcutPlatform: platform,

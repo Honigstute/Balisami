@@ -159,7 +159,15 @@ const createSceneFixtureDocument = (): {
 };
 
 type SceneFixtureState =
-  'delete' | 'duplicate' | 'marquee' | 'move' | 'nudge' | 'plain' | 'resize' | 'selection';
+  | 'delete'
+  | 'duplicate'
+  | 'marquee'
+  | 'move'
+  | 'nudge'
+  | 'paste'
+  | 'plain'
+  | 'resize'
+  | 'selection';
 
 const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState }) => {
   const camera = useViewportCameraStore();
@@ -175,10 +183,10 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
       }
       return result.document;
     }
-    if (state === 'duplicate') {
+    if (state === 'duplicate' || state === 'paste') {
       const source = fixture.document.elementsById[fixture.selectedId];
       if (source === undefined) {
-        throw new Error('The deterministic duplicate source is missing.');
+        throw new Error('The deterministic inserted-element source is missing.');
       }
       const result = dispatchDocumentCommand(fixture.document, {
         type: DOCUMENT_COMMAND_TYPES.createElement,
@@ -192,7 +200,7 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
         index: 3,
       });
       if (!result.ok || !result.changed) {
-        throw new Error('The deterministic duplicate visual fixture could not be created.');
+        throw new Error('The deterministic inserted-element visual fixture could not be created.');
       }
       return result.document;
     }
@@ -202,13 +210,15 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
     const model = new DocumentSceneModel();
     model.reconcile(document, fixture.boardId);
     const selection = new SelectionStore();
-    const selectedId = state === 'duplicate' ? fixture.duplicateId : fixture.selectedId;
+    const selectedId =
+      state === 'duplicate' || state === 'paste' ? fixture.duplicateId : fixture.selectedId;
     if (
       state === 'selection' ||
       state === 'move' ||
       state === 'nudge' ||
       state === 'resize' ||
-      state === 'duplicate'
+      state === 'duplicate' ||
+      state === 'paste'
     ) {
       selection.selectOnly(selectedId);
     }
@@ -299,7 +309,8 @@ const SceneFixture = ({ state = 'plain' }: { readonly state?: SceneFixtureState 
       state === 'move' ||
       state === 'nudge' ||
       state === 'resize' ||
-      state === 'duplicate'
+      state === 'duplicate' ||
+      state === 'paste'
         ? {
             interactionChildren: (
               <SelectionOverlay
@@ -515,19 +526,21 @@ export const VisualConformanceFixture = ({
               ? { canvas: <SceneFixture state="delete" /> }
               : fixture === 'duplicate'
                 ? { canvas: <SceneFixture state="duplicate" /> }
-                : fixture === 'nudge'
-                  ? { canvas: <SceneFixture state="nudge" /> }
-                  : fixture === 'marquee'
-                    ? { canvas: <SceneFixture state="marquee" /> }
-                    : fixture === 'controls'
-                      ? { inspector: <ControlStates /> }
-                      : fixture === 'feedback'
-                        ? { canvas: <StaticRegionFailure /> }
-                        : fixture === 'tooltip'
-                          ? { canvas: <TooltipFixture /> }
-                          : fixture === 'popover'
-                            ? { canvas: <PopoverFixture /> }
-                            : undefined;
+                : fixture === 'paste'
+                  ? { canvas: <SceneFixture state="paste" /> }
+                  : fixture === 'nudge'
+                    ? { canvas: <SceneFixture state="nudge" /> }
+                    : fixture === 'marquee'
+                      ? { canvas: <SceneFixture state="marquee" /> }
+                      : fixture === 'controls'
+                        ? { inspector: <ControlStates /> }
+                        : fixture === 'feedback'
+                          ? { canvas: <StaticRegionFailure /> }
+                          : fixture === 'tooltip'
+                            ? { canvas: <TooltipFixture /> }
+                            : fixture === 'popover'
+                              ? { canvas: <PopoverFixture /> }
+                              : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

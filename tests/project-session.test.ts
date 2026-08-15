@@ -11,6 +11,11 @@ import {
 } from '../src/domain';
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
+import {
+  SelectionClipboardStore,
+  copySelectedElements,
+  pasteClipboardElements,
+} from '../src/renderer/editor/selection-clipboard';
 import { deleteSelectedElements } from '../src/renderer/editor/selection-delete';
 import { duplicateSelectedElements } from '../src/renderer/editor/selection-duplicate';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
@@ -262,6 +267,69 @@ describe('renderer project session', () => {
       height: 48,
     });
     expect(selection.getSnapshot()).toMatchObject({ primaryId: cloneId, selectedIds: [cloneId] });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
+  it('keeps copy outside history and commits one recoverable paste before selecting the clone', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const selection = new SelectionStore();
+    const clipboard = new SelectionClipboardStore();
+    const cloneId = ElementIdSchema.parse('element_sessionpaste01');
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      copySelectedElements(
+        document,
+        selection,
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+        clipboard,
+      ),
+    ).toBe(true);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
+    expect(desktop.recoveryRequests).toHaveLength(1);
+    expect(selection.getSnapshot()).toMatchObject({
+      primaryId: DOCUMENT_FIXTURE_IDS.child,
+      selectedIds: [DOCUMENT_FIXTURE_IDS.child],
+    });
+
+    expect(
+      pasteClipboardElements(document, selection, clipboard, () => cloneId, {
+        commit: (commands) => {
+          const result = session.dispatchTransaction(commands, { label: 'Paste element' });
+          return result?.ok === true && result.changed ? result.history.document : undefined;
+        },
+      }),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Selection paste integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ element: { id: cloneId }, type: 'element.create' }],
+      label: 'Paste element',
+    });
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.childIds).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+      cloneId,
+    ]);
+    expect(history.document.elementsById[cloneId]?.frame).toEqual({
+      x: 26,
+      y: 34,
+      width: 120,
+      height: 48,
+    });
+    expect(selection.getSnapshot()).toMatchObject({ primaryId: cloneId, selectedIds: [cloneId] });
+    expect(clipboard.getSnapshot().pasteCount).toBe(1);
     expect(desktop.recoveryRequests).toHaveLength(2);
 
     const undone = undoDocumentHistory(history);

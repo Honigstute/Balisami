@@ -10,6 +10,7 @@
     "resize",
     "delete",
     "duplicate",
+    "paste",
     "nudge",
     "marquee",
     "viewportZoom",

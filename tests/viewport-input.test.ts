@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   VIEWPORT_INPUT_POLICY,
+  VIEWPORT_EDIT_COMMANDS,
   isViewportDeleteKey,
   isViewportDuplicateShortcut,
   normalizeViewportWheel,
+  resolveViewportEditShortcut,
   type ViewportWheelInput,
 } from '../src/renderer/editor/viewport-input';
 
@@ -49,6 +51,34 @@ describe('viewport wheel normalization', () => {
     expect(isViewportDuplicateShortcut({ ...input, altKey: true }, 'darwin')).toBe(false);
     expect(isViewportDuplicateShortcut({ ...input, shiftKey: true }, 'darwin')).toBe(false);
     expect(isViewportDuplicateShortcut({ ...input, code: 'KeyC' }, 'darwin')).toBe(false);
+  });
+
+  it('resolves exact copy, cut, and paste commands without accepting alternate modifiers', () => {
+    const macInput = {
+      altKey: false,
+      code: 'KeyC',
+      ctrlKey: false,
+      metaKey: true,
+      shiftKey: false,
+    };
+
+    expect(resolveViewportEditShortcut(macInput, 'darwin')).toBe(VIEWPORT_EDIT_COMMANDS.copy);
+    expect(resolveViewportEditShortcut({ ...macInput, code: 'KeyX' }, 'darwin')).toBe(
+      VIEWPORT_EDIT_COMMANDS.cut,
+    );
+    expect(resolveViewportEditShortcut({ ...macInput, code: 'KeyV' }, 'darwin')).toBe(
+      VIEWPORT_EDIT_COMMANDS.paste,
+    );
+    expect(
+      resolveViewportEditShortcut(
+        { ...macInput, code: 'KeyC', ctrlKey: true, metaKey: false },
+        'win32',
+      ),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.copy);
+    expect(resolveViewportEditShortcut({ ...macInput, ctrlKey: true }, 'darwin')).toBeUndefined();
+    expect(resolveViewportEditShortcut({ ...macInput, metaKey: false }, 'darwin')).toBeUndefined();
+    expect(resolveViewportEditShortcut({ ...macInput, shiftKey: true }, 'darwin')).toBeUndefined();
+    expect(resolveViewportEditShortcut({ ...macInput, code: 'KeyA' }, 'darwin')).toBeUndefined();
   });
 
   it('normalizes pixel, line, and page wheel units into viewport-pixel pan', () => {

@@ -750,7 +750,10 @@ describe('viewport scene layers', () => {
     const cameraScheduler = new TestAnimationFrameScheduler();
     const nudgeScheduler = new TestAnimationFrameScheduler();
     const store = createStore(cameraScheduler);
+    const copySelection = vi.fn(() => true);
+    const cutSelection = vi.fn(() => true);
     const duplicateSelection = vi.fn(() => true);
+    const pasteSelection = vi.fn(() => true);
     const nudge = new KeyboardNudgeInteraction(
       { capture: () => MOVE_CAPTURE, commit: () => true },
       nudgeScheduler,
@@ -767,7 +770,10 @@ describe('viewport scene layers', () => {
         camera={store}
         domChildren={<input aria-label="Duplicate-safe inline editor" />}
         keyboardNudgeInteraction={nudge}
+        onCopySelection={copySelection}
+        onCutSelection={cutSelection}
         onDuplicateSelection={duplicateSelection}
+        onPasteSelection={pasteSelection}
         selection={selection}
         selectionInteraction={interaction}
         shortcutPlatform={shortcutPlatform}
@@ -782,6 +788,8 @@ describe('viewport scene layers', () => {
     cameraScheduler.flushNext();
 
     expect(fireEvent.keyDown(input, { code: 'KeyD', metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(input, { code: 'KeyC', metaKey: true })).toBe(true);
+    expect(copySelection).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(root, { code: 'KeyD', ctrlKey: true })).toBe(true);
     expect(fireEvent.keyDown(root, { altKey: true, code: 'KeyD', metaKey: true })).toBe(true);
     expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true, shiftKey: true })).toBe(true);
@@ -791,6 +799,14 @@ describe('viewport scene layers', () => {
     expect(duplicateSelection).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(root, { code: 'KeyD', metaKey: true })).toBe(false);
     expect(duplicateSelection).toHaveBeenCalledTimes(1);
+    expect(fireEvent.keyDown(root, { code: 'KeyC', metaKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'KeyX', metaKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'KeyV', metaKey: true })).toBe(false);
+    expect(copySelection).toHaveBeenCalledTimes(1);
+    expect(cutSelection).toHaveBeenCalledTimes(1);
+    expect(pasteSelection).toHaveBeenCalledTimes(1);
+    expect(fireEvent.keyDown(root, { code: 'KeyC', metaKey: true, repeat: true })).toBe(false);
+    expect(copySelection).toHaveBeenCalledTimes(1);
 
     fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 71 });
     expect(root).toHaveAttribute('data-selection-state', 'pressed');
@@ -814,6 +830,8 @@ describe('viewport scene layers', () => {
     expect(duplicateSelection).toHaveBeenCalledTimes(1);
     expect(fireEvent.keyDown(root, { code: 'KeyD', ctrlKey: true })).toBe(false);
     expect(duplicateSelection).toHaveBeenCalledTimes(2);
+    expect(fireEvent.keyDown(root, { code: 'KeyV', ctrlKey: true })).toBe(false);
+    expect(pasteSelection).toHaveBeenCalledTimes(2);
 
     view.unmount();
     expect(nudgeScheduler.callbacks.size).toBe(0);

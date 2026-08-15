@@ -52,10 +52,22 @@ export interface ViewportDuplicateShortcutInput {
   readonly shiftKey: boolean;
 }
 
+export const VIEWPORT_EDIT_COMMANDS = Object.freeze({
+  copy: 'copy',
+  cut: 'cut',
+  duplicate: 'duplicate',
+  paste: 'paste',
+} as const);
+export type ViewportEditCommand =
+  (typeof VIEWPORT_EDIT_COMMANDS)[keyof typeof VIEWPORT_EDIT_COMMANDS];
+
 export interface ViewportInputControllerOptions {
+  readonly copySelection?: () => boolean;
+  readonly cutSelection?: () => boolean;
   readonly deleteSelection?: () => boolean;
   readonly duplicateSelection?: () => boolean;
   readonly keyboardNudge?: KeyboardNudgeInteraction;
+  readonly pasteSelection?: () => boolean;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly shortcutPlatform?: ViewportShortcutPlatform;
@@ -77,15 +89,36 @@ const VIEWPORT_DELETE_KEY_SET = new Set<string>(VIEWPORT_DELETE_KEYS);
 export const isViewportDeleteKey = (code: string): code is ViewportDeleteKey =>
   VIEWPORT_DELETE_KEY_SET.has(code);
 
-/** Cmd+D on macOS and Ctrl+D on Windows own the same editor command. */
+/** Resolves exact primary-modifier edit shortcuts without stealing alternate combinations. */
+export const resolveViewportEditShortcut = (
+  input: ViewportDuplicateShortcutInput,
+  platform: ViewportShortcutPlatform,
+): ViewportEditCommand | undefined => {
+  if (
+    input.altKey ||
+    input.shiftKey ||
+    (platform === 'darwin' ? !input.metaKey || input.ctrlKey : !input.ctrlKey || input.metaKey)
+  ) {
+    return undefined;
+  }
+  switch (input.code) {
+    case 'KeyC':
+      return VIEWPORT_EDIT_COMMANDS.copy;
+    case 'KeyD':
+      return VIEWPORT_EDIT_COMMANDS.duplicate;
+    case 'KeyV':
+      return VIEWPORT_EDIT_COMMANDS.paste;
+    case 'KeyX':
+      return VIEWPORT_EDIT_COMMANDS.cut;
+    default:
+      return undefined;
+  }
+};
+
 export const isViewportDuplicateShortcut = (
   input: ViewportDuplicateShortcutInput,
   platform: ViewportShortcutPlatform,
-): boolean =>
-  input.code === 'KeyD' &&
-  !input.altKey &&
-  !input.shiftKey &&
-  (platform === 'darwin' ? input.metaKey && !input.ctrlKey : input.ctrlKey && !input.metaKey);
+): boolean => resolveViewportEditShortcut(input, platform) === VIEWPORT_EDIT_COMMANDS.duplicate;
 
 const clampWheelDelta = (value: number): number =>
   Math.max(
@@ -166,9 +199,12 @@ const shouldStartPan = (event: PointerEvent, spacePressed: boolean): boolean =>
  */
 export class ViewportInputController {
   readonly #camera: ViewportCameraStore;
+  readonly #copySelection: (() => boolean) | undefined;
+  readonly #cutSelection: (() => boolean) | undefined;
   readonly #deleteSelection: (() => boolean) | undefined;
   readonly #duplicateSelection: (() => boolean) | undefined;
   readonly #keyboardNudge: KeyboardNudgeInteraction | undefined;
+  readonly #pasteSelection: (() => boolean) | undefined;
   readonly #root: HTMLElement;
   readonly #selection: SelectionStore | undefined;
   readonly #selectionInteraction: SelectionInteraction | undefined;
@@ -194,8 +230,11 @@ export class ViewportInputController {
     this.#selectionInteraction = options.selectionInteraction;
     this.#keyboardNudge = options.keyboardNudge;
     this.#selection = options.selection;
+    this.#copySelection = options.copySelection;
+    this.#cutSelection = options.cutSelection;
     this.#deleteSelection = options.deleteSelection;
     this.#duplicateSelection = options.duplicateSelection;
+    this.#pasteSelection = options.pasteSelection;
     this.#shortcutPlatform = options.shortcutPlatform;
   }
 
@@ -283,7 +322,7 @@ export class ViewportInputController {
     if (isViewportDeleteKey(event.code) && this.#handleDeleteKeyDown(event)) {
       return;
     }
-    if (event.code === 'KeyD' && this.#handleDuplicateKeyDown(event)) {
+    if (this.#handleEditShortcutKeyDown(event)) {
       return;
     }
     if (
@@ -564,20 +603,35 @@ export class ViewportInputController {
     return true;
   }
 
-  #handleDuplicateKeyDown(event: KeyboardEvent): boolean {
+  #handleEditShortcutKeyDown(event: KeyboardEvent): boolean {
     const platform = this.#shortcutPlatform;
-    if (
-      platform === undefined ||
-      !isViewportDuplicateShortcut(event, platform) ||
-      !this.#isIdleEditTarget(event)
-    ) {
+    const command =
+      platform === undefined ? undefined : resolveViewportEditShortcut(event, platform);
+    if (command === undefined || !this.#isIdleEditTarget(event)) {
+      return false;
+    }
+    const action = this.#getEditAction(command);
+    if (action === undefined) {
       return false;
     }
     event.preventDefault();
     if (!event.repeat) {
-      this.#duplicateSelection?.();
+      action();
     }
     return true;
+  }
+
+  #getEditAction(command: ViewportEditCommand): (() => boolean) | undefined {
+    switch (command) {
+      case VIEWPORT_EDIT_COMMANDS.copy:
+        return this.#copySelection;
+      case VIEWPORT_EDIT_COMMANDS.cut:
+        return this.#cutSelection;
+      case VIEWPORT_EDIT_COMMANDS.duplicate:
+        return this.#duplicateSelection;
+      case VIEWPORT_EDIT_COMMANDS.paste:
+        return this.#pasteSelection;
+    }
   }
 
   #isIdleEditTarget(event: KeyboardEvent): boolean {

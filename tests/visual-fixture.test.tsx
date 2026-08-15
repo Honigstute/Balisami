@@ -61,6 +61,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
     expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
     expect(getRequestedVisualFixture('?visualFixture=duplicate')).toBe('duplicate');
+    expect(getRequestedVisualFixture('?visualFixture=paste')).toBe('paste');
     expect(getRequestedVisualFixture('?visualFixture=nudge')).toBe('nudge');
     expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
@@ -165,6 +166,19 @@ describe('visual conformance fixture contract', () => {
     expect(outline).toHaveAttribute('x', '198');
     expect(outline).toHaveAttribute('y', '282');
     expect(screen.getByText('Visual fixture · duplicate')).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an accepted paste result with the offset clone selected', () => {
+    const view = renderFixture('paste');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '198');
+    expect(outline).toHaveAttribute('y', '282');
+    expect(screen.getByText('Visual fixture · paste')).toBeInTheDocument();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
