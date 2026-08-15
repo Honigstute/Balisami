@@ -59,6 +59,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
     expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
     expect(getRequestedVisualFixture('?visualFixture=smartGuides')).toBe('smartGuides');
+    expect(getRequestedVisualFixture('?visualFixture=equalGaps')).toBe('equalGaps');
     expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
     expect(getRequestedVisualFixture('?visualFixture=alignSelection')).toBe('alignSelection');
     expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
@@ -134,6 +135,26 @@ describe('visual conformance fixture contract', () => {
     ).toHaveLength(2);
     expect(overlay).not.toHaveAttribute('display', 'none');
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders equal-gap dimensions through the shared move and guide overlays', () => {
+    const view = renderFixture('equalGaps');
+
+    const guides = view.container.querySelector('[data-snap-guide-overlay="gesture-guides"]');
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const spacingPath = guides?.querySelector('[data-guide-spacing-axis="y"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(guides).not.toHaveAttribute('display', 'none');
+    expect(guides).toHaveAttribute('data-guide-count', '2');
+    expect(spacingPath).not.toHaveAttribute('display', 'none');
+    expect(spacingPath).toHaveAttribute('data-guide-kind', 'equalGap');
+    expect(spacingPath).toHaveAttribute('data-guide-gap', '40');
+    expect(spacingPath?.getAttribute('d')).toContain('M 496 156 L 496 196');
+    expect(spacingPath?.getAttribute('d')).toContain('M 496 244 L 496 284');
+    expect(outline).toHaveAttribute('x', '188');
+    expect(outline).toHaveAttribute('y', '284');
+    expect(screen.getByText('Visual fixture · equalGaps')).toBeInTheDocument();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

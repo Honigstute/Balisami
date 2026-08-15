@@ -203,4 +203,78 @@ describe('snap guide overlay', () => {
     expect(group).toHaveAttribute('display', 'none');
     camera.dispose();
   });
+
+  it('projects two equal-gap spans through one fixed path without mounting gesture nodes', () => {
+    const scheduler = new TestScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 10, panY: -5, zoom: 2 }),
+      initialViewport: createViewportSize(800, 600),
+      scheduler,
+    });
+    const move = new MoveInteraction(
+      {
+        capture: () => CAPTURE,
+        commit: () => true,
+        resolveSnap: (request) =>
+          resolveSnap({
+            activeAxes: request.activeAxes,
+            bypass: request.snapBypassed,
+            candidates: [
+              {
+                anchor: 'line',
+                axis: 'x',
+                gap: 20,
+                guideSegments: [
+                  { endX: 60, endY: 100, startX: 40, startY: 100 },
+                  { endX: 100, endY: 100, startX: 80, startY: 100 },
+                ],
+                kind: 'equalGap',
+                position: 100,
+                requiredMovingAnchor: 'start',
+                sourceId: 'equal-gap:x:bridge:before|after',
+                sourceOrder: 0,
+                spanEnd: 100,
+                spanStart: 100,
+              },
+            ],
+            movingBounds: request.capture.worldBounds,
+            previousLocks: request.previousLocks,
+            rawDelta: request.rawDelta,
+            zoom: camera.getTransformSnapshot().zoom,
+          }),
+      },
+      scheduler,
+    );
+    const view = render(
+      <svg>
+        <SnapGuideOverlay camera={camera} moveInteraction={move} />
+      </svg>,
+    );
+    const group = view.container.querySelector<SVGGElement>('[data-snap-guide-overlay]');
+    const spacingPath = group?.querySelector<SVGPathElement>('[data-guide-spacing-axis="x"]');
+    if (group === null || spacingPath === null || spacingPath === undefined) {
+      throw new Error('Equal-gap guide path did not mount.');
+    }
+    expect(group.querySelectorAll('[data-guide-axis]')).toHaveLength(2);
+    expect(group.querySelectorAll('[data-guide-spacing-axis]')).toHaveLength(2);
+
+    move.begin({
+      pointerId: 3,
+      snapBypassed: false,
+      shiftKey: false,
+      startWorldPoint: createWorldPoint(0, 0),
+      targetIds: [MOVING_ID],
+      worldPoint: createWorldPoint(88, 0),
+    });
+
+    expect(group).toHaveAttribute('data-guide-count', '1');
+    expect(spacingPath).not.toHaveAttribute('display');
+    expect(spacingPath).toHaveAttribute('data-guide-kind', 'equalGap');
+    expect(spacingPath).toHaveAttribute('data-guide-gap', '20');
+    expect(spacingPath.getAttribute('d')).toContain('M 90 195 L 130 195');
+    expect(spacingPath.getAttribute('d')).toContain('M 170 195 L 210 195');
+    expect(group.querySelector('[data-guide-axis="x"]')).toHaveAttribute('display', 'none');
+    camera.dispose();
+  });
 });

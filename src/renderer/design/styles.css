@@ -594,8 +594,10 @@ p {
   fill: var(--color-canvas);
 }
 
-.snap-guide-overlay__line {
+.snap-guide-overlay__line,
+.snap-guide-overlay__spacing {
   pointer-events: none;
+  fill: none;
   stroke: var(--color-guide);
   stroke-linecap: square;
   stroke-width: var(--border-width);

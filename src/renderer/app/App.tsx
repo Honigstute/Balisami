@@ -124,6 +124,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             bypass: snapBypassed,
             candidates: createSceneSnapCandidates(model, {
               activeAxes,
+              ...(capture.sharedOwner === undefined ? {} : { equalGapOwner: capture.sharedOwner }),
               excludedIds: capture.affectedIds,
               movingBounds: capture.worldBounds,
               rawDelta,

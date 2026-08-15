@@ -2,9 +2,13 @@ import { useLayoutEffect, useRef } from 'react';
 
 import type { MoveInteraction } from './move-interaction';
 import type { ResizeInteraction } from './resize-interaction';
-import { SNAP_AXES, type SnapGuideDescriptor } from './snap-engine';
+import { SNAP_AXES, type SnapGuideDescriptor, type SnapGuideSegment } from './snap-engine';
 import type { ViewportCameraStore } from './viewport-camera-store';
-import { createWorldPoint, worldPointToViewport } from './viewport-transform';
+import {
+  createWorldPoint,
+  worldPointToViewport,
+  type ViewportTransform,
+} from './viewport-transform';
 
 interface SnapGuideOverlayProps {
   readonly camera: ViewportCameraStore;
@@ -12,7 +16,7 @@ interface SnapGuideOverlayProps {
   readonly resizeInteraction?: ResizeInteraction;
 }
 
-const applyGuideGeometry = (
+const applyLineGuideGeometry = (
   line: SVGLineElement,
   guide: SnapGuideDescriptor,
   camera: ViewportCameraStore,
@@ -41,6 +45,52 @@ const applyGuideGeometry = (
   line.removeAttribute('display');
 };
 
+const projectSegment = (
+  segment: SnapGuideSegment,
+  axis: SnapGuideDescriptor['axis'],
+  transform: ViewportTransform,
+): string => {
+  const start = worldPointToViewport(createWorldPoint(segment.startX, segment.startY), transform);
+  const end = worldPointToViewport(createWorldPoint(segment.endX, segment.endY), transform);
+  const horizontal = axis === 'x';
+  const tickX = horizontal ? 0 : 3;
+  const tickY = horizontal ? 3 : 0;
+  return [
+    `M ${String(start.x)} ${String(start.y)} L ${String(end.x)} ${String(end.y)}`,
+    `M ${String(start.x - tickX)} ${String(start.y - tickY)} L ${String(start.x + tickX)} ${String(start.y + tickY)}`,
+    `M ${String(end.x - tickX)} ${String(end.y - tickY)} L ${String(end.x + tickX)} ${String(end.y + tickY)}`,
+  ].join(' ');
+};
+
+const applySpacingGuideGeometry = (
+  path: SVGPathElement,
+  guide: SnapGuideDescriptor,
+  camera: ViewportCameraStore,
+): void => {
+  const segments = guide.segments;
+  if (segments === undefined) {
+    throw new Error('Equal-gap guide is missing its dimension segments.');
+  }
+  const transform = camera.getTransformSnapshot();
+  path.setAttribute(
+    'd',
+    segments.map((segment) => projectSegment(segment, guide.axis, transform)).join(' '),
+  );
+  path.dataset.guideKind = guide.kind;
+  path.dataset.guideSource = guide.sourceId;
+  if (guide.gap !== undefined) {
+    path.dataset.guideGap = String(guide.gap);
+  }
+  path.removeAttribute('display');
+};
+
+const hideGuideElement = (element: SVGElement): void => {
+  element.setAttribute('display', 'none');
+  delete element.dataset.guideGap;
+  delete element.dataset.guideKind;
+  delete element.dataset.guideSource;
+};
+
 /** Fixed-screen smart guides; camera and pointer frames never enter React. */
 export const SnapGuideOverlay = ({
   camera,
@@ -54,8 +104,9 @@ export const SnapGuideOverlay = ({
     if (group === null) {
       return;
     }
-    const lines = [...group.children];
-    if (lines.length !== SNAP_AXES.length || lines.some((line) => line.localName !== 'line')) {
+    const lines = [...group.querySelectorAll<SVGLineElement>('[data-guide-axis]')];
+    const paths = [...group.querySelectorAll<SVGPathElement>('[data-guide-spacing-axis]')];
+    if (lines.length !== SNAP_AXES.length || paths.length !== SNAP_AXES.length) {
       throw new Error('Snap guide overlay structure was changed unexpectedly.');
     }
 
@@ -69,14 +120,21 @@ export const SnapGuideOverlay = ({
             ? snapshot.guides
             : [];
       for (const [index, axis] of SNAP_AXES.entries()) {
-        const line = lines[index] as SVGLineElement;
+        const line = lines[index];
+        const path = paths[index];
+        if (line === undefined || path === undefined) {
+          throw new Error('Snap guide overlay axis nodes are unavailable.');
+        }
         const guide = guides.find((candidate) => candidate.axis === axis);
         if (guide === undefined) {
-          line.setAttribute('display', 'none');
-          delete line.dataset.guideKind;
-          delete line.dataset.guideSource;
+          hideGuideElement(line);
+          hideGuideElement(path);
+        } else if (guide.kind === 'equalGap') {
+          hideGuideElement(line);
+          applySpacingGuideGeometry(path, guide, camera);
         } else {
-          applyGuideGeometry(line, guide, camera);
+          hideGuideElement(path);
+          applyLineGuideGeometry(line, guide, camera);
         }
       }
       group.dataset.guideCount = String(guides.length);
@@ -102,6 +160,13 @@ export const SnapGuideOverlay = ({
     <g data-guide-count="0" data-snap-guide-overlay="gesture-guides" display="none" ref={groupRef}>
       {SNAP_AXES.map((axis) => (
         <line className="snap-guide-overlay__line" data-guide-axis={axis} key={axis} />
+      ))}
+      {SNAP_AXES.map((axis) => (
+        <path
+          className="snap-guide-overlay__spacing"
+          data-guide-spacing-axis={axis}
+          key={`spacing-${axis}`}
+        />
       ))}
     </g>
   );

@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { parseProjectDocument } from '../src/domain';
+import { ElementIdSchema, FOUNDATION_CONTROL_TYPES, parseProjectDocument } from '../src/domain';
 import {
   captureMoveTargets,
   createMoveCommands,
@@ -30,6 +30,7 @@ describe('move geometry', () => {
 
     expect(capture).toEqual({
       affectedIds: [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+      sharedOwner: { boardId: DOCUMENT_FIXTURE_IDS.board, kind: 'board' },
       targets: [
         {
           frame: { x: -20, y: 12.5, width: 320, height: 180 },
@@ -78,5 +79,33 @@ describe('move geometry', () => {
     expect(resolveMoveDelta(start, createWorldPoint(16, 1), false)).toMatchObject({ x: 6, y: 6 });
     expect(resolveMoveDelta(start, createWorldPoint(16, 1), true)).toMatchObject({ x: 6, y: 0 });
     expect(resolveMoveDelta(start, createWorldPoint(12, 8), true)).toMatchObject({ x: 0, y: 13 });
+  });
+
+  it('omits sibling-scoped layout metadata for a valid cross-owner move', () => {
+    const input = createValidProjectDocumentInput();
+    const rootId = ElementIdSchema.parse('element_crossowner');
+    input.elementsById[rootId] = {
+      id: rootId,
+      controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      frame: { x: 400, y: 100, width: 80, height: 40 },
+      locked: false,
+      properties: {},
+      childIds: [],
+      assetIds: [],
+      link: null,
+    };
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.push(rootId);
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) {
+      throw new Error('Cross-owner move fixture is invalid.');
+    }
+
+    const capture = captureMoveTargets(parsed.value, [DOCUMENT_FIXTURE_IDS.child, rootId]);
+
+    expect(capture?.targets.map((target) => target.id)).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+      rootId,
+    ]);
+    expect(capture?.sharedOwner).toBeUndefined();
   });
 });

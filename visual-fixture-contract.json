@@ -8,6 +8,7 @@
     "selection",
     "move",
     "smartGuides",
+    "equalGaps",
     "resize",
     "groupSelection",
     "alignSelection",

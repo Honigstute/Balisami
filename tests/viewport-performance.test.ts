@@ -153,6 +153,7 @@ describe('viewport algorithm performance fixtures', () => {
       const rawDelta = createWorldVector((sample % 20) - 10, (sample % 12) - 6);
       const start = performance.now();
       const candidates = createSceneSnapCandidates(model, {
+        equalGapOwner: { kind: 'board', boardId: fixture.boardId },
         excludedIds: [ElementIdSchema.parse('element_hit002449')],
         movingBounds,
         rawDelta,

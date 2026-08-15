@@ -1,5 +1,9 @@
-import type { ElementId } from '../../domain';
+import type { ElementId, ElementOwner } from '../../domain';
 import type { DocumentSceneModel } from './document-scene-model';
+import {
+  createEqualGapQueryRegions,
+  createEqualGapSnapCandidates,
+} from './equal-gap-snap-candidates';
 import {
   SNAP_ANCHORS,
   SNAP_POLICY,
@@ -19,6 +23,8 @@ import {
 
 export interface SceneSnapCandidateRequest {
   readonly activeAxes?: SnapActiveAxes;
+  /** Enables sibling-only equal-gap relations for whole-selection moves. */
+  readonly equalGapOwner?: ElementOwner;
   /** Moved roots plus descendants that follow them in world space. */
   readonly excludedIds: readonly ElementId[];
   readonly movingBounds: WorldRect;
@@ -27,6 +33,12 @@ export interface SceneSnapCandidateRequest {
   readonly tolerancePixels?: number;
   readonly zoom: ViewportZoom;
 }
+
+const ownersEqual = (first: ElementOwner, second: ElementOwner): boolean =>
+  first.kind === second.kind &&
+  (first.kind === 'board'
+    ? first.boardId === (second.kind === 'board' ? second.boardId : undefined)
+    : first.elementId === (second.kind === 'element' ? second.elementId : undefined));
 
 const getMovingAnchorPosition = (
   bounds: WorldRect,
@@ -66,24 +78,46 @@ export const createSceneSnapCandidates = (
   );
   const retentionTolerance =
     (tolerancePixels * SNAP_POLICY.releaseToleranceMultiplier) / request.zoom;
+  const equalGapOwner = request.equalGapOwner;
+  const allQueryRegions =
+    equalGapOwner === undefined
+      ? queryRegions
+      : Object.freeze([
+          ...queryRegions,
+          ...createEqualGapQueryRegions(rawBounds, request.zoom, activeAxes),
+        ]);
+  const nearbyItems = model.querySnapItems(allQueryRegions, request.excludedIds);
   const movingAnchorPositions = Object.freeze({
     x: movingAnchors.x.map((anchor) => getMovingAnchorPosition(rawBounds, 'x', anchor)),
     y: movingAnchors.y.map((anchor) => getMovingAnchorPosition(rawBounds, 'y', anchor)),
   });
-  return Object.freeze(
-    model.querySnapItems(queryRegions, request.excludedIds).flatMap((item, sourceOrder) =>
-      createBoundsSnapCandidates({
-        bounds: item.bounds,
-        kind: item.kind,
-        sourceId: item.id,
-        sourceOrder,
-      }).filter(
-        (candidate) =>
-          activeAxes[candidate.axis] &&
-          movingAnchorPositions[candidate.axis].some(
-            (position) => Math.abs(candidate.position - position) <= retentionTolerance,
-          ),
-      ),
+  const alignmentCandidates = nearbyItems.flatMap((item, sourceOrder) =>
+    createBoundsSnapCandidates({
+      bounds: item.bounds,
+      kind: item.kind,
+      sourceId: item.id,
+      sourceOrder,
+    }).filter(
+      (candidate) =>
+        activeAxes[candidate.axis] &&
+        movingAnchorPositions[candidate.axis].some(
+          (position) => Math.abs(candidate.position - position) <= retentionTolerance,
+        ),
     ),
   );
+  const equalGapCandidates =
+    equalGapOwner === undefined
+      ? []
+      : createEqualGapSnapCandidates({
+          activeAxes,
+          movingBounds: rawBounds,
+          sources: nearbyItems.flatMap((item, sourceOrder) =>
+            ownersEqual(item.owner, equalGapOwner)
+              ? [{ bounds: item.bounds, id: item.id, sourceOrder }]
+              : [],
+          ),
+          toleranceWorldUnits: retentionTolerance,
+          zoom: request.zoom,
+        });
+  return Object.freeze([...alignmentCandidates, ...equalGapCandidates]);
 };

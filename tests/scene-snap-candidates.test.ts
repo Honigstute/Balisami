@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { parseProjectDocument } from '../src/domain';
+import { ElementIdSchema, FOUNDATION_CONTROL_TYPES, parseProjectDocument } from '../src/domain';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
 import { createSceneSnapCandidates } from '../src/renderer/editor/scene-snap-candidates';
 import {
@@ -89,5 +89,55 @@ describe('scene snap candidate adapter', () => {
         sourceId: DOCUMENT_FIXTURE_IDS.child,
       }),
     ]);
+  });
+
+  it('adds equal-gap relations only between siblings of the moved roots shared owner', () => {
+    const input = createValidProjectDocumentInput();
+    const beforeId = ElementIdSchema.parse('element_gapbefore01');
+    const movingId = ElementIdSchema.parse('element_gapmoving01');
+    const afterId = ElementIdSchema.parse('element_gapafter001');
+    const createRectangle = (id: typeof beforeId, x: number) => ({
+      id,
+      controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      frame: { x, y: 300, width: id === movingId ? 20 : 40, height: 20 },
+      locked: false,
+      properties: {},
+      childIds: [],
+      assetIds: [],
+      link: null,
+    });
+    input.elementsById[beforeId] = createRectangle(beforeId, 0);
+    input.elementsById[movingId] = createRectangle(movingId, 58);
+    input.elementsById[afterId] = createRectangle(afterId, 100);
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.unshift(beforeId, movingId, afterId);
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) {
+      throw new Error('Equal-gap scene fixture failed validation.');
+    }
+    const model = new DocumentSceneModel();
+    model.reconcile(parsed.value, DOCUMENT_FIXTURE_IDS.board);
+
+    const candidates = createSceneSnapCandidates(model, {
+      activeAxes: { x: true, y: false },
+      equalGapOwner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      excludedIds: [movingId],
+      movingBounds: createWorldRect(58, 300, 20, 20),
+      rawDelta: createWorldVector(0, 0),
+      zoom: createViewportZoom(1),
+    });
+
+    const equalGapCandidates = candidates.filter((candidate) => candidate.kind === 'equalGap');
+    expect(equalGapCandidates).toEqual([
+      expect.objectContaining({
+        axis: 'x',
+        gap: 20,
+        kind: 'equalGap',
+        position: 60,
+        requiredMovingAnchor: 'start',
+      }),
+    ]);
+    expect(equalGapCandidates[0]?.sourceId).toContain(beforeId);
+    expect(equalGapCandidates[0]?.sourceId).toContain(afterId);
+    expect(equalGapCandidates[0]?.sourceId).not.toContain(DOCUMENT_FIXTURE_IDS.child);
   });
 });

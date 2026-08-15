@@ -3,6 +3,8 @@ import {
   selectElementLockState,
   selectSelectionWorldBounds,
   type ElementId,
+  type ElementLocationIndex,
+  type ElementOwner,
   type ProjectDocument,
   type SetElementFrameCommand,
   type WorldRect as ElementFrame,
@@ -24,11 +26,34 @@ export interface MoveTargetSnapshot {
 export interface MoveTargetCapture {
   /** Every descendant that follows a moved root in world space. */
   readonly affectedIds: readonly ElementId[];
+  /** Shared canonical owner when every moved root is a sibling. */
+  readonly sharedOwner?: ElementOwner;
   /** Only roots receive frame commands; selected descendants must not move twice. */
   readonly targets: readonly MoveTargetSnapshot[];
   /** Canonical world-space union of the roots used by snapping and overlays. */
   readonly worldBounds: WorldRect;
 }
+
+const ownersEqual = (first: ElementOwner, second: ElementOwner): boolean =>
+  first.kind === second.kind &&
+  (first.kind === 'board'
+    ? first.boardId === (second.kind === 'board' ? second.boardId : undefined)
+    : first.elementId === (second.kind === 'element' ? second.elementId : undefined));
+
+const getSharedOwner = (
+  rootIds: readonly ElementId[],
+  locations: ElementLocationIndex,
+): ElementOwner | undefined => {
+  const firstRootId = rootIds[0];
+  const firstOwner = firstRootId === undefined ? undefined : locations.get(firstRootId)?.owner;
+  return firstOwner !== undefined &&
+    rootIds.every((elementId) => {
+      const owner = locations.get(elementId)?.owner;
+      return owner !== undefined && ownersEqual(owner, firstOwner);
+    })
+    ? firstOwner
+    : undefined;
+};
 
 /**
  * Captures immutable local frames once. Selected descendants of another
@@ -75,9 +100,11 @@ export const captureMoveTargets = (
   for (const id of roots.rootIds) {
     appendAffected(id);
   }
+  const sharedOwner = getSharedOwner(roots.rootIds, roots.locations);
 
   return Object.freeze({
     affectedIds: Object.freeze(affectedIds),
+    ...(sharedOwner === undefined ? {} : { sharedOwner }),
     targets: Object.freeze(targets),
     worldBounds: createWorldRect(
       selectedBounds.x,

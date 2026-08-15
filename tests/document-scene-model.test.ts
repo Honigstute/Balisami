@@ -82,6 +82,14 @@ describe('document scene model', () => {
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.bounds).toEqual(
       createWorldRect(-4, 36.5, 120, 48),
     );
+    expect(model.getItem(ROOT_ID)?.owner).toEqual({
+      kind: 'board',
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+    });
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.owner).toEqual({
+      kind: 'element',
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+    });
     expect(
       model
         .queryVisible(
@@ -135,6 +143,38 @@ describe('document scene model', () => {
     });
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)).not.toBe(initialItem);
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.bounds.x).toBe(10);
+  });
+
+  it('refreshes derived ownership when reparenting preserves exact world geometry', () => {
+    const model = new DocumentSceneModel();
+    const initial = parseFixture(createValidProjectDocumentInput());
+    model.reconcile(initial, DOCUMENT_FIXTURE_IDS.board);
+    const initialItem = model.getItem(DOCUMENT_FIXTURE_IDS.child);
+    const reparentedInput = createValidProjectDocumentInput();
+    reparentedInput.elementsById[DOCUMENT_FIXTURE_IDS.group]!.childIds = [];
+    reparentedInput.elementsById[DOCUMENT_FIXTURE_IDS.child]!.frame = {
+      x: -4,
+      y: 36.5,
+      width: 120,
+      height: 48,
+    };
+    reparentedInput.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.push(
+      DOCUMENT_FIXTURE_IDS.child,
+    );
+    const reparented = parseFixture(reparentedInput);
+
+    expect(model.reconcile(reparented, DOCUMENT_FIXTURE_IDS.board)).toMatchObject({
+      changed: true,
+      updatedItemCount: 1,
+    });
+    const reparentedItem = model.getItem(DOCUMENT_FIXTURE_IDS.child);
+    expect(reparentedItem).not.toBe(initialItem);
+    expect(reparentedItem?.bounds).toEqual(initialItem?.bounds);
+    expect(reparentedItem?.path).toBe(initialItem?.path);
+    expect(reparentedItem?.owner).toEqual({
+      kind: 'board',
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+    });
   });
 
   it('updates stacking without regenerating geometry and removes stale items incrementally', () => {

@@ -2,6 +2,7 @@ import {
   FOUNDATION_CONTROL_TYPES,
   type BoardId,
   type ElementId,
+  type ElementOwner,
   type ProjectDocument,
 } from '../../domain';
 import { createSeededSketchRectPath } from './seeded-sketch';
@@ -20,6 +21,8 @@ export interface DocumentSceneItem {
   readonly id: ElementId;
   readonly kind: 'container' | 'object';
   readonly locked: boolean;
+  /** Disposable ownership metadata for sibling-scoped editor geometry. */
+  readonly owner: ElementOwner;
   readonly path: string;
   readonly revision: string;
 }
@@ -43,6 +46,7 @@ interface DerivedSceneItem {
   readonly id: ElementId;
   readonly kind: 'container' | 'object';
   readonly locked: boolean;
+  readonly owner: ElementOwner;
 }
 
 const boundsEqual = (first: WorldRect, second: WorldRect): boolean =>
@@ -60,8 +64,17 @@ const containsBounds = (outer: WorldRect, inner: WorldRect): boolean =>
 const orderEqual = (first: readonly ElementId[], second: readonly ElementId[]): boolean =>
   first.length === second.length && first.every((id, index) => id === second[index]);
 
+const ownersEqual = (first: ElementOwner, second: ElementOwner): boolean =>
+  first.kind === second.kind &&
+  (first.kind === 'board'
+    ? first.boardId === (second.kind === 'board' ? second.boardId : undefined)
+    : first.elementId === (second.kind === 'element' ? second.elementId : undefined));
+
+const getOwnerKey = (owner: ElementOwner): string =>
+  owner.kind === 'board' ? `board:${owner.boardId}` : `element:${owner.elementId}`;
+
 const createItemRevision = (item: DerivedSceneItem): string =>
-  `${item.id}|${item.kind}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}`;
+  `${item.id}|${item.kind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}`;
 
 /** Flattens canonical childIds order while accumulating local container origins once. */
 const deriveBoardSceneItems = (
@@ -82,6 +95,7 @@ const deriveBoardSceneItems = (
     parentX: number,
     parentY: number,
     ancestorLocked: boolean,
+    owner: ElementOwner,
   ): void => {
     if (visited.has(elementId)) {
       throw new Error('Document scene received duplicate or cyclic element ownership.');
@@ -102,22 +116,34 @@ const deriveBoardSceneItems = (
     const effectivelyLocked = ancestorLocked || element.locked;
     if (element.controlType === FOUNDATION_CONTROL_TYPES.rectangle) {
       items.push(
-        Object.freeze({ bounds, id: element.id, kind: 'object', locked: effectivelyLocked }),
+        Object.freeze({ bounds, id: element.id, kind: 'object', locked: effectivelyLocked, owner }),
       );
     } else if (element.controlType === FOUNDATION_CONTROL_TYPES.group) {
       // Groups participate in selection, movement, snapping, and bounds but
       // remain visually transparent in the document presenter.
       items.push(
-        Object.freeze({ bounds, id: element.id, kind: 'container', locked: effectivelyLocked }),
+        Object.freeze({
+          bounds,
+          id: element.id,
+          kind: 'container',
+          locked: effectivelyLocked,
+          owner,
+        }),
       );
     }
     for (const childId of element.childIds) {
-      visit(childId, bounds.x, bounds.y, effectivelyLocked);
+      visit(
+        childId,
+        bounds.x,
+        bounds.y,
+        effectivelyLocked,
+        Object.freeze({ kind: 'element', elementId: element.id }),
+      );
     }
   };
 
   for (const elementId of board.childIds) {
-    visit(elementId, 0, 0, false);
+    visit(elementId, 0, 0, false, Object.freeze({ kind: 'board', boardId: board.id }));
   }
   return Object.freeze(items);
 };
@@ -212,7 +238,11 @@ export class DocumentSceneModel {
         existing === undefined ||
         existing.kind !== derivedItem.kind ||
         !boundsEqual(existing.bounds, derivedItem.bounds);
-      if (!geometryChanged && existing.locked === derivedItem.locked) {
+      if (
+        !geometryChanged &&
+        existing.locked === derivedItem.locked &&
+        ownersEqual(existing.owner, derivedItem.owner)
+      ) {
         continue;
       }
       const item = Object.freeze({
@@ -220,6 +250,7 @@ export class DocumentSceneModel {
         id: derivedItem.id,
         kind: derivedItem.kind,
         locked: derivedItem.locked,
+        owner: derivedItem.owner,
         path:
           derivedItem.kind === 'container'
             ? ''

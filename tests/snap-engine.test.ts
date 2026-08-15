@@ -32,6 +32,24 @@ const createLineCandidate = (overrides: Partial<SnapCandidate> = {}): SnapCandid
   ...overrides,
 });
 
+const createEqualGapCandidate = (overrides: Partial<SnapCandidate> = {}): SnapCandidate => ({
+  anchor: 'line',
+  axis: 'x',
+  gap: 20,
+  guideSegments: [
+    { endX: 40, endY: 30, startX: 20, startY: 30 },
+    { endX: 100, endY: 30, startX: 80, startY: 30 },
+  ],
+  kind: 'equalGap',
+  position: 60,
+  requiredMovingAnchor: 'start',
+  sourceId: 'equal-gap:x:bridge:before|after',
+  sourceOrder: 0,
+  spanEnd: 20,
+  spanStart: 0,
+  ...overrides,
+});
+
 const resolve = (overrides: Partial<SnapResolutionInput> = {}) =>
   resolveSnap({
     activeAxes: ACTIVE_AXES,
@@ -208,6 +226,51 @@ describe('pure snap resolution', () => {
     expect(orderResult.guides[0]?.sourceId).toBe('object-earlier');
   });
 
+  it('keeps equal-gap candidates on their required edge and behind direct object ties', () => {
+    const movingBounds = createWorldRect(0, 0, 20, 20);
+    const constrained = resolve({
+      candidates: [createEqualGapCandidate({ position: 4 })],
+      movingBounds,
+    });
+    expect(constrained.adjustedDelta.x).toBe(4);
+    expect(constrained.locks.x?.movingAnchor).toBe('start');
+
+    const objectFirst = resolve({
+      candidates: [
+        createEqualGapCandidate({ position: 4 }),
+        createLineCandidate({ anchor: 'line', position: 4, sourceId: 'object-direct' }),
+      ],
+      movingAnchors: { x: ['start'], y: [] },
+      movingBounds,
+    });
+    expect(objectFirst.guides[0]).toMatchObject({
+      kind: 'object',
+      sourceId: 'object-direct',
+    });
+  });
+
+  it('keeps spacing dimensions outside a simultaneous perpendicular snap', () => {
+    const result = resolve({
+      candidates: [
+        createEqualGapCandidate({ position: 4 }),
+        createLineCandidate({
+          anchor: 'line',
+          axis: 'y',
+          position: 4,
+          sourceId: 'perpendicular-target',
+        }),
+      ],
+      movingAnchors: { x: ['start'], y: ['start'] },
+      movingBounds: createWorldRect(0, 0, 20, 20),
+    });
+
+    expect(result.snappedBounds).toEqual({ x: 4, y: 4, width: 20, height: 20 });
+    expect(result.guides[0]?.segments).toEqual([
+      { endX: 40, endY: 34, startX: 20, startY: 34 },
+      { endX: 100, endY: 34, startX: 80, startY: 34 },
+    ]);
+  });
+
   it('converts CSS-pixel tolerance exactly once and ignores device scale', () => {
     for (const zoomValue of [0.1, 0.25, 1, 2, 4]) {
       const zoom = createViewportZoom(zoomValue);
@@ -339,6 +402,20 @@ describe('pure snap resolution', () => {
     ['source ID', createLineCandidate({ sourceId: '' })],
     ['source order', createLineCandidate({ sourceOrder: -1 })],
     ['span order', createLineCandidate({ spanEnd: -1, spanStart: 1 })],
+    ['equal-gap missing metadata', createLineCandidate({ kind: 'equalGap' })],
+    ['equal-gap negative size', createEqualGapCandidate({ gap: -1 })],
+    ['equal-gap wrong anchor', createEqualGapCandidate({ anchor: 'start' })],
+    ['equal-gap wrong moving edge', createEqualGapCandidate({ requiredMovingAnchor: 'end' })],
+    [
+      'equal-gap diagonal segment',
+      createEqualGapCandidate({
+        guideSegments: [
+          { endX: 40, endY: 31, startX: 20, startY: 30 },
+          { endX: 100, endY: 30, startX: 80, startY: 30 },
+        ],
+      }),
+    ],
+    ['alignment gap metadata', createLineCandidate({ gap: 4 })],
   ])('rejects an invalid candidate %s', (_label, candidate) => {
     expect(() => resolve({ candidates: [candidate] })).toThrow();
   });

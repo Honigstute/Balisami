@@ -19,13 +19,30 @@ export type SnapAxis = (typeof SNAP_AXES)[number];
 export const SNAP_ANCHORS = Object.freeze(['start', 'center', 'end'] as const);
 export type SnapAnchor = (typeof SNAP_ANCHORS)[number];
 
-export const SNAP_CANDIDATE_KINDS = Object.freeze(['object', 'container', 'grid'] as const);
+export const SNAP_CANDIDATE_KINDS = Object.freeze([
+  'object',
+  'equalGap',
+  'container',
+  'grid',
+] as const);
 export type SnapCandidateKind = (typeof SNAP_CANDIDATE_KINDS)[number];
 export type SnapTargetAnchor = SnapAnchor | 'line';
+
+export interface SnapGuideSegment {
+  readonly endX: number;
+  readonly endY: number;
+  readonly startX: number;
+  readonly startY: number;
+}
 
 export interface SnapCandidate {
   readonly anchor: SnapTargetAnchor;
   readonly axis: SnapAxis;
+  /** Present only when one candidate is meaningful for one moving edge. */
+  readonly requiredMovingAnchor?: SnapAnchor;
+  /** Present only for an equal-gap relation rendered as two dimension spans. */
+  readonly gap?: number;
+  readonly guideSegments?: readonly SnapGuideSegment[];
   readonly kind: SnapCandidateKind;
   readonly position: number;
   /** Canonical order within the candidate source, used only after geometric ties. */
@@ -38,7 +55,7 @@ export interface SnapCandidate {
 
 export interface BoundsSnapCandidateInput {
   readonly bounds: WorldRect;
-  readonly kind: Exclude<SnapCandidateKind, 'grid'>;
+  readonly kind: 'container' | 'object';
   readonly sourceId: string;
   readonly sourceOrder: number;
 }
@@ -73,6 +90,8 @@ export interface SnapLocks {
 export interface SnapGuideDescriptor {
   readonly axis: SnapAxis;
   readonly end: number;
+  readonly gap?: number;
+  readonly segments?: readonly SnapGuideSegment[];
   readonly kind: SnapCandidateKind;
   readonly movingAnchor: SnapAnchor;
   readonly position: number;
@@ -123,8 +142,9 @@ const TARGET_ANCHOR_ORDER: Readonly<Record<SnapTargetAnchor, number>> = Object.f
 });
 const CANDIDATE_KIND_PRIORITY: Readonly<Record<SnapCandidateKind, number>> = Object.freeze({
   object: 0,
-  container: 1,
-  grid: 2,
+  equalGap: 1,
+  container: 2,
+  grid: 3,
 });
 const ALL_MOVING_ANCHORS: SnapMovingAnchors = Object.freeze({
   x: SNAP_ANCHORS,
@@ -160,6 +180,31 @@ const requireSourceOrder = (sourceOrder: number): number => {
   return sourceOrder;
 };
 
+const nearlyEqual = (first: number, second: number): boolean =>
+  Math.abs(first - second) <= Number.EPSILON * Math.max(1, Math.abs(first), Math.abs(second)) * 8;
+
+const normalizeGuideSegments = (
+  segments: readonly SnapGuideSegment[] | undefined,
+): readonly SnapGuideSegment[] | undefined => {
+  if (segments === undefined) {
+    return undefined;
+  }
+  const unknownSegments: unknown = segments;
+  if (!Array.isArray(unknownSegments) || segments.length !== 2) {
+    throw new TypeError('Equal-gap snap candidates require exactly two guide segments.');
+  }
+  return Object.freeze(
+    segments.map((segment, index) =>
+      Object.freeze({
+        endX: requireFinite(segment.endX, `Snap guide segment ${String(index)} end X`),
+        endY: requireFinite(segment.endY, `Snap guide segment ${String(index)} end Y`),
+        startX: requireFinite(segment.startX, `Snap guide segment ${String(index)} start X`),
+        startY: requireFinite(segment.startY, `Snap guide segment ${String(index)} start Y`),
+      }),
+    ),
+  );
+};
+
 const normalizeCandidate = (candidate: SnapCandidate): SnapCandidate => {
   if (!AXIS_SET.has(candidate.axis)) {
     throw new TypeError('Snap candidate axis is unsupported.');
@@ -175,9 +220,56 @@ const normalizeCandidate = (candidate: SnapCandidate): SnapCandidate => {
   if (spanEnd < spanStart) {
     throw new RangeError('Snap candidate span must be ordered.');
   }
+  const requiredMovingAnchor = candidate.requiredMovingAnchor;
+  if (requiredMovingAnchor !== undefined && !ANCHOR_SET.has(requiredMovingAnchor)) {
+    throw new TypeError('Snap candidate moving anchor is unsupported.');
+  }
+  const guideSegments = normalizeGuideSegments(candidate.guideSegments);
+  const gap = candidate.gap;
+  if (candidate.kind === 'equalGap') {
+    if (
+      candidate.anchor !== 'line' ||
+      requiredMovingAnchor !== 'start' ||
+      guideSegments === undefined ||
+      gap === undefined
+    ) {
+      throw new TypeError('Equal-gap snap candidate metadata is incomplete.');
+    }
+    requireFinite(gap, 'Equal-gap size');
+    if (gap < 0) {
+      throw new RangeError('Equal-gap size must be non-negative.');
+    }
+    const sharedPerpendicularPosition =
+      candidate.axis === 'x' ? guideSegments[0]?.startY : guideSegments[0]?.startX;
+    const validSegments = guideSegments.every((segment) => {
+      const primaryStart = candidate.axis === 'x' ? segment.startX : segment.startY;
+      const primaryEnd = candidate.axis === 'x' ? segment.endX : segment.endY;
+      const perpendicularStart = candidate.axis === 'x' ? segment.startY : segment.startX;
+      const perpendicularEnd = candidate.axis === 'x' ? segment.endY : segment.endX;
+      return (
+        primaryEnd >= primaryStart &&
+        nearlyEqual(primaryEnd - primaryStart, gap) &&
+        nearlyEqual(perpendicularStart, perpendicularEnd) &&
+        sharedPerpendicularPosition !== undefined &&
+        nearlyEqual(perpendicularStart, sharedPerpendicularPosition)
+      );
+    });
+    if (!validSegments) {
+      throw new TypeError('Equal-gap guide segments must be parallel spans of the declared gap.');
+    }
+  } else if (
+    requiredMovingAnchor !== undefined ||
+    guideSegments !== undefined ||
+    gap !== undefined
+  ) {
+    throw new TypeError('Alignment snap candidates cannot carry equal-gap metadata.');
+  }
   return Object.freeze({
     anchor: candidate.anchor,
     axis: candidate.axis,
+    ...(requiredMovingAnchor === undefined ? {} : { requiredMovingAnchor }),
+    ...(gap === undefined ? {} : { gap }),
+    ...(guideSegments === undefined ? {} : { guideSegments }),
     kind: candidate.kind,
     position: requireFinite(candidate.position, 'Snap candidate position'),
     sourceId: requireSourceId(candidate.sourceId),
@@ -410,6 +502,12 @@ const resolveAxis = (
       continue;
     }
     for (const movingAnchor of movingAnchors) {
+      if (
+        candidate.requiredMovingAnchor !== undefined &&
+        candidate.requiredMovingAnchor !== movingAnchor
+      ) {
+        continue;
+      }
       const proposal = createProposal(movedBounds, axis, movingAnchor, candidate);
       if (Math.abs(proposal.adjustment) <= toleranceWorldUnits) {
         proposals.push(proposal);
@@ -423,9 +521,30 @@ const createGuide = (proposal: AxisProposal, snappedBounds: WorldRect): SnapGuid
   const movingStart = proposal.candidate.axis === 'x' ? snappedBounds.y : snappedBounds.x;
   const movingEnd =
     movingStart + (proposal.candidate.axis === 'x' ? snappedBounds.height : snappedBounds.width);
+  const guideSegments = proposal.candidate.guideSegments?.map((segment) => {
+    // A simultaneous snap on the perpendicular axis may move the union beyond
+    // the raw bound used during candidate generation. Advance spacing guides
+    // only when necessary so they remain outside every participant.
+    const advance = Math.max(0, movingEnd - proposal.candidate.spanEnd);
+    return Object.freeze(
+      proposal.candidate.axis === 'x'
+        ? {
+            ...segment,
+            endY: segment.endY + advance,
+            startY: segment.startY + advance,
+          }
+        : {
+            ...segment,
+            endX: segment.endX + advance,
+            startX: segment.startX + advance,
+          },
+    );
+  });
   return Object.freeze({
     axis: proposal.candidate.axis,
     end: Math.max(proposal.candidate.spanEnd, movingEnd),
+    ...(proposal.candidate.gap === undefined ? {} : { gap: proposal.candidate.gap }),
+    ...(guideSegments === undefined ? {} : { segments: Object.freeze(guideSegments) }),
     kind: proposal.candidate.kind,
     movingAnchor: proposal.movingAnchor,
     position: proposal.candidate.position,
