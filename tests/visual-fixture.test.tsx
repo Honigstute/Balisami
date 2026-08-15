@@ -146,7 +146,7 @@ describe('visual conformance fixture contract', () => {
     expect(overlay).toHaveAttribute('data-selection-count', '1');
     expect(outline).toHaveAttribute('x', '188');
     expect(outline).toHaveAttribute('y', '272');
-    expect(outline).toHaveAttribute('width', '344');
+    expect(outline).toHaveAttribute('width', '150');
     expect(outline).toHaveAttribute('height', '160');
     expect(guides).not.toHaveAttribute('display', 'none');
     expect(guides).toHaveAttribute('data-guide-count', '2');

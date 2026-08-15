@@ -369,7 +369,9 @@ const SceneFixture = ({
         snapBypassed: false,
         shiftKey: false,
         startWorldPoint: createWorldPoint(316, 316),
-        worldPoint: createWorldPoint(530, 430),
+        // Both targets stay inside the minimum Windows canvas: field center X
+        // and side-card bottom Y. Artifact review must see both guide spans.
+        worldPoint: createWorldPoint(336, 430),
       });
     }
     if (state === 'nudge') {
