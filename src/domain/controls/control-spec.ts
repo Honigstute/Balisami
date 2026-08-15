@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
 import {
   ControlTypeIdSchema,
   ElementPropertiesSchema,
@@ -31,9 +32,14 @@ export const FOUNDATION_CONTROL_TYPES = Object.freeze({
   rectangle: CONTROL_TYPES.rectangle,
 });
 
-const textPropertiesSchema = z.strictObject({ text: z.string().max(100_000) }).readonly();
+const textPropertiesSchema = z
+  .strictObject({ text: z.string().max(CONTROL_TEXT_POLICY.maximumLength) })
+  .readonly();
 const checkboxPropertiesSchema = z
-  .strictObject({ checked: z.boolean(), text: z.string().max(100_000) })
+  .strictObject({
+    checked: z.boolean(),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
   .readonly();
 
 const createSize = (width: number, height: number): ControlSize => Object.freeze({ height, width });

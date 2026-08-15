@@ -8,6 +8,7 @@ import {
   type ProjectDocument,
   type WorldRect,
 } from '../../domain';
+import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
 import { AppInput } from '../design/AppInput';
 import { AppSegmentedControl } from '../design/AppSegmentedControl';
 import type { SelectionStore } from '../editor/selection-store';
@@ -107,7 +108,7 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
   return (
     <AppInput
       label={label}
-      maxLength={100_000}
+      maxLength={CONTROL_TEXT_POLICY.maximumLength}
       onBlur={commit}
       onChange={(event) => setDraft(event.currentTarget.value)}
       onKeyDown={blurOnEnter}

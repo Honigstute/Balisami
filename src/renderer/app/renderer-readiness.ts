@@ -1,3 +1,8 @@
+import {
+  CONTROL_TEXT_MEASUREMENT_POLICY,
+  getBrowserControlTextMeasurementService,
+} from '../controls/control-text-measurement';
+
 const waitForAnimationFrame = (): Promise<void> =>
   new Promise((resolve) => {
     if (typeof window.requestAnimationFrame === 'function') {
@@ -15,7 +20,14 @@ const waitForAnimationFrame = (): Promise<void> =>
  */
 export const waitForRendererPresentation = async (): Promise<void> => {
   if (document.fonts !== undefined) {
-    await document.fonts.ready;
+    const measurementService = await getBrowserControlTextMeasurementService(document);
+    // This startup probe proves the exact bundled font exposes usable canvas metrics before any
+    // auto-size command or packaged screenshot can rely on them.
+    measurementService.measure({
+      fontSize: CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeSize,
+      mode: 'single-line',
+      text: CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText,
+    });
   }
 
   // A callback queued from inside a frame runs in the following frame, guaranteeing a paint
