@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: MVP alpha active
+Status: MVP alpha complete — tester feedback cut
 Last reviewed: 2026-08-15
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -356,7 +356,7 @@ Exit gate:
 - Guide visuals never enter persisted state, history, hit testing, thumbnails, or export.
 - Snap/hit-test performance meets the 5,000-element p95 budget.
 
-### [~] MVP-A — Testable wireframing alpha
+### [x] MVP-A — Testable wireframing alpha
 
 Depends on: M0–M6 and the verified M7 slices recorded above
 
@@ -400,6 +400,14 @@ Exit gate:
 - The complete acceptance flow passes locally in a packaged build and in native macOS/Windows CI.
 - Original-resolution alpha artifacts are reviewed on both platforms; selecting every representative control leaves the navigator, canvas, and inspector tracks fixed.
 - A tester can install or unpack the provided platform-specific artifact and complete the documented flow without development tools.
+
+Completion evidence (2026-08-15):
+
+- Commit `ee8bc7d` passes [native Quality run 31874817808](https://github.com/Honigstute/Balisami/actions/runs/31874817808) end-to-end on macOS 26 arm64 and Windows 2025 x64: source verification, package, hardened-fuse readback, launch smoke, all 26 visual/scale captures, viewport performance, alpha create/edit/undo/redo/save/close/reopen, forced-crash recovery, native maker, and both artifact uploads. No retry, allowlist, or platform exception is used.
+- The final source gate covers 84 files / 550 tests across 143 source modules with strict formatting, lint, dependency boundaries, TypeScript, and zero runtime vulnerabilities. The packaged ten-second performance probe records 0.50-ms p95 / 8.30-ms maximum frame work and 18.60-ms p95 input latency on macOS, and 0.40 / 1.00 ms plus 16.80 ms on Windows, with zero long tasks and zero React commits on both.
+- Final `mvpAlpha` and live saved-project screenshots were downloaded and reviewed at original resolution on both platforms. Every representative control and all eight selected-button handles remain inside the canvas with clear margin; navigator/canvas/inspector/footer tracks match; the settled live chrome shows `Saved` and `accepted-project.probe`; and there is no error, clipping, transient save label, or layout shift.
+- Artifact `balsamic-alpha-macos-26-arm64` contains the 120,275,023-byte `Balsamic-darwin-arm64-0.1.0.zip`; archive inspection confirms `Balsamic.app` and its executable/resource structure. Artifact `balsamic-alpha-windows-2025-x64` contains a valid 141,291,520-byte PE Windows GUI `Balsamic-0.1.0 Setup.exe`, the 140,536,067-byte full update package, `RELEASES`, and the live alpha screenshot. Both are unsigned trusted-tester deliverables, as explicitly documented in the README.
+- The [draft MVP-A PR #6](https://github.com/Honigstute/Balisami/pull/6) remains unmerged. This preserves the review boundary while making the two native artifacts immediately downloadable from the successful run.
 
 ### [ ] M8 — Control registry and representative vertical slice
 
@@ -542,4 +550,4 @@ Exit gate:
 
 ## Next action
 
-Push the coherent MVP-A slice, run the complete native macOS arm64 and Windows x64 matrix, inspect both live alpha screenshots and distributable contents, and publish the exact artifact links/test instructions. Mark MVP-A complete only after both native jobs and tester artifacts pass; otherwise keep its active status and fix the failing boundary without expanding scope.
+Distribute the two `balsamic-alpha-*` artifacts from run `31874817808` to trusted testers using the README flow. During the feedback cut, prioritize only reproducible correctness, data-safety, install, performance, or blocker-usability defects; keep later catalog/release scope frozen. After feedback is triaged, resume the paused M7 target classes only if they block real workflows, otherwise continue with M8 from the existing canonical registry rather than rebuilding this alpha slice.
