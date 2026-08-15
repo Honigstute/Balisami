@@ -219,7 +219,7 @@ const createAlignedSelectionFixtureDocument = (
   const plan = planSelectionArrangement(
     fixture.document,
     [buttonId, titleId, fieldId],
-    fieldId,
+    buttonId,
     SELECTION_ARRANGEMENT_ACTIONS.alignRight,
   );
   if (plan === undefined || plan.commands.length !== 2) {
@@ -312,7 +312,7 @@ const SceneFixture = ({
           ? fixture.groupId
           : fixture.selectedId;
     if (state === 'alignSelection') {
-      const primaryId = alignmentIds[1];
+      const primaryId = alignmentIds[2];
       if (alignmentIds.length !== 3 || primaryId === undefined) {
         throw new Error('The deterministic alignment selection could not be restored.');
       }

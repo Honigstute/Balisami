@@ -162,7 +162,7 @@ describe('visual conformance fixture contract', () => {
     const outline = overlay?.querySelector('.selection-overlay__outline');
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(overlay).toHaveAttribute('data-selection-count', '3');
-    expect(outline).toHaveAttribute('x', '188');
+    expect(outline).toHaveAttribute('x', '16');
     expect(outline).toHaveAttribute('y', '128');
     expect(outline).toHaveAttribute('width', '300');
     expect(outline).toHaveAttribute('height', '188');
