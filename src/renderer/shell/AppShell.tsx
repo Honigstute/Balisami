@@ -25,6 +25,14 @@ export interface AppShellRegionContent {
 }
 
 interface AppShellProps {
+  readonly historyControls?: {
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
+    readonly onRedo: () => void;
+    readonly onUndo: () => void;
+    readonly redoLabel?: string;
+    readonly undoLabel?: string;
+  };
   readonly projectName?: string;
   readonly projectOverlay?: ReactNode;
   readonly projectProbeState?: { readonly attributeName: string; readonly value: string };
@@ -101,6 +109,7 @@ const LibraryPlaceholders = () => (
 );
 
 export const AppShell = ({
+  historyControls,
   projectName = 'Untitled project',
   projectOverlay,
   projectProbeState,
@@ -149,7 +158,32 @@ export const AppShell = ({
         </div>
 
         <div aria-label="Editor actions" className="command-bar__actions" role="toolbar">
-          <DisabledToolbarActions actions={toolbarActionsBeforeViewport} />
+          {historyControls === undefined ? (
+            <DisabledToolbarActions actions={toolbarActionsBeforeViewport} />
+          ) : (
+            <>
+              <button
+                aria-label={historyControls.undoLabel ?? 'Undo'}
+                className="icon-button icon-button--dark"
+                disabled={!historyControls.canUndo}
+                onClick={historyControls.onUndo}
+                title={historyControls.undoLabel ?? 'Undo'}
+                type="button"
+              >
+                <Icon name="undo" />
+              </button>
+              <button
+                aria-label={historyControls.redoLabel ?? 'Redo'}
+                className="icon-button icon-button--dark"
+                disabled={!historyControls.canRedo}
+                onClick={historyControls.onRedo}
+                title={historyControls.redoLabel ?? 'Redo'}
+                type="button"
+              >
+                <Icon name="redo" />
+              </button>
+            </>
+          )}
           {viewportControls ?? <DisabledToolbarActions actions={defaultViewportActions} />}
           <DisabledToolbarActions actions={toolbarActionsAfterViewport} />
         </div>

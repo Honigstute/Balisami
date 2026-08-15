@@ -128,6 +128,10 @@ describe('document SVG scene', () => {
     const selector = `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`;
     const initialElement = view.container.querySelector(selector);
     expect(initialElement).not.toBeNull();
+    expect(
+      view.container.querySelector(`[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.group}"]`),
+    ).toBeNull();
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)?.kind).toBe('container');
     const initialPath = initialElement?.querySelector('path')?.getAttribute('d');
 
     camera.scheduleTransform(createViewportTransform({ panX: 25, panY: 15, zoom: 1 }));
@@ -219,6 +223,7 @@ describe('document SVG scene', () => {
 
     move.begin({
       pointerId: 4,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(0, 0),
       targetIds: [DOCUMENT_FIXTURE_IDS.child],
@@ -227,6 +232,7 @@ describe('document SVG scene', () => {
     for (let index = 1; index <= 500; index += 1) {
       move.update({
         pointerId: 4,
+        snapBypassed: false,
         shiftKey: false,
         worldPoint: createWorldPoint(index / 10, index / 20),
       });
@@ -534,6 +540,7 @@ describe('document SVG scene', () => {
       elementId: DOCUMENT_FIXTURE_IDS.child,
       handle: 'southEast',
       pointerId: 10,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(116, 84.5),
       worldPoint: createWorldPoint(116, 84.5),
@@ -541,6 +548,7 @@ describe('document SVG scene', () => {
     for (let index = 1; index <= 500; index += 1) {
       resize.update({
         pointerId: 10,
+        snapBypassed: false,
         shiftKey: false,
         worldPoint: createWorldPoint(116 + index / 10, 84.5 + index / 20),
       });

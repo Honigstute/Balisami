@@ -133,6 +133,16 @@ const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: A
         `Control type '${element.controlType}' cannot own child elements.`,
       );
     }
+
+    const properties = spec.propertiesSchema.safeParse(element.properties);
+    if (!properties.success) {
+      for (const issue of properties.error.issues) {
+        addIssue(
+          ['elementsById', elementKey, 'properties', ...issue.path.map(String)],
+          issue.message,
+        );
+      }
+    }
   }
 };
 

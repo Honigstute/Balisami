@@ -7,7 +7,7 @@ import type { SelectionStore } from './selection-store';
 import type { TextEditViewportRoute } from './text-edit-interaction';
 import type { ViewportShortcutPlatform } from './viewport-commands';
 import type { ViewportCameraStore } from './viewport-camera-store';
-import { ViewportInputController } from './viewport-input';
+import { ViewportInputController, type ViewportAlignmentCommand } from './viewport-input';
 import { createDeviceScale, createViewportSize } from './viewport-transform';
 
 interface ViewportSceneProps {
@@ -15,11 +15,20 @@ interface ViewportSceneProps {
   readonly domChildren?: ReactNode;
   readonly interactionChildren?: ReactNode;
   readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
+  readonly onAlignSelection?: (action: ViewportAlignmentCommand) => boolean;
+  readonly onBringSelectionForward?: () => boolean;
+  readonly onBringSelectionToFront?: () => boolean;
   readonly onCopySelection?: () => boolean;
   readonly onCutSelection?: () => boolean;
   readonly onDeleteSelection?: () => boolean;
   readonly onDuplicateSelection?: () => boolean;
+  readonly onGroupSelection?: () => boolean;
+  readonly onLockSelection?: () => boolean;
   readonly onPasteSelection?: () => boolean;
+  readonly onSendSelectionBackward?: () => boolean;
+  readonly onSendSelectionToBack?: () => boolean;
+  readonly onUngroupSelection?: () => boolean;
+  readonly onUnlockAll?: () => boolean;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly shortcutPlatform?: ViewportShortcutPlatform;
@@ -61,11 +70,20 @@ export const ViewportScene = ({
   domChildren,
   interactionChildren,
   keyboardNudgeInteraction,
+  onAlignSelection,
+  onBringSelectionForward,
+  onBringSelectionToFront,
   onCopySelection,
   onCutSelection,
   onDeleteSelection,
   onDuplicateSelection,
+  onGroupSelection,
+  onLockSelection,
   onPasteSelection,
+  onSendSelectionBackward,
+  onSendSelectionToBack,
+  onUngroupSelection,
+  onUnlockAll,
   selection,
   selectionInteraction,
   shortcutPlatform,
@@ -127,16 +145,33 @@ export const ViewportScene = ({
       return;
     }
     const input = new ViewportInputController(root, camera, {
+      ...(onAlignSelection === undefined ? {} : { alignSelection: onAlignSelection }),
+      ...(onBringSelectionForward === undefined
+        ? {}
+        : { bringSelectionForward: onBringSelectionForward }),
+      ...(onBringSelectionToFront === undefined
+        ? {}
+        : { bringSelectionToFront: onBringSelectionToFront }),
       ...(onCopySelection === undefined ? {} : { copySelection: onCopySelection }),
       ...(onCutSelection === undefined ? {} : { cutSelection: onCutSelection }),
       ...(onDeleteSelection === undefined ? {} : { deleteSelection: onDeleteSelection }),
       ...(onDuplicateSelection === undefined ? {} : { duplicateSelection: onDuplicateSelection }),
+      ...(onGroupSelection === undefined ? {} : { groupSelection: onGroupSelection }),
+      ...(onLockSelection === undefined ? {} : { lockSelection: onLockSelection }),
       ...(keyboardNudgeInteraction === undefined
         ? {}
         : { keyboardNudge: keyboardNudgeInteraction }),
       ...(selection === undefined ? {} : { selection }),
       ...(selectionInteraction === undefined ? {} : { selectionInteraction }),
       ...(onPasteSelection === undefined ? {} : { pasteSelection: onPasteSelection }),
+      ...(onSendSelectionBackward === undefined
+        ? {}
+        : { sendSelectionBackward: onSendSelectionBackward }),
+      ...(onSendSelectionToBack === undefined
+        ? {}
+        : { sendSelectionToBack: onSendSelectionToBack }),
+      ...(onUngroupSelection === undefined ? {} : { ungroupSelection: onUngroupSelection }),
+      ...(onUnlockAll === undefined ? {} : { unlockAll: onUnlockAll }),
       ...(shortcutPlatform === undefined ? {} : { shortcutPlatform }),
       ...(textEdit === undefined ? {} : { textEdit }),
     });
@@ -145,11 +180,20 @@ export const ViewportScene = ({
   }, [
     camera,
     keyboardNudgeInteraction,
+    onAlignSelection,
+    onBringSelectionForward,
+    onBringSelectionToFront,
     onCopySelection,
     onCutSelection,
     onDeleteSelection,
     onDuplicateSelection,
+    onGroupSelection,
+    onLockSelection,
     onPasteSelection,
+    onSendSelectionBackward,
+    onSendSelectionToBack,
+    onUngroupSelection,
+    onUnlockAll,
     selection,
     selectionInteraction,
     shortcutPlatform,

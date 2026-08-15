@@ -9,8 +9,10 @@ export interface ProjectWorkflowProbeContract {
   readonly processTimeoutMs: number;
   readonly queryKey: string;
   readonly queryValue: string;
+  readonly readyAttribute: string;
   readonly rootArgument: string;
   readonly rootNamePrefix: string;
+  readonly screenshotMarker: string;
   readonly terminationTimeoutMs: number;
   readonly userFileName: string;
 }
@@ -39,7 +41,7 @@ const parseContract = (input: unknown): ProjectWorkflowProbeContract | undefined
   }
   const value = input as Record<string, unknown>;
   if (
-    Object.keys(value).length !== 10 ||
+    Object.keys(value).length !== 12 ||
     !isSafeArgument(value.argument) ||
     !isSafeMarker(value.marker) ||
     typeof value.note !== 'string' ||
@@ -50,9 +52,13 @@ const parseContract = (input: unknown): ProjectWorkflowProbeContract | undefined
     (value.processTimeoutMs as number) > 120_000 ||
     !isSafeQueryPart(value.queryKey) ||
     !isSafeQueryPart(value.queryValue) ||
+    typeof value.readyAttribute !== 'string' ||
+    !/^data-[a-z0-9-]{1,100}$/u.test(value.readyAttribute) ||
     !isSafeArgument(value.rootArgument) ||
     typeof value.rootNamePrefix !== 'string' ||
     !/^balsamic-packaged-[a-z0-9-]{1,80}-$/u.test(value.rootNamePrefix) ||
+    typeof value.screenshotMarker !== 'string' ||
+    !/^[A-Z0-9_]{1,100}=$/u.test(value.screenshotMarker) ||
     !Number.isSafeInteger(value.terminationTimeoutMs) ||
     (value.terminationTimeoutMs as number) < 1_000 ||
     (value.terminationTimeoutMs as number) > 30_000 ||

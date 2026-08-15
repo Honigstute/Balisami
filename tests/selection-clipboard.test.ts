@@ -122,6 +122,12 @@ describe('selection clipboard payload', () => {
     if (!locked.ok) {
       throw new Error('Locked selection clipboard fixture is invalid.');
     }
+    const ancestorLockedInput = createValidProjectDocumentInput();
+    ancestorLockedInput.elementsById[DOCUMENT_FIXTURE_IDS.group]!.locked = true;
+    const ancestorLocked = parseProjectDocument(ancestorLockedInput);
+    if (!ancestorLocked.ok) {
+      throw new Error('Ancestor-locked selection clipboard fixture is invalid.');
+    }
 
     expect(
       captureSelectionClipboardPayload(document, [], undefined, CANONICAL_IDS, 'copy'),
@@ -144,6 +150,15 @@ describe('selection clipboard payload', () => {
         [DOCUMENT_FIXTURE_IDS.child],
         DOCUMENT_FIXTURE_IDS.child,
         [DOCUMENT_FIXTURE_IDS.child],
+        'copy',
+      ),
+    ).toBeUndefined();
+    expect(
+      captureSelectionClipboardPayload(
+        ancestorLocked.value,
+        [DOCUMENT_FIXTURE_IDS.child],
+        DOCUMENT_FIXTURE_IDS.child,
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
         'copy',
       ),
     ).toBeUndefined();

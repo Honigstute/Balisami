@@ -12,8 +12,20 @@ import {
   type ElementId,
 } from '../src/domain';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
+import {
+  resolveResizeFrame,
+  type ResizeTargetCapture,
+} from '../src/renderer/editor/resize-geometry';
+import { getResizeSnapProfile, resolveResizeSnap } from '../src/renderer/editor/resize-snapping';
+import { createSceneSnapCandidates } from '../src/renderer/editor/scene-snap-candidates';
+import { resolveSnap } from '../src/renderer/editor/snap-engine';
 import { WorldSpatialIndex } from '../src/renderer/editor/spatial-index';
-import { createWorldPoint, createWorldRect } from '../src/renderer/editor/viewport-transform';
+import {
+  createViewportZoom,
+  createWorldPoint,
+  createWorldRect,
+  createWorldVector,
+} from '../src/renderer/editor/viewport-transform';
 import { createEditorSpatialFixture } from './fixtures/editor-spatial-fixture';
 
 const percentile95 = (samples: readonly number[]): number => {
@@ -123,6 +135,94 @@ describe('viewport algorithm performance fixtures', () => {
         createWorldRect((sample % 50) * 20, (sample % 20) * 20, 400, 300),
         sample % 2 === 0 ? 'contained' : 'intersecting',
       );
+      durations.push(performance.now() - start);
+    }
+
+    expect(percentile95(durations)).toBeLessThanOrEqual(20);
+  });
+
+  it('keeps indexed snap candidate query and deterministic resolution below budget', () => {
+    const fixture = createHitTestFixture(5_000);
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const zoom = createViewportZoom(1);
+    const movingBounds = createWorldRect(980, 480, 12, 12);
+    const durations: number[] = [];
+
+    const runSnapFrame = (sample: number): number => {
+      const rawDelta = createWorldVector((sample % 20) - 10, (sample % 12) - 6);
+      const start = performance.now();
+      const candidates = createSceneSnapCandidates(model, {
+        equalGapOwner: { kind: 'board', boardId: fixture.boardId },
+        excludedIds: [ElementIdSchema.parse('element_hit002449')],
+        movingBounds,
+        rawDelta,
+        zoom,
+      });
+      resolveSnap({
+        activeAxes: { x: true, y: true },
+        bypass: false,
+        candidates,
+        movingBounds,
+        rawDelta,
+        zoom,
+      });
+      return performance.now() - start;
+    };
+
+    // Measure steady-state pointer work after the JS engine has compiled the
+    // interaction path. Packaged input latency separately protects startup and
+    // first-frame responsiveness; including JIT compilation here made the
+    // source microbenchmark host-scheduling-sensitive on Windows CI.
+    for (let sample = 0; sample < 20; sample += 1) {
+      runSnapFrame(sample);
+    }
+    for (let sample = 0; sample < 100; sample += 1) {
+      durations.push(runSnapFrame(sample));
+    }
+
+    expect(percentile95(durations)).toBeLessThanOrEqual(20);
+  });
+
+  it('keeps one-edge resize snapping below the same 5,000-element budget', () => {
+    const fixture = createHitTestFixture(5_000);
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const zoom = createViewportZoom(1);
+    const movingId = ElementIdSchema.parse('element_hit002449');
+    const capture: ResizeTargetCapture = Object.freeze({
+      elementId: movingId,
+      frame: Object.freeze({ x: 980, y: 480, width: 12, height: 12 }),
+      worldBounds: createWorldRect(980, 480, 12, 12),
+    });
+    const startWorldPoint = createWorldPoint(992, 486);
+    const profile = getResizeSnapProfile('east');
+    const durations: number[] = [];
+
+    for (let sample = 0; sample < 100; sample += 1) {
+      const currentWorldPoint = createWorldPoint(992 + (sample % 20) - 10, 486);
+      const raw = resolveResizeFrame(capture, 'east', startWorldPoint, currentWorldPoint, false);
+      const start = performance.now();
+      const candidates = createSceneSnapCandidates(model, {
+        activeAxes: profile.activeAxes,
+        excludedIds: [movingId],
+        movingAnchors: profile.movingAnchors,
+        movingBounds: raw.worldBounds,
+        rawDelta: createWorldVector(0, 0),
+        zoom,
+      });
+      resolveResizeSnap({
+        aspectLocked: false,
+        bypass: false,
+        candidates,
+        capture,
+        currentWorldPoint,
+        handle: 'east',
+        previousLocks: {},
+        raw,
+        startWorldPoint,
+        zoom,
+      });
       durations.push(performance.now() - start);
     }
 

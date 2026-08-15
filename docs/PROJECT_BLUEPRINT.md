@@ -219,6 +219,16 @@ All document mutations use typed commands with validation, apply, inverse/restor
 
 Foundation element commands cover insertion, childless deletion, sibling order, complete JSON-safe property replacement, and local-frame geometry. Insertions are initially childless and deletion rejects containers with children; M7 grouping commands will own subtree/group semantics instead of embedding an implicit recursive policy in basic CRUD. Command-availability selectors expose the same current order and child constraints to UI surfaces without persisting enabled flags.
 
+M7 grouping uses two explicit structural commands rather than a sequence of create, frame, reorder,
+and delete operations. `element.group` carries the complete new group, its canonical owner, its
+insertion index after selected siblings are removed, and the exact target local frame for every
+child. `element.ungroup` carries the exact permitted owner order and exact target child frames.
+Those child-frame payloads live only in command/history data; they are not a second persisted
+geometry source. This lets inverse replay restore prior floating-point frames byte-for-byte instead
+of reconstructing them with potentially lossy addition. Both commands validate the resulting
+document atomically, preserve child size, and accept only the coordinate translation implied by the
+group frame within the central floating-point comparison tolerance.
+
 A gesture owns transient preview state and commits exactly one command on completion. Escape or pointer cancellation restores the start snapshot. Text entry and repeated keyboard nudges may coalesce within explicit time/identity rules. Undo/redo restores exact document state and never stores renderer objects.
 
 History uses monotonically distinct state identifiers rather than a loose dirty boolean. A save captures both a document snapshot and its state identifier; only that identifier becomes the saved state when the asynchronous write succeeds. Edits made while saving therefore remain dirty, while undoing exactly back to a saved state becomes clean.
@@ -305,7 +315,71 @@ Candidate classes are:
 - Equal horizontal or vertical gaps.
 - Board/content center and edges.
 
-Resolution is deterministic: explicit grid setting, closest distance, candidate priority, stable element/order tie-break. X and Y resolve independently. Acquire/release hysteresis prevents a guide from flickering near the threshold. A documented modifier bypasses snapping without changing the committed pointer delta unexpectedly.
+Resolution is deterministic: closest distance, direct-object/equal-gap/container/grid priority, anchor affinity, canonical element order, position, and stable identity form one documented tie-break chain. X and Y resolve independently whenever the gesture geometry permits it. Acquire/release hysteresis prevents a guide from flickering near the threshold. A documented modifier bypasses snapping without changing the committed pointer delta unexpectedly.
+
+The M7 move implementation acquires within six CSS pixels and retains the current lock through a 1.5× release threshold. Candidate discovery converts both values exactly once by zoom and queries two narrow spatial-index bands: an X-alignment band and a Y-alignment band, each extending at most 1,200 CSS pixels in the perpendicular direction. It never uses a dense square scan. Locked controls remain valid alignment geometry, while moved roots and all affected descendants are excluded. Object candidates win container candidates, which win grid candidates only after geometric distance; canonical scene order and stable IDs resolve remaining ties. Holding the exact platform primary modifier (`Command` on macOS, `Control` on Windows) bypasses snapping and clears hysteresis locks without changing the raw pointer delta. Move resolution runs at most once per animation frame, and resolver failure falls back to raw movement without crossing or disabling the existing command boundary.
+
+Resize reuses that resolver and candidate-index path rather than owning a parallel snapping system. Each of the eight handles exposes only its moving start/end edge and active axes; the fixed opposite edge is never offered as a moving anchor. Ordinary corners may resolve both axes. A Shift-corner is one aspect-ratio scale, so it selects exactly one deterministic guide driver: a still-valid hysteresis lock first, otherwise the closest axis with X as the final tie. The selected target derives the shared scale while preserving the existing opposite-corner anchor. Shift edge handles retain their existing opposite-edge midpoint. Matches below the control minimum are discarded, and a guide is emitted only when the final clamped world frame actually satisfies it. Raw resize input, candidate work, and guide publication coalesce to one animation frame; bypass, cancellation, and resolver failure clear locks/guides and preserve the existing one-command completion and exact undo contract.
+
+Equal-gap snapping extends that resolver only for whole-selection moves whose canonical roots share one owner. The move capture carries that derived owner without persisting it; cross-owner moves retain ordinary alignment snapping but do not mix unrelated layout contexts into spacing suggestions. Candidate discovery adds one horizontal and one vertical corridor only for active axes. Each corridor is the raw moving span in the perpendicular direction and extends at most 1,200 CSS pixels along its layout axis. After strict perpendicular overlap and owner filtering, only adjacent non-overlapping stationary siblings are scanned, so generation is O(k) in the bounded indexed result and never pairwise in the board. Three nonnegative relations are eligible: centering the moving union between a stationary pair, repeating their gap after the pair, or repeating it before the pair. Candidate identity contains axis, relation, and the two canonical source IDs; the moving start edge is explicit, and direct object lines win an exact geometric tie before equal gaps, containers, and grid lines. The same six-pixel acquisition and nine-pixel release thresholds, Shift-axis isolation, platform-primary bypass, one-command completion, and exact undo path remain authoritative.
+
+An equal-gap guide is one descriptor containing two world-space dimension segments and the exact gap. The fixed overlay reserves one line and one path per axis: ordinary matches reuse the line, while spacing uses the path for both spans plus constant three-CSS-pixel end ticks. The path sits eight CSS pixels beyond the farthest participating bound, updates imperatively with camera/gesture publications, and never mounts per-pointer nodes or enters document state. Equal gaps are deliberately move-only: resizing changes a control's size, not its inter-control spacing. Equal-size resize suggestions require their own explicit candidate semantics. Text baselines likewise remain unavailable until a control exposes a baseline from the canonical M8 text-layout service; rectangle bounds are not treated as a fake baseline.
+
+The M7 grouping planner accepts at least two unique, unlocked, live siblings with one canonical
+owner. It ignores input order, derives group children from the owner's bottom-to-top `childIds`,
+uses their owner-local frame union, and inserts the collapsed group at the former topmost selected
+position after selected siblings are removed. This makes non-contiguous grouping deterministic:
+selected and unaffected relative order are each preserved, while an unaffected sibling formerly
+between selected items remains below the collapsed group. IDs are allocated outside the pure planner
+and runtime-validated before a command is emitted. Stale, locked, cross-owner, colliding-ID, invalid
+geometry, and malformed order inputs reject the entire action.
+
+User ungroup accepts exactly one unlocked foundation group with at least one unlocked direct child.
+It replaces the group at its current sibling position with its canonical children. Grouping and
+ungrouping each cross history/recovery once and reconcile session selection only from the accepted
+document: group selects the new container; ungroup selects its former direct children. Exact
+`Cmd/Ctrl+G` groups and `Cmd/Ctrl+Shift+G` ungroups only while the viewport is idle and not
+editing text. Groups are transparent scene/container items: they provide bounds for selection,
+movement, fit, and container snapping, but the SVG presenter draws only their controls and the
+selection overlay deliberately exposes no group-resize handles.
+
+Locking keeps one persisted bit on each element. Effective interaction lock is derived from that bit
+or the nearest directly locked canonical ancestor; it is never copied into descendants. Selection,
+move, resize, group/ungroup, delete, duplicate, and clipboard capture all consume the same derived
+state, so a locked container cannot leak mutable descendants into another action. Lock Selected
+reduces the current selection to canonical roots and sets only those direct bits. Unlock All clears
+every direct bit on the active board in canonical pre-order, including redundant descendant bits,
+without changing other boards. Each accepted action is one transaction/recovery event; Lock Selected
+reconciles away newly unselectable IDs only from the accepted document. Exact idle `Cmd/Ctrl+2` and
+`Cmd/Ctrl+3` own those actions while editable targets and repeated keydown remain native.
+
+Z-order is owned only by an owner's complete bottom-to-top `childIds`. The multi-selection planner
+removes selected descendants, requires every live root to be effectively unlocked and share one
+owner, then emits one runtime-validated complete sibling permutation. Send to Back and Bring to Front
+partition selected and unaffected siblings while preserving both relative orders. Send Backward and
+Bring Forward swap each selected block across at most one adjacent unaffected sibling, again without
+reordering either set. Boundary results are semantic no-ops, malformed or partial child sets are
+rejected, and the exact prior order is the command inverse. Accepted output is verified before session
+selection is reconciled to canonical roots. Exact idle `Cmd/Ctrl+ArrowDown`,
+`Cmd/Ctrl+Shift+ArrowDown`, `Cmd/Ctrl+ArrowUp`, and `Cmd/Ctrl+Shift+ArrowUp` route the four actions.
+
+Align/distribute operates only on canonical, effectively unlocked selection roots that share one
+owner. World bounds are the comparison vocabulary; each result is converted back to the existing
+owner-local frame before a validated `element.set-frame` command is emitted. Alignment requires two
+roots and holds the selection's primary canonical root fixed as the reference for left, center,
+right, top, middle, or bottom. A descendant primary resolves to its selected root; an unavailable
+primary falls back deterministically to the topmost canonical root. Exact idle
+`Cmd/Ctrl+Alt/Option+1…6` route those six reference-documented actions, while editable targets,
+repeat, Shift, and cross-platform modifier chords remain native.
+
+Horizontal or vertical distribution requires at least three roots. It sorts by geometric leading
+edge with canonical order as the tie-break, keeps the two geometric outer roots fixed, and places
+only interior roots at equal nonnegative edge gaps. A span that cannot contain all selected sizes
+without overlap/reordering rejects instead of inventing negative spacing. Distribution deliberately
+has no keyboard chord until a documented product command is chosen; the same planner and availability
+API can feed the later multi-selection toolbar or menu. Semantic no-ops create no history entry. Every
+accepted align/distribute action is one transaction and recovery event, selection is canonicalized
+only after exact output verification, and one inverse restores the prior local frames byte-for-byte.
 
 Guides are ephemeral overlays and never export or enter history. Align/distribute actions use the same geometry vocabulary but execute as commands.
 
@@ -514,7 +588,8 @@ The initial core palette is deliberately small:
 | Panel      | `#E4E6E8` | Inspector fields and selected neutral surfaces |
 | Divider    | `#C8CDD2` | Borders, separators, and disabled outlines     |
 | Canvas     | `#FFFFFF` | Board and high-contrast field surface          |
-| Draft blue | `#2E9DDF` | Selection, focus, active category, and guides  |
+| Draft blue | `#2D9CDE` | Selection, focus, and active category          |
+| Guide red  | `#E04B4B` | Ephemeral smart guides only                    |
 
 Semantic error, warning, and success colors are separate accessibility tokens, not alternative accents. M4 may tune these starting values only through a full-shell visual review on both platforms; feature work may not invent additional accent families.
 
@@ -522,18 +597,19 @@ Semantic error, warning, and success colors are separate accessibility tokens, n
 
 These are implementation starting points and will be frozen by screenshot review, not duplicated as local constants:
 
-| Metric                          |                                       Initial target |
-| ------------------------------- | ---------------------------------------------------: |
-| Base spacing unit               |                                                 4 px |
-| UI body size                    |                                                13 px |
-| Caption size                    |                                                11 px |
-| Standard control height         |                                                24 px |
-| Compact control radius          |                                                 6 px |
-| Navigator default/min/max width |                                   224 / 180 / 360 px |
-| Inspector default/min/max width |                                   320 / 288 / 420 px |
-| Inspector horizontal inset      |                                                16 px |
-| Control shelf height            |                                                84 px |
-| Selection/guide accent          | tokenized blue; final value after visual calibration |
+| Metric                          |                                    Initial target |
+| ------------------------------- | ------------------------------------------------: |
+| Base spacing unit               |                                              4 px |
+| UI body size                    |                                             13 px |
+| Caption size                    |                                             11 px |
+| Standard control height         |                                             24 px |
+| Compact control radius          |                                              6 px |
+| Navigator default/min/max width |                                224 / 180 / 360 px |
+| Inspector default/min/max width |                                320 / 288 / 420 px |
+| Inspector horizontal inset      |                                             16 px |
+| Control shelf height            |                                             84 px |
+| Selection accent                | tokenized blue after cross-platform visual review |
+| Smart-guide accent              |  tokenized red after cross-platform visual review |
 
 ### 10.4 No-layout-shift rules
 

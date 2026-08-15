@@ -6,11 +6,16 @@ import {
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
+  parseProjectDocument,
   undoDocumentHistory,
   type ProjectDocument,
 } from '../src/domain';
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
+import {
+  arrangeSelectedElements,
+  SELECTION_ARRANGEMENT_ACTIONS,
+} from '../src/renderer/editor/selection-arrangement';
 import {
   SelectionClipboardStore,
   copySelectedElements,
@@ -18,6 +23,7 @@ import {
 } from '../src/renderer/editor/selection-clipboard';
 import { deleteSelectedElements } from '../src/renderer/editor/selection-delete';
 import { duplicateSelectedElements } from '../src/renderer/editor/selection-duplicate';
+import { unlockAllBoardElements } from '../src/renderer/editor/selection-locking';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { TextEditInteraction } from '../src/renderer/editor/text-edit-interaction';
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
@@ -183,6 +189,152 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('publishes undo and redo through the same history and recovery authority', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    const initialRecoveryCount = desktop.recoveryRequests.length;
+
+    expect(session.dispatch(setBoardNote('Alpha history'))).toMatchObject({
+      changed: true,
+      ok: true,
+    });
+    expect(session.undo()).toBe(true);
+    expect(session.getSnapshot().history?.document).toEqual(document);
+    expect(session.redo()).toBe(true);
+    expect(
+      session.getSnapshot().history?.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.note.text,
+    ).toBe('Alpha history');
+    expect(desktop.recoveryRequests).toHaveLength(initialRecoveryCount + 3);
+  });
+
+  it('commits multi-element alignment as one history entry and one recovery schedule', async () => {
+    const baseDocument = createAssetFreeProjectDocument();
+    const board = baseDocument.boardsById[DOCUMENT_FIXTURE_IDS.board];
+    const child = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (board === undefined || child === undefined) {
+      throw new Error('Alignment integration fixture is incomplete.');
+    }
+    const secondId = ElementIdSchema.parse('element_align002');
+    const thirdId = ElementIdSchema.parse('element_align003');
+    const parsed = parseProjectDocument({
+      ...baseDocument,
+      boardsById: {
+        ...baseDocument.boardsById,
+        [board.id]: {
+          ...board,
+          childIds: [DOCUMENT_FIXTURE_IDS.group, secondId, thirdId],
+        },
+      },
+      elementsById: {
+        ...baseDocument.elementsById,
+        [secondId]: {
+          ...child,
+          id: secondId,
+          frame: { x: 140, y: 96, width: 80, height: 40 },
+          childIds: [],
+        },
+        [thirdId]: {
+          ...child,
+          id: thirdId,
+          frame: { x: 260, y: 144, width: 110, height: 55 },
+          childIds: [],
+        },
+      },
+    });
+    if (!parsed.ok) {
+      throw new Error(`Alignment integration fixture is invalid: ${JSON.stringify(parsed.issues)}`);
+    }
+    const document = parsed.value;
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const selection = new SelectionStore();
+    selection.replace([thirdId, DOCUMENT_FIXTURE_IDS.group, secondId], DOCUMENT_FIXTURE_IDS.group);
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      arrangeSelectedElements(document, selection, SELECTION_ARRANGEMENT_ACTIONS.alignTop, {
+        commit: (commands, label) => {
+          const result = session.dispatchTransaction(commands, { label });
+          return result?.ok === true && result.changed ? result.history.document : undefined;
+        },
+      }),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Alignment integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [
+        { elementId: secondId, type: 'element.set-frame' },
+        { elementId: thirdId, type: 'element.set-frame' },
+      ],
+      label: 'Align elements top',
+    });
+    expect(history.document.elementsById[secondId]?.frame.y).toBe(12.5);
+    expect(history.document.elementsById[thirdId]?.frame.y).toBe(12.5);
+    expect(selection.getSnapshot()).toEqual({
+      primaryId: DOCUMENT_FIXTURE_IDS.group,
+      revision: 2,
+      selectedIds: [DOCUMENT_FIXTURE_IDS.group, secondId, thirdId],
+    });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
+  it('commits a multi-element unlock as one history entry and one recovery schedule', async () => {
+    const baseDocument = createAssetFreeProjectDocument();
+    const group = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.group];
+    const child = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (group === undefined || child === undefined) {
+      throw new Error('Unlock integration fixture is incomplete.');
+    }
+    const parsed = parseProjectDocument({
+      ...baseDocument,
+      elementsById: {
+        ...baseDocument.elementsById,
+        [group.id]: { ...group, locked: true },
+        [child.id]: { ...child, locked: true },
+      },
+    });
+    if (!parsed.ok) {
+      throw new Error(`Unlock integration fixture is invalid: ${JSON.stringify(parsed.issues)}`);
+    }
+    const document = parsed.value;
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      unlockAllBoardElements(document, DOCUMENT_FIXTURE_IDS.board, {
+        commit: (commands, label) => {
+          const result = session.dispatchTransaction(commands, { label });
+          return result?.ok === true && result.changed ? result.history.document : undefined;
+        },
+      }),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Unlock integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]?.forwardCommands).toHaveLength(2);
+    expect(desktop.recoveryRequests).toHaveLength(2);
+    const undone = undoDocumentHistory(history);
+    expect(undone.ok && undone.changed ? JSON.stringify(undone.history.document) : '').toBe(
+      JSON.stringify(document),
+    );
+  });
+
   it('commits one selection delete and reconciles only after ProjectSession accepts it', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);

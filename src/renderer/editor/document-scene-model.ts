@@ -1,7 +1,11 @@
 import {
-  FOUNDATION_CONTROL_TYPES,
+  getControlSpec,
   type BoardId,
+  type ControlTypeId,
+  type ControlVisualKind,
   type ElementId,
+  type ElementOwner,
+  type ElementProperties,
   type ProjectDocument,
 } from '../../domain';
 import { createSeededSketchRectPath } from './seeded-sketch';
@@ -17,10 +21,16 @@ import {
 
 export interface DocumentSceneItem {
   readonly bounds: WorldRect;
+  readonly controlType: ControlTypeId;
   readonly id: ElementId;
+  readonly kind: 'container' | 'object';
   readonly locked: boolean;
+  /** Disposable ownership metadata for sibling-scoped editor geometry. */
+  readonly owner: ElementOwner;
   readonly path: string;
+  readonly properties: ElementProperties;
   readonly revision: string;
+  readonly visualKind: ControlVisualKind;
 }
 
 export interface DocumentSceneHitTestOptions {
@@ -39,8 +49,13 @@ export interface DocumentSceneReconcileResult {
 
 interface DerivedSceneItem {
   readonly bounds: WorldRect;
+  readonly controlType: ControlTypeId;
   readonly id: ElementId;
+  readonly kind: 'container' | 'object';
   readonly locked: boolean;
+  readonly owner: ElementOwner;
+  readonly properties: ElementProperties;
+  readonly visualKind: ControlVisualKind;
 }
 
 const boundsEqual = (first: WorldRect, second: WorldRect): boolean =>
@@ -58,8 +73,23 @@ const containsBounds = (outer: WorldRect, inner: WorldRect): boolean =>
 const orderEqual = (first: readonly ElementId[], second: readonly ElementId[]): boolean =>
   first.length === second.length && first.every((id, index) => id === second[index]);
 
-const createItemRevision = (item: DerivedSceneItem): string =>
-  `${item.id}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}`;
+const ownersEqual = (first: ElementOwner, second: ElementOwner): boolean =>
+  first.kind === second.kind &&
+  (first.kind === 'board'
+    ? first.boardId === (second.kind === 'board' ? second.boardId : undefined)
+    : first.elementId === (second.kind === 'element' ? second.elementId : undefined));
+
+const getOwnerKey = (owner: ElementOwner): string =>
+  owner.kind === 'board' ? `board:${owner.boardId}` : `element:${owner.elementId}`;
+
+const createItemRevision = (item: DerivedSceneItem): string => {
+  const spec = getControlSpec(item.controlType);
+  if (spec === undefined) {
+    throw new Error(`Document scene received unknown control type '${item.controlType}'.`);
+  }
+  const renderProperties = spec.renderPropertyKeys.map((key) => item.properties[key]);
+  return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}`;
+};
 
 /** Flattens canonical childIds order while accumulating local container origins once. */
 const deriveBoardSceneItems = (
@@ -75,7 +105,13 @@ const deriveBoardSceneItems = (
   }
   const items: DerivedSceneItem[] = [];
   const visited = new Set<ElementId>();
-  const visit = (elementId: ElementId, parentX: number, parentY: number): void => {
+  const visit = (
+    elementId: ElementId,
+    parentX: number,
+    parentY: number,
+    ancestorLocked: boolean,
+    owner: ElementOwner,
+  ): void => {
     if (visited.has(elementId)) {
       throw new Error('Document scene received duplicate or cyclic element ownership.');
     }
@@ -90,16 +126,40 @@ const deriveBoardSceneItems = (
       element.frame.width,
       element.frame.height,
     );
-    if (element.controlType === FOUNDATION_CONTROL_TYPES.rectangle) {
-      items.push(Object.freeze({ bounds, id: element.id, locked: element.locked }));
+    // `locked` on a scene item is effective interaction state. The persisted
+    // direct bit remains owned only by the element record.
+    const effectivelyLocked = ancestorLocked || element.locked;
+    const spec = getControlSpec(element.controlType);
+    if (spec === undefined) {
+      throw new Error(`Document scene received unknown control type '${element.controlType}'.`);
     }
+    // Transparent structural controls participate in editor geometry without
+    // inventing visible chrome. Every visible control uses registry metadata.
+    items.push(
+      Object.freeze({
+        bounds,
+        controlType: element.controlType,
+        id: element.id,
+        kind: spec.visualKind === 'transparent' ? 'container' : 'object',
+        locked: effectivelyLocked,
+        owner,
+        properties: element.properties,
+        visualKind: spec.visualKind,
+      }),
+    );
     for (const childId of element.childIds) {
-      visit(childId, bounds.x, bounds.y);
+      visit(
+        childId,
+        bounds.x,
+        bounds.y,
+        effectivelyLocked,
+        Object.freeze({ kind: 'element', elementId: element.id }),
+      );
     }
   };
 
   for (const elementId of board.childIds) {
-    visit(elementId, 0, 0);
+    visit(elementId, 0, 0, false, Object.freeze({ kind: 'board', boardId: board.id }));
   }
   return Object.freeze(items);
 };
@@ -107,13 +167,14 @@ const deriveBoardSceneItems = (
 export const countRenderableBoardElements = (
   document: ProjectDocument,
   boardId: BoardId | undefined,
-): number => deriveBoardSceneItems(document, boardId).length;
+): number =>
+  deriveBoardSceneItems(document, boardId).filter((item) => item.kind === 'object').length;
 
 export const getRenderableBoardWorldBounds = (
   document: ProjectDocument,
   boardId: BoardId | undefined,
 ): WorldRect | undefined => {
-  const items = deriveBoardSceneItems(document, boardId);
+  const items = deriveBoardSceneItems(document, boardId).filter((item) => item.kind === 'object');
   const first = items[0];
   if (first === undefined) {
     return undefined;
@@ -189,20 +250,36 @@ export class DocumentSceneModel {
     }
     for (const derivedItem of derivedItems) {
       const existing = this.#itemsById.get(derivedItem.id);
+      const revision = createItemRevision(derivedItem);
       const geometryChanged =
-        existing === undefined || !boundsEqual(existing.bounds, derivedItem.bounds);
-      if (!geometryChanged && existing.locked === derivedItem.locked) {
+        existing === undefined ||
+        existing.kind !== derivedItem.kind ||
+        existing.controlType !== derivedItem.controlType ||
+        !boundsEqual(existing.bounds, derivedItem.bounds);
+      if (
+        !geometryChanged &&
+        existing.locked === derivedItem.locked &&
+        ownersEqual(existing.owner, derivedItem.owner) &&
+        existing.revision === revision
+      ) {
         continue;
       }
       const item = Object.freeze({
         bounds: derivedItem.bounds,
+        controlType: derivedItem.controlType,
         id: derivedItem.id,
+        kind: derivedItem.kind,
         locked: derivedItem.locked,
+        owner: derivedItem.owner,
         path:
-          geometryChanged || existing === undefined
-            ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
-            : existing.path,
-        revision: createItemRevision(derivedItem),
+          derivedItem.kind === 'container' || derivedItem.visualKind === 'text'
+            ? ''
+            : geometryChanged || existing === undefined
+              ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
+              : existing.path,
+        properties: derivedItem.properties,
+        revision,
+        visualKind: derivedItem.visualKind,
       });
       this.#itemsById.set(item.id, item);
       this.#index.upsert(item);
@@ -297,6 +374,31 @@ export class DocumentSceneModel {
           (first, second) =>
             (this.#orderById.get(first) ?? Number.MAX_SAFE_INTEGER) -
             (this.#orderById.get(second) ?? Number.MAX_SAFE_INTEGER),
+        ),
+    );
+  }
+
+  /**
+   * Returns nearby snap sources in canonical order. Locked items remain valid
+   * alignment geometry; moved roots and every following descendant are
+   * excluded by the interaction capture rather than by selection state here.
+   */
+  querySnapItems(
+    regions: readonly WorldRect[],
+    excludedIds: readonly ElementId[],
+  ): readonly DocumentSceneItem[] {
+    const excluded = new Set(excludedIds);
+    const nearbyIds = new Set(regions.flatMap((region) => this.#index.query(region)));
+    return Object.freeze(
+      [...nearbyIds]
+        .flatMap((id) => {
+          const item = this.#itemsById.get(id);
+          return item === undefined || excluded.has(id) ? [] : [item];
+        })
+        .sort(
+          (first, second) =>
+            (this.#orderById.get(first.id) ?? Number.MAX_SAFE_INTEGER) -
+            (this.#orderById.get(second.id) ?? Number.MAX_SAFE_INTEGER),
         ),
     );
   }

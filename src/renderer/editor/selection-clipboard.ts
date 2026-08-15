@@ -9,6 +9,7 @@ import {
   MAX_HISTORY_TRANSACTION_COMMANDS,
   ProjectIdSchema,
   createElementLocationIndex,
+  selectElementLockState,
   getControlSpec,
   selectOwnerChildIds,
   type CreateElementCommand,
@@ -163,7 +164,7 @@ export const captureSelectionClipboardPayload = (
     if (
       element === undefined ||
       location === undefined ||
-      element.locked ||
+      selectElementLockState(document, sourceId, locationIndex)?.effectivelyLocked !== false ||
       element.childIds.length > 0
     ) {
       return undefined;

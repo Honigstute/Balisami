@@ -86,6 +86,12 @@ describe('selection delete planning', () => {
     if (!locked.ok) {
       throw new Error('Locked selection delete fixture is invalid.');
     }
+    const ancestorLockedInput = createValidProjectDocumentInput();
+    ancestorLockedInput.elementsById[DOCUMENT_FIXTURE_IDS.group]!.locked = true;
+    const ancestorLocked = parseProjectDocument(ancestorLockedInput);
+    if (!ancestorLocked.ok) {
+      throw new Error('Ancestor-locked selection delete fixture is invalid.');
+    }
 
     expect(planSelectionDelete(document, [], CANONICAL_IDS)).toBeUndefined();
     expect(planSelectionDelete(document, [STALE_ID], CANONICAL_IDS)).toBeUndefined();
@@ -95,6 +101,13 @@ describe('selection delete planning', () => {
     expect(
       planSelectionDelete(
         locked.value,
+        [DOCUMENT_FIXTURE_IDS.child],
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+      ),
+    ).toBeUndefined();
+    expect(
+      planSelectionDelete(
+        ancestorLocked.value,
         [DOCUMENT_FIXTURE_IDS.child],
         [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
       ),

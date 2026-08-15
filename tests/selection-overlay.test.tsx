@@ -153,6 +153,7 @@ describe('selection overlay', () => {
 
     move.begin({
       pointerId: 8,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(0, 0),
       targetIds: [DOCUMENT_FIXTURE_IDS.child],
@@ -186,6 +187,7 @@ describe('selection overlay', () => {
       elementId: DOCUMENT_FIXTURE_IDS.child,
       handle: 'southEast',
       pointerId: 9,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(116, 84.5),
       worldPoint: createWorldPoint(136, 94.5),
@@ -200,6 +202,13 @@ describe('selection overlay', () => {
     resize.cancel(9);
     expect(outline).toHaveAttribute('width', '240');
     expect(outline).toHaveAttribute('height', '96');
+
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.group);
+    expect(outline).toHaveAttribute('x', '-30');
+    expect(outline).toHaveAttribute('y', '20');
+    expect(outline).toHaveAttribute('width', '640');
+    expect(outline).toHaveAttribute('height', '360');
+    expect([...handles].every((handle) => handle.getAttribute('display') === 'none')).toBe(true);
 
     selection.replace([DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child]);
     expect(group).toHaveAttribute('data-selection-count', '2');

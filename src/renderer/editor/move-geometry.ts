@@ -1,12 +1,22 @@
 import {
   DOCUMENT_COMMAND_TYPES,
-  createElementLocationIndex,
+  selectElementLockState,
+  selectSelectionWorldBounds,
   type ElementId,
+  type ElementLocationIndex,
+  type ElementOwner,
   type ProjectDocument,
   type SetElementFrameCommand,
   type WorldRect as ElementFrame,
 } from '../../domain';
-import { createWorldVector, type WorldPoint, type WorldVector } from './viewport-transform';
+import { resolveSelectionRoots } from './selection-roots';
+import {
+  createWorldRect,
+  createWorldVector,
+  type WorldPoint,
+  type WorldRect,
+  type WorldVector,
+} from './viewport-transform';
 
 export interface MoveTargetSnapshot {
   readonly frame: ElementFrame;
@@ -16,29 +26,33 @@ export interface MoveTargetSnapshot {
 export interface MoveTargetCapture {
   /** Every descendant that follows a moved root in world space. */
   readonly affectedIds: readonly ElementId[];
+  /** Shared canonical owner when every moved root is a sibling. */
+  readonly sharedOwner?: ElementOwner;
   /** Only roots receive frame commands; selected descendants must not move twice. */
   readonly targets: readonly MoveTargetSnapshot[];
+  /** Canonical world-space union of the roots used by snapping and overlays. */
+  readonly worldBounds: WorldRect;
 }
 
-const hasSelectedAncestor = (
-  id: ElementId,
-  selectedIds: ReadonlySet<ElementId>,
-  locations: ReturnType<typeof createElementLocationIndex>,
-): boolean => {
-  let location = locations.get(id);
-  const visited = new Set<ElementId>();
-  while (location?.owner.kind === 'element') {
-    const parentId = location.owner.elementId;
-    if (selectedIds.has(parentId)) {
-      return true;
-    }
-    if (visited.has(parentId)) {
-      return false;
-    }
-    visited.add(parentId);
-    location = locations.get(parentId);
-  }
-  return false;
+const ownersEqual = (first: ElementOwner, second: ElementOwner): boolean =>
+  first.kind === second.kind &&
+  (first.kind === 'board'
+    ? first.boardId === (second.kind === 'board' ? second.boardId : undefined)
+    : first.elementId === (second.kind === 'element' ? second.elementId : undefined));
+
+const getSharedOwner = (
+  rootIds: readonly ElementId[],
+  locations: ElementLocationIndex,
+): ElementOwner | undefined => {
+  const firstRootId = rootIds[0];
+  const firstOwner = firstRootId === undefined ? undefined : locations.get(firstRootId)?.owner;
+  return firstOwner !== undefined &&
+    rootIds.every((elementId) => {
+      const owner = locations.get(elementId)?.owner;
+      return owner !== undefined && ownersEqual(owner, firstOwner);
+    })
+    ? firstOwner
+    : undefined;
 };
 
 /**
@@ -50,18 +64,21 @@ export const captureMoveTargets = (
   document: ProjectDocument,
   selectedIds: readonly ElementId[],
 ): MoveTargetCapture | undefined => {
-  const movableIds = [...new Set(selectedIds)].filter((id) => {
-    const element = document.elementsById[id];
-    return element !== undefined && !element.locked;
-  });
-  if (movableIds.length === 0) {
+  const roots = resolveSelectionRoots(document, selectedIds);
+  if (
+    roots === undefined ||
+    roots.selectedIds.some(
+      (id) => selectElementLockState(document, id, roots.locations)?.effectivelyLocked !== false,
+    )
+  ) {
     return undefined;
   }
 
-  const movableSet = new Set(movableIds);
-  const locations = createElementLocationIndex(document);
-  const rootIds = movableIds.filter((id) => !hasSelectedAncestor(id, movableSet, locations));
-  const targets = rootIds.map((id): MoveTargetSnapshot => {
+  const selectedBounds = selectSelectionWorldBounds(document, roots.rootIds, roots.locations);
+  if (selectedBounds === undefined) {
+    return undefined;
+  }
+  const targets = roots.rootIds.map((id): MoveTargetSnapshot => {
     const element = document.elementsById[id];
     if (element === undefined) {
       throw new Error('A captured move target disappeared from the validated document.');
@@ -80,13 +97,21 @@ export const captureMoveTargets = (
       appendAffected(childId);
     }
   };
-  for (const id of rootIds) {
+  for (const id of roots.rootIds) {
     appendAffected(id);
   }
+  const sharedOwner = getSharedOwner(roots.rootIds, roots.locations);
 
   return Object.freeze({
     affectedIds: Object.freeze(affectedIds),
+    ...(sharedOwner === undefined ? {} : { sharedOwner }),
     targets: Object.freeze(targets),
+    worldBounds: createWorldRect(
+      selectedBounds.x,
+      selectedBounds.y,
+      selectedBounds.width,
+      selectedBounds.height,
+    ),
   });
 };
 

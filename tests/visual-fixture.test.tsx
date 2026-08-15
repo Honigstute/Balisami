@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import visualFixtureContract from '../visual-fixture-contract.json';
 import { VisualConformanceFixture } from '../src/renderer/design/VisualConformanceFixture';
@@ -58,7 +58,10 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
     expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
     expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
+    expect(getRequestedVisualFixture('?visualFixture=smartGuides')).toBe('smartGuides');
+    expect(getRequestedVisualFixture('?visualFixture=equalGaps')).toBe('equalGaps');
     expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
+    expect(getRequestedVisualFixture('?visualFixture=alignSelection')).toBe('alignSelection');
     expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
     expect(getRequestedVisualFixture('?visualFixture=duplicate')).toBe('duplicate');
     expect(getRequestedVisualFixture('?visualFixture=paste')).toBe('paste');
@@ -69,6 +72,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=viewportSelectionZoom')).toBe(
       'viewportSelectionZoom',
     );
+    expect(getRequestedVisualFixture('?visualFixture=mvpAlpha')).toBe('mvpAlpha');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -96,6 +100,39 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
+  it('renders the representative alpha workflow across every fixed shell region', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('mvpAlpha');
+
+    expect(screen.getByRole('button', { name: 'Insert Rectangle' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Text Label' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Button' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Text Input' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Scene' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Button' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue('Alpha button');
+    await waitFor(() => {
+      expect(view.container.querySelector('[data-control-visual="text"]')).not.toBeNull();
+      expect(view.container.querySelector('[data-control-visual="input"]')).not.toBeNull();
+      expect(view.container.querySelector('[data-control-visual="button"]')).not.toBeNull();
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
   it('renders fixed-screen selection geometry without replacing the scene or shell', () => {
     const view = renderFixture('selection');
 
@@ -120,18 +157,72 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
+  it('renders fixed-screen smart guides without changing the scene or shell layout', () => {
+    const view = renderFixture('smartGuides');
+
+    const guides = view.container.querySelector('[data-snap-guide-overlay="gesture-guides"]');
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    expect(guides).not.toHaveAttribute('display', 'none');
+    expect(guides).toHaveAttribute('data-guide-count', '2');
+    expect(
+      guides?.querySelectorAll('.snap-guide-overlay__line:not([display="none"])'),
+    ).toHaveLength(2);
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders equal-gap dimensions through the shared move and guide overlays', () => {
+    const view = renderFixture('equalGaps');
+
+    const guides = view.container.querySelector('[data-snap-guide-overlay="gesture-guides"]');
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const spacingPath = guides?.querySelector('[data-guide-spacing-axis="y"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(guides).not.toHaveAttribute('display', 'none');
+    expect(guides).toHaveAttribute('data-guide-count', '2');
+    expect(spacingPath).not.toHaveAttribute('display', 'none');
+    expect(spacingPath).toHaveAttribute('data-guide-kind', 'equalGap');
+    expect(spacingPath).toHaveAttribute('data-guide-gap', '40');
+    expect(spacingPath?.getAttribute('d')).toContain('M 496 156 L 496 196');
+    expect(spacingPath?.getAttribute('d')).toContain('M 496 244 L 496 284');
+    expect(outline).toHaveAttribute('x', '188');
+    expect(outline).toHaveAttribute('y', '284');
+    expect(screen.getByText('Visual fixture · equalGaps')).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
   it('renders a transient resize with aligned fixed-screen handles and stable shell layout', () => {
     const view = renderFixture('resize');
 
     const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const guides = view.container.querySelector('[data-snap-guide-overlay="gesture-guides"]');
     const outline = overlay?.querySelector('.selection-overlay__outline');
     expect(overlay).not.toHaveAttribute('display', 'none');
     expect(overlay).toHaveAttribute('data-selection-count', '1');
     expect(outline).toHaveAttribute('x', '188');
     expect(outline).toHaveAttribute('y', '272');
-    expect(outline).toHaveAttribute('width', '208');
-    expect(outline).toHaveAttribute('height', '84');
+    expect(outline).toHaveAttribute('width', '150');
+    expect(outline).toHaveAttribute('height', '160');
+    expect(guides).not.toHaveAttribute('display', 'none');
+    expect(guides).toHaveAttribute('data-guide-count', '2');
     expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an accepted three-element alignment with stable multi-selection geometry', () => {
+    const view = renderFixture('alignSelection');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(overlay).toHaveAttribute('data-selection-count', '3');
+    expect(outline).toHaveAttribute('x', '16');
+    expect(outline).toHaveAttribute('y', '128');
+    expect(outline).toHaveAttribute('width', '300');
+    expect(outline).toHaveAttribute('height', '188');
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByText('Visual fixture · alignSelection')).toBeInTheDocument();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

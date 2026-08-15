@@ -378,6 +378,72 @@ p {
   border-radius: var(--space-1);
 }
 
+.control-library {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+}
+
+.control-library__item {
+  display: grid;
+  width: calc(var(--space-6) * 4);
+  height: 100%;
+  flex: 0 0 auto;
+  grid-template-rows: minmax(0, 1fr) var(--space-4);
+  gap: var(--space-1);
+  place-items: center;
+  padding: 0 var(--space-1);
+  color: var(--color-ink);
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-compact);
+  font-size: var(--font-size-caption);
+}
+
+.control-library__item:hover,
+.control-library__item:focus-visible {
+  background: var(--color-panel);
+  border-color: var(--color-control-border);
+}
+
+.control-library__preview {
+  display: grid;
+  width: calc(var(--space-6) * 2 + var(--space-2));
+  height: calc(var(--space-6) + var(--space-2));
+  place-items: center;
+  overflow: hidden;
+  background: var(--color-canvas);
+  border: calc(var(--border-width) * 2) solid var(--color-ink);
+  border-radius: var(--space-1);
+  font-family: var(--font-wireframe);
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+}
+
+.control-library__preview[data-control-preview='text'] {
+  justify-content: start;
+  background: transparent;
+  border-color: transparent;
+}
+
+.control-library__preview[data-control-preview='input'] {
+  justify-content: start;
+  padding-left: var(--space-1);
+  background: var(--color-chrome);
+}
+
+.control-library__label {
+  width: 100%;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .navigator-panel,
 .inspector-panel {
   min-width: 0;
@@ -441,6 +507,7 @@ p {
 .pane--collapsed .panel-header h2,
 .pane--collapsed .panel-action--optional,
 .pane--collapsed .panel-empty,
+.pane--collapsed .wireframe-list,
 .pane--collapsed .inspector-scroll,
 .pane--collapsed .inspector-footer,
 .pane--collapsed .region-failure {
@@ -491,6 +558,59 @@ p {
   height: var(--space-1);
   background: var(--color-divider);
   border-radius: var(--space-1);
+}
+
+.wireframe-list {
+  height: calc(100% - var(--control-height) - var(--space-2));
+  padding: var(--space-2) 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.wireframe-list__row {
+  display: grid;
+  width: 100%;
+  grid-template-rows: auto var(--control-height);
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-ink);
+  background: transparent;
+  border: 0;
+}
+
+.wireframe-list__row[aria-selected='true'] {
+  color: var(--color-canvas);
+  background: var(--color-accent-strong);
+}
+
+.wireframe-list__thumbnail {
+  display: grid;
+  width: calc(100% - var(--space-6) * 2);
+  aspect-ratio: 4 / 3;
+  place-content: center;
+  gap: var(--space-2);
+  background: var(--color-canvas);
+  border: var(--border-width) solid var(--color-divider);
+  border-radius: var(--space-1);
+  box-shadow: var(--shadow-floating);
+}
+
+.wireframe-list__thumbnail span {
+  width: calc(var(--space-6) * 3);
+  height: var(--space-1);
+  background: var(--color-divider);
+  border-radius: var(--space-1);
+}
+
+.wireframe-list__name {
+  max-width: calc(100% - var(--space-4));
+  align-self: center;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .canvas-viewport {
@@ -567,16 +687,28 @@ p {
   display: block;
 }
 
-.scene-foundation-rectangle__fill {
+.scene-control__fill {
   fill: var(--color-canvas);
 }
 
-.scene-foundation-rectangle__outline {
+.scene-control__outline {
   fill: none;
   stroke: var(--color-ink);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: calc(var(--border-width) * 2);
+}
+
+.scene-control__text {
+  pointer-events: none;
+  fill: var(--color-ink);
+  font-family: var(--font-wireframe);
+  font-weight: var(--font-weight-regular);
+  user-select: none;
+}
+
+[data-control-visual='input'] .scene-control__fill {
+  fill: var(--color-chrome);
 }
 
 .selection-overlay__outline,
@@ -592,6 +724,15 @@ p {
 
 .selection-overlay__handle {
   fill: var(--color-canvas);
+}
+
+.snap-guide-overlay__line,
+.snap-guide-overlay__spacing {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--color-guide);
+  stroke-linecap: square;
+  stroke-width: var(--border-width);
 }
 
 .marquee-overlay__rectangle {
@@ -754,6 +895,18 @@ p {
 .inspector-section__heading span {
   color: var(--color-muted-ink);
   font-size: var(--font-size-caption);
+}
+
+.inspector-section--identity {
+  min-height: calc(var(--control-height) + var(--space-6));
+  align-content: center;
+  background: var(--color-panel);
+}
+
+.inspector-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
 }
 
 .notes-placeholder {

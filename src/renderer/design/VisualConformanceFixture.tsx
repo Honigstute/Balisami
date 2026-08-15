@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import {
   BoardIdSchema,
+  CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
@@ -12,6 +13,13 @@ import {
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
+import {
+  PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT,
+  PROJECT_WORKFLOW_ALPHA_LAYOUT,
+} from '../../shared/project-workflow-alpha';
+import { ControlInspector } from '../controls/ControlInspector';
+import { ControlShelf } from '../controls/ControlShelf';
+import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { DocumentScene } from '../editor/DocumentScene';
 import { DocumentSceneModel } from '../editor/document-scene-model';
 import { KeyboardNudgeInteraction } from '../editor/keyboard-nudge-interaction';
@@ -20,9 +28,17 @@ import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
+import { getResizeSnapProfile, resolveResizeSnap } from '../editor/resize-snapping';
+import { createSceneSnapCandidates } from '../editor/scene-snap-candidates';
+import {
+  planSelectionArrangement,
+  SELECTION_ARRANGEMENT_ACTIONS,
+} from '../editor/selection-arrangement';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
+import { resolveSnap } from '../editor/snap-engine';
+import { SnapGuideOverlay } from '../editor/SnapGuideOverlay';
 import { TextEditOverlay } from '../editor/TextEditOverlay';
 import { createTextEditViewportRoute, TextEditInteraction } from '../editor/text-edit-interaction';
 import { ViewportScene } from '../editor/ViewportScene';
@@ -33,6 +49,7 @@ import {
   createViewportPoint,
   createWorldPoint,
   createWorldRect,
+  createWorldVector,
 } from '../editor/viewport-transform';
 import { AppShell } from '../shell/AppShell';
 import { AppButton } from './AppButton';
@@ -107,30 +124,30 @@ const createSceneFixtureDocument = (): {
       },
       [titleId]: {
         id: titleId,
-        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlType: CONTROL_TYPES.textLabel,
         frame: { x: 28, y: 28, width: 280, height: 28 },
         locked: false,
-        properties: {},
+        properties: { text: 'Account settings' },
         childIds: [],
         assetIds: [],
         link: null,
       },
       [fieldId]: {
         id: fieldId,
-        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlType: CONTROL_TYPES.textInput,
         frame: { x: 28, y: 96, width: 300, height: 48 },
         locked: false,
-        properties: {},
+        properties: { text: 'Email address' },
         childIds: [],
         assetIds: [],
         link: null,
       },
       [buttonId]: {
         id: buttonId,
-        controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlType: CONTROL_TYPES.button,
         frame: { x: 28, y: 172, width: 128, height: 44 },
         locked: false,
-        properties: {},
+        properties: { text: 'Continue' },
         childIds: [],
         assetIds: [],
         link: null,
@@ -160,9 +177,156 @@ const createSceneFixtureDocument = (): {
   });
 };
 
+const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const projectId = ProjectIdSchema.parse('project_visualalpha');
+  const boardId = BoardIdSchema.parse('board_visualalpha');
+  const rectangleId = ElementIdSchema.parse('element_alpharectangle');
+  const titleId = ElementIdSchema.parse('element_alphatitle');
+  const buttonId = ElementIdSchema.parse('element_alphabutton');
+  const inputId = ElementIdSchema.parse('element_alphainput');
+  const result = parseProjectDocument({
+    schemaVersion: 1,
+    id: projectId,
+    name: 'Alpha visual fixture',
+    boardIds: [boardId],
+    boardsById: {
+      [boardId]: {
+        id: boardId,
+        name: 'Scene',
+        note: { text: '' },
+        childIds: [rectangleId, titleId, buttonId, inputId],
+      },
+    },
+    elementsById: {
+      [rectangleId]: {
+        id: rectangleId,
+        controlType: CONTROL_TYPES.rectangle,
+        frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.rectangle,
+        locked: false,
+        properties: {},
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [titleId]: {
+        id: titleId,
+        controlType: CONTROL_TYPES.textLabel,
+        frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textLabel,
+        locked: false,
+        properties: { text: 'Account settings' },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [buttonId]: {
+        id: buttonId,
+        controlType: CONTROL_TYPES.button,
+        frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
+        locked: false,
+        properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [inputId]: {
+        id: inputId,
+        controlType: CONTROL_TYPES.textInput,
+        frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textInput,
+        locked: false,
+        properties: { text: 'Email address' },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+    },
+    assetsById: {},
+  });
+  if (!result.ok) {
+    throw new Error('The deterministic alpha visual fixture is invalid.');
+  }
+  return Object.freeze({
+    boardId,
+    document: result.value,
+    duplicateId: ElementIdSchema.parse('element_alphaduplicate'),
+    groupId: ElementIdSchema.parse('element_alphagroup'),
+    selectedId: buttonId,
+  });
+};
+
+const createGroupSelectionFixtureDocument = (
+  fixture: ReturnType<typeof createSceneFixtureDocument>,
+): ProjectDocument => {
+  const board = fixture.document.boardsById[fixture.boardId];
+  const group = fixture.document.elementsById[fixture.groupId];
+  const outerId = board?.childIds.find((elementId) => elementId !== fixture.groupId);
+  const [titleId, fieldId, buttonId, sideId] = group?.childIds ?? [];
+  if (
+    outerId === undefined ||
+    titleId === undefined ||
+    fieldId === undefined ||
+    buttonId === undefined ||
+    sideId === undefined
+  ) {
+    throw new Error('The deterministic group-selection visual fixture is incomplete.');
+  }
+
+  const targets = [
+    { elementId: outerId, frame: { x: 40, y: 50, width: 360, height: 240 } },
+    { elementId: fixture.groupId, frame: { x: 40, y: 50, width: 360, height: 240 } },
+    { elementId: titleId, frame: { x: 0, y: 0, width: 260, height: 28 } },
+    { elementId: fieldId, frame: { x: 0, y: 60, width: 280, height: 48 } },
+    { elementId: buttonId, frame: { x: 0, y: 132, width: 128, height: 44 } },
+    { elementId: sideId, frame: { x: 300, y: 0, width: 60, height: 240 } },
+  ] as const;
+  let document = fixture.document;
+  for (const target of targets) {
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+      ...target,
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic group-selection visual fixture could not be created.');
+    }
+    document = result.document;
+  }
+  return document;
+};
+
+const createAlignedSelectionFixtureDocument = (
+  fixture: ReturnType<typeof createSceneFixtureDocument>,
+): ProjectDocument => {
+  const group = fixture.document.elementsById[fixture.groupId];
+  const [titleId, fieldId, buttonId] = group?.childIds ?? [];
+  if (titleId === undefined || fieldId === undefined || buttonId === undefined) {
+    throw new Error('The deterministic alignment visual fixture is incomplete.');
+  }
+  const plan = planSelectionArrangement(
+    fixture.document,
+    [buttonId, titleId, fieldId],
+    buttonId,
+    SELECTION_ARRANGEMENT_ACTIONS.alignRight,
+  );
+  if (plan === undefined || plan.commands.length !== 2) {
+    throw new Error('The deterministic alignment visual fixture could not be planned.');
+  }
+  let document = fixture.document;
+  for (const command of plan.commands) {
+    const result = dispatchDocumentCommand(document, command);
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic alignment visual fixture could not be created.');
+    }
+    document = result.document;
+  }
+  return document;
+};
+
 type SceneFixtureState =
+  | 'alpha'
+  | 'alignSelection'
   | 'delete'
   | 'duplicate'
+  | 'equalGaps'
+  | 'groupSelection'
   | 'marquee'
   | 'move'
   | 'nudge'
@@ -170,6 +334,7 @@ type SceneFixtureState =
   | 'plain'
   | 'resize'
   | 'selection'
+  | 'smartGuides'
   | 'textEdit';
 
 const SceneFixture = ({
@@ -180,8 +345,16 @@ const SceneFixture = ({
   readonly state?: SceneFixtureState;
 }) => {
   const camera = useViewportCameraStore();
-  const [fixture] = useState(createSceneFixtureDocument);
+  const [fixture] = useState(() =>
+    state === 'alpha' ? createAlphaFixtureDocument() : createSceneFixtureDocument(),
+  );
   const [document] = useState(() => {
+    if (state === 'alignSelection') {
+      return createAlignedSelectionFixtureDocument(fixture);
+    }
+    if (state === 'groupSelection') {
+      return createGroupSelectionFixtureDocument(fixture);
+    }
     if (state === 'delete') {
       const result = dispatchDocumentCommand(fixture.document, {
         type: DOCUMENT_COMMAND_TYPES.deleteElement,
@@ -219,13 +392,28 @@ const SceneFixture = ({
     const model = new DocumentSceneModel();
     model.reconcile(document, fixture.boardId);
     const selection = new SelectionStore();
+    const alignmentIds = document.elementsById[fixture.groupId]?.childIds.slice(0, 3) ?? [];
     const selectedId =
-      state === 'duplicate' || state === 'paste' ? fixture.duplicateId : fixture.selectedId;
-    if (
+      state === 'duplicate' || state === 'paste'
+        ? fixture.duplicateId
+        : state === 'groupSelection'
+          ? fixture.groupId
+          : fixture.selectedId;
+    if (state === 'alignSelection') {
+      const primaryId = alignmentIds[2];
+      if (alignmentIds.length !== 3 || primaryId === undefined) {
+        throw new Error('The deterministic alignment selection could not be restored.');
+      }
+      selection.replace(alignmentIds, primaryId);
+    } else if (
       state === 'selection' ||
+      state === 'alpha' ||
       state === 'move' ||
+      state === 'smartGuides' ||
+      state === 'equalGaps' ||
       state === 'nudge' ||
       state === 'resize' ||
+      state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
       state === 'textEdit'
@@ -236,6 +424,31 @@ const SceneFixture = ({
       {
         capture: (ids) => captureMoveTargets(document, ids),
         commit: () => false,
+        ...(state === 'smartGuides' || state === 'equalGaps'
+          ? {
+              resolveSnap: ({ activeAxes, capture, previousLocks, rawDelta, snapBypassed }) => {
+                const zoom = camera.getTransformSnapshot().zoom;
+                return resolveSnap({
+                  activeAxes,
+                  bypass: snapBypassed,
+                  candidates: createSceneSnapCandidates(model, {
+                    activeAxes,
+                    ...(capture.sharedOwner === undefined
+                      ? {}
+                      : { equalGapOwner: capture.sharedOwner }),
+                    excludedIds: capture.affectedIds,
+                    movingBounds: capture.worldBounds,
+                    rawDelta,
+                    zoom,
+                  }),
+                  movingBounds: capture.worldBounds,
+                  previousLocks,
+                  rawDelta,
+                  zoom,
+                });
+              },
+            }
+          : {}),
       },
       createBrowserAnimationFrameScheduler(),
     );
@@ -250,6 +463,33 @@ const SceneFixture = ({
       {
         capture: (id) => captureResizeTarget(document, id),
         commit: () => false,
+        ...(state === 'resize'
+          ? {
+              resolveSnap: (request) => {
+                const zoom = camera.getTransformSnapshot().zoom;
+                const profile = getResizeSnapProfile(request.handle);
+                return resolveResizeSnap({
+                  aspectLocked: request.aspectLocked,
+                  bypass: request.snapBypassed,
+                  candidates: createSceneSnapCandidates(model, {
+                    activeAxes: profile.activeAxes,
+                    excludedIds: [request.capture.elementId],
+                    movingAnchors: profile.movingAnchors,
+                    movingBounds: request.raw.worldBounds,
+                    rawDelta: createWorldVector(0, 0),
+                    zoom,
+                  }),
+                  capture: request.capture,
+                  currentWorldPoint: request.currentWorldPoint,
+                  handle: request.handle,
+                  previousLocks: request.previousLocks,
+                  raw: request.raw,
+                  startWorldPoint: request.startWorldPoint,
+                  zoom,
+                });
+              },
+            }
+          : {}),
       },
       createBrowserAnimationFrameScheduler(),
     );
@@ -295,13 +535,19 @@ const SceneFixture = ({
         worldPoint: createWorldPoint(260, 360),
       });
     }
-    if (state === 'move') {
+    if (state === 'move' || state === 'smartGuides' || state === 'equalGaps') {
       moveInteraction.begin({
         pointerId: 2,
+        snapBypassed: false,
         shiftKey: false,
         startWorldPoint: createWorldPoint(0, 0),
         targetIds: [fixture.selectedId],
-        worldPoint: createWorldPoint(120, 60),
+        worldPoint:
+          state === 'smartGuides'
+            ? createWorldPoint(0, -30)
+            : state === 'equalGaps'
+              ? createWorldPoint(0, 12)
+              : createWorldPoint(120, 60),
       });
     }
     if (state === 'resize') {
@@ -309,9 +555,12 @@ const SceneFixture = ({
         elementId: fixture.selectedId,
         handle: 'southEast',
         pointerId: 3,
+        snapBypassed: false,
         shiftKey: false,
         startWorldPoint: createWorldPoint(316, 316),
-        worldPoint: createWorldPoint(396, 356),
+        // Both targets stay inside the minimum Windows canvas: field center X
+        // and side-card bottom Y. Artifact review must see both guide spans.
+        worldPoint: createWorldPoint(336, 430),
       });
     }
     if (state === 'nudge') {
@@ -342,24 +591,40 @@ const SceneFixture = ({
     <ViewportScene
       camera={camera}
       {...(state === 'selection' ||
+      state === 'alpha' ||
       state === 'move' ||
+      state === 'smartGuides' ||
+      state === 'equalGaps' ||
       state === 'nudge' ||
       state === 'resize' ||
+      state === 'alignSelection' ||
+      state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
       state === 'textEdit'
         ? {
             interactionChildren: (
-              <SelectionOverlay
-                camera={camera}
-                {...(state === 'nudge'
-                  ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
-                  : {})}
-                model={editor.model}
-                {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
-                {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
-                selection={editor.selection}
-              />
+              <>
+                {state === 'smartGuides' || state === 'equalGaps' || state === 'resize' ? (
+                  <SnapGuideOverlay
+                    camera={camera}
+                    moveInteraction={editor.moveInteraction}
+                    {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
+                  />
+                ) : null}
+                <SelectionOverlay
+                  camera={camera}
+                  {...(state === 'nudge'
+                    ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
+                    : {})}
+                  model={editor.model}
+                  {...(state === 'move' || state === 'smartGuides' || state === 'equalGaps'
+                    ? { moveInteraction: editor.moveInteraction }
+                    : {})}
+                  {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
+                  selection={editor.selection}
+                />
+              </>
             ),
           }
         : state === 'marquee'
@@ -386,7 +651,9 @@ const SceneFixture = ({
             ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
             : {})}
           model={editor.model}
-          {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
+          {...(state === 'move' || state === 'smartGuides' || state === 'equalGaps'
+            ? { moveInteraction: editor.moveInteraction }
+            : {})}
           {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
         />
       }
@@ -556,6 +823,28 @@ const ModalFixture = () => (
   </AppModal>
 );
 
+const AlphaInspectorFixture = () => {
+  const [fixture] = useState(createAlphaFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onSetFrame={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const AlphaNavigatorFixture = () => {
+  const [fixture] = useState(createAlphaFixtureDocument);
+  return <WireframeNavigator activeBoardId={fixture.boardId} document={fixture.document} />;
+};
+
 export const VisualConformanceFixture = ({
   fixture,
   platform,
@@ -569,29 +858,44 @@ export const VisualConformanceFixture = ({
         ? { canvas: <SceneFixture state="selection" /> }
         : fixture === 'move'
           ? { canvas: <SceneFixture state="move" /> }
-          : fixture === 'resize'
-            ? { canvas: <SceneFixture state="resize" /> }
-            : fixture === 'delete'
-              ? { canvas: <SceneFixture state="delete" /> }
-              : fixture === 'duplicate'
-                ? { canvas: <SceneFixture state="duplicate" /> }
-                : fixture === 'paste'
-                  ? { canvas: <SceneFixture state="paste" /> }
-                  : fixture === 'textEdit'
-                    ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
-                    : fixture === 'nudge'
-                      ? { canvas: <SceneFixture state="nudge" /> }
-                      : fixture === 'marquee'
-                        ? { canvas: <SceneFixture state="marquee" /> }
-                        : fixture === 'controls'
-                          ? { inspector: <ControlStates /> }
-                          : fixture === 'feedback'
-                            ? { canvas: <StaticRegionFailure /> }
-                            : fixture === 'tooltip'
-                              ? { canvas: <TooltipFixture /> }
-                              : fixture === 'popover'
-                                ? { canvas: <PopoverFixture /> }
-                                : undefined;
+          : fixture === 'smartGuides'
+            ? { canvas: <SceneFixture state="smartGuides" /> }
+            : fixture === 'equalGaps'
+              ? { canvas: <SceneFixture state="equalGaps" /> }
+              : fixture === 'resize'
+                ? { canvas: <SceneFixture state="resize" /> }
+                : fixture === 'groupSelection'
+                  ? { canvas: <SceneFixture state="groupSelection" /> }
+                  : fixture === 'alignSelection'
+                    ? { canvas: <SceneFixture state="alignSelection" /> }
+                    : fixture === 'delete'
+                      ? { canvas: <SceneFixture state="delete" /> }
+                      : fixture === 'duplicate'
+                        ? { canvas: <SceneFixture state="duplicate" /> }
+                        : fixture === 'paste'
+                          ? { canvas: <SceneFixture state="paste" /> }
+                          : fixture === 'textEdit'
+                            ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
+                            : fixture === 'nudge'
+                              ? { canvas: <SceneFixture state="nudge" /> }
+                              : fixture === 'marquee'
+                                ? { canvas: <SceneFixture state="marquee" /> }
+                                : fixture === 'mvpAlpha'
+                                  ? {
+                                      canvas: <SceneFixture state="alpha" />,
+                                      inspector: <AlphaInspectorFixture />,
+                                      navigator: <AlphaNavigatorFixture />,
+                                      shelf: <ControlShelf onInsert={() => false} />,
+                                    }
+                                  : fixture === 'controls'
+                                    ? { inspector: <ControlStates /> }
+                                    : fixture === 'feedback'
+                                      ? { canvas: <StaticRegionFailure /> }
+                                      : fixture === 'tooltip'
+                                        ? { canvas: <TooltipFixture /> }
+                                        : fixture === 'popover'
+                                          ? { canvas: <PopoverFixture /> }
+                                          : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

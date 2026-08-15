@@ -45,7 +45,7 @@ export type ViewportWheelAction =
   | { readonly factor: number; readonly kind: 'zoom' }
   | { readonly deltaX: number; readonly deltaY: number; readonly kind: 'pan' };
 
-export interface ViewportDuplicateShortcutInput {
+export interface ViewportEditShortcutInput {
   readonly altKey: boolean;
   readonly code: string;
   readonly ctrlKey: boolean;
@@ -53,26 +53,59 @@ export interface ViewportDuplicateShortcutInput {
   readonly shiftKey: boolean;
 }
 
+export interface ViewportSnapBypassInput {
+  readonly altKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+}
+
 export const VIEWPORT_EDIT_COMMANDS = Object.freeze({
+  alignBottom: 'align-bottom',
+  alignCenter: 'align-center',
+  alignLeft: 'align-left',
+  alignMiddle: 'align-middle',
+  alignRight: 'align-right',
+  alignTop: 'align-top',
+  bringForward: 'bring-forward',
+  bringToFront: 'bring-to-front',
   copy: 'copy',
   cut: 'cut',
   duplicate: 'duplicate',
+  group: 'group',
+  lockSelection: 'lock-selection',
   paste: 'paste',
+  sendBackward: 'send-backward',
+  sendToBack: 'send-to-back',
+  ungroup: 'ungroup',
+  unlockAll: 'unlock-all',
 } as const);
 export type ViewportEditCommand =
   (typeof VIEWPORT_EDIT_COMMANDS)[keyof typeof VIEWPORT_EDIT_COMMANDS];
+export type ViewportAlignmentCommand = Extract<
+  ViewportEditCommand,
+  'align-bottom' | 'align-center' | 'align-left' | 'align-middle' | 'align-right' | 'align-top'
+>;
 
 export interface ViewportInputControllerOptions {
+  readonly alignSelection?: (action: ViewportAlignmentCommand) => boolean;
+  readonly bringSelectionForward?: () => boolean;
+  readonly bringSelectionToFront?: () => boolean;
   readonly copySelection?: () => boolean;
   readonly cutSelection?: () => boolean;
   readonly deleteSelection?: () => boolean;
   readonly duplicateSelection?: () => boolean;
+  readonly groupSelection?: () => boolean;
   readonly keyboardNudge?: KeyboardNudgeInteraction;
+  readonly lockSelection?: () => boolean;
   readonly pasteSelection?: () => boolean;
+  readonly sendSelectionBackward?: () => boolean;
+  readonly sendSelectionToBack?: () => boolean;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly shortcutPlatform?: ViewportShortcutPlatform;
   readonly textEdit?: TextEditViewportRoute;
+  readonly ungroupSelection?: () => boolean;
+  readonly unlockAll?: () => boolean;
 }
 
 interface ActivePan {
@@ -93,14 +126,45 @@ export const isViewportDeleteKey = (code: string): code is ViewportDeleteKey =>
 
 /** Resolves exact primary-modifier edit shortcuts without stealing alternate combinations. */
 export const resolveViewportEditShortcut = (
-  input: ViewportDuplicateShortcutInput,
+  input: ViewportEditShortcutInput,
   platform: ViewportShortcutPlatform,
 ): ViewportEditCommand | undefined => {
-  if (
-    input.altKey ||
-    input.shiftKey ||
-    (platform === 'darwin' ? !input.metaKey || input.ctrlKey : !input.ctrlKey || input.metaKey)
-  ) {
+  if (platform === 'darwin' ? !input.metaKey || input.ctrlKey : !input.ctrlKey || input.metaKey) {
+    return undefined;
+  }
+  if (input.altKey) {
+    if (input.shiftKey) {
+      return undefined;
+    }
+    switch (input.code) {
+      case 'Digit1':
+        return VIEWPORT_EDIT_COMMANDS.alignLeft;
+      case 'Digit2':
+        return VIEWPORT_EDIT_COMMANDS.alignCenter;
+      case 'Digit3':
+        return VIEWPORT_EDIT_COMMANDS.alignRight;
+      case 'Digit4':
+        return VIEWPORT_EDIT_COMMANDS.alignTop;
+      case 'Digit5':
+        return VIEWPORT_EDIT_COMMANDS.alignMiddle;
+      case 'Digit6':
+        return VIEWPORT_EDIT_COMMANDS.alignBottom;
+      default:
+        return undefined;
+    }
+  }
+  if (input.code === 'KeyG') {
+    return input.shiftKey ? VIEWPORT_EDIT_COMMANDS.ungroup : VIEWPORT_EDIT_COMMANDS.group;
+  }
+  if (input.code === 'ArrowUp') {
+    return input.shiftKey
+      ? VIEWPORT_EDIT_COMMANDS.bringToFront
+      : VIEWPORT_EDIT_COMMANDS.bringForward;
+  }
+  if (input.code === 'ArrowDown') {
+    return input.shiftKey ? VIEWPORT_EDIT_COMMANDS.sendToBack : VIEWPORT_EDIT_COMMANDS.sendBackward;
+  }
+  if (input.shiftKey) {
     return undefined;
   }
   switch (input.code) {
@@ -112,15 +176,27 @@ export const resolveViewportEditShortcut = (
       return VIEWPORT_EDIT_COMMANDS.paste;
     case 'KeyX':
       return VIEWPORT_EDIT_COMMANDS.cut;
+    case 'Digit2':
+      return VIEWPORT_EDIT_COMMANDS.lockSelection;
+    case 'Digit3':
+      return VIEWPORT_EDIT_COMMANDS.unlockAll;
     default:
       return undefined;
   }
 };
 
 export const isViewportDuplicateShortcut = (
-  input: ViewportDuplicateShortcutInput,
+  input: ViewportEditShortcutInput,
   platform: ViewportShortcutPlatform,
 ): boolean => resolveViewportEditShortcut(input, platform) === VIEWPORT_EDIT_COMMANDS.duplicate;
+
+/** Matches the documented platform-primary modifier without accepting chords. */
+export const isViewportSnapBypassed = (
+  input: ViewportSnapBypassInput,
+  platform: ViewportShortcutPlatform,
+): boolean =>
+  !input.altKey &&
+  (platform === 'darwin' ? input.metaKey && !input.ctrlKey : input.ctrlKey && !input.metaKey);
 
 const clampWheelDelta = (value: number): number =>
   Math.max(
@@ -200,18 +276,27 @@ const shouldStartPan = (event: PointerEvent, spacePressed: boolean): boolean =>
  * the camera store remains the authority for transform state and frame pacing.
  */
 export class ViewportInputController {
+  readonly #alignSelection: ((action: ViewportAlignmentCommand) => boolean) | undefined;
+  readonly #bringSelectionForward: (() => boolean) | undefined;
+  readonly #bringSelectionToFront: (() => boolean) | undefined;
   readonly #camera: ViewportCameraStore;
   readonly #copySelection: (() => boolean) | undefined;
   readonly #cutSelection: (() => boolean) | undefined;
   readonly #deleteSelection: (() => boolean) | undefined;
   readonly #duplicateSelection: (() => boolean) | undefined;
+  readonly #groupSelection: (() => boolean) | undefined;
   readonly #keyboardNudge: KeyboardNudgeInteraction | undefined;
+  readonly #lockSelection: (() => boolean) | undefined;
   readonly #pasteSelection: (() => boolean) | undefined;
   readonly #root: HTMLElement;
+  readonly #sendSelectionBackward: (() => boolean) | undefined;
+  readonly #sendSelectionToBack: (() => boolean) | undefined;
   readonly #selection: SelectionStore | undefined;
   readonly #selectionInteraction: SelectionInteraction | undefined;
   readonly #shortcutPlatform: ViewportShortcutPlatform | undefined;
   readonly #textEdit: TextEditViewportRoute | undefined;
+  readonly #ungroupSelection: (() => boolean) | undefined;
+  readonly #unlockAll: (() => boolean) | undefined;
 
   #activePan: ActivePan | undefined;
   #activeNudgeKeys = new Set<KeyboardNudgeKey>();
@@ -231,6 +316,9 @@ export class ViewportInputController {
   ) {
     this.#root = root;
     this.#camera = camera;
+    this.#alignSelection = options.alignSelection;
+    this.#bringSelectionForward = options.bringSelectionForward;
+    this.#bringSelectionToFront = options.bringSelectionToFront;
     this.#selectionInteraction = options.selectionInteraction;
     this.#keyboardNudge = options.keyboardNudge;
     this.#selection = options.selection;
@@ -238,9 +326,15 @@ export class ViewportInputController {
     this.#cutSelection = options.cutSelection;
     this.#deleteSelection = options.deleteSelection;
     this.#duplicateSelection = options.duplicateSelection;
+    this.#groupSelection = options.groupSelection;
+    this.#lockSelection = options.lockSelection;
     this.#pasteSelection = options.pasteSelection;
+    this.#sendSelectionBackward = options.sendSelectionBackward;
+    this.#sendSelectionToBack = options.sendSelectionToBack;
     this.#shortcutPlatform = options.shortcutPlatform;
     this.#textEdit = options.textEdit;
+    this.#ungroupSelection = options.ungroupSelection;
+    this.#unlockAll = options.unlockAll;
   }
 
   connect(): void {
@@ -461,6 +555,10 @@ export class ViewportInputController {
       this.#selectionInteraction.beginPress({
         altKey: event.altKey,
         pointerId: event.pointerId,
+        snapBypassed:
+          this.#shortcutPlatform === undefined
+            ? false
+            : isViewportSnapBypassed(event, this.#shortcutPlatform),
         shiftKey: event.shiftKey,
         ...position,
       })
@@ -487,6 +585,10 @@ export class ViewportInputController {
         position !== undefined &&
         this.#selectionInteraction?.updatePress(event.pointerId, {
           ...position,
+          snapBypassed:
+            this.#shortcutPlatform === undefined
+              ? false
+              : isViewportSnapBypassed(event, this.#shortcutPlatform),
           shiftKey: event.shiftKey,
         })
       ) {
@@ -515,6 +617,10 @@ export class ViewportInputController {
         position !== undefined &&
         this.#selectionInteraction?.completePress(event.pointerId, {
           ...position,
+          snapBypassed:
+            this.#shortcutPlatform === undefined
+              ? false
+              : isViewportSnapBypassed(event, this.#shortcutPlatform),
           shiftKey: event.shiftKey,
         })
       ) {
@@ -698,14 +804,39 @@ export class ViewportInputController {
 
   #getEditAction(command: ViewportEditCommand): (() => boolean) | undefined {
     switch (command) {
+      case VIEWPORT_EDIT_COMMANDS.alignBottom:
+      case VIEWPORT_EDIT_COMMANDS.alignCenter:
+      case VIEWPORT_EDIT_COMMANDS.alignLeft:
+      case VIEWPORT_EDIT_COMMANDS.alignMiddle:
+      case VIEWPORT_EDIT_COMMANDS.alignRight:
+      case VIEWPORT_EDIT_COMMANDS.alignTop:
+        return this.#alignSelection === undefined
+          ? undefined
+          : () => this.#alignSelection?.(command) === true;
+      case VIEWPORT_EDIT_COMMANDS.bringForward:
+        return this.#bringSelectionForward;
+      case VIEWPORT_EDIT_COMMANDS.bringToFront:
+        return this.#bringSelectionToFront;
       case VIEWPORT_EDIT_COMMANDS.copy:
         return this.#copySelection;
       case VIEWPORT_EDIT_COMMANDS.cut:
         return this.#cutSelection;
       case VIEWPORT_EDIT_COMMANDS.duplicate:
         return this.#duplicateSelection;
+      case VIEWPORT_EDIT_COMMANDS.group:
+        return this.#groupSelection;
+      case VIEWPORT_EDIT_COMMANDS.lockSelection:
+        return this.#lockSelection;
       case VIEWPORT_EDIT_COMMANDS.paste:
         return this.#pasteSelection;
+      case VIEWPORT_EDIT_COMMANDS.sendBackward:
+        return this.#sendSelectionBackward;
+      case VIEWPORT_EDIT_COMMANDS.sendToBack:
+        return this.#sendSelectionToBack;
+      case VIEWPORT_EDIT_COMMANDS.ungroup:
+        return this.#ungroupSelection;
+      case VIEWPORT_EDIT_COMMANDS.unlockAll:
+        return this.#unlockAll;
     }
   }
 

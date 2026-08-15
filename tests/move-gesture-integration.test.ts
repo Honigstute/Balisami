@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ElementIdSchema,
+  FOUNDATION_CONTROL_TYPES,
   createDocumentHistory,
   dispatchHistoryTransaction,
   parseProjectDocument,
@@ -10,12 +12,19 @@ import {
   undoDocumentHistory,
   type DocumentHistoryState,
 } from '../src/domain';
+import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
+import { createSceneSnapCandidates } from '../src/renderer/editor/scene-snap-candidates';
 import { SelectionInteraction } from '../src/renderer/editor/selection-interaction';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
+import { resolveSnap } from '../src/renderer/editor/snap-engine';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
-import { createViewportPoint, createWorldPoint } from '../src/renderer/editor/viewport-transform';
+import {
+  createViewportPoint,
+  createViewportZoom,
+  createWorldPoint,
+} from '../src/renderer/editor/viewport-transform';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
@@ -175,5 +184,98 @@ describe('move gesture integration', () => {
     expect(history.document).toBe(document);
     expect(history.undoEntries).toHaveLength(0);
     expect(scheduler.callbacks.size).toBe(0);
+  });
+
+  it('commits one equal-gap move transaction and undo restores the exact document', () => {
+    const input = createValidProjectDocumentInput();
+    const beforeId = ElementIdSchema.parse('element_historybefore');
+    const movingId = ElementIdSchema.parse('element_historymoving');
+    const afterId = ElementIdSchema.parse('element_historyafter0');
+    const createRectangle = (id: typeof beforeId, x: number, width: number) => ({
+      id,
+      controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      frame: { x, y: 5_000, width, height: 20 },
+      locked: false,
+      properties: {},
+      childIds: [],
+      assetIds: [],
+      link: null,
+    });
+    input.elementsById[beforeId] = createRectangle(beforeId, 0, 40);
+    input.elementsById[movingId] = createRectangle(movingId, 200, 20);
+    input.elementsById[afterId] = createRectangle(afterId, 100, 40);
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.unshift(beforeId, movingId, afterId);
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) {
+      throw new Error('Equal-gap move history fixture is invalid.');
+    }
+    const originalDocument = parsed.value;
+    let history: DocumentHistoryState = createDocumentHistory(originalDocument);
+    const model = new DocumentSceneModel();
+    model.reconcile(history.document, DOCUMENT_FIXTURE_IDS.board);
+    const scheduler = new TestAnimationFrameScheduler();
+    const zoom = createViewportZoom(1);
+    const move = new MoveInteraction(
+      {
+        capture: (ids) => captureMoveTargets(history.document, ids),
+        commit: (commands) => {
+          const result = dispatchHistoryTransaction(history, commands, { label: 'Move element' });
+          if (!result.ok || !result.changed) {
+            return false;
+          }
+          history = result.history;
+          model.reconcile(history.document, DOCUMENT_FIXTURE_IDS.board);
+          return true;
+        },
+        resolveSnap: ({ activeAxes, capture, previousLocks, rawDelta, snapBypassed }) =>
+          resolveSnap({
+            activeAxes,
+            bypass: snapBypassed,
+            candidates: createSceneSnapCandidates(model, {
+              activeAxes,
+              ...(capture.sharedOwner === undefined ? {} : { equalGapOwner: capture.sharedOwner }),
+              excludedIds: capture.affectedIds,
+              movingBounds: capture.worldBounds,
+              rawDelta,
+              zoom,
+            }),
+            movingBounds: capture.worldBounds,
+            previousLocks,
+            rawDelta,
+            zoom,
+          }),
+      },
+      scheduler,
+    );
+
+    expect(
+      move.begin({
+        pointerId: 21,
+        snapBypassed: false,
+        shiftKey: false,
+        startWorldPoint: createWorldPoint(0, 0),
+        targetIds: [movingId],
+        worldPoint: createWorldPoint(-142, 0),
+      }),
+    ).toBe(true);
+    const preview = move.getSnapshot();
+    expect(preview).toMatchObject({ delta: { x: -140, y: 0 }, kind: 'moving' });
+    expect(preview.kind === 'moving' ? preview.guides : []).toContainEqual(
+      expect.objectContaining({ axis: 'x', gap: 20, kind: 'equalGap' }),
+    );
+    expect(
+      move.complete({
+        pointerId: 21,
+        snapBypassed: false,
+        shiftKey: false,
+        worldPoint: createWorldPoint(-142, 0),
+      }),
+    ).toBe('committed');
+
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.document.elementsById[movingId]?.frame.x).toBe(60);
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(originalDocument);
   });
 });

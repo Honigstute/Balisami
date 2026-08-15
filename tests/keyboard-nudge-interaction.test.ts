@@ -10,6 +10,7 @@ import {
 } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { captureMoveTargets, type MoveTargetCapture } from '../src/renderer/editor/move-geometry';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
+import { createWorldRect } from '../src/renderer/editor/viewport-transform';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
 const ROOT_ID = ElementIdSchema.parse('element_nudgeroot1');
@@ -38,6 +39,7 @@ const CAPTURE: MoveTargetCapture = Object.freeze({
       id: ROOT_ID,
     }),
   ]),
+  worldBounds: createWorldRect(10, 20, 100, 50),
 });
 
 describe('keyboard nudge interaction', () => {
