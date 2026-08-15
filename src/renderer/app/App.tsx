@@ -583,11 +583,15 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     if (noted?.ok !== true || !noted.changed) {
       throw new Error('The packaged alpha probe could not prepare its saved project.');
     }
-    void session.save().then(() => {
+    void session.save().then(async () => {
       const savedView = session.getSnapshot();
       if (savedView.isDirty || savedView.isSaving || savedView.statusTone === 'problem') {
         throw new Error('The packaged alpha probe did not finish saving cleanly.');
       }
+      // The session can be clean before React's status/project labels cross a
+      // paint boundary. The main process captures only after this explicit UI
+      // presentation barrier, so native artifacts never record stale chrome.
+      await waitForRendererPresentation();
       globalThis.document.documentElement.setAttribute(
         projectWorkflowProbeContract.readyAttribute,
         'true',
