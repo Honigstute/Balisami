@@ -203,6 +203,13 @@ describe('selection overlay', () => {
     expect(outline).toHaveAttribute('width', '240');
     expect(outline).toHaveAttribute('height', '96');
 
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.group);
+    expect(outline).toHaveAttribute('x', '-30');
+    expect(outline).toHaveAttribute('y', '20');
+    expect(outline).toHaveAttribute('width', '640');
+    expect(outline).toHaveAttribute('height', '360');
+    expect([...handles].every((handle) => handle.getAttribute('display') === 'none')).toBe(true);
+
     selection.replace([DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child]);
     expect(group).toHaveAttribute('data-selection-count', '2');
     expect([...handles].every((handle) => handle.getAttribute('display') === 'none')).toBe(true);

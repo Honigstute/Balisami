@@ -168,6 +168,7 @@ const createSceneFixtureDocument = (): {
 type SceneFixtureState =
   | 'delete'
   | 'duplicate'
+  | 'groupSelection'
   | 'marquee'
   | 'move'
   | 'nudge'
@@ -226,13 +227,18 @@ const SceneFixture = ({
     model.reconcile(document, fixture.boardId);
     const selection = new SelectionStore();
     const selectedId =
-      state === 'duplicate' || state === 'paste' ? fixture.duplicateId : fixture.selectedId;
+      state === 'duplicate' || state === 'paste'
+        ? fixture.duplicateId
+        : state === 'groupSelection'
+          ? fixture.groupId
+          : fixture.selectedId;
     if (
       state === 'selection' ||
       state === 'move' ||
       state === 'smartGuides' ||
       state === 'nudge' ||
       state === 'resize' ||
+      state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
       state === 'textEdit'
@@ -406,6 +412,7 @@ const SceneFixture = ({
       state === 'smartGuides' ||
       state === 'nudge' ||
       state === 'resize' ||
+      state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
       state === 'textEdit'
@@ -647,27 +654,29 @@ export const VisualConformanceFixture = ({
             ? { canvas: <SceneFixture state="smartGuides" /> }
             : fixture === 'resize'
               ? { canvas: <SceneFixture state="resize" /> }
-              : fixture === 'delete'
-                ? { canvas: <SceneFixture state="delete" /> }
-                : fixture === 'duplicate'
-                  ? { canvas: <SceneFixture state="duplicate" /> }
-                  : fixture === 'paste'
-                    ? { canvas: <SceneFixture state="paste" /> }
-                    : fixture === 'textEdit'
-                      ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
-                      : fixture === 'nudge'
-                        ? { canvas: <SceneFixture state="nudge" /> }
-                        : fixture === 'marquee'
-                          ? { canvas: <SceneFixture state="marquee" /> }
-                          : fixture === 'controls'
-                            ? { inspector: <ControlStates /> }
-                            : fixture === 'feedback'
-                              ? { canvas: <StaticRegionFailure /> }
-                              : fixture === 'tooltip'
-                                ? { canvas: <TooltipFixture /> }
-                                : fixture === 'popover'
-                                  ? { canvas: <PopoverFixture /> }
-                                  : undefined;
+              : fixture === 'groupSelection'
+                ? { canvas: <SceneFixture state="groupSelection" /> }
+                : fixture === 'delete'
+                  ? { canvas: <SceneFixture state="delete" /> }
+                  : fixture === 'duplicate'
+                    ? { canvas: <SceneFixture state="duplicate" /> }
+                    : fixture === 'paste'
+                      ? { canvas: <SceneFixture state="paste" /> }
+                      : fixture === 'textEdit'
+                        ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
+                        : fixture === 'nudge'
+                          ? { canvas: <SceneFixture state="nudge" /> }
+                          : fixture === 'marquee'
+                            ? { canvas: <SceneFixture state="marquee" /> }
+                            : fixture === 'controls'
+                              ? { inspector: <ControlStates /> }
+                              : fixture === 'feedback'
+                                ? { canvas: <StaticRegionFailure /> }
+                                : fixture === 'tooltip'
+                                  ? { canvas: <TooltipFixture /> }
+                                  : fixture === 'popover'
+                                    ? { canvas: <PopoverFixture /> }
+                                    : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

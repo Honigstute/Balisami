@@ -51,7 +51,8 @@ class DocumentScenePresenter {
   }
 
   sync(items: readonly DocumentSceneItem[]): void {
-    const nextOrder = items.map((item) => item.id);
+    const renderableItems = items.filter((item) => item.kind === 'object');
+    const nextOrder = renderableItems.map((item) => item.id);
     const orderChanged =
       nextOrder.length !== this.#visibleOrder.length ||
       nextOrder.some((id, index) => id !== this.#visibleOrder[index]);
@@ -63,7 +64,7 @@ class DocumentScenePresenter {
         this.#canonicalItemsById.delete(id);
       }
     }
-    for (const item of items) {
+    for (const item of renderableItems) {
       this.#canonicalItemsById.set(item.id, item);
       const element = this.#elementsById.get(item.id) ?? this.#createElement(item.id);
       if (element.dataset.sceneRevision !== item.revision) {

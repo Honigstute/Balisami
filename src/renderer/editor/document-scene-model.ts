@@ -18,6 +18,7 @@ import {
 export interface DocumentSceneItem {
   readonly bounds: WorldRect;
   readonly id: ElementId;
+  readonly kind: 'container' | 'object';
   readonly locked: boolean;
   readonly path: string;
   readonly revision: string;
@@ -40,6 +41,7 @@ export interface DocumentSceneReconcileResult {
 interface DerivedSceneItem {
   readonly bounds: WorldRect;
   readonly id: ElementId;
+  readonly kind: 'container' | 'object';
   readonly locked: boolean;
 }
 
@@ -59,7 +61,7 @@ const orderEqual = (first: readonly ElementId[], second: readonly ElementId[]): 
   first.length === second.length && first.every((id, index) => id === second[index]);
 
 const createItemRevision = (item: DerivedSceneItem): string =>
-  `${item.id}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}`;
+  `${item.id}|${item.kind}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}`;
 
 /** Flattens canonical childIds order while accumulating local container origins once. */
 const deriveBoardSceneItems = (
@@ -91,7 +93,13 @@ const deriveBoardSceneItems = (
       element.frame.height,
     );
     if (element.controlType === FOUNDATION_CONTROL_TYPES.rectangle) {
-      items.push(Object.freeze({ bounds, id: element.id, locked: element.locked }));
+      items.push(Object.freeze({ bounds, id: element.id, kind: 'object', locked: element.locked }));
+    } else if (element.controlType === FOUNDATION_CONTROL_TYPES.group) {
+      // Groups participate in selection, movement, snapping, and bounds but
+      // remain visually transparent in the document presenter.
+      items.push(
+        Object.freeze({ bounds, id: element.id, kind: 'container', locked: element.locked }),
+      );
     }
     for (const childId of element.childIds) {
       visit(childId, bounds.x, bounds.y);
@@ -107,13 +115,14 @@ const deriveBoardSceneItems = (
 export const countRenderableBoardElements = (
   document: ProjectDocument,
   boardId: BoardId | undefined,
-): number => deriveBoardSceneItems(document, boardId).length;
+): number =>
+  deriveBoardSceneItems(document, boardId).filter((item) => item.kind === 'object').length;
 
 export const getRenderableBoardWorldBounds = (
   document: ProjectDocument,
   boardId: BoardId | undefined,
 ): WorldRect | undefined => {
-  const items = deriveBoardSceneItems(document, boardId);
+  const items = deriveBoardSceneItems(document, boardId).filter((item) => item.kind === 'object');
   const first = items[0];
   if (first === undefined) {
     return undefined;
@@ -190,18 +199,23 @@ export class DocumentSceneModel {
     for (const derivedItem of derivedItems) {
       const existing = this.#itemsById.get(derivedItem.id);
       const geometryChanged =
-        existing === undefined || !boundsEqual(existing.bounds, derivedItem.bounds);
+        existing === undefined ||
+        existing.kind !== derivedItem.kind ||
+        !boundsEqual(existing.bounds, derivedItem.bounds);
       if (!geometryChanged && existing.locked === derivedItem.locked) {
         continue;
       }
       const item = Object.freeze({
         bounds: derivedItem.bounds,
         id: derivedItem.id,
+        kind: derivedItem.kind,
         locked: derivedItem.locked,
         path:
-          geometryChanged || existing === undefined
-            ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
-            : existing.path,
+          derivedItem.kind === 'container'
+            ? ''
+            : geometryChanged || existing === undefined
+              ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
+              : existing.path,
         revision: createItemRevision(derivedItem),
       });
       this.#itemsById.set(item.id, item);

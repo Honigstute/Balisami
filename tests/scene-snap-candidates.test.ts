@@ -23,7 +23,7 @@ const createModel = (): DocumentSceneModel => {
 };
 
 describe('scene snap candidate adapter', () => {
-  it('turns nearby canonical scene items into six immutable object candidates each', () => {
+  it('turns nearby canonical scene items into immutable typed candidates', () => {
     const candidates = createSceneSnapCandidates(createModel(), {
       excludedIds: [],
       movingBounds: createWorldRect(-4, 36.5, 120, 48),
@@ -35,9 +35,30 @@ describe('scene snap candidate adapter', () => {
     expect(candidates.map((candidate) => candidate.sourceId)).toEqual(
       Array.from({ length: 6 }, () => DOCUMENT_FIXTURE_IDS.child),
     );
-    expect(candidates.map((candidate) => candidate.sourceOrder)).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(candidates.map((candidate) => candidate.sourceOrder)).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(candidates.every((candidate) => candidate.kind === 'object')).toBe(true);
     expect(Object.isFrozen(candidates)).toBe(true);
     expect(candidates.every(Object.isFrozen)).toBe(true);
+  });
+
+  it('exposes group bounds through the same resolver vocabulary as container candidates', () => {
+    const candidates = createSceneSnapCandidates(createModel(), {
+      activeAxes: { x: true, y: false },
+      excludedIds: [DOCUMENT_FIXTURE_IDS.child],
+      movingAnchors: { x: ['start'], y: [] },
+      movingBounds: createWorldRect(-20, 200, 40, 40),
+      rawDelta: createWorldVector(0, 0),
+      zoom: createViewportZoom(1),
+    });
+
+    expect(candidates).toEqual([
+      expect.objectContaining({
+        axis: 'x',
+        kind: 'container',
+        position: -20,
+        sourceId: DOCUMENT_FIXTURE_IDS.group,
+      }),
+    ]);
   });
 
   it('does not offer any selected root or descendant as its own snap source', () => {

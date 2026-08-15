@@ -75,6 +75,11 @@ export const SelectionOverlay = ({
       outlineElement.setAttribute('height', String(bounds.height));
       const halfHandle = RESIZE_INTERACTION_POLICY.handleSizePixels / 2;
       const positions = getResizeHandlePositions(bounds);
+      const singleSelection = selectionSnapshot.selectedIds[0];
+      const showHandles =
+        selectionSnapshot.selectedIds.length === 1 &&
+        singleSelection !== undefined &&
+        model.getItem(singleSelection)?.kind === 'object';
       handles.forEach((handle, index) => {
         const position = positions[index];
         if (position === undefined) {
@@ -84,10 +89,7 @@ export const SelectionOverlay = ({
         handle.setAttribute('y', String(position.point.y - halfHandle));
         handle.setAttribute('width', String(RESIZE_INTERACTION_POLICY.handleSizePixels));
         handle.setAttribute('height', String(RESIZE_INTERACTION_POLICY.handleSizePixels));
-        handle.setAttribute(
-          'display',
-          selectionSnapshot.selectedIds.length === 1 ? 'inline' : 'none',
-        );
+        handle.setAttribute('display', showHandles ? 'inline' : 'none');
       });
       group.removeAttribute('display');
       group.dataset.selectionCount = String(selectionSnapshot.selectedIds.length);

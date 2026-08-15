@@ -33,9 +33,13 @@ import {
 import { deleteSelectedElements, type SelectionDeleteSource } from '../editor/selection-delete';
 import {
   duplicateSelectedElements,
-  type SelectionDuplicateIdAllocator,
   type SelectionDuplicateSource,
 } from '../editor/selection-duplicate';
+import {
+  groupSelectedElements,
+  ungroupSelectedElement,
+  type SelectionGroupingSource,
+} from '../editor/selection-grouping';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
@@ -53,7 +57,7 @@ import { useRuntimeInfo } from './use-runtime-info';
 const getPlatformLabel = (platform: 'darwin' | 'win32'): string =>
   platform === 'darwin' ? 'macOS' : 'Windows';
 
-const allocateEditorElementId: SelectionDuplicateIdAllocator = () => {
+const allocateEditorElementId = () => {
   const result = ElementIdSchema.safeParse(
     `element_${globalThis.crypto.randomUUID().replaceAll('-', '').toLowerCase()}`,
   );
@@ -175,7 +179,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         queryHitStack: (point) => model.queryHitStack(point).map((item) => item.id),
         queryResizeHandle: (elementId, point) => {
           const item = model.getItem(elementId);
-          return item === undefined || item.locked
+          return item === undefined || item.kind !== 'object' || item.locked
             ? undefined
             : hitTestResizeHandle(
                 point,
@@ -274,11 +278,35 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             pasteSelectionSource,
           );
     };
+    const groupingSource: SelectionGroupingSource = {
+      commit(commands, label) {
+        const result = session.dispatchTransaction(commands, { label });
+        return result?.ok === true && result.changed ? result.history.document : undefined;
+      },
+    };
+    const groupSelection = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? false
+        : groupSelectedElements(
+            currentDocument,
+            selection,
+            allocateEditorElementId,
+            groupingSource,
+          );
+    };
+    const ungroupSelection = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? false
+        : ungroupSelectedElement(currentDocument, selection, groupingSource);
+    };
     return Object.freeze({
       copySelection,
       cutSelection,
       deleteSelection,
       duplicateSelection,
+      groupSelection,
       keyboardNudgeInteraction,
       model,
       moveInteraction,
@@ -286,6 +314,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       selection,
       selectionInteraction,
       pasteSelection,
+      ungroupSelection,
     });
   });
   const firstBoardId = view.history?.document.boardIds[0];
@@ -380,7 +409,9 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   onCutSelection: editor.cutSelection,
                   onDeleteSelection: editor.deleteSelection,
                   onDuplicateSelection: editor.duplicateSelection,
+                  onGroupSelection: editor.groupSelection,
                   onPasteSelection: editor.pasteSelection,
+                  onUngroupSelection: editor.ungroupSelection,
                   selection: editor.selection,
                   selectionInteraction: editor.selectionInteraction,
                   shortcutPlatform: platform,

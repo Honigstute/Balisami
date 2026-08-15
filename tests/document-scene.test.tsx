@@ -128,6 +128,10 @@ describe('document SVG scene', () => {
     const selector = `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`;
     const initialElement = view.container.querySelector(selector);
     expect(initialElement).not.toBeNull();
+    expect(
+      view.container.querySelector(`[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.group}"]`),
+    ).toBeNull();
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)?.kind).toBe('container');
     const initialPath = initialElement?.querySelector('path')?.getAttribute('d');
 
     camera.scheduleTransform(createViewportTransform({ panX: 25, panY: 15, zoom: 1 }));

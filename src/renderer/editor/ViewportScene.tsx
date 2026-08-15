@@ -19,7 +19,9 @@ interface ViewportSceneProps {
   readonly onCutSelection?: () => boolean;
   readonly onDeleteSelection?: () => boolean;
   readonly onDuplicateSelection?: () => boolean;
+  readonly onGroupSelection?: () => boolean;
   readonly onPasteSelection?: () => boolean;
+  readonly onUngroupSelection?: () => boolean;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly shortcutPlatform?: ViewportShortcutPlatform;
@@ -65,7 +67,9 @@ export const ViewportScene = ({
   onCutSelection,
   onDeleteSelection,
   onDuplicateSelection,
+  onGroupSelection,
   onPasteSelection,
+  onUngroupSelection,
   selection,
   selectionInteraction,
   shortcutPlatform,
@@ -131,12 +135,14 @@ export const ViewportScene = ({
       ...(onCutSelection === undefined ? {} : { cutSelection: onCutSelection }),
       ...(onDeleteSelection === undefined ? {} : { deleteSelection: onDeleteSelection }),
       ...(onDuplicateSelection === undefined ? {} : { duplicateSelection: onDuplicateSelection }),
+      ...(onGroupSelection === undefined ? {} : { groupSelection: onGroupSelection }),
       ...(keyboardNudgeInteraction === undefined
         ? {}
         : { keyboardNudge: keyboardNudgeInteraction }),
       ...(selection === undefined ? {} : { selection }),
       ...(selectionInteraction === undefined ? {} : { selectionInteraction }),
       ...(onPasteSelection === undefined ? {} : { pasteSelection: onPasteSelection }),
+      ...(onUngroupSelection === undefined ? {} : { ungroupSelection: onUngroupSelection }),
       ...(shortcutPlatform === undefined ? {} : { shortcutPlatform }),
       ...(textEdit === undefined ? {} : { textEdit }),
     });
@@ -149,7 +155,9 @@ export const ViewportScene = ({
     onCutSelection,
     onDeleteSelection,
     onDuplicateSelection,
+    onGroupSelection,
     onPasteSelection,
+    onUngroupSelection,
     selection,
     selectionInteraction,
     shortcutPlatform,

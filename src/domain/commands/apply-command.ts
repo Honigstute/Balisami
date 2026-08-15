@@ -21,9 +21,11 @@ export const applyDocumentCommand = (
       return applyBoardCommand(document, command);
     case DOCUMENT_COMMAND_TYPES.createElement:
     case DOCUMENT_COMMAND_TYPES.deleteElement:
+    case DOCUMENT_COMMAND_TYPES.groupElements:
     case DOCUMENT_COMMAND_TYPES.reorderElement:
     case DOCUMENT_COMMAND_TYPES.setElementFrame:
     case DOCUMENT_COMMAND_TYPES.setElementProperties:
+    case DOCUMENT_COMMAND_TYPES.ungroupElement:
       return applyElementCommand(document, command);
     default:
       return assertNever(command);

@@ -7,6 +7,7 @@ export const VISUAL_FIXTURE_NAMES = Object.freeze([
   'move',
   'smartGuides',
   'resize',
+  'groupSelection',
   'delete',
   'duplicate',
   'paste',

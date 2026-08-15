@@ -9,6 +9,7 @@
     "move",
     "smartGuides",
     "resize",
+    "groupSelection",
     "delete",
     "duplicate",
     "paste",

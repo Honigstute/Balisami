@@ -74,7 +74,7 @@ export const createSceneSnapCandidates = (
     model.querySnapItems(queryRegions, request.excludedIds).flatMap((item, sourceOrder) =>
       createBoundsSnapCandidates({
         bounds: item.bounds,
-        kind: 'object',
+        kind: item.kind,
         sourceId: item.id,
         sourceOrder,
       }).filter(

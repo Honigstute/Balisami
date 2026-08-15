@@ -63,7 +63,9 @@ export const VIEWPORT_EDIT_COMMANDS = Object.freeze({
   copy: 'copy',
   cut: 'cut',
   duplicate: 'duplicate',
+  group: 'group',
   paste: 'paste',
+  ungroup: 'ungroup',
 } as const);
 export type ViewportEditCommand =
   (typeof VIEWPORT_EDIT_COMMANDS)[keyof typeof VIEWPORT_EDIT_COMMANDS];
@@ -73,12 +75,14 @@ export interface ViewportInputControllerOptions {
   readonly cutSelection?: () => boolean;
   readonly deleteSelection?: () => boolean;
   readonly duplicateSelection?: () => boolean;
+  readonly groupSelection?: () => boolean;
   readonly keyboardNudge?: KeyboardNudgeInteraction;
   readonly pasteSelection?: () => boolean;
   readonly selection?: SelectionStore;
   readonly selectionInteraction?: SelectionInteraction;
   readonly shortcutPlatform?: ViewportShortcutPlatform;
   readonly textEdit?: TextEditViewportRoute;
+  readonly ungroupSelection?: () => boolean;
 }
 
 interface ActivePan {
@@ -104,9 +108,14 @@ export const resolveViewportEditShortcut = (
 ): ViewportEditCommand | undefined => {
   if (
     input.altKey ||
-    input.shiftKey ||
     (platform === 'darwin' ? !input.metaKey || input.ctrlKey : !input.ctrlKey || input.metaKey)
   ) {
+    return undefined;
+  }
+  if (input.code === 'KeyG') {
+    return input.shiftKey ? VIEWPORT_EDIT_COMMANDS.ungroup : VIEWPORT_EDIT_COMMANDS.group;
+  }
+  if (input.shiftKey) {
     return undefined;
   }
   switch (input.code) {
@@ -219,6 +228,7 @@ export class ViewportInputController {
   readonly #cutSelection: (() => boolean) | undefined;
   readonly #deleteSelection: (() => boolean) | undefined;
   readonly #duplicateSelection: (() => boolean) | undefined;
+  readonly #groupSelection: (() => boolean) | undefined;
   readonly #keyboardNudge: KeyboardNudgeInteraction | undefined;
   readonly #pasteSelection: (() => boolean) | undefined;
   readonly #root: HTMLElement;
@@ -226,6 +236,7 @@ export class ViewportInputController {
   readonly #selectionInteraction: SelectionInteraction | undefined;
   readonly #shortcutPlatform: ViewportShortcutPlatform | undefined;
   readonly #textEdit: TextEditViewportRoute | undefined;
+  readonly #ungroupSelection: (() => boolean) | undefined;
 
   #activePan: ActivePan | undefined;
   #activeNudgeKeys = new Set<KeyboardNudgeKey>();
@@ -252,9 +263,11 @@ export class ViewportInputController {
     this.#cutSelection = options.cutSelection;
     this.#deleteSelection = options.deleteSelection;
     this.#duplicateSelection = options.duplicateSelection;
+    this.#groupSelection = options.groupSelection;
     this.#pasteSelection = options.pasteSelection;
     this.#shortcutPlatform = options.shortcutPlatform;
     this.#textEdit = options.textEdit;
+    this.#ungroupSelection = options.ungroupSelection;
   }
 
   connect(): void {
@@ -730,8 +743,12 @@ export class ViewportInputController {
         return this.#cutSelection;
       case VIEWPORT_EDIT_COMMANDS.duplicate:
         return this.#duplicateSelection;
+      case VIEWPORT_EDIT_COMMANDS.group:
+        return this.#groupSelection;
       case VIEWPORT_EDIT_COMMANDS.paste:
         return this.#pasteSelection;
+      case VIEWPORT_EDIT_COMMANDS.ungroup:
+        return this.#ungroupSelection;
     }
   }
 

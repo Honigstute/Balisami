@@ -77,7 +77,7 @@ describe('document scene model', () => {
       changed: true,
       removedItemCount: 0,
       revision: 1,
-      updatedItemCount: 2,
+      updatedItemCount: 3,
     });
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.bounds).toEqual(
       createWorldRect(-4, 36.5, 120, 48),
@@ -89,7 +89,11 @@ describe('document scene model', () => {
           createViewportSize(800, 600),
         )
         .map((item) => item.id),
-    ).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.child]);
+    ).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child]);
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)).toMatchObject({
+      kind: 'container',
+      path: '',
+    });
     expect(countRenderableBoardElements(document, DOCUMENT_FIXTURE_IDS.board)).toBe(2);
     expect(getRenderableBoardWorldBounds(document, DOCUMENT_FIXTURE_IDS.board)).toEqual(
       createWorldRect(-4, 36.5, 284, 123.5),
@@ -170,7 +174,7 @@ describe('document scene model', () => {
           createViewportSize(800, 600),
         )
         .map((item) => item.id),
-    ).toEqual([DOCUMENT_FIXTURE_IDS.child, ROOT_ID]);
+    ).toEqual([DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child, ROOT_ID]);
 
     const removed = parseFixture(createValidProjectDocumentInput());
     expect(model.reconcile(removed, DOCUMENT_FIXTURE_IDS.board)).toMatchObject({
@@ -189,6 +193,7 @@ describe('document scene model', () => {
 
     expect(model.queryHitStack(point).map((item) => item.id)).toEqual([
       DOCUMENT_FIXTURE_IDS.child,
+      DOCUMENT_FIXTURE_IDS.group,
       ROOT_ID,
     ]);
     expect(model.hitTestTopmost(point)?.id).toBe(DOCUMENT_FIXTURE_IDS.child);
@@ -202,7 +207,7 @@ describe('document scene model', () => {
     });
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)).not.toBe(topItem);
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.path).toBe(topItem?.path);
-    expect(model.hitTestTopmost(point)?.id).toBe(ROOT_ID);
+    expect(model.hitTestTopmost(point)?.id).toBe(DOCUMENT_FIXTURE_IDS.group);
     expect(model.hitTestTopmost(point, { includeLocked: true })?.id).toBe(
       DOCUMENT_FIXTURE_IDS.child,
     );
@@ -218,13 +223,18 @@ describe('document scene model', () => {
     ]);
     expect(model.querySelectionRegion(createWorldRect(0, 40, 50, 20), 'contained')).toEqual([]);
     expect(model.querySelectionRegion(createWorldRect(0, 40, 50, 20), 'intersecting')).toEqual([
+      DOCUMENT_FIXTURE_IDS.group,
       DOCUMENT_FIXTURE_IDS.child,
     ]);
     expect(model.querySelectionRegion(createWorldRect(-20, 20, 400, 200), 'contained')).toEqual([
       ROOT_ID,
       DOCUMENT_FIXTURE_IDS.child,
     ]);
-    expect(model.listSelectableItemIds()).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.child]);
+    expect(model.listSelectableItemIds()).toEqual([
+      ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.group,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
   });
 
   it('excludes locked items from region and Select All candidates unless explicitly requested', () => {
@@ -233,13 +243,14 @@ describe('document scene model', () => {
     const bounds = createWorldRect(-10, 30, 140, 70);
 
     expect(model.querySelectionRegion(bounds, 'contained')).toEqual([ROOT_ID]);
-    expect(model.listSelectableItemIds()).toEqual([ROOT_ID]);
+    expect(model.listSelectableItemIds()).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.group]);
     expect(model.querySelectionRegion(bounds, 'contained', { includeLocked: true })).toEqual([
       ROOT_ID,
       DOCUMENT_FIXTURE_IDS.child,
     ]);
     expect(model.listSelectableItemIds({ includeLocked: true })).toEqual([
       ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.group,
       DOCUMENT_FIXTURE_IDS.child,
     ]);
   });
@@ -250,8 +261,12 @@ describe('document scene model', () => {
 
     const candidates = model.querySnapItems([createWorldRect(-20, 20, 320, 200)], []);
 
-    expect(candidates.map((item) => item.id)).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.child]);
-    expect(candidates[1]?.locked).toBe(true);
+    expect(candidates.map((item) => item.id)).toEqual([
+      ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.group,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(candidates[2]?.locked).toBe(true);
     expect(Object.isFrozen(candidates)).toBe(true);
   });
 
@@ -261,7 +276,10 @@ describe('document scene model', () => {
 
     expect(
       model
-        .querySnapItems([createWorldRect(-20, 20, 320, 200)], [DOCUMENT_FIXTURE_IDS.child])
+        .querySnapItems(
+          [createWorldRect(-20, 20, 320, 200)],
+          [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+        )
         .map((item) => item.id),
     ).toEqual([ROOT_ID]);
     expect(model.querySnapItems([createWorldRect(500, 500, 40, 40)], [])).toEqual([]);

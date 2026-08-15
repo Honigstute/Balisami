@@ -54,7 +54,7 @@ describe('viewport wheel normalization', () => {
     expect(isViewportDuplicateShortcut({ ...input, code: 'KeyC' }, 'darwin')).toBe(false);
   });
 
-  it('resolves exact copy, cut, and paste commands without accepting alternate modifiers', () => {
+  it('resolves exact edit and grouping commands without accepting alternate modifiers', () => {
     const macInput = {
       altKey: false,
       code: 'KeyC',
@@ -70,6 +70,12 @@ describe('viewport wheel normalization', () => {
     expect(resolveViewportEditShortcut({ ...macInput, code: 'KeyV' }, 'darwin')).toBe(
       VIEWPORT_EDIT_COMMANDS.paste,
     );
+    expect(resolveViewportEditShortcut({ ...macInput, code: 'KeyG' }, 'darwin')).toBe(
+      VIEWPORT_EDIT_COMMANDS.group,
+    );
+    expect(
+      resolveViewportEditShortcut({ ...macInput, code: 'KeyG', shiftKey: true }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.ungroup);
     expect(
       resolveViewportEditShortcut(
         { ...macInput, code: 'KeyC', ctrlKey: true, metaKey: false },
@@ -79,6 +85,12 @@ describe('viewport wheel normalization', () => {
     expect(resolveViewportEditShortcut({ ...macInput, ctrlKey: true }, 'darwin')).toBeUndefined();
     expect(resolveViewportEditShortcut({ ...macInput, metaKey: false }, 'darwin')).toBeUndefined();
     expect(resolveViewportEditShortcut({ ...macInput, shiftKey: true }, 'darwin')).toBeUndefined();
+    expect(
+      resolveViewportEditShortcut(
+        { ...macInput, code: 'KeyG', ctrlKey: true, metaKey: false },
+        'win32',
+      ),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.group);
     expect(resolveViewportEditShortcut({ ...macInput, code: 'KeyA' }, 'darwin')).toBeUndefined();
   });
 

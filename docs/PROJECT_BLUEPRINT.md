@@ -219,6 +219,16 @@ All document mutations use typed commands with validation, apply, inverse/restor
 
 Foundation element commands cover insertion, childless deletion, sibling order, complete JSON-safe property replacement, and local-frame geometry. Insertions are initially childless and deletion rejects containers with children; M7 grouping commands will own subtree/group semantics instead of embedding an implicit recursive policy in basic CRUD. Command-availability selectors expose the same current order and child constraints to UI surfaces without persisting enabled flags.
 
+M7 grouping uses two explicit structural commands rather than a sequence of create, frame, reorder,
+and delete operations. `element.group` carries the complete new group, its canonical owner, its
+insertion index after selected siblings are removed, and the exact target local frame for every
+child. `element.ungroup` carries the exact permitted owner order and exact target child frames.
+Those child-frame payloads live only in command/history data; they are not a second persisted
+geometry source. This lets inverse replay restore prior floating-point frames byte-for-byte instead
+of reconstructing them with potentially lossy addition. Both commands validate the resulting
+document atomically, preserve child size, and accept only the coordinate translation implied by the
+group frame within the central floating-point comparison tolerance.
+
 A gesture owns transient preview state and commits exactly one command on completion. Escape or pointer cancellation restores the start snapshot. Text entry and repeated keyboard nudges may coalesce within explicit time/identity rules. Undo/redo restores exact document state and never stores renderer objects.
 
 History uses monotonically distinct state identifiers rather than a loose dirty boolean. A save captures both a document snapshot and its state identifier; only that identifier becomes the saved state when the asynchronous write succeeds. Edits made while saving therefore remain dirty, while undoing exactly back to a saved state becomes clean.
@@ -310,6 +320,24 @@ Resolution is deterministic: closest distance, object/container/grid priority, a
 The M7 move implementation acquires within six CSS pixels and retains the current lock through a 1.5× release threshold. Candidate discovery converts both values exactly once by zoom and queries two narrow spatial-index bands: an X-alignment band and a Y-alignment band, each extending at most 1,200 CSS pixels in the perpendicular direction. It never uses a dense square scan. Locked controls remain valid alignment geometry, while moved roots and all affected descendants are excluded. Object candidates win container candidates, which win grid candidates only after geometric distance; canonical scene order and stable IDs resolve remaining ties. Holding the exact platform primary modifier (`Command` on macOS, `Control` on Windows) bypasses snapping and clears hysteresis locks without changing the raw pointer delta. Move resolution runs at most once per animation frame, and resolver failure falls back to raw movement without crossing or disabling the existing command boundary.
 
 Resize reuses that resolver and candidate-index path rather than owning a parallel snapping system. Each of the eight handles exposes only its moving start/end edge and active axes; the fixed opposite edge is never offered as a moving anchor. Ordinary corners may resolve both axes. A Shift-corner is one aspect-ratio scale, so it selects exactly one deterministic guide driver: a still-valid hysteresis lock first, otherwise the closest axis with X as the final tie. The selected target derives the shared scale while preserving the existing opposite-corner anchor. Shift edge handles retain their existing opposite-edge midpoint. Matches below the control minimum are discarded, and a guide is emitted only when the final clamped world frame actually satisfies it. Raw resize input, candidate work, and guide publication coalesce to one animation frame; bypass, cancellation, and resolver failure clear locks/guides and preserve the existing one-command completion and exact undo contract.
+
+The M7 grouping planner accepts at least two unique, unlocked, live siblings with one canonical
+owner. It ignores input order, derives group children from the owner's bottom-to-top `childIds`,
+uses their owner-local frame union, and inserts the collapsed group at the former topmost selected
+position after selected siblings are removed. This makes non-contiguous grouping deterministic:
+selected and unaffected relative order are each preserved, while an unaffected sibling formerly
+between selected items remains below the collapsed group. IDs are allocated outside the pure planner
+and runtime-validated before a command is emitted. Stale, locked, cross-owner, colliding-ID, invalid
+geometry, and malformed order inputs reject the entire action.
+
+User ungroup accepts exactly one unlocked foundation group with at least one unlocked direct child.
+It replaces the group at its current sibling position with its canonical children. Grouping and
+ungrouping each cross history/recovery once and reconcile session selection only from the accepted
+document: group selects the new container; ungroup selects its former direct children. Exact
+`Command/Ctrl+G` groups and `Command/Ctrl+Shift+G` ungroups only while the viewport is idle and not
+editing text. Groups are transparent scene/container items: they provide bounds for selection,
+movement, fit, and container snapping, but the SVG presenter draws only their controls and the
+selection overlay deliberately exposes no group-resize handles.
 
 Guides are ephemeral overlays and never export or enter history. Align/distribute actions use the same geometry vocabulary but execute as commands.
 
