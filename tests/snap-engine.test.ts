@@ -6,6 +6,7 @@ import {
   SNAP_POLICY,
   createBoundsSnapCandidates,
   createSnapCandidateQueryBounds,
+  createSnapCandidateQueryRegions,
   resolveSnap,
   type SnapCandidate,
   type SnapResolutionInput,
@@ -103,6 +104,19 @@ describe('snap candidate generation', () => {
       height: 1_250,
     });
     expect(SNAP_POLICY.candidateSearchRadiusPixels).toBe(1_200);
+  });
+
+  it('creates narrow X/Y alignment bands using the wider release tolerance', () => {
+    expect(
+      createSnapCandidateQueryRegions(
+        createWorldRect(-10, 20, 100, 50),
+        createWorldVector(30, -5),
+        createViewportZoom(2),
+      ),
+    ).toEqual([
+      { x: 15.5, y: -585, width: 109, height: 1_250 },
+      { x: -580, y: 10.5, width: 1_300, height: 59 },
+    ]);
   });
 });
 

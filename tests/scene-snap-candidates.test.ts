@@ -26,9 +26,9 @@ describe('scene snap candidate adapter', () => {
   it('turns nearby canonical scene items into six immutable object candidates each', () => {
     const candidates = createSceneSnapCandidates(createModel(), {
       excludedIds: [],
-      movingBounds: createWorldRect(200, 100, 100, 50),
-      rawDelta: createWorldVector(-100, 0),
-      zoom: createViewportZoom(4),
+      movingBounds: createWorldRect(-4, 36.5, 120, 48),
+      rawDelta: createWorldVector(0, 0),
+      zoom: createViewportZoom(1),
     });
 
     expect(candidates).toHaveLength(6);

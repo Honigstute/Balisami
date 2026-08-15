@@ -248,7 +248,7 @@ describe('document scene model', () => {
     const model = new DocumentSceneModel();
     model.reconcile(createOverlappingRectangleDocument(true), DOCUMENT_FIXTURE_IDS.board);
 
-    const candidates = model.querySnapItems(createWorldRect(-20, 20, 320, 200), []);
+    const candidates = model.querySnapItems([createWorldRect(-20, 20, 320, 200)], []);
 
     expect(candidates.map((item) => item.id)).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.child]);
     expect(candidates[1]?.locked).toBe(true);
@@ -261,9 +261,9 @@ describe('document scene model', () => {
 
     expect(
       model
-        .querySnapItems(createWorldRect(-20, 20, 320, 200), [DOCUMENT_FIXTURE_IDS.child])
+        .querySnapItems([createWorldRect(-20, 20, 320, 200)], [DOCUMENT_FIXTURE_IDS.child])
         .map((item) => item.id),
     ).toEqual([ROOT_ID]);
-    expect(model.querySnapItems(createWorldRect(500, 500, 40, 40), [])).toEqual([]);
+    expect(model.querySnapItems([createWorldRect(500, 500, 40, 40)], [])).toEqual([]);
   });
 });

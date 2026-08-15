@@ -508,3 +508,47 @@ export const createSnapCandidateQueryBounds = (
     movingBounds.height + radius * 2,
   );
 };
+
+/**
+ * Produces narrow perpendicular bands for indexed acquisition/retention.
+ * A square radius would admit most nodes on a dense board even though only
+ * targets crossing an X or Y alignment band can participate in this frame.
+ */
+export const createSnapCandidateQueryRegions = (
+  movingBoundsInput: WorldRect,
+  rawDeltaInput: WorldVector,
+  zoomInput: ViewportZoom,
+  tolerancePixelsInput: number = SNAP_POLICY.tolerancePixels,
+): readonly [WorldRect, WorldRect] => {
+  const movingBounds = createWorldRect(
+    movingBoundsInput.x,
+    movingBoundsInput.y,
+    movingBoundsInput.width,
+    movingBoundsInput.height,
+  );
+  const rawDelta = createWorldVector(rawDeltaInput.x, rawDeltaInput.y);
+  const zoom = createViewportZoom(zoomInput);
+  const tolerancePixels = requirePositive(tolerancePixelsInput, 'Snap query tolerance');
+  const radius = SNAP_POLICY.candidateSearchRadiusPixels / zoom;
+  const alignmentRadius = (tolerancePixels * SNAP_POLICY.releaseToleranceMultiplier) / zoom;
+  const rawBounds = createWorldRect(
+    movingBounds.x + rawDelta.x,
+    movingBounds.y + rawDelta.y,
+    movingBounds.width,
+    movingBounds.height,
+  );
+  return Object.freeze([
+    createWorldRect(
+      rawBounds.x - alignmentRadius,
+      rawBounds.y - radius,
+      rawBounds.width + alignmentRadius * 2,
+      rawBounds.height + radius * 2,
+    ),
+    createWorldRect(
+      rawBounds.x - radius,
+      rawBounds.y - alignmentRadius,
+      rawBounds.width + radius * 2,
+      rawBounds.height + alignmentRadius * 2,
+    ),
+  ]);
+};

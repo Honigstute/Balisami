@@ -307,13 +307,13 @@ export class DocumentSceneModel {
    * excluded by the interaction capture rather than by selection state here.
    */
   querySnapItems(
-    bounds: WorldRect,
+    regions: readonly WorldRect[],
     excludedIds: readonly ElementId[],
   ): readonly DocumentSceneItem[] {
     const excluded = new Set(excludedIds);
+    const nearbyIds = new Set(regions.flatMap((region) => this.#index.query(region)));
     return Object.freeze(
-      this.#index
-        .query(bounds)
+      [...nearbyIds]
         .flatMap((id) => {
           const item = this.#itemsById.get(id);
           return item === undefined || excluded.has(id) ? [] : [item];
