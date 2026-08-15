@@ -165,6 +165,45 @@ const createSceneFixtureDocument = (): {
   });
 };
 
+const createGroupSelectionFixtureDocument = (
+  fixture: ReturnType<typeof createSceneFixtureDocument>,
+): ProjectDocument => {
+  const board = fixture.document.boardsById[fixture.boardId];
+  const group = fixture.document.elementsById[fixture.groupId];
+  const outerId = board?.childIds.find((elementId) => elementId !== fixture.groupId);
+  const [titleId, fieldId, buttonId, sideId] = group?.childIds ?? [];
+  if (
+    outerId === undefined ||
+    titleId === undefined ||
+    fieldId === undefined ||
+    buttonId === undefined ||
+    sideId === undefined
+  ) {
+    throw new Error('The deterministic group-selection visual fixture is incomplete.');
+  }
+
+  const targets = [
+    { elementId: outerId, frame: { x: 40, y: 50, width: 360, height: 240 } },
+    { elementId: fixture.groupId, frame: { x: 40, y: 50, width: 360, height: 240 } },
+    { elementId: titleId, frame: { x: 0, y: 0, width: 260, height: 28 } },
+    { elementId: fieldId, frame: { x: 0, y: 60, width: 280, height: 48 } },
+    { elementId: buttonId, frame: { x: 0, y: 132, width: 128, height: 44 } },
+    { elementId: sideId, frame: { x: 300, y: 0, width: 60, height: 240 } },
+  ] as const;
+  let document = fixture.document;
+  for (const target of targets) {
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+      ...target,
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic group-selection visual fixture could not be created.');
+    }
+    document = result.document;
+  }
+  return document;
+};
+
 type SceneFixtureState =
   | 'delete'
   | 'duplicate'
@@ -189,6 +228,9 @@ const SceneFixture = ({
   const camera = useViewportCameraStore();
   const [fixture] = useState(createSceneFixtureDocument);
   const [document] = useState(() => {
+    if (state === 'groupSelection') {
+      return createGroupSelectionFixtureDocument(fixture);
+    }
     if (state === 'delete') {
       const result = dispatchDocumentCommand(fixture.document, {
         type: DOCUMENT_COMMAND_TYPES.deleteElement,
