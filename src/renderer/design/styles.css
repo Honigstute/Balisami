@@ -436,6 +436,23 @@ p {
   background: var(--color-chrome);
 }
 
+.control-library__preview[data-control-preview='checkbox'] {
+  position: relative;
+  justify-content: start;
+  padding-left: calc(var(--space-4) + var(--space-2));
+  background: transparent;
+  border-color: transparent;
+}
+
+.control-library__preview[data-control-preview='checkbox']::before {
+  position: absolute;
+  left: var(--space-1);
+  width: var(--space-3);
+  height: var(--space-3);
+  content: '';
+  border: calc(var(--border-width) * 2) solid var(--color-ink);
+}
+
 .control-library__label {
   width: 100%;
   overflow: hidden;
@@ -691,12 +708,18 @@ p {
   fill: var(--color-canvas);
 }
 
-.scene-control__outline {
+.scene-control__outline,
+.scene-control__mark {
   fill: none;
   stroke: var(--color-ink);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: calc(var(--border-width) * 2);
+}
+
+.scene-control__mark {
+  fill: none;
+  pointer-events: none;
 }
 
 .scene-control__text {

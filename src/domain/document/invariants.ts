@@ -127,7 +127,7 @@ const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: A
       continue;
     }
 
-    if (!spec.canOwnChildren && element.childIds.length > 0) {
+    if (!spec.capabilities.canOwnChildren && element.childIds.length > 0) {
       addIssue(
         ['elementsById', elementKey, 'childIds'],
         `Control type '${element.controlType}' cannot own child elements.`,

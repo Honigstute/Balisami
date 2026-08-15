@@ -8,7 +8,7 @@ import {
   type ElementProperties,
   type ProjectDocument,
 } from '../../domain';
-import { createSeededSketchRectPath } from './seeded-sketch';
+import { createControlSceneOutlinePath } from '../controls/control-scene-geometry';
 import { WorldSpatialIndex } from './spatial-index';
 import { getVisibleWorldRange } from './visible-world-range';
 import {
@@ -87,7 +87,7 @@ const createItemRevision = (item: DerivedSceneItem): string => {
   if (spec === undefined) {
     throw new Error(`Document scene received unknown control type '${item.controlType}'.`);
   }
-  const renderProperties = spec.renderPropertyKeys.map((key) => item.properties[key]);
+  const renderProperties = spec.scene.propertyKeys.map((key) => item.properties[key]);
   return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}`;
 };
 
@@ -140,11 +140,11 @@ const deriveBoardSceneItems = (
         bounds,
         controlType: element.controlType,
         id: element.id,
-        kind: spec.visualKind === 'transparent' ? 'container' : 'object',
+        kind: spec.scene.kind === 'transparent' ? 'container' : 'object',
         locked: effectivelyLocked,
         owner,
         properties: element.properties,
-        visualKind: spec.visualKind,
+        visualKind: spec.scene.kind,
       }),
     );
     for (const childId of element.childIds) {
@@ -275,7 +275,11 @@ export class DocumentSceneModel {
           derivedItem.kind === 'container' || derivedItem.visualKind === 'text'
             ? ''
             : geometryChanged || existing === undefined
-              ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
+              ? createControlSceneOutlinePath(
+                  derivedItem.controlType,
+                  derivedItem.bounds,
+                  derivedItem.id,
+                )
               : existing.path,
         properties: derivedItem.properties,
         revision,

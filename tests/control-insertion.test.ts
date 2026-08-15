@@ -13,7 +13,7 @@ import { createControlInsertionCommand } from '../src/renderer/controls/control-
 import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
 
 describe('registry-backed control insertion', () => {
-  it('creates every alpha palette control through the canonical command boundary', () => {
+  it('creates every palette control through the canonical command boundary', () => {
     const boardId = BoardIdSchema.parse('board_controlinsert');
     const created = createEmptyProjectDocument({
       boardId,
@@ -50,7 +50,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(4);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(5);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -58,6 +58,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.textLabel,
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
+      CONTROL_TYPES.checkbox,
     ]);
   });
 });

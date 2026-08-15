@@ -147,7 +147,7 @@ const applyCreateElement = (
   if (command.owner.kind === 'element') {
     const owner = document.elementsById[command.owner.elementId];
     const spec = owner === undefined ? undefined : getControlSpec(owner.controlType);
-    if (spec?.canOwnChildren !== true) {
+    if (spec?.capabilities.canOwnChildren !== true) {
       return {
         ok: false,
         code: 'conflict',
@@ -272,7 +272,7 @@ const applyGroupElements = (
     if (ownerElement === undefined) {
       return notFound('Owner', command.owner.elementId);
     }
-    if (getControlSpec(ownerElement.controlType)?.canOwnChildren !== true) {
+    if (getControlSpec(ownerElement.controlType)?.capabilities.canOwnChildren !== true) {
       return {
         ok: false,
         code: 'conflict',

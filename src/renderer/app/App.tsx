@@ -133,7 +133,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         const element = currentDocument?.elementsById[elementId];
         const item = model.getItem(elementId);
         const spec = element === undefined ? undefined : getControlSpec(element.controlType);
-        const text = spec?.text === null ? undefined : spec?.text;
+        const text = spec?.capabilities.text === null ? undefined : spec?.capabilities.text;
         const value = text === undefined ? undefined : element?.properties[text.property];
         if (
           element === undefined ||
@@ -157,7 +157,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         const currentDocument = session.getSnapshot().history?.document;
         const element = currentDocument?.elementsById[target.elementId];
         const spec = element === undefined ? undefined : getControlSpec(element.controlType);
-        if (element === undefined || spec?.text === null || spec?.text === undefined) {
+        if (
+          element === undefined ||
+          spec?.capabilities.text === null ||
+          spec?.capabilities.text === undefined
+        ) {
           return false;
         }
         const result = session.dispatch(
@@ -166,7 +170,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             elementId: element.id,
             properties: Object.freeze({
               ...element.properties,
-              [spec.text.property]: text,
+              [spec.capabilities.text.property]: text,
             }),
           },
           { label: 'Edit text' },

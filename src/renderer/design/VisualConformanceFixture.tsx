@@ -253,6 +253,30 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
   });
 };
 
+const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const fixture = createAlphaFixtureDocument();
+  const checkboxId = ElementIdSchema.parse('element_registrycheckbox');
+  const result = dispatchDocumentCommand(fixture.document, {
+    type: DOCUMENT_COMMAND_TYPES.createElement,
+    element: {
+      assetIds: [],
+      childIds: [],
+      controlType: CONTROL_TYPES.checkbox,
+      frame: { x: 76, y: 312, width: 180, height: 32 },
+      id: checkboxId,
+      link: null,
+      locked: false,
+      properties: { checked: true, text: 'Remember me' },
+    },
+    index: fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+    owner: { boardId: fixture.boardId, kind: 'board' },
+  });
+  if (!result.ok || !result.changed) {
+    throw new Error('The deterministic registry-control fixture is invalid.');
+  }
+  return Object.freeze({ ...fixture, document: result.document, selectedId: checkboxId });
+};
+
 const createGroupSelectionFixtureDocument = (
   fixture: ReturnType<typeof createSceneFixtureDocument>,
 ): ProjectDocument => {
@@ -332,6 +356,7 @@ type SceneFixtureState =
   | 'nudge'
   | 'paste'
   | 'plain'
+  | 'registryControl'
   | 'resize'
   | 'selection'
   | 'smartGuides'
@@ -346,7 +371,11 @@ const SceneFixture = ({
 }) => {
   const camera = useViewportCameraStore();
   const [fixture] = useState(() =>
-    state === 'alpha' ? createAlphaFixtureDocument() : createSceneFixtureDocument(),
+    state === 'alpha'
+      ? createAlphaFixtureDocument()
+      : state === 'registryControl'
+        ? createRegistryControlFixtureDocument()
+        : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
     if (state === 'alignSelection') {
@@ -416,7 +445,8 @@ const SceneFixture = ({
       state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
-      state === 'textEdit'
+      state === 'textEdit' ||
+      state === 'registryControl'
     ) {
       selection.selectOnly(selectedId);
     }
@@ -601,7 +631,8 @@ const SceneFixture = ({
       state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
-      state === 'textEdit'
+      state === 'textEdit' ||
+      state === 'registryControl'
         ? {
             interactionChildren: (
               <>
@@ -840,6 +871,23 @@ const AlphaInspectorFixture = () => {
   );
 };
 
+const RegistryControlInspectorFixture = () => {
+  const [fixture] = useState(createRegistryControlFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onSetFrame={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
   return <WireframeNavigator activeBoardId={fixture.boardId} document={fixture.document} />;
@@ -887,15 +935,21 @@ export const VisualConformanceFixture = ({
                                       navigator: <AlphaNavigatorFixture />,
                                       shelf: <ControlShelf onInsert={() => false} />,
                                     }
-                                  : fixture === 'controls'
-                                    ? { inspector: <ControlStates /> }
-                                    : fixture === 'feedback'
-                                      ? { canvas: <StaticRegionFailure /> }
-                                      : fixture === 'tooltip'
-                                        ? { canvas: <TooltipFixture /> }
-                                        : fixture === 'popover'
-                                          ? { canvas: <PopoverFixture /> }
-                                          : undefined;
+                                  : fixture === 'registryControl'
+                                    ? {
+                                        canvas: <SceneFixture state="registryControl" />,
+                                        inspector: <RegistryControlInspectorFixture />,
+                                        shelf: <ControlShelf onInsert={() => false} />,
+                                      }
+                                    : fixture === 'controls'
+                                      ? { inspector: <ControlStates /> }
+                                      : fixture === 'feedback'
+                                        ? { canvas: <StaticRegionFailure /> }
+                                        : fixture === 'tooltip'
+                                          ? { canvas: <TooltipFixture /> }
+                                          : fixture === 'popover'
+                                            ? { canvas: <PopoverFixture /> }
+                                            : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

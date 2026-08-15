@@ -2,12 +2,14 @@ import { useEffect, useState, useSyncExternalStore, type KeyboardEvent } from 'r
 
 import {
   getControlSpec,
+  type ControlInspectorPropertyField,
   type ElementId,
   type ElementProperties,
   type ProjectDocument,
   type WorldRect,
 } from '../../domain';
 import { AppInput } from '../design/AppInput';
+import { AppSegmentedControl } from '../design/AppSegmentedControl';
 import type { SelectionStore } from '../editor/selection-store';
 
 interface ControlInspectorProps {
@@ -115,6 +117,39 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
   );
 };
 
+interface InspectorPropertyFieldProps {
+  readonly field: ControlInspectorPropertyField;
+  readonly onCommit: (property: string, value: boolean | string) => boolean;
+  readonly value: boolean | string;
+}
+
+/** Property field kinds are registry vocabulary, not control-type branches. */
+const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFieldProps) => {
+  if (field.kind === 'boolean' && typeof value === 'boolean') {
+    return (
+      <AppSegmentedControl
+        label={field.label}
+        onChange={(nextValue) => onCommit(field.property, nextValue === 'true')}
+        options={[
+          { label: 'Unchecked', value: 'false' },
+          { label: 'Checked', value: 'true' },
+        ]}
+        value={String(value)}
+      />
+    );
+  }
+  if (field.kind === 'text' && typeof value === 'string') {
+    return (
+      <InspectorTextInput
+        label={field.label}
+        onCommit={(nextValue) => onCommit(field.property, nextValue)}
+        value={value}
+      />
+    );
+  }
+  throw new Error(`Inspector field '${field.property}' does not match its control property.`);
+};
+
 const InspectorFooter = () => (
   <div className="inspector-footer">
     <span>MVP alpha</span>
@@ -175,8 +210,7 @@ export const ControlInspector = ({
   const label = spec.palette?.label ?? 'Group';
   const commitFrame = (patch: Partial<WorldRect>): boolean =>
     onSetFrame(element.id, Object.freeze({ ...element.frame, ...patch }));
-  const textMetadata = spec.text;
-  const textValue = textMetadata === null ? undefined : element.properties[textMetadata.property];
+  const textMetadata = spec.capabilities.text;
 
   return (
     <>
@@ -221,23 +255,35 @@ export const ControlInspector = ({
             />
           </div>
         </section>
-        {textMetadata !== null && typeof textValue === 'string' ? (
-          <section className="inspector-section">
-            <h3>Text</h3>
-            <InspectorTextInput
-              key={`${element.id}-text`}
-              label="Content"
-              onCommit={(text) =>
-                onSetProperties(
-                  element.id,
-                  Object.freeze({ ...element.properties, [textMetadata.property]: text }),
-                )
+        {spec.inspector.map((section) => (
+          <section className="inspector-section" key={section.label}>
+            <h3>{section.label}</h3>
+            {section.fields.map((field) => {
+              const value = element.properties[field.property];
+              if (typeof value !== 'boolean' && typeof value !== 'string') {
+                throw new Error(
+                  `Inspector property '${field.property}' is missing from '${element.controlType}'.`,
+                );
               }
-              value={textValue}
-            />
-            <p>Double-click the control or press Enter to edit on canvas.</p>
+              return (
+                <InspectorPropertyField
+                  field={field}
+                  key={`${element.id}-${field.property}`}
+                  onCommit={(property, nextValue) =>
+                    onSetProperties(
+                      element.id,
+                      Object.freeze({ ...element.properties, [property]: nextValue }),
+                    )
+                  }
+                  value={value}
+                />
+              );
+            })}
+            {textMetadata === null ? null : (
+              <p>Double-click the control or press Enter to edit on canvas.</p>
+            )}
           </section>
-        ) : null}
+        ))}
       </div>
       <InspectorFooter />
     </>

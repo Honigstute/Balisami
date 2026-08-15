@@ -133,6 +133,34 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
+  it('renders the registry-backed checkbox scene and inspector schema', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('registryControl');
+
+    expect(screen.getByRole('button', { name: 'Insert Checkbox' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Checkbox' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Checked' })).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => {
+      const checkbox = view.container.querySelector('[data-control-visual="checkbox"]');
+      expect(checkbox).not.toBeNull();
+      expect(checkbox?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+    });
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
   it('renders fixed-screen selection geometry without replacing the scene or shell', () => {
     const view = renderFixture('selection');
 

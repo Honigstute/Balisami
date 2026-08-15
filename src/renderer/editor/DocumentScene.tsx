@@ -1,6 +1,12 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
 import { getControlSpec, type BoardId, type ElementId, type ProjectDocument } from '../../domain';
+import {
+  createControlSceneMarkPath,
+  createControlSceneOutlinePath,
+  getControlScenePrimitiveBounds,
+  getControlSceneTextX,
+} from '../controls/control-scene-geometry';
 import type { DocumentSceneItem, DocumentSceneModel } from './document-scene-model';
 import type {
   KeyboardNudgeInteraction,
@@ -8,7 +14,6 @@ import type {
 } from './keyboard-nudge-interaction';
 import type { MoveInteraction, MoveInteractionSnapshot } from './move-interaction';
 import type { ResizeInteraction, ResizeInteractionSnapshot } from './resize-interaction';
-import { createSeededSketchRectPath } from './seeded-sketch';
 import type { ViewportCameraStore } from './viewport-camera-store';
 
 interface DocumentSceneProps {
@@ -147,7 +152,7 @@ class DocumentScenePresenter {
     this.#updateElementGeometry(
       element,
       snapshot.worldBounds,
-      createSeededSketchRectPath(snapshot.worldBounds, snapshot.elementId),
+      createControlSceneOutlinePath(item.controlType, snapshot.worldBounds, snapshot.elementId),
       item,
     );
   }
@@ -164,12 +169,14 @@ class DocumentScenePresenter {
     const element = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const fill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
     const outline = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
+    const mark = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const text = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'text');
     element.dataset.sceneElementId = id;
     fill.setAttribute('class', 'scene-control__fill');
     outline.setAttribute('class', 'scene-control__outline');
+    mark.setAttribute('class', 'scene-control__mark');
     text.setAttribute('class', 'scene-control__text');
-    element.append(fill, outline, text);
+    element.append(fill, outline, mark, text);
     this.#elementsById.set(id, element);
     return element;
   }
@@ -189,18 +196,29 @@ class DocumentScenePresenter {
   ): void {
     const fill = element.children[0];
     const outline = element.children[1];
-    const text = element.children[2];
-    if (fill?.localName !== 'rect' || outline?.localName !== 'path' || text?.localName !== 'text') {
+    const mark = element.children[2];
+    const text = element.children[3];
+    if (
+      fill?.localName !== 'rect' ||
+      outline?.localName !== 'path' ||
+      mark?.localName !== 'path' ||
+      text?.localName !== 'text'
+    ) {
       throw new Error('Document scene element structure was changed unexpectedly.');
     }
     const fillElement = fill as SVGRectElement;
     const outlineElement = outline as SVGPathElement;
+    const markElement = mark as SVGPathElement;
     const textElement = text as SVGTextElement;
-    fillElement.setAttribute('x', String(bounds.x));
-    fillElement.setAttribute('y', String(bounds.y));
-    fillElement.setAttribute('width', String(bounds.width));
-    fillElement.setAttribute('height', String(bounds.height));
+    const primitiveBounds = getControlScenePrimitiveBounds(item.controlType, bounds);
+    fillElement.setAttribute('x', String(primitiveBounds.x));
+    fillElement.setAttribute('y', String(primitiveBounds.y));
+    fillElement.setAttribute('width', String(primitiveBounds.width));
+    fillElement.setAttribute('height', String(primitiveBounds.height));
     outlineElement.setAttribute('d', path);
+    const markPath = createControlSceneMarkPath(item.controlType, bounds, item.id, item.properties);
+    markElement.setAttribute('d', markPath);
+    markElement.setAttribute('display', markPath.length === 0 ? 'none' : 'inline');
 
     const spec = getControlSpec(item.controlType);
     if (spec === undefined) {
@@ -210,7 +228,7 @@ class DocumentScenePresenter {
     fillElement.setAttribute('display', hasOutline ? 'inline' : 'none');
     outlineElement.setAttribute('display', hasOutline ? 'inline' : 'none');
 
-    const textMetadata = spec.text;
+    const textMetadata = spec.capabilities.text;
     const textValue = textMetadata === null ? undefined : item.properties[textMetadata.property];
     if (textMetadata === null || typeof textValue !== 'string') {
       textElement.setAttribute('display', 'none');
@@ -224,14 +242,7 @@ class DocumentScenePresenter {
       'text-anchor',
       textMetadata.alignment === 'center' ? 'middle' : 'start',
     );
-    textElement.setAttribute(
-      'x',
-      String(
-        textMetadata.alignment === 'center'
-          ? bounds.x + bounds.width / 2
-          : bounds.x + textMetadata.inset,
-      ),
-    );
+    textElement.setAttribute('x', String(getControlSceneTextX(spec, bounds)));
     textElement.setAttribute('y', String(bounds.y + bounds.height / 2));
     textElement.textContent = textValue;
   }

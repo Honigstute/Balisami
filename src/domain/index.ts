@@ -43,17 +43,25 @@ export {
   type UngroupElementCommand,
 } from './commands/schema';
 export {
+  assertControlDefinitionsConform,
+  type ControlCapabilities,
+  type ControlCategory,
+  type ControlDefinition,
+  type ControlInspectorPropertyField,
+  type ControlInspectorSection,
+  type ControlPropertyMigration,
+  type ControlPaletteMetadata,
+  type ControlSceneDefinition,
+  type ControlSize,
+  type ControlTextCapability,
+  type ControlVisualKind,
+} from './controls/control-definition';
+export {
   CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
   getControlSpec,
   listPaletteControlSpecs,
   listControlSpecs,
-  type ControlCategory,
-  type ControlPaletteMetadata,
-  type ControlSize,
-  type ControlSpec,
-  type ControlTextMetadata,
-  type ControlVisualKind,
 } from './controls/control-spec';
 export {
   AssetIdSchema,

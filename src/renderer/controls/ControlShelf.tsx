@@ -12,7 +12,8 @@ export const ControlShelf = ({ onInsert }: ControlShelfProps) => (
       if (palette === null) {
         return null;
       }
-      const textValue = spec.text === null ? undefined : spec.defaultProperties[spec.text.property];
+      const text = spec.capabilities.text;
+      const textValue = text === null ? undefined : spec.defaultProperties[text.property];
       const previewText = typeof textValue === 'string' ? textValue : undefined;
       return (
         <button
@@ -26,7 +27,7 @@ export const ControlShelf = ({ onInsert }: ControlShelfProps) => (
           <span
             aria-hidden="true"
             className="control-library__preview"
-            data-control-preview={spec.visualKind}
+            data-control-preview={spec.scene.kind}
           >
             {previewText === undefined ? null : <span>{previewText}</span>}
           </span>

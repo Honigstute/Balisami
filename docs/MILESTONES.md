@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: MVP alpha complete — tester feedback cut
+Status: M8 active — control-definition conformance slice
 Last reviewed: 2026-08-15
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -409,11 +409,19 @@ Completion evidence (2026-08-15):
 - Artifact `balsamic-alpha-macos-26-arm64` contains the 120,275,023-byte `Balsamic-darwin-arm64-0.1.0.zip`; archive inspection confirms `Balsamic.app` and its executable/resource structure. Artifact `balsamic-alpha-windows-2025-x64` contains a valid 141,291,520-byte PE Windows GUI `Balsamic-0.1.0 Setup.exe`, the 140,536,067-byte full update package, `RELEASES`, and the live alpha screenshot. Both are unsigned trusted-tester deliverables, as explicitly documented in the README.
 - The [draft MVP-A PR #6](https://github.com/Honigstute/Balisami/pull/6) remains unmerged. This preserves the review boundary while making the two native artifacts immediately downloadable from the successful run.
 
-### [ ] M8 — Control registry and representative vertical slice
+### [~] M8 — Control registry and representative vertical slice
 
 Depends on: M7
 
 Objective: prove that controls are data-driven and extensible before building the catalog.
+
+Current progress (2026-08-15):
+
+- The former narrow alpha spec is now an explicit declarative `ControlDefinition` boundary. Its current contract owns stable type and file version, validated defaults/properties, default/minimum size, child/text capability, palette and search metadata, inspector property fields, scene primitive/property dependencies, and a sequential property-migration chain without importing React, DOM, Electron, or platform code into the domain. Registry construction fails atomically for duplicate types, invalid sizes/defaults, missing property references, invalid primitive geometry, duplicate palette order, or incomplete migrations. Maximum/auto-size, the remaining capability flags, precise hit shape, accessibility, thumbnail/export contracts, and non-v1 migration execution remain unchecked M8 work; they are not implied by this slice.
+- Checkbox is the first post-alpha conformance control. One registration supplies `{text, checked}` validation/defaults, Forms shelf metadata, search aliases/tags, size limits, text capability, a generic text/boolean inspector schema, and deterministic checkbox scene geometry. The keyed presenter consumes the shared primitive geometry for canonical and resize previews; its seeded outline and checked mark remain identical after file encode/decode. Existing Rectangle, Text Label, Button, and Text Input now use the same nested definition fields rather than legacy parallel metadata.
+- The reusable conformance harness inserts every palette definition through the production command boundary, validates and serializes the complete document, reopens it through the production codec, and compares deterministic scene paths. Focused UI tests prove Checkbox insertion and boolean property editing without a control-type inspector branch; the existing resize minimum, inline text, document invariant, shelf, and keyed scene paths consume the same definition.
+- The full source gate passes 85 files / 554 tests across 145 source modules with formatting, lint, dependency boundaries, strict TypeScript, and zero runtime vulnerabilities. The local macOS arm64 package, fuse readback, smoke, alpha save/reopen workflow, forced-crash recovery, and viewport probe pass; the latest probe measured 0.60-ms p95 frame work and 9.60-ms p95 input latency.
+- The ordinary visual harness encountered renderer-readiness timeouts only while a parallel development instance owned the shared Balsamic application profile. Without changing timeouts or adding a retry exception, all 27 packaged visual/scale cases passed when launched once each with isolated Electron profiles. The original-resolution `registryControl` artifact was inspected after moving its evidence composition clear of the card edge: the seeded checked box, label, eight handles, shelf preview, inspector fields, and fixed navigator/canvas/inspector tracks are complete and error-free. Native Windows evidence remains required before this M8 slice or milestone can be called complete.
 
 Deliverables:
 
@@ -550,4 +558,4 @@ Exit gate:
 
 ## Next action
 
-Distribute the two `balsamic-alpha-*` artifacts from run `31874817808` to trusted testers using the README flow. During the feedback cut, prioritize only reproducible correctness, data-safety, install, performance, or blocker-usability defects; keep later catalog/release scope frozen. After feedback is triaged, resume the paused M7 target classes only if they block real workflows, otherwise continue with M8 from the existing canonical registry rather than rebuilding this alpha slice.
+Hand the active M8 control/catalog surface to the parallel Layout task after it incorporates this `ControlDefinition` and Checkbox conformance slice. That task should complete the still-explicit definition fields and extend the same registry only from screenshot-verified evidence; it must not add palette, scene, inspector, serializer, search, thumbnail, or export type switches. Keep Image Placeholder, Browser/container, Arrow, and the broader catalog unchecked until their evidence and shared primitives are implemented and verified. Resume paused M7 targets only for a documented workflow blocker.

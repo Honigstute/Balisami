@@ -18,7 +18,7 @@ import { createControlInsertionCommand } from '../src/renderer/controls/control-
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
 
-const createButtonDocument = () => {
+const createControlDocument = (controlType = CONTROL_TYPES.button) => {
   const boardId = BoardIdSchema.parse('board_controlui');
   const elementId = ElementIdSchema.parse('element_controlui');
   const created = createEmptyProjectDocument({
@@ -31,7 +31,7 @@ const createButtonDocument = () => {
   const command = createControlInsertionCommand({
     boardId,
     center: createWorldPoint(300, 240),
-    controlType: CONTROL_TYPES.button,
+    controlType,
     document: created.value,
     elementId,
   });
@@ -47,7 +47,7 @@ describe('alpha control authoring UI', () => {
     const onInsert = vi.fn<(controlType: ControlTypeId) => boolean>(() => true);
     render(<ControlShelf onInsert={onInsert} />);
 
-    for (const label of ['Rectangle', 'Text Label', 'Button', 'Text Input']) {
+    for (const label of ['Rectangle', 'Text Label', 'Button', 'Text Input', 'Checkbox']) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
     expect(onInsert.mock.calls.map(([type]) => type)).toEqual([
@@ -55,11 +55,12 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.textLabel,
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
+      CONTROL_TYPES.checkbox,
     ]);
   });
 
   it('edits selected geometry and text while reserving validation space', () => {
-    const { document, elementId } = createButtonDocument();
+    const { document, elementId } = createControlDocument();
     const selection = new SelectionStore();
     selection.selectOnly(elementId);
     const onSetFrame = vi.fn<(id: typeof elementId, frame: WorldRect) => boolean>(() => true);
@@ -92,6 +93,30 @@ describe('alpha control authoring UI', () => {
     expect(onSetProperties).toHaveBeenCalledWith(
       elementId,
       expect.objectContaining({ text: 'Continue' }),
+    );
+  });
+
+  it('renders registry boolean fields without a checkbox-specific inspector branch', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.checkbox);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<(id: typeof elementId, properties: ElementProperties) => boolean>(
+      () => true,
+    );
+    render(
+      <ControlInspector
+        document={document}
+        onSetFrame={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Checkbox' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Checked' }));
+    expect(onSetProperties).toHaveBeenCalledWith(
+      elementId,
+      expect.objectContaining({ checked: true, text: 'Checkbox' }),
     );
   });
 });
