@@ -4,6 +4,29 @@ Status: product requirement captured from the 2026-08-15 icon-library
 screenshots. This is an implementation reference. The eventual icon registry is
 the runtime source of truth.
 
+## Prepared catalog
+
+The concrete catalog is generated from `lucide-static@1.31.0`, a consistent
+ISC-licensed outline family:
+
+- 1,767 canonical source icons inspected;
+- 258 source synonym/legacy aliases collapsed;
+- 135 additional same-meaning visual variants collapsed;
+- **1,632 selectable outline icons remain**;
+- all 393 removed names remain searchable aliases of a retained icon.
+
+The complete surviving ID list and every explicit curation mapping are in
+[`ICON_CATALOG.generated.md`](./ICON_CATALOG.generated.md). Bundled geometry is
+stored in `src/shared/icons/icon-catalog.generated.json`; lookup and ranked
+search live in `src/shared/icons/icon-catalog.ts`. Regenerate all derived files
+with `npm run generate:icons`.
+
+The remaining set spans general UI actions, arrows and navigation,
+accessibility, people, communication, files and folders, devices, layout,
+text-editing, media, charts and data, commerce, time, transport, weather,
+nature, health, science, tools, and common objects. Brand/logo families are not
+included.
+
 ## Product decision
 
 Balsamic does not need the complete mixed-style icon library visible in the

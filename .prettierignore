@@ -3,3 +3,5 @@ node_modules/
 out/
 coverage/
 package-lock.json
+docs/ICON_CATALOG.generated.md
+src/shared/icons/icon-catalog.generated.json
