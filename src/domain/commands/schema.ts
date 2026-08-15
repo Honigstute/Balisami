@@ -22,7 +22,9 @@ export const DOCUMENT_COMMAND_TYPES = Object.freeze({
   deleteElement: 'element.delete',
   groupElements: 'element.group',
   reorderElement: 'element.reorder',
+  reorderElementSiblings: 'element.reorder-siblings',
   setElementFrame: 'element.set-frame',
+  setElementLocked: 'element.set-locked',
   setElementProperties: 'element.set-properties',
   ungroupElement: 'element.ungroup',
 });
@@ -167,11 +169,27 @@ export const ReorderElementCommandSchema = z
   })
   .readonly();
 
+export const ReorderElementSiblingsCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.reorderElementSiblings),
+    owner: ElementOwnerSchema,
+    childIds: UniqueElementIdsSchema,
+  })
+  .readonly();
+
 export const SetElementFrameCommandSchema = z
   .strictObject({
     type: z.literal(DOCUMENT_COMMAND_TYPES.setElementFrame),
     elementId: ElementIdSchema,
     frame: WorldRectSchema,
+  })
+  .readonly();
+
+export const SetElementLockedCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.setElementLocked),
+    elementId: ElementIdSchema,
+    locked: z.boolean(),
   })
   .readonly();
 
@@ -205,7 +223,9 @@ const ELEMENT_COMMAND_SCHEMAS = [
   DeleteElementCommandSchema,
   GroupElementsCommandSchema,
   ReorderElementCommandSchema,
+  ReorderElementSiblingsCommandSchema,
   SetElementFrameCommandSchema,
+  SetElementLockedCommandSchema,
   SetElementPropertiesCommandSchema,
   UngroupElementCommandSchema,
 ] as const;
@@ -228,7 +248,9 @@ export type CreateElementCommand = z.infer<typeof CreateElementCommandSchema>;
 export type DeleteElementCommand = z.infer<typeof DeleteElementCommandSchema>;
 export type GroupElementsCommand = z.infer<typeof GroupElementsCommandSchema>;
 export type ReorderElementCommand = z.infer<typeof ReorderElementCommandSchema>;
+export type ReorderElementSiblingsCommand = z.infer<typeof ReorderElementSiblingsCommandSchema>;
 export type SetElementFrameCommand = z.infer<typeof SetElementFrameCommandSchema>;
+export type SetElementLockedCommand = z.infer<typeof SetElementLockedCommandSchema>;
 export type SetElementPropertiesCommand = z.infer<typeof SetElementPropertiesCommandSchema>;
 export type UngroupElementCommand = z.infer<typeof UngroupElementCommandSchema>;
 export type BoardCommand = z.infer<typeof BoardCommandSchema>;

@@ -40,6 +40,17 @@ import {
   ungroupSelectedElement,
   type SelectionGroupingSource,
 } from '../editor/selection-grouping';
+import {
+  SELECTION_LAYER_ACTIONS,
+  layerSelectedElements,
+  type SelectionLayerAction,
+  type SelectionLayeringSource,
+} from '../editor/selection-layering';
+import {
+  lockSelectedElements,
+  unlockAllBoardElements,
+  type SelectionLockingSource,
+} from '../editor/selection-locking';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
@@ -301,20 +312,57 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         ? false
         : ungroupSelectedElement(currentDocument, selection, groupingSource);
     };
+    const lockingSource: SelectionLockingSource = {
+      commit(commands, label) {
+        const result = session.dispatchTransaction(commands, { label });
+        return result?.ok === true && result.changed ? result.history.document : undefined;
+      },
+    };
+    const lockSelection = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? false
+        : lockSelectedElements(currentDocument, selection, model.listItemIds(), lockingSource);
+    };
+    const unlockAll = (): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const activeBoardId = currentDocument?.boardIds[0];
+      return currentDocument === undefined || activeBoardId === undefined
+        ? false
+        : unlockAllBoardElements(currentDocument, activeBoardId, lockingSource);
+    };
+    const layeringSource: SelectionLayeringSource = {
+      commit(commands, label) {
+        const result = session.dispatchTransaction(commands, { label });
+        return result?.ok === true && result.changed ? result.history.document : undefined;
+      },
+    };
+    const layerSelection = (action: SelectionLayerAction): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? false
+        : layerSelectedElements(currentDocument, selection, action, layeringSource);
+    };
     return Object.freeze({
+      bringSelectionForward: () => layerSelection(SELECTION_LAYER_ACTIONS.bringForward),
+      bringSelectionToFront: () => layerSelection(SELECTION_LAYER_ACTIONS.bringToFront),
       copySelection,
       cutSelection,
       deleteSelection,
       duplicateSelection,
       groupSelection,
       keyboardNudgeInteraction,
+      lockSelection,
       model,
       moveInteraction,
       resizeInteraction,
+      sendSelectionBackward: () => layerSelection(SELECTION_LAYER_ACTIONS.sendBackward),
+      sendSelectionToBack: () => layerSelection(SELECTION_LAYER_ACTIONS.sendToBack),
       selection,
       selectionInteraction,
       pasteSelection,
       ungroupSelection,
+      unlockAll,
     });
   });
   const firstBoardId = view.history?.document.boardIds[0];
@@ -337,7 +385,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       editor.model.subscribe(() => {
         editor.keyboardNudgeInteraction.cancel();
         editor.selectionInteraction.cancelPress();
-        editor.selection.reconcile(new Set(editor.model.listItemIds()));
+        editor.selection.reconcile(new Set(editor.model.listSelectableItemIds()));
       }),
     [editor],
   );
@@ -405,13 +453,19 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     </>
                   ),
                   keyboardNudgeInteraction: editor.keyboardNudgeInteraction,
+                  onBringSelectionForward: editor.bringSelectionForward,
+                  onBringSelectionToFront: editor.bringSelectionToFront,
                   onCopySelection: editor.copySelection,
                   onCutSelection: editor.cutSelection,
                   onDeleteSelection: editor.deleteSelection,
                   onDuplicateSelection: editor.duplicateSelection,
                   onGroupSelection: editor.groupSelection,
+                  onLockSelection: editor.lockSelection,
                   onPasteSelection: editor.pasteSelection,
+                  onSendSelectionBackward: editor.sendSelectionBackward,
+                  onSendSelectionToBack: editor.sendSelectionToBack,
                   onUngroupSelection: editor.ungroupSelection,
+                  onUnlockAll: editor.unlockAll,
                   selection: editor.selection,
                   selectionInteraction: editor.selectionInteraction,
                   shortcutPlatform: platform,

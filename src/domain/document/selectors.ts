@@ -11,6 +11,15 @@ export interface ElementLocation {
 
 export type ElementLocationIndex = ReadonlyMap<ElementId, ElementLocation>;
 
+export interface ElementLockState {
+  /** The persisted bit owned by this element record. */
+  readonly directlyLocked: boolean;
+  /** Direct lock or a lock inherited from any canonical ancestor. */
+  readonly effectivelyLocked: boolean;
+  /** The nearest element whose direct bit makes this element effectively locked. */
+  readonly lockingElementId?: ElementId;
+}
+
 export interface BoardCommandAvailability {
   readonly canDelete: boolean;
   readonly canMoveBackward: boolean;
@@ -106,6 +115,80 @@ export const selectBoardRootElements = (
   boardId: BoardId,
 ): readonly ElementNode[] | undefined =>
   selectOrderedChildren(document, { kind: 'board', boardId });
+
+/** Returns one board's complete canonical pre-order without taking ownership of stacking. */
+export const selectBoardElementIds = (
+  document: ProjectDocument,
+  boardId: BoardId,
+): readonly ElementId[] | undefined => {
+  const board = document.boardsById[boardId];
+  if (board === undefined) {
+    return undefined;
+  }
+  const orderedIds: ElementId[] = [];
+  const visited = new Set<ElementId>();
+  const visit = (elementId: ElementId): boolean => {
+    if (visited.has(elementId)) {
+      return false;
+    }
+    visited.add(elementId);
+    const element = document.elementsById[elementId];
+    if (element === undefined) {
+      return false;
+    }
+    orderedIds.push(elementId);
+    return element.childIds.every(visit);
+  };
+  return board.childIds.every(visit) ? Object.freeze(orderedIds) : undefined;
+};
+
+/** Derives inherited lock state exclusively from canonical ownership. */
+export const selectElementLockState = (
+  document: ProjectDocument,
+  elementId: ElementId,
+  index: ElementLocationIndex = createElementLocationIndex(document),
+): ElementLockState | undefined => {
+  const element = document.elementsById[elementId];
+  if (element === undefined || index.get(elementId) === undefined) {
+    return undefined;
+  }
+  if (element.locked) {
+    return Object.freeze({
+      directlyLocked: true,
+      effectivelyLocked: true,
+      lockingElementId: elementId,
+    });
+  }
+
+  let currentId = elementId;
+  const visited = new Set<ElementId>([elementId]);
+  while (true) {
+    const location = index.get(currentId);
+    if (location === undefined) {
+      return undefined;
+    }
+    if (location.owner.kind === 'board') {
+      return Object.freeze({ directlyLocked: false, effectivelyLocked: false });
+    }
+    const parentId = location.owner.elementId;
+    if (visited.has(parentId)) {
+      return undefined;
+    }
+    visited.add(parentId);
+    const parent = document.elementsById[parentId];
+    if (parent === undefined) {
+      return undefined;
+    }
+    if (parent.locked) {
+      return Object.freeze({
+        directlyLocked: false,
+        effectivelyLocked: true,
+        lockingElementId: parentId,
+      });
+    }
+    currentId = parentId;
+  }
+};
 
 /**
  * Resolves local frames into world space by accumulating owner origins.

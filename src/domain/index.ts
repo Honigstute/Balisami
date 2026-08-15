@@ -18,8 +18,10 @@ export {
   RenameBoardCommandSchema,
   ReorderBoardCommandSchema,
   ReorderElementCommandSchema,
+  ReorderElementSiblingsCommandSchema,
   SetBoardNoteCommandSchema,
   SetElementFrameCommandSchema,
+  SetElementLockedCommandSchema,
   SetElementPropertiesCommandSchema,
   UngroupElementCommandSchema,
   type BoardCommand,
@@ -33,8 +35,10 @@ export {
   type RenameBoardCommand,
   type ReorderBoardCommand,
   type ReorderElementCommand,
+  type ReorderElementSiblingsCommand,
   type SetBoardNoteCommand,
   type SetElementFrameCommand,
+  type SetElementLockedCommand,
   type SetElementPropertiesCommand,
   type UngroupElementCommand,
 } from './commands/schema';
@@ -58,9 +62,11 @@ export { createEmptyProjectDocument, type EmptyProjectDocumentInput } from './do
 export { ElementOwnerSchema, type ElementOwner } from './document/owner';
 export {
   createElementLocationIndex,
+  selectBoardElementIds,
   selectBoardCommandAvailability,
   selectBoardRootElements,
   selectElementCommandAvailability,
+  selectElementLockState,
   selectElementLocation,
   selectElementWorldBounds,
   selectOrderedBoards,
@@ -71,6 +77,7 @@ export {
   type ElementCommandAvailability,
   type ElementLocation,
   type ElementLocationIndex,
+  type ElementLockState,
 } from './document/selectors';
 export {
   AssetReferenceSchema,

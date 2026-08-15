@@ -23,7 +23,9 @@ export const applyDocumentCommand = (
     case DOCUMENT_COMMAND_TYPES.deleteElement:
     case DOCUMENT_COMMAND_TYPES.groupElements:
     case DOCUMENT_COMMAND_TYPES.reorderElement:
+    case DOCUMENT_COMMAND_TYPES.reorderElementSiblings:
     case DOCUMENT_COMMAND_TYPES.setElementFrame:
+    case DOCUMENT_COMMAND_TYPES.setElementLocked:
     case DOCUMENT_COMMAND_TYPES.setElementProperties:
     case DOCUMENT_COMMAND_TYPES.ungroupElement:
       return applyElementCommand(document, command);

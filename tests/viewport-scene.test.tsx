@@ -874,11 +874,17 @@ describe('viewport scene layers', () => {
     const nudgeScheduler = new TestAnimationFrameScheduler();
     const store = createStore(cameraScheduler);
     const copySelection = vi.fn(() => true);
+    const bringSelectionForward = vi.fn(() => true);
+    const bringSelectionToFront = vi.fn(() => true);
     const cutSelection = vi.fn(() => true);
     const duplicateSelection = vi.fn(() => true);
     const groupSelection = vi.fn(() => true);
+    const lockSelection = vi.fn(() => true);
     const pasteSelection = vi.fn(() => true);
+    const sendSelectionBackward = vi.fn(() => true);
+    const sendSelectionToBack = vi.fn(() => true);
     const ungroupSelection = vi.fn(() => true);
+    const unlockAll = vi.fn(() => true);
     const nudge = new KeyboardNudgeInteraction(
       { capture: () => MOVE_CAPTURE, commit: () => true },
       nudgeScheduler,
@@ -895,12 +901,18 @@ describe('viewport scene layers', () => {
         camera={store}
         domChildren={<input aria-label="Duplicate-safe inline editor" />}
         keyboardNudgeInteraction={nudge}
+        onBringSelectionForward={bringSelectionForward}
+        onBringSelectionToFront={bringSelectionToFront}
         onCopySelection={copySelection}
         onCutSelection={cutSelection}
         onDuplicateSelection={duplicateSelection}
         onGroupSelection={groupSelection}
+        onLockSelection={lockSelection}
         onPasteSelection={pasteSelection}
+        onSendSelectionBackward={sendSelectionBackward}
+        onSendSelectionToBack={sendSelectionToBack}
         onUngroupSelection={ungroupSelection}
+        onUnlockAll={unlockAll}
         selection={selection}
         selectionInteraction={interaction}
         shortcutPlatform={shortcutPlatform}
@@ -931,11 +943,25 @@ describe('viewport scene layers', () => {
     expect(fireEvent.keyDown(root, { code: 'KeyV', metaKey: true })).toBe(false);
     expect(fireEvent.keyDown(root, { code: 'KeyG', metaKey: true })).toBe(false);
     expect(fireEvent.keyDown(root, { code: 'KeyG', metaKey: true, shiftKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'ArrowUp', metaKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'ArrowUp', metaKey: true, shiftKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'ArrowDown', metaKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'ArrowDown', metaKey: true, shiftKey: true })).toBe(
+      false,
+    );
+    expect(fireEvent.keyDown(root, { code: 'Digit2', metaKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'Digit3', metaKey: true })).toBe(false);
     expect(copySelection).toHaveBeenCalledTimes(1);
     expect(cutSelection).toHaveBeenCalledTimes(1);
     expect(pasteSelection).toHaveBeenCalledTimes(1);
     expect(groupSelection).toHaveBeenCalledTimes(1);
     expect(ungroupSelection).toHaveBeenCalledTimes(1);
+    expect(bringSelectionForward).toHaveBeenCalledTimes(1);
+    expect(bringSelectionToFront).toHaveBeenCalledTimes(1);
+    expect(sendSelectionBackward).toHaveBeenCalledTimes(1);
+    expect(sendSelectionToBack).toHaveBeenCalledTimes(1);
+    expect(lockSelection).toHaveBeenCalledTimes(1);
+    expect(unlockAll).toHaveBeenCalledTimes(1);
     expect(fireEvent.keyDown(root, { code: 'KeyG', metaKey: true, repeat: true })).toBe(false);
     expect(groupSelection).toHaveBeenCalledTimes(1);
     expect(fireEvent.keyDown(root, { code: 'KeyC', metaKey: true, repeat: true })).toBe(false);
@@ -968,9 +994,19 @@ describe('viewport scene layers', () => {
     expect(fireEvent.keyDown(root, { code: 'KeyV', ctrlKey: true })).toBe(false);
     expect(fireEvent.keyDown(root, { code: 'KeyG', ctrlKey: true })).toBe(false);
     expect(fireEvent.keyDown(root, { code: 'KeyG', ctrlKey: true, shiftKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'ArrowUp', ctrlKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'ArrowDown', ctrlKey: true, shiftKey: true })).toBe(
+      false,
+    );
+    expect(fireEvent.keyDown(root, { code: 'Digit2', ctrlKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { code: 'Digit3', ctrlKey: true })).toBe(false);
     expect(pasteSelection).toHaveBeenCalledTimes(2);
     expect(groupSelection).toHaveBeenCalledTimes(2);
     expect(ungroupSelection).toHaveBeenCalledTimes(2);
+    expect(bringSelectionForward).toHaveBeenCalledTimes(2);
+    expect(sendSelectionToBack).toHaveBeenCalledTimes(2);
+    expect(lockSelection).toHaveBeenCalledTimes(2);
+    expect(unlockAll).toHaveBeenCalledTimes(2);
 
     view.unmount();
     expect(nudgeScheduler.callbacks.size).toBe(0);

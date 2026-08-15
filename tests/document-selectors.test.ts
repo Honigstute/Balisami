@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BoardIdSchema,
+  ElementIdSchema,
   createElementLocationIndex,
   parseProjectDocument,
+  selectBoardElementIds,
   selectBoardCommandAvailability,
   selectBoardRootElements,
   selectElementCommandAvailability,
+  selectElementLockState,
   selectElementLocation,
   selectElementWorldBounds,
   selectOrderedBoards,
@@ -113,6 +116,32 @@ describe('project document selectors', () => {
     });
     expect(Object.isFrozen(childBounds)).toBe(true);
     expect(selectSelectionWorldBounds(document, [])).toBeUndefined();
+  });
+
+  it('derives canonical board traversal and direct versus inherited lock state', () => {
+    const input = createValidProjectDocumentInput();
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.locked = true;
+    const document = parseFixture(input);
+    const index = createElementLocationIndex(document);
+
+    expect(selectBoardElementIds(document, DOCUMENT_FIXTURE_IDS.board)).toEqual([
+      DOCUMENT_FIXTURE_IDS.group,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(selectElementLockState(document, DOCUMENT_FIXTURE_IDS.group, index)).toEqual({
+      directlyLocked: true,
+      effectivelyLocked: true,
+      lockingElementId: DOCUMENT_FIXTURE_IDS.group,
+    });
+    expect(selectElementLockState(document, DOCUMENT_FIXTURE_IDS.child, index)).toEqual({
+      directlyLocked: false,
+      effectivelyLocked: true,
+      lockingElementId: DOCUMENT_FIXTURE_IDS.group,
+    });
+    expect(
+      selectElementLockState(document, ElementIdSchema.parse('element_missing01')),
+    ).toBeUndefined();
+    expect(selectBoardElementIds(document, SECONDARY_BOARD_ID)).toBeUndefined();
   });
 
   it('derives board and element command availability from current order and references', () => {

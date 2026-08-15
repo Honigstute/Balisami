@@ -66,6 +66,14 @@ describe('move geometry', () => {
     }
     expect(captureMoveTargets(parsed.value, [DOCUMENT_FIXTURE_IDS.child])).toBeUndefined();
 
+    const ancestorInput = createValidProjectDocumentInput();
+    ancestorInput.elementsById[DOCUMENT_FIXTURE_IDS.group]!.locked = true;
+    const ancestorParsed = parseProjectDocument(ancestorInput);
+    if (!ancestorParsed.ok) {
+      throw new Error('Ancestor-lock move fixture is invalid.');
+    }
+    expect(captureMoveTargets(ancestorParsed.value, [DOCUMENT_FIXTURE_IDS.child])).toBeUndefined();
+
     const start = createWorldPoint(10, -5);
     expect(resolveMoveDelta(start, createWorldPoint(16, 1), false)).toMatchObject({ x: 6, y: 6 });
     expect(resolveMoveDelta(start, createWorldPoint(16, 1), true)).toMatchObject({ x: 6, y: 0 });

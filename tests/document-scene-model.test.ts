@@ -255,6 +255,34 @@ describe('document scene model', () => {
     ]);
   });
 
+  it('derives effective lock metadata through canonical ancestors', () => {
+    const input = createValidProjectDocumentInput();
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.locked = true;
+    input.elementsById[ROOT_ID] = {
+      id: ROOT_ID,
+      controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      frame: { x: -4, y: 36.5, width: 120, height: 48 },
+      locked: false,
+      properties: {},
+      childIds: [],
+      assetIds: [],
+      link: null,
+    };
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.unshift(ROOT_ID);
+    const document = parseFixture(input);
+    const model = new DocumentSceneModel();
+    model.reconcile(document, DOCUMENT_FIXTURE_IDS.board);
+    const point = createWorldPoint(20, 50);
+
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)?.locked).toBe(true);
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.locked).toBe(true);
+    expect(model.hitTestTopmost(point)?.id).toBe(ROOT_ID);
+    expect(model.hitTestTopmost(point, { includeLocked: true })?.id).toBe(
+      DOCUMENT_FIXTURE_IDS.child,
+    );
+    expect(model.listSelectableItemIds()).toEqual([ROOT_ID]);
+  });
+
   it('returns nearby snap sources in canonical order while retaining locked geometry', () => {
     const model = new DocumentSceneModel();
     model.reconcile(createOverlappingRectangleDocument(true), DOCUMENT_FIXTURE_IDS.board);

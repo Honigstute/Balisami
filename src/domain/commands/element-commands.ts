@@ -16,7 +16,9 @@ import {
   type ElementCommand,
   type GroupElementsCommand,
   type ReorderElementCommand,
+  type ReorderElementSiblingsCommand,
   type SetElementFrameCommand,
+  type SetElementLockedCommand,
   type SetElementPropertiesCommand,
   type UngroupElementCommand,
 } from './schema';
@@ -554,6 +556,46 @@ const applyReorderElement = (
   };
 };
 
+/** Replaces one owner's complete sibling order after proving it is a permutation. */
+const applyReorderElementSiblings = (
+  document: ProjectDocument,
+  command: ReorderElementSiblingsCommand,
+): CommandApplication => {
+  const ownerChildIds = selectOwnerChildIds(document, command.owner);
+  if (ownerChildIds === undefined) {
+    return notFound('Owner', getOwnerId(command.owner));
+  }
+  if (
+    command.childIds.length !== ownerChildIds.length ||
+    command.childIds.some((elementId) => !ownerChildIds.includes(elementId))
+  ) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: "Sibling reordering must preserve the owner's complete child set.",
+    };
+  }
+  if (areElementIdListsEqual(command.childIds, ownerChildIds)) {
+    return { ok: true, changed: false, label: 'Reorder elements' };
+  }
+
+  const ownerPatch = replaceOwnerChildren(document, command.owner, command.childIds);
+  if ('ok' in ownerPatch) {
+    return ownerPatch;
+  }
+  return {
+    ok: true,
+    changed: true,
+    candidate: createElementRevision(document, ownerPatch),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.reorderElementSiblings,
+      owner: command.owner,
+      childIds: ownerChildIds,
+    },
+    label: 'Reorder elements',
+  };
+};
+
 const applySetElementFrame = (
   document: ProjectDocument,
   command: SetElementFrameCommand,
@@ -588,6 +630,37 @@ const applySetElementFrame = (
       frame: previousFrame,
     },
     label: 'Change element geometry',
+  };
+};
+
+const applySetElementLocked = (
+  document: ProjectDocument,
+  command: SetElementLockedCommand,
+): CommandApplication => {
+  const element = document.elementsById[command.elementId];
+  if (element === undefined) {
+    return notFound('Element', command.elementId);
+  }
+  if (element.locked === command.locked) {
+    return { ok: true, changed: false, label: command.locked ? 'Lock element' : 'Unlock element' };
+  }
+
+  const updatedElement = Object.freeze({ ...element, locked: command.locked });
+  return {
+    ok: true,
+    changed: true,
+    candidate: createElementRevision(document, {
+      elementsById: Object.freeze({
+        ...document.elementsById,
+        [command.elementId]: updatedElement,
+      }),
+    }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.setElementLocked,
+      elementId: command.elementId,
+      locked: element.locked,
+    },
+    label: command.locked ? 'Lock element' : 'Unlock element',
   };
 };
 
@@ -639,8 +712,12 @@ export const applyElementCommand = (
       return applyGroupElements(document, command);
     case DOCUMENT_COMMAND_TYPES.reorderElement:
       return applyReorderElement(document, command);
+    case DOCUMENT_COMMAND_TYPES.reorderElementSiblings:
+      return applyReorderElementSiblings(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementFrame:
       return applySetElementFrame(document, command);
+    case DOCUMENT_COMMAND_TYPES.setElementLocked:
+      return applySetElementLocked(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementProperties:
       return applySetElementProperties(document, command);
     case DOCUMENT_COMMAND_TYPES.ungroupElement:

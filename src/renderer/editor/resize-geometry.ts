@@ -1,5 +1,7 @@
 import {
   DOCUMENT_COMMAND_TYPES,
+  createElementLocationIndex,
+  selectElementLockState,
   selectElementWorldBounds,
   type ElementId,
   type ProjectDocument,
@@ -131,8 +133,13 @@ export const captureResizeTarget = (
   elementId: ElementId,
 ): ResizeTargetCapture | undefined => {
   const element = document.elementsById[elementId];
-  const worldBounds = selectElementWorldBounds(document, elementId);
-  if (element === undefined || element.locked || worldBounds === undefined) {
+  const locations = createElementLocationIndex(document);
+  const worldBounds = selectElementWorldBounds(document, elementId, locations);
+  if (
+    element === undefined ||
+    selectElementLockState(document, elementId, locations)?.effectivelyLocked !== false ||
+    worldBounds === undefined
+  ) {
     return undefined;
   }
   return Object.freeze({

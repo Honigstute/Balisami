@@ -76,6 +76,24 @@ describe('viewport wheel normalization', () => {
     expect(
       resolveViewportEditShortcut({ ...macInput, code: 'KeyG', shiftKey: true }, 'darwin'),
     ).toBe(VIEWPORT_EDIT_COMMANDS.ungroup);
+    expect(resolveViewportEditShortcut({ ...macInput, code: 'ArrowUp' }, 'darwin')).toBe(
+      VIEWPORT_EDIT_COMMANDS.bringForward,
+    );
+    expect(
+      resolveViewportEditShortcut({ ...macInput, code: 'ArrowUp', shiftKey: true }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.bringToFront);
+    expect(resolveViewportEditShortcut({ ...macInput, code: 'ArrowDown' }, 'darwin')).toBe(
+      VIEWPORT_EDIT_COMMANDS.sendBackward,
+    );
+    expect(
+      resolveViewportEditShortcut({ ...macInput, code: 'ArrowDown', shiftKey: true }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.sendToBack);
+    expect(resolveViewportEditShortcut({ ...macInput, code: 'Digit2' }, 'darwin')).toBe(
+      VIEWPORT_EDIT_COMMANDS.lockSelection,
+    );
+    expect(resolveViewportEditShortcut({ ...macInput, code: 'Digit3' }, 'darwin')).toBe(
+      VIEWPORT_EDIT_COMMANDS.unlockAll,
+    );
     expect(
       resolveViewportEditShortcut(
         { ...macInput, code: 'KeyC', ctrlKey: true, metaKey: false },
@@ -85,6 +103,9 @@ describe('viewport wheel normalization', () => {
     expect(resolveViewportEditShortcut({ ...macInput, ctrlKey: true }, 'darwin')).toBeUndefined();
     expect(resolveViewportEditShortcut({ ...macInput, metaKey: false }, 'darwin')).toBeUndefined();
     expect(resolveViewportEditShortcut({ ...macInput, shiftKey: true }, 'darwin')).toBeUndefined();
+    expect(
+      resolveViewportEditShortcut({ ...macInput, code: 'Digit2', shiftKey: true }, 'darwin'),
+    ).toBeUndefined();
     expect(
       resolveViewportEditShortcut(
         { ...macInput, code: 'KeyG', ctrlKey: true, metaKey: false },

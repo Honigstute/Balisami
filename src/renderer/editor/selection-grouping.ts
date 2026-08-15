@@ -5,6 +5,7 @@ import {
   GroupElementsCommandSchema,
   UngroupElementCommandSchema,
   createElementLocationIndex,
+  selectElementLockState,
   selectOwnerChildIds,
   type ElementId,
   type ElementOwner,
@@ -120,7 +121,11 @@ export const planSelectionGroup = (
   for (const childId of uniqueSelectedIds) {
     const child = document.elementsById[childId];
     const location = locationIndex.get(childId);
-    if (child === undefined || child.locked || location === undefined) {
+    if (
+      child === undefined ||
+      location === undefined ||
+      selectElementLockState(document, childId, locationIndex)?.effectivelyLocked !== false
+    ) {
       return undefined;
     }
     if (owner === undefined) {
@@ -195,18 +200,22 @@ export const planSelectionUngroup = (
   const uniqueSelectedIds = [...new Set(selectedIds)];
   const groupId = uniqueSelectedIds.length === 1 ? uniqueSelectedIds[0] : undefined;
   const group = groupId === undefined ? undefined : document.elementsById[groupId];
+  const locationIndex = createElementLocationIndex(document);
   if (
     groupId === undefined ||
     group === undefined ||
     group.controlType !== FOUNDATION_CONTROL_TYPES.group ||
-    group.locked ||
+    selectElementLockState(document, groupId, locationIndex)?.effectivelyLocked !== false ||
     group.childIds.length === 0 ||
-    group.childIds.some((childId) => document.elementsById[childId]?.locked !== false)
+    group.childIds.some(
+      (childId) =>
+        selectElementLockState(document, childId, locationIndex)?.effectivelyLocked !== false,
+    )
   ) {
     return undefined;
   }
 
-  const location = createElementLocationIndex(document).get(groupId);
+  const location = locationIndex.get(groupId);
   const ownerChildIds =
     location === undefined ? undefined : selectOwnerChildIds(document, location.owner);
   if (location === undefined || ownerChildIds === undefined) {

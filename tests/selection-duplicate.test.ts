@@ -119,6 +119,12 @@ describe('selection duplicate planning', () => {
     if (!locked.ok) {
       throw new Error('Locked selection duplicate fixture is invalid.');
     }
+    const ancestorLockedInput = createValidProjectDocumentInput();
+    ancestorLockedInput.elementsById[DOCUMENT_FIXTURE_IDS.group]!.locked = true;
+    const ancestorLocked = parseProjectDocument(ancestorLockedInput);
+    if (!ancestorLocked.ok) {
+      throw new Error('Ancestor-locked selection duplicate fixture is invalid.');
+    }
     const allocateFirst = createAllocator([FIRST_CLONE_ID]);
 
     expect(planSelectionDuplicate(document, [], CANONICAL_IDS, allocateFirst)).toBeUndefined();
@@ -131,6 +137,14 @@ describe('selection duplicate planning', () => {
     expect(
       planSelectionDuplicate(
         locked.value,
+        [DOCUMENT_FIXTURE_IDS.child],
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+        allocateFirst,
+      ),
+    ).toBeUndefined();
+    expect(
+      planSelectionDuplicate(
+        ancestorLocked.value,
         [DOCUMENT_FIXTURE_IDS.child],
         [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
         allocateFirst,

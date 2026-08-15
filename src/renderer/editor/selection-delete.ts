@@ -2,6 +2,7 @@ import {
   DOCUMENT_COMMAND_TYPES,
   createElementLocationIndex,
   selectElementCommandAvailability,
+  selectElementLockState,
   type DeleteElementCommand,
   type ElementId,
   type ProjectDocument,
@@ -46,7 +47,11 @@ export const planSelectionDelete = (
   for (const id of orderedIds) {
     const element = document.elementsById[id];
     const availability = selectElementCommandAvailability(document, id, locationIndex);
-    if (element === undefined || element.locked || availability?.canDelete !== true) {
+    if (
+      element === undefined ||
+      selectElementLockState(document, id, locationIndex)?.effectivelyLocked !== false ||
+      availability?.canDelete !== true
+    ) {
       return undefined;
     }
   }

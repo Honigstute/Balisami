@@ -643,6 +643,77 @@ describe('element document commands', () => {
     expect(outOfRange.error.code).toBe('out-of-range');
   });
 
+  it('replaces a complete sibling permutation atomically and restores exact order', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+    const firstCreated = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(),
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 1,
+    });
+    const secondCreated = expectApplied(firstCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: createElement(SECOND_NEW_ELEMENT_ID),
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      index: 2,
+    });
+    const reordered = expectApplied(secondCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.reorderElementSiblings,
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      childIds: [SECOND_NEW_ELEMENT_ID, DOCUMENT_FIXTURE_IDS.group, NEW_ELEMENT_ID],
+    });
+
+    expect(reordered.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.childIds).toEqual([
+      SECOND_NEW_ELEMENT_ID,
+      DOCUMENT_FIXTURE_IDS.group,
+      NEW_ELEMENT_ID,
+    ]);
+    expect(reordered.document.elementsById).toBe(secondCreated.document.elementsById);
+    expectInverseRestores(secondCreated.document, reordered);
+
+    expectUnchanged(secondCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.reorderElementSiblings,
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      childIds: secondCreated.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.childIds,
+    });
+    expectFailure(secondCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.reorderElementSiblings,
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      childIds: [DOCUMENT_FIXTURE_IDS.group, NEW_ELEMENT_ID],
+    });
+    expectFailure(secondCreated.document, {
+      type: DOCUMENT_COMMAND_TYPES.reorderElementSiblings,
+      owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      childIds: [DOCUMENT_FIXTURE_IDS.group, NEW_ELEMENT_ID, NEW_ELEMENT_ID],
+    });
+  });
+
+  it('sets the direct lock bit with structural sharing, no-op detection, and exact inverse', () => {
+    const document = parseFixture(createValidProjectDocumentInput());
+    const locked = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLocked,
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+      locked: true,
+    });
+
+    expect(locked.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.locked).toBe(true);
+    expect(locked.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toBe(
+      document.elementsById[DOCUMENT_FIXTURE_IDS.child],
+    );
+    expect(locked.document.boardsById).toBe(document.boardsById);
+    expectInverseRestores(document, locked);
+    expectUnchanged(locked.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLocked,
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+      locked: true,
+    });
+    expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLocked,
+      elementId: MISSING_ELEMENT_ID,
+      locked: true,
+    });
+  });
+
   it('returns not-found without mutation for edit commands targeting a missing element', () => {
     const document = parseFixture(createValidProjectDocumentInput());
 
@@ -656,6 +727,11 @@ describe('element document commands', () => {
         type: DOCUMENT_COMMAND_TYPES.setElementFrame,
         elementId: MISSING_ELEMENT_ID,
         frame: { x: 0, y: 0, width: 100, height: 50 },
+      },
+      {
+        type: DOCUMENT_COMMAND_TYPES.setElementLocked,
+        elementId: MISSING_ELEMENT_ID,
+        locked: true,
       },
       {
         type: DOCUMENT_COMMAND_TYPES.setElementProperties,

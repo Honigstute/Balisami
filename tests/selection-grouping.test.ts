@@ -266,6 +266,28 @@ describe('selection grouping foundation', () => {
       ),
     ).toBeUndefined();
 
+    const ancestorLockedInput = createValidProjectDocumentInput();
+    const ancestorLockedOwner = ancestorLockedInput.elementsById[DOCUMENT_FIXTURE_IDS.group];
+    const ancestorLockedChild = ancestorLockedInput.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (ancestorLockedOwner === undefined || ancestorLockedChild === undefined) {
+      throw new Error('Ancestor-lock grouping fixture is incomplete.');
+    }
+    ancestorLockedOwner.locked = true;
+    ancestorLockedInput.elementsById[SECOND_ID] = {
+      ...structuredClone(ancestorLockedChild),
+      id: SECOND_ID,
+      assetIds: [],
+      link: null,
+    };
+    ancestorLockedOwner.childIds.push(SECOND_ID);
+    expect(
+      planSelectionGroup(
+        parseFixture(ancestorLockedInput),
+        [DOCUMENT_FIXTURE_IDS.child, SECOND_ID],
+        () => NEW_GROUP_ID,
+      ),
+    ).toBeUndefined();
+
     const validPlan = planSelectionGroup(
       document,
       [DOCUMENT_FIXTURE_IDS.child, THIRD_ID],

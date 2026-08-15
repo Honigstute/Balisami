@@ -339,6 +339,26 @@ editing text. Groups are transparent scene/container items: they provide bounds 
 movement, fit, and container snapping, but the SVG presenter draws only their controls and the
 selection overlay deliberately exposes no group-resize handles.
 
+Locking keeps one persisted bit on each element. Effective interaction lock is derived from that bit
+or the nearest directly locked canonical ancestor; it is never copied into descendants. Selection,
+move, resize, group/ungroup, delete, duplicate, and clipboard capture all consume the same derived
+state, so a locked container cannot leak mutable descendants into another action. Lock Selected
+reduces the current selection to canonical roots and sets only those direct bits. Unlock All clears
+every direct bit on the active board in canonical pre-order, including redundant descendant bits,
+without changing other boards. Each accepted action is one transaction/recovery event; Lock Selected
+reconciles away newly unselectable IDs only from the accepted document. Exact idle `Cmd/Ctrl+2` and
+`Cmd/Ctrl+3` own those actions while editable targets and repeated keydown remain native.
+
+Z-order is owned only by an owner's complete bottom-to-top `childIds`. The multi-selection planner
+removes selected descendants, requires every live root to be effectively unlocked and share one
+owner, then emits one runtime-validated complete sibling permutation. Send to Back and Bring to Front
+partition selected and unaffected siblings while preserving both relative orders. Send Backward and
+Bring Forward swap each selected block across at most one adjacent unaffected sibling, again without
+reordering either set. Boundary results are semantic no-ops, malformed or partial child sets are
+rejected, and the exact prior order is the command inverse. Accepted output is verified before session
+selection is reconciled to canonical roots. Exact idle `Cmd/Ctrl+ArrowDown`,
+`Cmd/Ctrl+Shift+ArrowDown`, `Cmd/Ctrl+ArrowUp`, and `Cmd/Ctrl+Shift+ArrowUp` route the four actions.
+
 Guides are ephemeral overlays and never export or enter history. Align/distribute actions use the same geometry vocabulary but execute as commands.
 
 ## 9. Persistence and recovery

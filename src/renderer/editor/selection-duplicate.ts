@@ -3,6 +3,7 @@ import {
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   createElementLocationIndex,
+  selectElementLockState,
   type CreateElementCommand,
   type ElementId,
   type ElementLocation,
@@ -74,7 +75,7 @@ export const planSelectionDuplicate = (
     if (
       element === undefined ||
       location === undefined ||
-      element.locked ||
+      selectElementLockState(document, sourceId, locationIndex)?.effectivelyLocked !== false ||
       element.childIds.length > 0
     ) {
       return undefined;

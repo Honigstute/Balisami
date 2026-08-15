@@ -182,6 +182,16 @@ describe('resize geometry', () => {
     });
   });
 
+  it('rejects a target whose canonical ancestor is locked', () => {
+    const input = createValidProjectDocumentInput();
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.locked = true;
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) {
+      throw new Error('Ancestor-lock resize fixture is invalid.');
+    }
+    expect(captureResizeTarget(parsed.value, DOCUMENT_FIXTURE_IDS.child)).toBeUndefined();
+  });
+
   it('keeps explicit minimum and handle dimensions valid', () => {
     expect(RESIZE_INTERACTION_POLICY.minimumWidthWorldUnits).toBeGreaterThan(0);
     expect(RESIZE_INTERACTION_POLICY.minimumHeightWorldUnits).toBeGreaterThan(0);

@@ -77,7 +77,12 @@ const deriveBoardSceneItems = (
   }
   const items: DerivedSceneItem[] = [];
   const visited = new Set<ElementId>();
-  const visit = (elementId: ElementId, parentX: number, parentY: number): void => {
+  const visit = (
+    elementId: ElementId,
+    parentX: number,
+    parentY: number,
+    ancestorLocked: boolean,
+  ): void => {
     if (visited.has(elementId)) {
       throw new Error('Document scene received duplicate or cyclic element ownership.');
     }
@@ -92,22 +97,27 @@ const deriveBoardSceneItems = (
       element.frame.width,
       element.frame.height,
     );
+    // `locked` on a scene item is effective interaction state. The persisted
+    // direct bit remains owned only by the element record.
+    const effectivelyLocked = ancestorLocked || element.locked;
     if (element.controlType === FOUNDATION_CONTROL_TYPES.rectangle) {
-      items.push(Object.freeze({ bounds, id: element.id, kind: 'object', locked: element.locked }));
+      items.push(
+        Object.freeze({ bounds, id: element.id, kind: 'object', locked: effectivelyLocked }),
+      );
     } else if (element.controlType === FOUNDATION_CONTROL_TYPES.group) {
       // Groups participate in selection, movement, snapping, and bounds but
       // remain visually transparent in the document presenter.
       items.push(
-        Object.freeze({ bounds, id: element.id, kind: 'container', locked: element.locked }),
+        Object.freeze({ bounds, id: element.id, kind: 'container', locked: effectivelyLocked }),
       );
     }
     for (const childId of element.childIds) {
-      visit(childId, bounds.x, bounds.y);
+      visit(childId, bounds.x, bounds.y, effectivelyLocked);
     }
   };
 
   for (const elementId of board.childIds) {
-    visit(elementId, 0, 0);
+    visit(elementId, 0, 0, false);
   }
   return Object.freeze(items);
 };

@@ -1,12 +1,13 @@
 import {
   DOCUMENT_COMMAND_TYPES,
-  createElementLocationIndex,
+  selectElementLockState,
   selectSelectionWorldBounds,
   type ElementId,
   type ProjectDocument,
   type SetElementFrameCommand,
   type WorldRect as ElementFrame,
 } from '../../domain';
+import { resolveSelectionRoots } from './selection-roots';
 import {
   createWorldRect,
   createWorldVector,
@@ -29,27 +30,6 @@ export interface MoveTargetCapture {
   readonly worldBounds: WorldRect;
 }
 
-const hasSelectedAncestor = (
-  id: ElementId,
-  selectedIds: ReadonlySet<ElementId>,
-  locations: ReturnType<typeof createElementLocationIndex>,
-): boolean => {
-  let location = locations.get(id);
-  const visited = new Set<ElementId>();
-  while (location?.owner.kind === 'element') {
-    const parentId = location.owner.elementId;
-    if (selectedIds.has(parentId)) {
-      return true;
-    }
-    if (visited.has(parentId)) {
-      return false;
-    }
-    visited.add(parentId);
-    location = locations.get(parentId);
-  }
-  return false;
-};
-
 /**
  * Captures immutable local frames once. Selected descendants of another
  * selected element follow their ancestor visually but do not receive a second
@@ -59,22 +39,21 @@ export const captureMoveTargets = (
   document: ProjectDocument,
   selectedIds: readonly ElementId[],
 ): MoveTargetCapture | undefined => {
-  const movableIds = [...new Set(selectedIds)].filter((id) => {
-    const element = document.elementsById[id];
-    return element !== undefined && !element.locked;
-  });
-  if (movableIds.length === 0) {
+  const roots = resolveSelectionRoots(document, selectedIds);
+  if (
+    roots === undefined ||
+    roots.selectedIds.some(
+      (id) => selectElementLockState(document, id, roots.locations)?.effectivelyLocked !== false,
+    )
+  ) {
     return undefined;
   }
 
-  const movableSet = new Set(movableIds);
-  const locations = createElementLocationIndex(document);
-  const rootIds = movableIds.filter((id) => !hasSelectedAncestor(id, movableSet, locations));
-  const selectedBounds = selectSelectionWorldBounds(document, rootIds, locations);
+  const selectedBounds = selectSelectionWorldBounds(document, roots.rootIds, roots.locations);
   if (selectedBounds === undefined) {
     return undefined;
   }
-  const targets = rootIds.map((id): MoveTargetSnapshot => {
+  const targets = roots.rootIds.map((id): MoveTargetSnapshot => {
     const element = document.elementsById[id];
     if (element === undefined) {
       throw new Error('A captured move target disappeared from the validated document.');
@@ -93,7 +72,7 @@ export const captureMoveTargets = (
       appendAffected(childId);
     }
   };
-  for (const id of rootIds) {
+  for (const id of roots.rootIds) {
     appendAffected(id);
   }
 

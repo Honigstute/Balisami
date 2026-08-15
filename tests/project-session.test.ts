@@ -6,6 +6,7 @@ import {
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
+  parseProjectDocument,
   undoDocumentHistory,
   type ProjectDocument,
 } from '../src/domain';
@@ -18,6 +19,7 @@ import {
 } from '../src/renderer/editor/selection-clipboard';
 import { deleteSelectedElements } from '../src/renderer/editor/selection-delete';
 import { duplicateSelectedElements } from '../src/renderer/editor/selection-duplicate';
+import { unlockAllBoardElements } from '../src/renderer/editor/selection-locking';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { TextEditInteraction } from '../src/renderer/editor/text-edit-interaction';
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
@@ -183,6 +185,52 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('commits a multi-element unlock as one history entry and one recovery schedule', async () => {
+    const baseDocument = createAssetFreeProjectDocument();
+    const group = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.group];
+    const child = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (group === undefined || child === undefined) {
+      throw new Error('Unlock integration fixture is incomplete.');
+    }
+    const parsed = parseProjectDocument({
+      ...baseDocument,
+      elementsById: {
+        ...baseDocument.elementsById,
+        [group.id]: { ...group, locked: true },
+        [child.id]: { ...child, locked: true },
+      },
+    });
+    if (!parsed.ok) {
+      throw new Error(`Unlock integration fixture is invalid: ${JSON.stringify(parsed.issues)}`);
+    }
+    const document = parsed.value;
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      unlockAllBoardElements(document, DOCUMENT_FIXTURE_IDS.board, {
+        commit: (commands, label) => {
+          const result = session.dispatchTransaction(commands, { label });
+          return result?.ok === true && result.changed ? result.history.document : undefined;
+        },
+      }),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Unlock integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]?.forwardCommands).toHaveLength(2);
+    expect(desktop.recoveryRequests).toHaveLength(2);
+    const undone = undoDocumentHistory(history);
+    expect(undone.ok && undone.changed ? JSON.stringify(undone.history.document) : '').toBe(
+      JSON.stringify(document),
+    );
+  });
+
   it('commits one selection delete and reconciles only after ProjectSession accepts it', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
