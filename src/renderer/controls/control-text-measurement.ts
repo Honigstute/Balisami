@@ -37,6 +37,8 @@ export interface ControlTextMeasurement {
   readonly height: number;
   readonly lineCount: number;
   readonly lineHeight: number;
+  /** Newline-normalized lines in the exact order used to calculate the metrics. */
+  readonly lines: readonly string[];
   readonly width: number;
 }
 
@@ -70,7 +72,8 @@ export interface ControlTextAutoSizeInput {
 const createFontShorthand = (fontSize: number): string =>
   `${String(DESIGN_TOKENS.font.weight.regular)} ${String(fontSize)}px "${DESIGN_TOKENS.font.family.wireframe}"`;
 
-const roundMeasurement = (value: number): number => {
+/** Canonical rounding boundary for measured text geometry in world units. */
+export const roundControlTextWorldUnit = (value: number): number => {
   const rounded =
     Math.round(value * CONTROL_TEXT_MEASUREMENT_POLICY.precision) /
     CONTROL_TEXT_MEASUREMENT_POLICY.precision;
@@ -148,8 +151,8 @@ export const createControlTextMeasurementService = (
         );
       }
 
-      const lineHeight = roundMeasurement(request.fontSize * lineHeightMultiplier);
-      const firstBaseline = roundMeasurement((lineHeight - ascent - descent) / 2 + ascent);
+      const lineHeight = roundControlTextWorldUnit(request.fontSize * lineHeightMultiplier);
+      const firstBaseline = roundControlTextWorldUnit((lineHeight - ascent - descent) / 2 + ascent);
       if (firstBaseline < 0 || firstBaseline > lineHeight) {
         throw new ControlTextMeasurementError(
           'invalid-metrics',
@@ -162,14 +165,15 @@ export const createControlTextMeasurementService = (
         width = Math.max(width, validateMetric(context.measureText(line).width));
       }
       const baselineOffsets = Object.freeze(
-        lines.map((_, index) => roundMeasurement(firstBaseline + lineHeight * index)),
+        lines.map((_, index) => roundControlTextWorldUnit(firstBaseline + lineHeight * index)),
       );
       return Object.freeze({
         baselineOffsets,
-        height: roundMeasurement(lineHeight * lines.length),
+        height: roundControlTextWorldUnit(lineHeight * lines.length),
         lineCount: lines.length,
         lineHeight,
-        width: roundMeasurement(width),
+        lines,
+        width: roundControlTextWorldUnit(width),
       });
     },
   });
@@ -276,7 +280,7 @@ export const calculateControlTextAutoSize = (input: ControlTextAutoSizeInput): C
     throwInvalidInput('Control auto-size exceeds finite world geometry.');
   }
   const clamp = (value: number, minimum: number, maximum: number | undefined): number =>
-    roundMeasurement(Math.min(maximum ?? value, Math.max(minimum, value)));
+    roundControlTextWorldUnit(Math.min(maximum ?? value, Math.max(minimum, value)));
   return Object.freeze({
     height:
       input.axis === 'horizontal'

@@ -39,6 +39,7 @@ describe('control text measurement', () => {
       height: 15,
       lineCount: 1,
       lineHeight: 15,
+      lines: ['Save now'],
       width: 41.003,
     });
   });
@@ -57,6 +58,7 @@ describe('control text measurement', () => {
       height: 42,
       lineCount: 3,
       lineHeight: 14,
+      lines: ['wide', '', 'xx'],
       width: 20.502,
     });
   });

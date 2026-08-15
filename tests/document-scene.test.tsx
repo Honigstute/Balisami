@@ -5,11 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ElementIdSchema,
   DOCUMENT_COMMAND_TYPES,
+  CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
   dispatchDocumentCommand,
   parseProjectDocument,
   type ProjectDocument,
 } from '../src/domain';
+import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
 import { DocumentScene } from '../src/renderer/editor/DocumentScene';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
@@ -89,7 +91,92 @@ const parseMovePreviewFixture = (): ProjectDocument => {
   return result.value;
 };
 
+const parseTextSceneFixture = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.controlType = CONTROL_TYPES.textLabel;
+  input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.properties = { text: 'Line\r\nbreak' };
+  const result = parseProjectDocument(input);
+  if (!result.ok) {
+    throw new Error('Text scene fixture is invalid.');
+  }
+  return result.value;
+};
+
 describe('document SVG scene', () => {
+  it('updates an existing keyed text node from canonical measured alphabetic baselines', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const document = parseTextSceneFixture();
+    const model = new DocumentSceneModel();
+    const service: ControlTextMeasurementService = {
+      measure: vi.fn(() => ({
+        baselineOffsets: [14],
+        height: 25.2,
+        lineCount: 1,
+        lineHeight: 25.2,
+        lines: ['Line break'],
+        width: 70,
+      })),
+    };
+    const renderScene = (textMeasurementService?: ControlTextMeasurementService) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+            {...(textMeasurementService === undefined ? {} : { textMeasurementService })}
+          />
+        }
+      />
+    );
+    const view = render(renderScene());
+    scheduler.flushNext();
+    const sceneElement = view.container.querySelector<SVGGElement>(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const textElement = sceneElement?.querySelector<SVGTextElement>('.scene-control__text');
+    expect(textElement).toHaveAttribute('display', 'none');
+
+    view.rerender(renderScene(service));
+    expect(
+      view.container.querySelector(`[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`),
+    ).toBe(sceneElement);
+    expect(sceneElement?.querySelector('.scene-control__text')).toBe(textElement);
+    expect(textElement).toHaveAttribute('display', 'inline');
+    expect(textElement).toHaveAttribute('dominant-baseline', 'alphabetic');
+    expect(textElement).toHaveAttribute('font-size', '18');
+    expect(textElement).toHaveAttribute('text-anchor', 'start');
+    const line = textElement?.querySelector('tspan');
+    expect(line).toHaveAttribute('x', '-4');
+    expect(line).toHaveAttribute('y', '61.9');
+    expect(line).toHaveTextContent('Line break');
+    expect(service.measure).toHaveBeenCalledWith({
+      fontSize: 18,
+      mode: 'single-line',
+      text: 'Line\r\nbreak',
+    });
+    camera.dispose();
+  });
+
   it('updates keyed geometry and culling imperatively without replacing unchanged nodes', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,

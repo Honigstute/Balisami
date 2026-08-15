@@ -49,6 +49,7 @@ describe('registry-driven control auto-size', () => {
       height: 22,
       lineCount: 1,
       lineHeight: 22,
+      lines: ['Button'],
       width: 83.125,
     }));
 
@@ -72,6 +73,7 @@ describe('registry-driven control auto-size', () => {
         height: 22,
         lineCount: 1,
         lineHeight: 22,
+        lines: ['Checkbox'],
         width: 70,
       }),
     };
