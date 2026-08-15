@@ -51,10 +51,23 @@ describe('control definition registry', () => {
       }
     }
     expect(getControlSpec(CONTROL_TYPES.checkbox)).toMatchObject({
+      accessibility: {
+        checkedProperty: 'checked',
+        fallbackLabel: 'Checkbox',
+        nameProperty: 'text',
+        role: 'checkbox',
+      },
       autoSize: { axis: 'horizontal', insets: { left: 26 } },
-      capabilities: { canOwnChildren: false, text: { property: 'text' } },
+      capabilities: {
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+        text: { property: 'text' },
+      },
       defaultProperties: { checked: false, text: 'Checkbox' },
-      scene: { kind: 'checkbox', propertyKeys: ['checked', 'text'] },
+      scene: { hitShape: { kind: 'bounds' }, kind: 'checkbox', propertyKeys: ['checked', 'text'] },
       search: { aliases: ['check', 'tick'] },
     });
   });
@@ -89,14 +102,46 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/auto-size policy/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          accessibility: { ...checkbox.accessibility, checkedProperty: 'text' },
+        },
+      ]),
+    ).toThrow(/accessibility metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          scene: {
+            ...checkbox.scene,
+            hitShape: {
+              end: { x: 1, y: 1 },
+              kind: 'line',
+              start: { x: -1, y: 0 },
+              tolerance: 4,
+            },
+          },
+        },
+      ]),
+    ).toThrow(/hit shape/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          capabilities: { ...checkbox.capabilities, resizeAxes: 'diagonal' as never },
+        },
+      ]),
+    ).toThrow(/capability metadata/u);
   });
 
   it('owns child-container capability and rejects unknown control types', () => {
     expect(getControlSpec(FOUNDATION_CONTROL_TYPES.group)).toMatchObject({
-      capabilities: { canOwnChildren: true },
+      capabilities: { grouping: 'container', resizeAxes: 'none' },
     });
     expect(getControlSpec(FOUNDATION_CONTROL_TYPES.rectangle)).toMatchObject({
-      capabilities: { canOwnChildren: false },
+      capabilities: { grouping: 'leaf', resizeAxes: 'both' },
     });
     expect(getControlSpec('foundation.unknown')).toBeUndefined();
   });

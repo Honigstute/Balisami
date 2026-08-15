@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  getControlSpec,
   parseProjectDocument,
   type ProjectDocument,
 } from '../src/domain';
@@ -35,12 +36,12 @@ const parseFixture = (input: ProjectDocumentInputFixture): ProjectDocument => {
   return result.value;
 };
 
-const createTwoRectangleDocument = (): ProjectDocument => {
+const createTwoRectangleDocument = (rootX = 200, rootY = 100): ProjectDocument => {
   const input = createValidProjectDocumentInput();
   input.elementsById[ROOT_ID] = {
     id: ROOT_ID,
     controlType: FOUNDATION_CONTROL_TYPES.rectangle,
-    frame: { x: 200, y: 100, width: 80, height: 60 },
+    frame: { x: rootX, y: rootY, width: 80, height: 60 },
     locked: false,
     properties: {},
     childIds: [],
@@ -251,6 +252,34 @@ describe('document scene model', () => {
     expect(model.hitTestTopmost(point, { includeLocked: true })?.id).toBe(
       DOCUMENT_FIXTURE_IDS.child,
     );
+  });
+
+  it('expands the spatial broad phase for definition-owned line tolerance', () => {
+    const rectangle = getControlSpec(FOUNDATION_CONTROL_TYPES.rectangle);
+    if (rectangle === undefined) {
+      throw new Error('Rectangle definition is missing.');
+    }
+    const lineRectangle = {
+      ...rectangle,
+      scene: {
+        ...rectangle.scene,
+        hitShape: {
+          end: { x: 1, y: 1 },
+          kind: 'line' as const,
+          start: { x: 0, y: 0 },
+          tolerance: 10,
+        },
+      },
+    };
+    const model = new DocumentSceneModel({
+      resolveControlDefinition: (type) =>
+        type === FOUNDATION_CONTROL_TYPES.rectangle ? lineRectangle : getControlSpec(type),
+    });
+    model.reconcile(createTwoRectangleDocument(400, 300), DOCUMENT_FIXTURE_IDS.board);
+
+    // ROOT_ID ends at (480, 360); this point is outside its frame but within tolerance.
+    expect(model.hitTestTopmost(createWorldPoint(486, 366))?.id).toBe(ROOT_ID);
+    expect(model.hitTestTopmost(createWorldPoint(492, 372))).toBeUndefined();
   });
 
   it('queries contained or intersecting selection regions in canonical order', () => {
