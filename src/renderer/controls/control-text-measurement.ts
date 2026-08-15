@@ -1,5 +1,6 @@
 import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
+import type { ControlAutoSizeAxis, ControlAutoSizeInsets, ControlSize } from '../../domain';
 
 export const CONTROL_TEXT_MEASUREMENT_POLICY = Object.freeze({
   fontProbeSize: 16,
@@ -57,27 +58,13 @@ export interface ControlFontFaceSet {
   readonly ready: Promise<unknown>;
 }
 
-export type ControlAutoSizeAxis = 'both' | 'horizontal' | 'vertical';
-
-export interface ControlAutoSizeInsets {
-  readonly bottom: number;
-  readonly left: number;
-  readonly right: number;
-  readonly top: number;
-}
-
-export interface ControlAutoSize {
-  readonly height: number;
-  readonly width: number;
-}
-
 export interface ControlTextAutoSizeInput {
   readonly axis: ControlAutoSizeAxis;
-  readonly currentSize: ControlAutoSize;
+  readonly currentSize: ControlSize;
   readonly insets: ControlAutoSizeInsets;
-  readonly maximumSize?: ControlAutoSize;
+  readonly maximumSize?: ControlSize;
   readonly measurement: Pick<ControlTextMeasurement, 'height' | 'width'>;
-  readonly minimumSize: ControlAutoSize;
+  readonly minimumSize: ControlSize;
 }
 
 const createFontShorthand = (fontSize: number): string =>
@@ -246,7 +233,7 @@ export const getBrowserControlTextMeasurementService = (
   return created;
 };
 
-const validateSize = (label: string, size: ControlAutoSize): void => {
+const validateSize = (label: string, size: ControlSize): void => {
   if (
     !Number.isFinite(size.width) ||
     !Number.isFinite(size.height) ||
@@ -258,7 +245,7 @@ const validateSize = (label: string, size: ControlAutoSize): void => {
 };
 
 /** Pure auto-size projection; the caller commits its result through one validated command. */
-export const calculateControlTextAutoSize = (input: ControlTextAutoSizeInput): ControlAutoSize => {
+export const calculateControlTextAutoSize = (input: ControlTextAutoSizeInput): ControlSize => {
   if (input.axis !== 'both' && input.axis !== 'horizontal' && input.axis !== 'vertical') {
     throwInvalidInput('Control auto-size received an invalid axis policy.');
   }

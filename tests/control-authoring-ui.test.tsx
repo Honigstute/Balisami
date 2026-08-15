@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -70,6 +70,7 @@ describe('alpha control authoring UI', () => {
     render(
       <ControlInspector
         document={document}
+        onAutoSize={() => Promise.resolve(true)}
         onSetFrame={onSetFrame}
         onSetProperties={onSetProperties}
         selection={selection}
@@ -106,6 +107,7 @@ describe('alpha control authoring UI', () => {
     render(
       <ControlInspector
         document={document}
+        onAutoSize={() => Promise.resolve(true)}
         onSetFrame={() => true}
         onSetProperties={onSetProperties}
         selection={selection}
@@ -118,5 +120,27 @@ describe('alpha control authoring UI', () => {
       elementId,
       expect.objectContaining({ checked: true, text: 'Checkbox' }),
     );
+  });
+
+  it('exposes the definition-owned Auto-Size action without a control-type branch', async () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.button);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onAutoSize = vi.fn<(id: typeof elementId) => Promise<boolean>>(() =>
+      Promise.resolve(true),
+    );
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={onAutoSize}
+        onSetFrame={() => true}
+        onSetProperties={() => true}
+        selection={selection}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '↔ Auto-Size' }));
+    await waitFor(() => expect(onAutoSize).toHaveBeenCalledOnce());
+    expect(onAutoSize).toHaveBeenCalledWith(elementId);
   });
 });

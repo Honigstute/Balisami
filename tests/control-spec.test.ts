@@ -51,6 +51,7 @@ describe('control definition registry', () => {
       }
     }
     expect(getControlSpec(CONTROL_TYPES.checkbox)).toMatchObject({
+      autoSize: { axis: 'horizontal', insets: { left: 26 } },
       capabilities: { canOwnChildren: false, text: { property: 'text' } },
       defaultProperties: { checked: false, text: 'Checkbox' },
       scene: { kind: 'checkbox', propertyKeys: ['checked', 'text'] },
@@ -72,6 +73,22 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/reject their defaults/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          maximumSize: { height: checkbox.defaultSize.height, width: 1 },
+        },
+      ]),
+    ).toThrow(/maximum size/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          autoSize: { axis: 'horizontal', insets: { bottom: 0, left: -1, right: 0, top: 0 } },
+        },
+      ]),
+    ).toThrow(/auto-size policy/u);
   });
 
   it('owns child-container capability and rejects unknown control types', () => {

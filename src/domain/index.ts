@@ -44,6 +44,9 @@ export {
 } from './commands/schema';
 export {
   assertControlDefinitionsConform,
+  type ControlAutoSizeAxis,
+  type ControlAutoSizeInsets,
+  type ControlAutoSizePolicy,
   type ControlCapabilities,
   type ControlCategory,
   type ControlDefinition,

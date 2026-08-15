@@ -11,6 +11,20 @@ export interface ControlSize {
   readonly width: number;
 }
 
+export type ControlAutoSizeAxis = 'both' | 'horizontal' | 'vertical';
+
+export interface ControlAutoSizeInsets {
+  readonly bottom: number;
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+}
+
+export interface ControlAutoSizePolicy {
+  readonly axis: ControlAutoSizeAxis;
+  readonly insets: ControlAutoSizeInsets;
+}
+
 export interface ControlPaletteMetadata {
   readonly category: ControlCategory;
   readonly label: string;
@@ -60,11 +74,13 @@ export interface ControlPropertyMigration {
  * the domain registry never imports React, DOM, Electron, or platform modules.
  */
 export interface ControlDefinition {
+  readonly autoSize: ControlAutoSizePolicy | null;
   readonly capabilities: ControlCapabilities;
   readonly defaultProperties: ElementProperties;
   readonly defaultSize: ControlSize;
   readonly fileVersion: number;
   readonly inspector: readonly ControlInspectorSection[];
+  readonly maximumSize: ControlSize | null;
   readonly minimumSize: ControlSize;
   readonly migrations: readonly ControlPropertyMigration[];
   readonly palette: ControlPaletteMetadata | null;
@@ -77,6 +93,8 @@ export interface ControlDefinition {
 const hasOwn = (value: object, key: string): boolean => Object.hasOwn(value, key);
 
 const isPositiveFinite = (value: number): boolean => Number.isFinite(value) && value > 0;
+
+const isNonNegativeFinite = (value: number): boolean => Number.isFinite(value) && value >= 0;
 
 const listPropertyReferences = (definition: ControlDefinition): readonly string[] =>
   Object.freeze([
@@ -110,6 +128,15 @@ export const assertControlDefinitionsConform = (
       definition.minimumSize.height > definition.defaultSize.height
     ) {
       throw new Error(`Control '${definition.type}' has an invalid size contract.`);
+    }
+    if (
+      definition.maximumSize !== null &&
+      (!isPositiveFinite(definition.maximumSize.width) ||
+        !isPositiveFinite(definition.maximumSize.height) ||
+        definition.maximumSize.width < definition.defaultSize.width ||
+        definition.maximumSize.height < definition.defaultSize.height)
+    ) {
+      throw new Error(`Control '${definition.type}' has an invalid maximum size contract.`);
     }
 
     const defaults = definition.propertiesSchema.safeParse(definition.defaultProperties);
@@ -148,6 +175,19 @@ export const assertControlDefinitionsConform = (
     const text = definition.capabilities.text;
     if (text !== null && typeof definition.defaultProperties[text.property] !== 'string') {
       throw new Error(`Control '${definition.type}' has an invalid text capability.`);
+    }
+    if (
+      definition.autoSize !== null &&
+      (text === null ||
+        !['both', 'horizontal', 'vertical'].includes(definition.autoSize.axis) ||
+        [
+          definition.autoSize.insets.bottom,
+          definition.autoSize.insets.left,
+          definition.autoSize.insets.right,
+          definition.autoSize.insets.top,
+        ].some((value) => !isNonNegativeFinite(value)))
+    ) {
+      throw new Error(`Control '${definition.type}' has an invalid auto-size policy.`);
     }
     if (definition.scene.kind === 'checkbox') {
       const checkbox = definition.scene.checkbox;

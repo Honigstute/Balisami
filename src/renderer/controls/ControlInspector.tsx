@@ -9,12 +9,14 @@ import {
   type WorldRect,
 } from '../../domain';
 import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
+import { AppButton } from '../design/AppButton';
 import { AppInput } from '../design/AppInput';
 import { AppSegmentedControl } from '../design/AppSegmentedControl';
 import type { SelectionStore } from '../editor/selection-store';
 
 interface ControlInspectorProps {
   readonly document: ProjectDocument;
+  readonly onAutoSize: (elementId: ElementId) => Promise<boolean>;
   readonly onSetFrame: (elementId: ElementId, frame: WorldRect) => boolean;
   readonly onSetProperties: (elementId: ElementId, properties: ElementProperties) => boolean;
   readonly selection: SelectionStore;
@@ -22,6 +24,7 @@ interface ControlInspectorProps {
 
 interface InspectorNumberInputProps {
   readonly label: string;
+  readonly maximum?: number;
   readonly minimum?: number;
   readonly onCommit: (value: number) => boolean;
   readonly value: number;
@@ -37,7 +40,13 @@ const blurOnEnter = (event: KeyboardEvent<HTMLInputElement>): void => {
   }
 };
 
-const InspectorNumberInput = ({ label, minimum, onCommit, value }: InspectorNumberInputProps) => {
+const InspectorNumberInput = ({
+  label,
+  maximum,
+  minimum,
+  onCommit,
+  value,
+}: InspectorNumberInputProps) => {
   const canonical = formatInspectorNumber(value);
   const [draft, setDraft] = useState(canonical);
   const [validation, setValidation] = useState<string>();
@@ -49,12 +58,18 @@ const InspectorNumberInput = ({ label, minimum, onCommit, value }: InspectorNumb
 
   const commit = (): void => {
     const parsed = Number(draft);
-    if (!Number.isFinite(parsed) || (minimum !== undefined && parsed < minimum)) {
-      setValidation(
-        minimum === undefined
-          ? 'Enter a finite number.'
-          : `Minimum ${formatInspectorNumber(minimum)}.`,
-      );
+    if (
+      !Number.isFinite(parsed) ||
+      (minimum !== undefined && parsed < minimum) ||
+      (maximum !== undefined && parsed > maximum)
+    ) {
+      if (!Number.isFinite(parsed)) {
+        setValidation('Enter a finite number.');
+      } else if (minimum !== undefined && parsed < minimum) {
+        setValidation(`Minimum ${formatInspectorNumber(minimum)}.`);
+      } else if (maximum !== undefined) {
+        setValidation(`Maximum ${formatInspectorNumber(maximum)}.`);
+      }
       return;
     }
     if (parsed === value || onCommit(parsed)) {
@@ -70,6 +85,7 @@ const InspectorNumberInput = ({ label, minimum, onCommit, value }: InspectorNumb
     <AppInput
       kind="number"
       label={label}
+      max={maximum}
       min={minimum}
       onBlur={commit}
       onChange={(event) => setDraft(event.currentTarget.value)}
@@ -160,6 +176,7 @@ const InspectorFooter = () => (
 
 export const ControlInspector = ({
   document,
+  onAutoSize,
   onSetFrame,
   onSetProperties,
   selection,
@@ -172,6 +189,13 @@ export const ControlInspector = ({
   const elementId =
     selectionSnapshot.selectedIds.length === 1 ? selectionSnapshot.primaryId : undefined;
   const element = elementId === undefined ? undefined : document.elementsById[elementId];
+  const [autoSizePending, setAutoSizePending] = useState(false);
+  const [autoSizeValidation, setAutoSizeValidation] = useState<string>();
+
+  useEffect(() => {
+    setAutoSizePending(false);
+    setAutoSizeValidation(undefined);
+  }, [elementId]);
 
   if (selectionSnapshot.selectedIds.length > 1) {
     return (
@@ -213,6 +237,20 @@ export const ControlInspector = ({
     onSetFrame(element.id, Object.freeze({ ...element.frame, ...patch }));
   const textMetadata = spec.capabilities.text;
 
+  const autoSize = async (): Promise<void> => {
+    setAutoSizePending(true);
+    setAutoSizeValidation(undefined);
+    try {
+      if (!(await onAutoSize(element.id))) {
+        setAutoSizeValidation('The control could not be auto-sized.');
+      }
+    } catch {
+      setAutoSizeValidation('The control could not be auto-sized.');
+    } finally {
+      setAutoSizePending(false);
+    }
+  };
+
   return (
     <>
       <div className="inspector-scroll" data-inspector-control={element.controlType}>
@@ -243,6 +281,7 @@ export const ControlInspector = ({
             <InspectorNumberInput
               key={`${element.id}-width`}
               label="Width"
+              {...(spec.maximumSize === null ? {} : { maximum: spec.maximumSize.width })}
               minimum={spec.minimumSize.width}
               onCommit={(width) => commitFrame({ width })}
               value={element.frame.width}
@@ -250,11 +289,20 @@ export const ControlInspector = ({
             <InspectorNumberInput
               key={`${element.id}-height`}
               label="Height"
+              {...(spec.maximumSize === null ? {} : { maximum: spec.maximumSize.height })}
               minimum={spec.minimumSize.height}
               onCommit={(height) => commitFrame({ height })}
               value={element.frame.height}
             />
           </div>
+          {spec.autoSize === null ? null : (
+            <div className="inspector-auto-size">
+              <AppButton disabled={autoSizePending} onClick={() => void autoSize()}>
+                {autoSizePending ? 'Auto-Sizing…' : '↔ Auto-Size'}
+              </AppButton>
+              <span aria-live="polite">{autoSizeValidation ?? ''}</span>
+            </div>
+          )}
         </section>
         {spec.inspector.map((section) => (
           <section className="inspector-section" key={section.label}>

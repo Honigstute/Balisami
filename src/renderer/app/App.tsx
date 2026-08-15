@@ -21,7 +21,9 @@ import {
 } from '../../shared/project-workflow-alpha';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { ControlInspector } from '../controls/ControlInspector';
+import { calculateControlAutoSizeFrame } from '../controls/control-auto-size';
 import { ControlShelf } from '../controls/ControlShelf';
+import { getBrowserControlTextMeasurementService } from '../controls/control-text-measurement';
 import { createControlInsertionCommand } from '../controls/control-insertion';
 import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture';
@@ -756,6 +758,28 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               inspector: (
                 <ControlInspector
                   document={document}
+                  onAutoSize={async (elementId) => {
+                    const measurementService = await getBrowserControlTextMeasurementService();
+                    const currentDocument = session.getSnapshot().history?.document;
+                    const element = currentDocument?.elementsById[elementId];
+                    if (element === undefined) {
+                      return false;
+                    }
+                    const frame = calculateControlAutoSizeFrame(element, measurementService);
+                    if (frame === undefined) {
+                      return false;
+                    }
+                    const result = session.dispatch(
+                      {
+                        type: DOCUMENT_COMMAND_TYPES.setElementFrame,
+                        elementId,
+                        frame,
+                      },
+                      { label: 'Auto-size control' },
+                    );
+                    // Already-canonical geometry is a successful semantic no-op and adds no history.
+                    return result?.ok === true;
+                  }}
                   onSetFrame={(elementId, frame: WorldRect) => {
                     const result = session.dispatch(
                       {

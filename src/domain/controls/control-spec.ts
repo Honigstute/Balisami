@@ -9,6 +9,7 @@ import {
 } from '../document/schema';
 import {
   assertControlDefinitionsConform,
+  type ControlAutoSizePolicy,
   type ControlCapabilities,
   type ControlDefinition,
   type ControlInspectorSection,
@@ -43,6 +44,18 @@ const checkboxPropertiesSchema = z
   .readonly();
 
 const createSize = (width: number, height: number): ControlSize => Object.freeze({ height, width });
+
+const createAutoSize = (
+  axis: ControlAutoSizePolicy['axis'],
+  left: number,
+  right: number,
+  top: number,
+  bottom: number,
+): ControlAutoSizePolicy =>
+  Object.freeze({
+    axis,
+    insets: Object.freeze({ bottom, left, right, top }),
+  });
 
 const createPalette = (
   label: string,
@@ -81,10 +94,12 @@ const createInspector = (
 
 const createDefinition = (input: {
   aliases?: readonly string[];
+  autoSize: ControlAutoSizePolicy | null;
   capabilities: ControlCapabilities;
   defaultProperties: ElementProperties;
   defaultSize: ControlSize;
   inspector?: readonly ControlInspectorSection[];
+  maximumSize: ControlSize | null;
   minimumSize: ControlSize;
   palette: ControlPaletteMetadata | null;
   propertiesSchema: ControlDefinition['propertiesSchema'];
@@ -93,11 +108,13 @@ const createDefinition = (input: {
   type: ControlTypeId;
 }): ControlDefinition =>
   Object.freeze({
+    autoSize: input.autoSize,
     capabilities: input.capabilities,
     defaultProperties: Object.freeze(input.defaultProperties),
     defaultSize: input.defaultSize,
     fileVersion: 1,
     inspector: Object.freeze(input.inspector ?? []),
+    maximumSize: input.maximumSize,
     minimumSize: input.minimumSize,
     migrations: Object.freeze([]),
     palette: input.palette,
@@ -112,10 +129,12 @@ const createDefinition = (input: {
 
 const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
   createDefinition({
+    autoSize: null,
     capabilities: createCapabilities(true, null),
     defaultProperties: {},
     defaultSize: createSize(240, 160),
     minimumSize: createSize(24, 24),
+    maximumSize: null,
     palette: null,
     propertiesSchema: ElementPropertiesSchema,
     scene: createScene('transparent', []),
@@ -123,10 +142,12 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
   }),
   createDefinition({
     aliases: ['box', 'shape'],
+    autoSize: null,
     capabilities: createCapabilities(false, null),
     defaultProperties: {},
     defaultSize: createSize(180, 120),
     minimumSize: createSize(24, 24),
+    maximumSize: null,
     palette: createPalette('Rectangle', 'Common', 10),
     propertiesSchema: ElementPropertiesSchema,
     scene: createScene('rectangle', []),
@@ -135,11 +156,13 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
   }),
   createDefinition({
     aliases: ['label', 'copy'],
+    autoSize: createAutoSize('both', 0, 0, 0, 0),
     capabilities: createCapabilities(false, createText('start', 18, 0)),
     defaultProperties: { text: 'Text label' },
     defaultSize: createSize(160, 36),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
     minimumSize: createSize(32, 24),
+    maximumSize: null,
     palette: createPalette('Text Label', 'Text', 20),
     propertiesSchema: textPropertiesSchema,
     scene: createScene('text', ['text']),
@@ -148,11 +171,13 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
   }),
   createDefinition({
     aliases: ['action', 'cta'],
+    autoSize: createAutoSize('both', 8, 8, 8, 8),
     capabilities: createCapabilities(false, createText('center', 16, 8)),
     defaultProperties: { text: 'Button' },
     defaultSize: createSize(120, 40),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
     minimumSize: createSize(48, 28),
+    maximumSize: null,
     palette: createPalette('Button', 'Buttons', 30),
     propertiesSchema: textPropertiesSchema,
     scene: createScene('button', ['text']),
@@ -161,11 +186,13 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
   }),
   createDefinition({
     aliases: ['field', 'input'],
+    autoSize: createAutoSize('horizontal', 10, 10, 0, 0),
     capabilities: createCapabilities(false, createText('start', 16, 10)),
     defaultProperties: { text: 'Text input' },
     defaultSize: createSize(180, 40),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
     minimumSize: createSize(72, 28),
+    maximumSize: null,
     palette: createPalette('Text Input', 'Forms', 40),
     propertiesSchema: textPropertiesSchema,
     scene: createScene('input', ['text']),
@@ -174,6 +201,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
   }),
   createDefinition({
     aliases: ['check', 'tick'],
+    autoSize: createAutoSize('horizontal', 26, 0, 0, 0),
     capabilities: createCapabilities(false, createText('start', 16, 0)),
     defaultProperties: { checked: false, text: 'Checkbox' },
     defaultSize: createSize(160, 32),
@@ -182,6 +210,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
       { kind: 'boolean', label: 'State', property: 'checked' },
     ]),
     minimumSize: createSize(48, 24),
+    maximumSize: null,
     palette: createPalette('Checkbox', 'Forms', 50),
     propertiesSchema: checkboxPropertiesSchema,
     scene: createScene('checkbox', ['checked', 'text'], { boxSize: 18, gap: 8 }),

@@ -932,6 +932,22 @@ p {
   gap: var(--space-2);
 }
 
+.inspector-auto-size {
+  display: grid;
+  min-height: calc(var(--control-height) + var(--space-4));
+  gap: var(--space-1);
+}
+
+.inspector-auto-size .app-button {
+  width: 100%;
+}
+
+.inspector-auto-size span {
+  min-height: var(--space-3);
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+}
+
 .notes-placeholder {
   min-height: calc(var(--space-6) * 3);
   padding: var(--space-3);
