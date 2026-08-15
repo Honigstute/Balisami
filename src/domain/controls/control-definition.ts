@@ -39,10 +39,49 @@ export interface ControlTextCapability {
   readonly property: string;
 }
 
+export type ControlGroupingCapability = 'container' | 'leaf';
+export type ControlResizeAxes = 'both' | 'horizontal' | 'none' | 'vertical';
+
 export interface ControlCapabilities {
-  readonly canOwnChildren: boolean;
+  readonly border: boolean;
+  readonly fill: boolean;
+  readonly grouping: ControlGroupingCapability;
+  readonly icon: boolean;
+  readonly link: boolean;
+  readonly resizeAxes: ControlResizeAxes;
+  readonly state: boolean;
   readonly text: ControlTextCapability | null;
 }
+
+export type ControlAccessibilityRole = 'button' | 'checkbox' | 'group' | 'img' | 'textbox';
+
+export interface ControlAccessibilityDefinition {
+  /** Used when the configured name property is absent or blank. */
+  readonly fallbackLabel: string;
+  /** Optional string property used as the instance's accessible name. */
+  readonly nameProperty: string | null;
+  readonly role: ControlAccessibilityRole;
+  /** Optional boolean property exposed as aria-checked. */
+  readonly checkedProperty: string | null;
+}
+
+export interface ControlHitShapePoint {
+  /** Normalized horizontal coordinate within the control frame. */
+  readonly x: number;
+  /** Normalized vertical coordinate within the control frame. */
+  readonly y: number;
+}
+
+export type ControlHitShape =
+  | Readonly<{ kind: 'bounds' }>
+  | Readonly<{ kind: 'ellipse' }>
+  | Readonly<{
+      end: ControlHitShapePoint;
+      kind: 'line';
+      start: ControlHitShapePoint;
+      /** World-unit tolerance around the line segment. */
+      tolerance: number;
+    }>;
 
 export interface ControlInspectorPropertyField {
   readonly kind: 'boolean' | 'text';
@@ -58,6 +97,8 @@ export interface ControlInspectorSection {
 export interface ControlSceneDefinition {
   /** Checkbox dimensions are world units and ignored by other scene primitives. */
   readonly checkbox?: Readonly<{ boxSize: number; gap: number }>;
+  /** Exact selectable geometry applied after the spatial index's AABB broad phase. */
+  readonly hitShape: ControlHitShape;
   readonly kind: ControlVisualKind;
   /** Only these properties invalidate cached scene presentation. */
   readonly propertyKeys: readonly string[];
@@ -74,6 +115,7 @@ export interface ControlPropertyMigration {
  * the domain registry never imports React, DOM, Electron, or platform modules.
  */
 export interface ControlDefinition {
+  readonly accessibility: ControlAccessibilityDefinition;
   readonly autoSize: ControlAutoSizePolicy | null;
   readonly capabilities: ControlCapabilities;
   readonly defaultProperties: ElementProperties;
@@ -101,7 +143,21 @@ const listPropertyReferences = (definition: ControlDefinition): readonly string[
     ...definition.scene.propertyKeys,
     ...definition.inspector.flatMap((section) => section.fields.map((field) => field.property)),
     ...(definition.capabilities.text === null ? [] : [definition.capabilities.text.property]),
+    ...(definition.accessibility.nameProperty === null
+      ? []
+      : [definition.accessibility.nameProperty]),
+    ...(definition.accessibility.checkedProperty === null
+      ? []
+      : [definition.accessibility.checkedProperty]),
   ]);
+
+const isNormalizedPoint = (point: ControlHitShapePoint): boolean =>
+  Number.isFinite(point.x) &&
+  Number.isFinite(point.y) &&
+  point.x >= 0 &&
+  point.x <= 1 &&
+  point.y >= 0 &&
+  point.y <= 1;
 
 /** Throws during registry construction so an invalid control cannot partially register. */
 export const assertControlDefinitionsConform = (
@@ -173,6 +229,19 @@ export const assertControlDefinitionsConform = (
     }
 
     const text = definition.capabilities.text;
+    if (
+      !['container', 'leaf'].includes(definition.capabilities.grouping) ||
+      !['both', 'horizontal', 'none', 'vertical'].includes(definition.capabilities.resizeAxes) ||
+      [
+        definition.capabilities.border,
+        definition.capabilities.fill,
+        definition.capabilities.icon,
+        definition.capabilities.link,
+        definition.capabilities.state,
+      ].some((value) => typeof value !== 'boolean')
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid capability metadata.`);
+    }
     if (text !== null && typeof definition.defaultProperties[text.property] !== 'string') {
       throw new Error(`Control '${definition.type}' has an invalid text capability.`);
     }
@@ -188,6 +257,29 @@ export const assertControlDefinitionsConform = (
         ].some((value) => !isNonNegativeFinite(value)))
     ) {
       throw new Error(`Control '${definition.type}' has an invalid auto-size policy.`);
+    }
+    if (
+      definition.accessibility.fallbackLabel.trim().length === 0 ||
+      !['button', 'checkbox', 'group', 'img', 'textbox'].includes(definition.accessibility.role) ||
+      (definition.accessibility.nameProperty !== null &&
+        typeof definition.defaultProperties[definition.accessibility.nameProperty] !== 'string') ||
+      (definition.accessibility.checkedProperty !== null &&
+        typeof definition.defaultProperties[definition.accessibility.checkedProperty] !==
+          'boolean') ||
+      (definition.accessibility.role === 'checkbox' &&
+        definition.accessibility.checkedProperty === null)
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid accessibility metadata.`);
+    }
+    const hitShape = definition.scene.hitShape;
+    if (
+      !['bounds', 'ellipse', 'line'].includes(hitShape.kind) ||
+      (hitShape.kind === 'line' &&
+        (!isNormalizedPoint(hitShape.start) ||
+          !isNormalizedPoint(hitShape.end) ||
+          !isPositiveFinite(hitShape.tolerance)))
+    ) {
+      throw new Error(`Control '${definition.type}' has an invalid hit shape.`);
     }
     if (definition.scene.kind === 'checkbox') {
       const checkbox = definition.scene.checkbox;

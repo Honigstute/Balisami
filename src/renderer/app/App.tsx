@@ -7,6 +7,7 @@ import {
   CONTROL_TYPES,
   ElementIdSchema,
   getControlSpec,
+  getControlAccessibleName,
   selectRedoLabel,
   selectUndoLabel,
   type ControlTypeId,
@@ -147,7 +148,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           return undefined;
         }
         return Object.freeze({
-          accessibleLabel: `Edit ${spec.palette?.label ?? 'control'} text`,
+          accessibleLabel: `Edit ${getControlAccessibleName(spec, element.properties)} text`,
           elementId,
           fontSizeWorldUnits: text.fontSize,
           mode: text.mode,

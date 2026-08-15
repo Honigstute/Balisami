@@ -1,6 +1,12 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
-import { getControlSpec, type BoardId, type ElementId, type ProjectDocument } from '../../domain';
+import {
+  getControlAccessibleName,
+  getControlSpec,
+  type BoardId,
+  type ElementId,
+  type ProjectDocument,
+} from '../../domain';
 import {
   createControlSceneMarkPath,
   createControlSceneOutlinePath,
@@ -204,8 +210,20 @@ class DocumentScenePresenter {
   }
 
   #updateElement(element: SVGGElement, item: DocumentSceneItem): void {
+    const spec = getControlSpec(item.controlType);
+    if (spec === undefined) {
+      throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
+    }
     element.dataset.controlType = item.controlType;
     element.dataset.controlVisual = item.visualKind;
+    element.setAttribute('aria-label', getControlAccessibleName(spec, item.properties));
+    element.setAttribute('role', spec.accessibility.role);
+    const checkedProperty = spec.accessibility.checkedProperty;
+    if (checkedProperty === null) {
+      element.removeAttribute('aria-checked');
+    } else {
+      element.setAttribute('aria-checked', String(item.properties[checkedProperty] === true));
+    }
     this.#updateElementGeometry(element, item.bounds, item.path, item);
     element.dataset.sceneRevision = item.revision;
   }

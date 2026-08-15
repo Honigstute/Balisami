@@ -9,6 +9,7 @@ import {
 } from '../document/schema';
 import {
   assertControlDefinitionsConform,
+  type ControlAccessibilityDefinition,
   type ControlAutoSizePolicy,
   type ControlCapabilities,
   type ControlDefinition,
@@ -71,9 +72,17 @@ const createText = (
   Object.freeze({ alignment, fontSize, inset, mode: 'single-line', property: 'text' });
 
 const createCapabilities = (
-  canOwnChildren: boolean,
+  input: Omit<ControlCapabilities, 'text'>,
   text: ControlTextCapability | null,
-): ControlCapabilities => Object.freeze({ canOwnChildren, text });
+): ControlCapabilities => Object.freeze({ ...input, text });
+
+const createAccessibility = (
+  fallbackLabel: string,
+  role: ControlAccessibilityDefinition['role'],
+  nameProperty: string | null = null,
+  checkedProperty: string | null = null,
+): ControlAccessibilityDefinition =>
+  Object.freeze({ checkedProperty, fallbackLabel, nameProperty, role });
 
 const createScene = (
   kind: ControlSceneDefinition['kind'],
@@ -82,6 +91,7 @@ const createScene = (
 ): ControlSceneDefinition =>
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
+    hitShape: Object.freeze({ kind: 'bounds' }),
     kind,
     propertyKeys: Object.freeze(propertyKeys),
   });
@@ -93,6 +103,7 @@ const createInspector = (
   Object.freeze([Object.freeze({ fields: Object.freeze(fields), label })]);
 
 const createDefinition = (input: {
+  accessibility: ControlAccessibilityDefinition;
   aliases?: readonly string[];
   autoSize: ControlAutoSizePolicy | null;
   capabilities: ControlCapabilities;
@@ -108,6 +119,7 @@ const createDefinition = (input: {
   type: ControlTypeId;
 }): ControlDefinition =>
   Object.freeze({
+    accessibility: input.accessibility,
     autoSize: input.autoSize,
     capabilities: input.capabilities,
     defaultProperties: Object.freeze(input.defaultProperties),
@@ -129,8 +141,20 @@ const createDefinition = (input: {
 
 const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
   createDefinition({
+    accessibility: createAccessibility('Group', 'group'),
     autoSize: null,
-    capabilities: createCapabilities(true, null),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'none',
+        state: false,
+      },
+      null,
+    ),
     defaultProperties: {},
     defaultSize: createSize(240, 160),
     minimumSize: createSize(24, 24),
@@ -141,9 +165,21 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     type: CONTROL_TYPES.group,
   }),
   createDefinition({
+    accessibility: createAccessibility('Rectangle', 'img'),
     aliases: ['box', 'shape'],
     autoSize: null,
-    capabilities: createCapabilities(false, null),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
     defaultProperties: {},
     defaultSize: createSize(180, 120),
     minimumSize: createSize(24, 24),
@@ -155,9 +191,21 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     type: CONTROL_TYPES.rectangle,
   }),
   createDefinition({
+    accessibility: createAccessibility('Text Label', 'img', 'text'),
     aliases: ['label', 'copy'],
     autoSize: createAutoSize('both', 0, 0, 0, 0),
-    capabilities: createCapabilities(false, createText('start', 18, 0)),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 18, 0),
+    ),
     defaultProperties: { text: 'Text label' },
     defaultSize: createSize(160, 36),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
@@ -170,9 +218,21 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     type: CONTROL_TYPES.textLabel,
   }),
   createDefinition({
+    accessibility: createAccessibility('Button', 'button', 'text'),
     aliases: ['action', 'cta'],
     autoSize: createAutoSize('both', 8, 8, 8, 8),
-    capabilities: createCapabilities(false, createText('center', 16, 8)),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('center', 16, 8),
+    ),
     defaultProperties: { text: 'Button' },
     defaultSize: createSize(120, 40),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
@@ -185,9 +245,21 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     type: CONTROL_TYPES.button,
   }),
   createDefinition({
+    accessibility: createAccessibility('Text Input', 'textbox', 'text'),
     aliases: ['field', 'input'],
     autoSize: createAutoSize('horizontal', 10, 10, 0, 0),
-    capabilities: createCapabilities(false, createText('start', 16, 10)),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 16, 10),
+    ),
     defaultProperties: { text: 'Text input' },
     defaultSize: createSize(180, 40),
     inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
@@ -200,9 +272,21 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     type: CONTROL_TYPES.textInput,
   }),
   createDefinition({
+    accessibility: createAccessibility('Checkbox', 'checkbox', 'text', 'checked'),
     aliases: ['check', 'tick'],
     autoSize: createAutoSize('horizontal', 26, 0, 0, 0),
-    capabilities: createCapabilities(false, createText('start', 16, 0)),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 16, 0),
+    ),
     defaultProperties: { checked: false, text: 'Checkbox' },
     defaultSize: createSize(160, 32),
     inspector: createInspector('Properties', [

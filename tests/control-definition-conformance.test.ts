@@ -7,7 +7,10 @@ import {
   ElementIdSchema,
   ProjectIdSchema,
   createEmptyProjectDocument,
+  containsControlHitPoint,
   dispatchDocumentCommand,
+  getControlAccessibleName,
+  getControlSpec,
   listPaletteControlSpecs,
 } from '../src/domain';
 import { decodeProjectFileEnvelope, encodeProjectFileEnvelope } from '../src/persistence';
@@ -87,6 +90,22 @@ describe('control definition conformance harness', () => {
         after.frame.width,
         after.frame.height,
       );
+      const definition = getControlSpec(before.controlType);
+      if (definition === undefined) {
+        throw new Error('Conformance control definition is missing after reopen.');
+      }
+      expect(
+        containsControlHitPoint(
+          definition,
+          beforeBounds,
+          before.properties,
+          createWorldPoint(
+            beforeBounds.x + beforeBounds.width / 2,
+            beforeBounds.y + beforeBounds.height / 2,
+          ),
+        ),
+      ).toBe(true);
+      expect(getControlAccessibleName(definition, before.properties)).not.toBe('');
       expect(createControlSceneOutlinePath(before.controlType, beforeBounds, before.id)).toBe(
         createControlSceneOutlinePath(after.controlType, afterBounds, after.id),
       );
@@ -96,6 +115,7 @@ describe('control definition conformance harness', () => {
         createControlSceneMarkPath(after.controlType, afterBounds, after.id, after.properties),
       );
       if (before.controlType === CONTROL_TYPES.checkbox) {
+        expect(getControlAccessibleName(definition, before.properties)).toBe('Remember me');
         expect(
           createControlSceneMarkPath(
             before.controlType,

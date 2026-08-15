@@ -153,6 +153,9 @@ describe('visual conformance fixture contract', () => {
     await waitFor(() => {
       const checkbox = view.container.querySelector('[data-control-visual="checkbox"]');
       expect(checkbox).not.toBeNull();
+      expect(checkbox).toHaveAttribute('aria-checked', 'true');
+      expect(checkbox).toHaveAttribute('aria-label', 'Remember me');
+      expect(checkbox).toHaveAttribute('role', 'checkbox');
       expect(checkbox?.querySelector('.scene-control__mark')).not.toHaveAttribute(
         'display',
         'none',
