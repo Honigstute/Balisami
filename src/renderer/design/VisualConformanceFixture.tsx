@@ -458,7 +458,10 @@ const SceneFixture = ({
   readonly platform?: 'darwin' | 'win32';
   readonly state?: SceneFixtureState;
 }) => {
-  const camera = useViewportCameraStore();
+  // The representative Browser sits beside the alpha controls. A fixed
+  // session-only zoom keeps it and both children visible inside the minimum
+  // native canvas without changing document geometry or shell tracks.
+  const camera = useViewportCameraStore(state === 'registryControl' ? 0.8 : 1);
   const [fixture] = useState(() =>
     state === 'alpha'
       ? createAlphaFixtureDocument()

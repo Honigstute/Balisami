@@ -13,12 +13,13 @@ const getInitialDeviceScale = (): number => {
 };
 
 /** Owns one camera store and cancels pending work on teardown without breaking Strict Mode replay. */
-export const useViewportCameraStore = (): ViewportCameraStore => {
+/** Captures the requested session-only starting zoom when the store is first mounted. */
+export const useViewportCameraStore = (initialZoom = 1): ViewportCameraStore => {
   const [store] = useState(
     () =>
       new ViewportCameraStore({
         initialDeviceScale: createDeviceScale(getInitialDeviceScale()),
-        initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+        initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: initialZoom }),
         initialViewport: createViewportSize(1, 1),
         scheduler: createBrowserAnimationFrameScheduler(),
       }),
