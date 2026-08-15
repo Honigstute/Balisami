@@ -62,4 +62,31 @@ describe('definition-owned control hit shape', () => {
       }),
     ).toBe(false);
   });
+
+  it('uses the same property-driven Arrow segments for exact hit testing', () => {
+    const arrow = getControlSpec(CONTROL_TYPES.arrow);
+    if (arrow === undefined) {
+      throw new Error('Arrow definition is missing.');
+    }
+    const bounds = { height: 100, width: 100, x: 20, y: 30 };
+    expect(containsControlHitPoint(arrow, bounds, arrow.defaultProperties, { x: 70, y: 80 })).toBe(
+      true,
+    );
+    expect(
+      containsControlHitPoint(
+        arrow,
+        bounds,
+        { ...arrow.defaultProperties, routing: 'visual-2' },
+        { x: 100, y: 30 },
+      ),
+    ).toBe(true);
+    expect(
+      containsControlHitPoint(
+        arrow,
+        bounds,
+        { ...arrow.defaultProperties, routing: 'visual-2' },
+        { x: 70, y: 80 },
+      ),
+    ).toBe(false);
+  });
 });

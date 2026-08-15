@@ -50,7 +50,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(5);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(8);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -59,6 +59,9 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.imagePlaceholder,
+      CONTROL_TYPES.browser,
+      CONTROL_TYPES.arrow,
     ]);
   });
 });

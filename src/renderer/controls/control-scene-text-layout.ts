@@ -51,7 +51,7 @@ export const calculateControlSceneTextLayout = (
   }
 
   const layoutTop = bounds.y + (bounds.height - measurement.height) / 2;
-  const x = roundControlTextWorldUnit(getControlSceneTextX(definition, bounds));
+  const x = roundControlTextWorldUnit(getControlSceneTextX(definition, bounds, properties));
   return Object.freeze({
     fontSize: text.fontSize,
     lines: Object.freeze(

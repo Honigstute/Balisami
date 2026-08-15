@@ -59,7 +59,16 @@ describe('alpha control authoring UI', () => {
     const onInsert = vi.fn<(controlType: ControlTypeId) => boolean>(() => true);
     render(<ControlShelf onInsert={onInsert} />);
 
-    for (const label of ['Rectangle', 'Text Label', 'Button', 'Text Input', 'Checkbox']) {
+    for (const label of [
+      'Rectangle',
+      'Text Label',
+      'Button',
+      'Text Input',
+      'Checkbox',
+      'Image',
+      'Browser Window',
+      'Arrow',
+    ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
     expect(onInsert.mock.calls.map(([type]) => type)).toEqual([
@@ -68,6 +77,9 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.imagePlaceholder,
+      CONTROL_TYPES.browser,
+      CONTROL_TYPES.arrow,
     ]);
   });
 
@@ -85,6 +97,9 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.imagePlaceholder,
+      CONTROL_TYPES.browser,
+      CONTROL_TYPES.arrow,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);
@@ -157,6 +172,38 @@ describe('alpha control authoring UI', () => {
     expect(onSetProperties).toHaveBeenCalledWith(
       elementId,
       expect.objectContaining({ checked: true, text: 'Checkbox' }),
+    );
+  });
+
+  it('renders Arrow choice and number fields through the generic inspector vocabulary', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.arrow);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<(id: typeof elementId, properties: ElementProperties) => boolean>(
+      () => true,
+    );
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrame={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    expect(screen.getAllByRole('heading', { name: 'Arrow' })).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Visual 2' }));
+    expect(onSetProperties).toHaveBeenCalledWith(
+      elementId,
+      expect.objectContaining({ routing: 'visual-2' }),
+    );
+    const labelPosition = screen.getByRole('spinbutton', { name: 'Label Position' });
+    fireEvent.change(labelPosition, { target: { value: '0.75' } });
+    fireEvent.blur(labelPosition);
+    expect(onSetProperties).toHaveBeenCalledWith(
+      elementId,
+      expect.objectContaining({ labelPosition: 0.75 }),
     );
   });
 

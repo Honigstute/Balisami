@@ -45,9 +45,11 @@ export {
 export {
   containsControlHitPoint,
   getControlAccessibleName,
+  getControlHitSegments,
   getControlHitShapePadding,
   type ControlHitBounds,
   type ControlHitPoint,
+  type ControlHitSegment,
 } from './controls/control-hit-shape';
 export {
   migrateControlProperties,
@@ -72,6 +74,7 @@ export {
   type ControlGroupingCapability,
   type ControlHitShape,
   type ControlHitShapePoint,
+  type ControlInspectorChoiceOption,
   type ControlInspectorPropertyField,
   type ControlInspectorSection,
   type ControlPropertyMigration,

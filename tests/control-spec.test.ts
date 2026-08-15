@@ -20,6 +20,9 @@ describe('control definition registry', () => {
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.imagePlaceholder,
+      CONTROL_TYPES.browser,
+      CONTROL_TYPES.arrow,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -34,6 +37,9 @@ describe('control definition registry', () => {
       'Button',
       'Text Input',
       'Checkbox',
+      'Image',
+      'Browser Window',
+      'Arrow',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.fileVersion).toBe(1);
@@ -78,12 +84,33 @@ describe('control definition registry', () => {
       export: { kind: 'transparent-container' },
       thumbnail: { kind: 'none' },
     });
+    expect(getControlSpec(CONTROL_TYPES.imagePlaceholder)).toMatchObject({
+      capabilities: { grouping: 'leaf', resizeAxes: 'both' },
+      defaultProperties: { showBorder: false },
+      scene: { hitShape: { kind: 'bounds' }, kind: 'image' },
+    });
+    expect(getControlSpec(CONTROL_TYPES.browser)).toMatchObject({
+      capabilities: { grouping: 'container', resizeAxes: 'both' },
+      defaultProperties: { borderMode: 'visual-1', color: 'default', scrollbar: false },
+      scene: { hitShape: { kind: 'bounds' }, kind: 'browser' },
+    });
+    expect(getControlSpec(CONTROL_TYPES.arrow)).toMatchObject({
+      capabilities: { grouping: 'leaf', resizeAxes: 'both', text: { property: 'text' } },
+      defaultProperties: {
+        endArrow: true,
+        routing: 'visual-1',
+        startArrow: false,
+        strokeStyle: 'solid',
+      },
+      scene: { hitShape: { kind: 'line', tolerance: 6 }, kind: 'arrow' },
+    });
   });
 
   it('rejects duplicate registrations and definitions with invalid defaults', () => {
     const checkbox = getControlSpec(CONTROL_TYPES.checkbox);
-    if (checkbox === undefined) {
-      throw new Error('Checkbox definition is missing.');
+    const arrow = getControlSpec(CONTROL_TYPES.arrow);
+    if (checkbox === undefined || arrow === undefined) {
+      throw new Error('Representative control definition is missing.');
     }
     expect(() => assertControlDefinitionsConform([checkbox, checkbox])).toThrow(/duplicate type/u);
     expect(() =>
@@ -158,6 +185,42 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/export metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          inspector: [
+            {
+              fields: [
+                {
+                  kind: 'choice',
+                  label: 'State',
+                  options: [
+                    { label: 'One', value: 'same' },
+                    { label: 'Two', value: 'same' },
+                  ],
+                  property: 'text',
+                },
+              ],
+              label: 'Invalid choice',
+            },
+          ],
+        },
+      ]),
+    ).toThrow(/inspector field/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...arrow,
+          inspector: arrow.inspector.map((section) => ({
+            ...section,
+            fields: section.fields.map((field) =>
+              field.kind === 'number' ? { ...field, step: 0 } : field,
+            ),
+          })),
+        },
+      ]),
+    ).toThrow(/inspector field/u);
   });
 
   it('owns child-container capability and rejects unknown control types', () => {

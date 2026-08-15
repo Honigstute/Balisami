@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CONTROL_TYPES, getControlSpec, listPaletteControlSpecs } from '../src/domain';
 import {
+  createControlSceneMarkPath,
   createControlSceneOutlinePath,
   getControlScenePrimitiveBounds,
 } from '../src/renderer/controls/control-scene-geometry';
@@ -61,5 +62,44 @@ describe('control thumbnail projection', () => {
     }
     expect(group.export).toEqual({ kind: 'transparent-container' });
     expect(createControlThumbnailProjection(group, measurementService)).toBeUndefined();
+  });
+
+  it('projects deterministic Image, Browser, and property-driven Arrow geometry', () => {
+    const image = getControlSpec(CONTROL_TYPES.imagePlaceholder);
+    const browser = getControlSpec(CONTROL_TYPES.browser);
+    const arrow = getControlSpec(CONTROL_TYPES.arrow);
+    if (image === undefined || browser === undefined || arrow === undefined) {
+      throw new Error('Representative control definition is missing.');
+    }
+    const bounds = createWorldRect(10, 20, 150, 100);
+    expect(
+      createControlSceneMarkPath(image.type, bounds, 'image-seed', image.defaultProperties),
+    ).not.toBe('');
+    expect(
+      createControlSceneMarkPath(browser.type, bounds, 'browser-seed', {
+        ...browser.defaultProperties,
+        scrollbar: true,
+      }),
+    ).not.toBe(
+      createControlSceneMarkPath(browser.type, bounds, 'browser-seed', browser.defaultProperties),
+    );
+    const straight = createControlSceneOutlinePath(
+      arrow.type,
+      bounds,
+      'arrow-seed',
+      arrow.defaultProperties,
+    );
+    const elbow = createControlSceneOutlinePath(arrow.type, bounds, 'arrow-seed', {
+      ...arrow.defaultProperties,
+      routing: 'visual-2',
+    });
+    expect(straight).not.toBe('');
+    expect(elbow).not.toBe(straight);
+    expect(elbow).toBe(
+      createControlSceneOutlinePath(arrow.type, bounds, 'arrow-seed', {
+        ...arrow.defaultProperties,
+        routing: 'visual-2',
+      }),
+    );
   });
 });

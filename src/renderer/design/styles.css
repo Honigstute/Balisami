@@ -688,6 +688,16 @@ p {
   stroke-width: calc(var(--border-width) * 2);
 }
 
+[data-control-stroke-style='dashed'] .scene-control__outline,
+[data-control-stroke-style='dashed'] .scene-control__mark {
+  stroke-dasharray: var(--space-2) var(--space-1);
+}
+
+[data-control-stroke-style='dotted'] .scene-control__outline,
+[data-control-stroke-style='dotted'] .scene-control__mark {
+  stroke-dasharray: var(--border-width) var(--space-1);
+}
+
 .scene-control__mark {
   fill: none;
   pointer-events: none;

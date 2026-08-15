@@ -29,6 +29,9 @@ export const CONTROL_TYPES = Object.freeze({
   button: ControlTypeIdSchema.parse('wireframe.button'),
   textInput: ControlTypeIdSchema.parse('wireframe.text-input'),
   checkbox: ControlTypeIdSchema.parse('wireframe.checkbox'),
+  imagePlaceholder: ControlTypeIdSchema.parse('wireframe.image-placeholder'),
+  browser: ControlTypeIdSchema.parse('wireframe.browser'),
+  arrow: ControlTypeIdSchema.parse('wireframe.arrow'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -42,6 +45,27 @@ const textPropertiesSchema = z
 const checkboxPropertiesSchema = z
   .strictObject({
     checked: z.boolean(),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const imagePlaceholderPropertiesSchema = z.strictObject({ showBorder: z.boolean() }).readonly();
+const sceneColorSchema = z.union([z.literal('default'), z.string().regex(/^#[0-9a-f]{6}$/iu)]);
+const browserPropertiesSchema = z
+  .strictObject({
+    borderMode: z.enum(['visual-1', 'visual-2']),
+    color: sceneColorSchema,
+    scrollbar: z.boolean(),
+  })
+  .readonly();
+const arrowPropertiesSchema = z
+  .strictObject({
+    color: sceneColorSchema,
+    endArrow: z.boolean(),
+    labelPosition: z.number().min(0).max(1),
+    opacity: z.number().min(0).max(1),
+    routing: z.enum(['visual-1', 'visual-2']),
+    startArrow: z.boolean(),
+    strokeStyle: z.enum(['solid', 'dashed', 'dotted']),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
@@ -96,10 +120,11 @@ const createScene = (
   kind: ControlSceneDefinition['kind'],
   propertyKeys: readonly string[],
   checkbox?: ControlSceneDefinition['checkbox'],
+  hitShape: ControlSceneDefinition['hitShape'] = Object.freeze({ kind: 'bounds' }),
 ): ControlSceneDefinition =>
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
-    hitShape: Object.freeze({ kind: 'bounds' }),
+    hitShape: Object.freeze(hitShape),
     kind,
     propertyKeys: Object.freeze(propertyKeys),
   });
@@ -324,6 +349,175 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['form', 'selection', 'toggle'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.checkbox,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Image placeholder', 'img'),
+    aliases: ['image', 'photo', 'picture'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { showBorder: false },
+    defaultSize: createSize(120, 100),
+    export: createExport('scene'),
+    inspector: createInspector('Border', [
+      { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+    ]),
+    minimumSize: createSize(24, 24),
+    maximumSize: null,
+    palette: createPalette('Image', 'Assets', 60),
+    propertiesSchema: imagePlaceholderPropertiesSchema,
+    scene: createScene('image', ['showBorder']),
+    tags: ['asset', 'placeholder'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.imagePlaceholder,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Browser window', 'group'),
+    aliases: ['browser window', 'web page'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { borderMode: 'visual-1', color: 'default', scrollbar: false },
+    defaultSize: createSize(450, 400),
+    export: createExport('scene'),
+    inspector: createInspector('Browser', [
+      {
+        kind: 'choice',
+        label: 'Border',
+        options: [
+          { label: 'Visual 1', value: 'visual-1' },
+          { label: 'Visual 2', value: 'visual-2' },
+        ],
+        property: 'borderMode',
+      },
+      { kind: 'text', label: 'Color', property: 'color' },
+      { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+    ]),
+    minimumSize: createSize(160, 120),
+    maximumSize: null,
+    palette: createPalette('Browser Window', 'Containers', 70),
+    propertiesSchema: browserPropertiesSchema,
+    scene: createScene('browser', ['borderMode', 'color', 'scrollbar']),
+    tags: ['container', 'website', 'web'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.browser,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Arrow', 'img', 'text'),
+    aliases: ['connector', 'line'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('center', 13, 0),
+    ),
+    defaultProperties: {
+      color: 'default',
+      endArrow: true,
+      labelPosition: 0.5,
+      opacity: 1,
+      routing: 'visual-1',
+      startArrow: false,
+      strokeStyle: 'solid',
+      text: '',
+    },
+    defaultSize: createSize(150, 100),
+    export: createExport('scene'),
+    inspector: createInspector('Arrow', [
+      {
+        kind: 'choice',
+        label: 'Routing',
+        options: [
+          { label: 'Visual 1', value: 'visual-1' },
+          { label: 'Visual 2', value: 'visual-2' },
+        ],
+        property: 'routing',
+      },
+      { kind: 'boolean', label: 'Start Arrowhead', property: 'startArrow' },
+      { kind: 'boolean', label: 'End Arrowhead', property: 'endArrow' },
+      {
+        kind: 'number',
+        label: 'Label Position',
+        maximum: 1,
+        minimum: 0,
+        property: 'labelPosition',
+        step: 0.05,
+      },
+      { kind: 'text', label: 'Color', property: 'color' },
+      {
+        kind: 'number',
+        label: 'Opacity',
+        maximum: 1,
+        minimum: 0,
+        property: 'opacity',
+        step: 0.05,
+      },
+      {
+        kind: 'choice',
+        label: 'Stroke',
+        options: [
+          { label: 'Solid', value: 'solid' },
+          { label: 'Dashed', value: 'dashed' },
+          { label: 'Dotted', value: 'dotted' },
+        ],
+        property: 'strokeStyle',
+      },
+      { kind: 'text', label: 'Text', property: 'text' },
+    ]),
+    minimumSize: createSize(24, 16),
+    maximumSize: null,
+    palette: createPalette('Arrow', 'Common', 80),
+    propertiesSchema: arrowPropertiesSchema,
+    scene: createScene(
+      'arrow',
+      [
+        'routing',
+        'startArrow',
+        'endArrow',
+        'labelPosition',
+        'color',
+        'opacity',
+        'strokeStyle',
+        'text',
+      ],
+      undefined,
+      {
+        end: { x: 1, y: 1 },
+        kind: 'line',
+        start: { x: 0, y: 0 },
+        tolerance: 6,
+      },
+    ),
+    tags: ['connector', 'direction'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.arrow,
   }),
 ]);
 

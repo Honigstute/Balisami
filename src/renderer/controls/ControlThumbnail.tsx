@@ -1,4 +1,5 @@
 import type { ControlDefinition } from '../../domain';
+import { controlSceneHasFill } from './control-scene-geometry';
 import type { ControlTextMeasurementService } from './control-text-measurement';
 import { createControlThumbnailProjection } from './control-thumbnail-projection';
 
@@ -14,17 +15,19 @@ export const ControlThumbnail = ({ definition, textMeasurementService }: Control
     return null;
   }
   const viewBox = projection.viewBox;
-  const hasOutline = definition.scene.kind !== 'text' && definition.scene.kind !== 'transparent';
+  const hasFill = controlSceneHasFill(definition);
+  const strokeStyle = definition.defaultProperties.strokeStyle;
   return (
     <svg
       aria-hidden="true"
       className="control-library__preview"
       data-control-thumbnail={definition.type}
       data-control-thumbnail-visual={definition.scene.kind}
+      {...(typeof strokeStyle === 'string' ? { 'data-control-stroke-style': strokeStyle } : {})}
       preserveAspectRatio="xMidYMid meet"
       viewBox={`${String(viewBox.x)} ${String(viewBox.y)} ${String(viewBox.width)} ${String(viewBox.height)}`}
     >
-      {hasOutline ? (
+      {hasFill ? (
         <rect
           className="scene-control__fill"
           height={projection.primitiveBounds.height}

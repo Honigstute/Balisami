@@ -2,9 +2,17 @@ import type { z } from 'zod';
 
 import type { ControlTypeId, ElementProperties, JsonValue } from '../document/schema';
 
-export type ControlCategory = 'Buttons' | 'Common' | 'Forms' | 'Text';
+export type ControlCategory = 'Assets' | 'Buttons' | 'Common' | 'Containers' | 'Forms' | 'Text';
 export type ControlVisualKind =
-  'button' | 'checkbox' | 'input' | 'rectangle' | 'text' | 'transparent';
+  | 'arrow'
+  | 'browser'
+  | 'button'
+  | 'checkbox'
+  | 'image'
+  | 'input'
+  | 'rectangle'
+  | 'text'
+  | 'transparent';
 
 export interface ControlSize {
   readonly height: number;
@@ -83,11 +91,30 @@ export type ControlHitShape =
       tolerance: number;
     }>;
 
-export interface ControlInspectorPropertyField {
-  readonly kind: 'boolean' | 'text';
+interface ControlInspectorPropertyFieldBase {
   readonly label: string;
   readonly property: string;
 }
+
+export interface ControlInspectorChoiceOption {
+  readonly label: string;
+  readonly value: string;
+}
+
+export type ControlInspectorPropertyField =
+  | (ControlInspectorPropertyFieldBase & Readonly<{ kind: 'boolean' | 'text' }>)
+  | (ControlInspectorPropertyFieldBase &
+      Readonly<{
+        kind: 'choice';
+        options: readonly ControlInspectorChoiceOption[];
+      }>)
+  | (ControlInspectorPropertyFieldBase &
+      Readonly<{
+        kind: 'number';
+        maximum: number;
+        minimum: number;
+        step: number;
+      }>);
 
 export interface ControlInspectorSection {
   readonly fields: readonly ControlInspectorPropertyField[];
@@ -232,10 +259,29 @@ export const assertControlDefinitionsConform = (
       }
       for (const field of section.fields) {
         const value = definition.defaultProperties[field.property];
+        const choiceValues =
+          field.kind === 'choice' ? field.options.map((option) => option.value) : [];
         if (
           field.label.trim().length === 0 ||
           (field.kind === 'boolean' && typeof value !== 'boolean') ||
-          (field.kind === 'text' && typeof value !== 'string')
+          (field.kind === 'text' && typeof value !== 'string') ||
+          (field.kind === 'choice' &&
+            (typeof value !== 'string' ||
+              field.options.length < 2 ||
+              new Set(choiceValues).size !== choiceValues.length ||
+              field.options.some(
+                (option) => option.label.trim().length === 0 || option.value.trim().length === 0,
+              ) ||
+              !choiceValues.includes(value))) ||
+          (field.kind === 'number' &&
+            (typeof value !== 'number' ||
+              !Number.isFinite(value) ||
+              !Number.isFinite(field.minimum) ||
+              !Number.isFinite(field.maximum) ||
+              !isPositiveFinite(field.step) ||
+              field.minimum > field.maximum ||
+              value < field.minimum ||
+              value > field.maximum))
         ) {
           throw new Error(
             `Control '${definition.type}' has an invalid '${field.property}' inspector field.`,
