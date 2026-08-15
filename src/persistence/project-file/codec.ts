@@ -1,5 +1,7 @@
 import {
+  migrateProjectControlProperties,
   parseProjectDocument,
+  ProjectDocumentShapeSchema,
   type DocumentValidationIssue,
   type ProjectDocument,
 } from '../../domain';
@@ -16,10 +18,11 @@ import {
   isProjectAssetEntryPath,
   PROJECT_FILE_ENTRY_PATHS,
   PROJECT_FILE_FORMAT_ID,
-  PROJECT_FILE_MANIFEST_V1,
+  PROJECT_FILE_MANIFEST_V2,
   ProjectFileManifestV1Schema,
+  ProjectFileManifestV2Schema,
 } from './manifest';
-import { routeProjectFileVersion } from './version-routing';
+import { routeProjectFileVersion, type ProjectFileVersionRouteResult } from './version-routing';
 
 export const MAX_PROJECT_FILE_ENTRY_COUNT = 10_002;
 export const MAX_PROJECT_MANIFEST_BYTES = 64 * 1_024;
@@ -69,6 +72,7 @@ export interface ProjectFileCodecError {
   readonly message: string;
   readonly entryPath?: string;
   readonly assetId?: string;
+  readonly controlType?: string;
   readonly actualBytes?: number;
   readonly maxBytes?: number;
   readonly foundVersion?: number;
@@ -203,7 +207,12 @@ const readRequiredEntry = (
 
 const decodeManifest = (
   bytes: Uint8Array,
-): { readonly ok: true } | { readonly ok: false; readonly error: ProjectFileCodecError } => {
+):
+  | {
+      readonly ok: true;
+      readonly route: Extract<ProjectFileVersionRouteResult, { readonly ok: true }>;
+    }
+  | { readonly ok: false; readonly error: ProjectFileCodecError } => {
   const decoded = decodeBoundedJson(bytes);
   if (!decoded.ok) {
     return fail({
@@ -242,16 +251,10 @@ const decodeManifest = (
       entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
     });
   }
-  if (versionRoute.steps.length > 0) {
-    return fail({
-      code: 'unsupported-version',
-      message: `Project file format version ${String(versionRoute.sourceVersion)} requires an unimplemented migration.`,
-      entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
-      foundVersion: versionRoute.sourceVersion,
-    });
-  }
-
-  const parsed = ProjectFileManifestV1Schema.safeParse(decoded.value);
+  const parsed =
+    versionRoute.sourceVersion === 1
+      ? ProjectFileManifestV1Schema.safeParse(decoded.value)
+      : ProjectFileManifestV2Schema.safeParse(decoded.value);
   if (!parsed.success) {
     return fail({
       code: 'invalid-manifest',
@@ -259,7 +262,7 @@ const decodeManifest = (
       entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
     });
   }
-  return { ok: true };
+  return { ok: true, route: versionRoute };
 };
 
 const validateEncodedSize = (
@@ -369,7 +372,7 @@ export const encodeProjectFileEnvelope = (
     }
   }
 
-  const manifestBytes = encodeCanonicalJson(PROJECT_FILE_MANIFEST_V1);
+  const manifestBytes = encodeCanonicalJson(PROJECT_FILE_MANIFEST_V2);
   const documentBytes = encodeCanonicalJson(parsedDocument.value);
   for (const [path, bytes] of [
     [PROJECT_FILE_ENTRY_PATHS.manifest, manifestBytes],
@@ -439,7 +442,50 @@ export const decodeProjectFileEnvelope = (input: unknown): DecodeProjectFileResu
       entryPath: PROJECT_FILE_ENTRY_PATHS.document,
     });
   }
-  const parsedDocument = parseProjectDocument(decodedDocument.value);
+  let migratedDocument: unknown = decodedDocument.value;
+  for (const step of manifest.route.steps) {
+    const migration = step.migrateDocument(migratedDocument);
+    if (!migration.ok) {
+      return fail({
+        code: 'invalid-document',
+        message: migration.message,
+        entryPath: PROJECT_FILE_ENTRY_PATHS.document,
+      });
+    }
+    migratedDocument = migration.value;
+  }
+
+  const parsedShape = ProjectDocumentShapeSchema.safeParse(migratedDocument);
+  if (!parsedShape.success) {
+    const parsedDocument = parseProjectDocument(migratedDocument);
+    return fail({
+      code: 'invalid-document',
+      message: 'Project file contains an invalid project document.',
+      entryPath: PROJECT_FILE_ENTRY_PATHS.document,
+      ...(parsedDocument.ok
+        ? {}
+        : {
+            issues: parsedDocument.issues,
+            omittedIssueCount: parsedDocument.omittedIssueCount,
+          }),
+    });
+  }
+  const controlMigration = migrateProjectControlProperties(parsedShape.data);
+  if (!controlMigration.ok) {
+    return fail({
+      code:
+        controlMigration.error.code === 'newer-control-version'
+          ? 'newer-version'
+          : 'invalid-document',
+      message: controlMigration.error.message,
+      entryPath: PROJECT_FILE_ENTRY_PATHS.document,
+      controlType: controlMigration.error.controlType,
+      ...(controlMigration.error.foundVersion === undefined
+        ? {}
+        : { foundVersion: controlMigration.error.foundVersion }),
+    });
+  }
+  const parsedDocument = parseProjectDocument(controlMigration.document);
   if (!parsedDocument.ok) {
     return fail({
       code: 'invalid-document',

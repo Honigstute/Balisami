@@ -134,6 +134,13 @@ const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: A
       );
     }
 
+    if (element.controlVersion !== spec.fileVersion) {
+      addIssue(
+        ['elementsById', elementKey, 'controlVersion'],
+        `Control type '${element.controlType}' must use current property version ${String(spec.fileVersion)}.`,
+      );
+    }
+
     const properties = spec.propertiesSchema.safeParse(element.properties);
     if (!properties.success) {
       for (const issue of properties.error.issues) {

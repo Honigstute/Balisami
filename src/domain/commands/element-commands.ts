@@ -155,11 +155,19 @@ const applyCreateElement = (
       };
     }
   }
-  if (getControlSpec(command.element.controlType) === undefined) {
+  const definition = getControlSpec(command.element.controlType);
+  if (definition === undefined) {
     return {
       ok: false,
       code: 'conflict',
       message: `Control type '${command.element.controlType}' is not registered.`,
+    };
+  }
+  if (command.element.controlVersion !== definition.fileVersion) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Control type '${command.element.controlType}' must be created at property version ${String(definition.fileVersion)}.`,
     };
   }
 

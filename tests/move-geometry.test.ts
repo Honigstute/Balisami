@@ -9,7 +9,11 @@ import {
   resolveMoveDelta,
 } from '../src/renderer/editor/move-geometry';
 import { createWorldPoint, createWorldVector } from '../src/renderer/editor/viewport-transform';
-import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
+import {
+  createValidProjectDocumentInput,
+  DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
+} from './fixtures/project-document';
 
 const parseFixture = () => {
   const result = parseProjectDocument(createValidProjectDocumentInput());
@@ -87,6 +91,7 @@ describe('move geometry', () => {
     input.elementsById[rootId] = {
       id: rootId,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 400, y: 100, width: 80, height: 40 },
       locked: false,
       properties: {},

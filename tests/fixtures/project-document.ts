@@ -3,12 +3,22 @@ import {
   BoardIdSchema,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
   ProjectIdSchema,
+  getControlSpec,
   type AssetReference,
   type Board,
   type ElementNode,
   type ProjectDocument,
 } from '../../src/domain';
+
+export const getFixtureControlVersion = (type: string): number => {
+  const definition = getControlSpec(type);
+  if (definition === undefined) {
+    throw new Error(`Fixture control '${type}' is not registered.`);
+  }
+  return definition.fileVersion;
+};
 
 type MutableInput<T> = T extends string
   ? string
@@ -42,7 +52,7 @@ export const DOCUMENT_FIXTURE_IDS = {
 } as const;
 
 export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture => ({
-  schemaVersion: 1,
+  schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
   id: DOCUMENT_FIXTURE_IDS.project,
   name: 'Foundation fixture',
   boardIds: [DOCUMENT_FIXTURE_IDS.board],
@@ -58,6 +68,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
     [DOCUMENT_FIXTURE_IDS.group]: {
       id: DOCUMENT_FIXTURE_IDS.group,
       controlType: FOUNDATION_CONTROL_TYPES.group,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.group),
       frame: { x: -20, y: 12.5, width: 320, height: 180 },
       locked: false,
       properties: { label: 'Container', nested: { state: 'normal' } },
@@ -68,6 +79,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
     [DOCUMENT_FIXTURE_IDS.child]: {
       id: DOCUMENT_FIXTURE_IDS.child,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 16, y: 24, width: 120, height: 48 },
       locked: false,
       properties: { opacity: 0.75, tags: ['example', true, null] },

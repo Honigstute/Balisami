@@ -24,7 +24,11 @@ import {
   ungroupSelectedElement,
 } from '../src/renderer/editor/selection-grouping';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
-import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
+import {
+  createValidProjectDocumentInput,
+  DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
+} from './fixtures/project-document';
 
 const SECOND_ID = ElementIdSchema.parse('element_groupsecond1');
 const THIRD_ID = ElementIdSchema.parse('element_groupthird01');
@@ -86,6 +90,7 @@ describe('selection grouping foundation', () => {
         group: {
           id: NEW_GROUP_ID,
           controlType: FOUNDATION_CONTROL_TYPES.group,
+          controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.group),
           frame: { x: 16, y: 12, width: 444, height: 90 },
           childIds: [DOCUMENT_FIXTURE_IDS.child, THIRD_ID],
         },

@@ -50,6 +50,15 @@ export {
   type ControlHitPoint,
 } from './controls/control-hit-shape';
 export {
+  migrateControlProperties,
+  migrateProjectControlProperties,
+  type ControlDefinitionResolver,
+  type ControlPropertiesMigrationResult,
+  type ControlPropertyMigrationError,
+  type ControlPropertyMigrationErrorCode,
+  type ProjectControlMigrationResult,
+} from './controls/control-property-migration';
+export {
   assertControlDefinitionsConform,
   type ControlAccessibilityDefinition,
   type ControlAccessibilityRole,
@@ -90,6 +99,10 @@ export {
   type ProjectId,
 } from './document/ids';
 export { createEmptyProjectDocument, type EmptyProjectDocumentInput } from './document/factory';
+export {
+  migrateProjectDocumentV1ToV2,
+  type ProjectDocumentMigrationResult,
+} from './document/migrations';
 export { ElementOwnerSchema, type ElementOwner } from './document/owner';
 export {
   createElementLocationIndex,
@@ -121,6 +134,7 @@ export {
   ElementPropertiesSchema,
   JsonValueSchema,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
+  ProjectDocumentShapeSchema,
   WorldRectSchema,
   type AssetReference,
   type Board,
@@ -130,8 +144,10 @@ export {
   type ElementNode,
   type ElementProperties,
   type JsonValue,
+  type ProjectDocumentShape,
   type WorldRect,
 } from './document/schema';
+export { ProjectDocumentV1ShapeSchema } from './document/schema-v1';
 export {
   MAX_DOCUMENT_VALIDATION_ISSUES,
   ProjectDocumentSchema,

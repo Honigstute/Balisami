@@ -4,6 +4,7 @@ import type { BrowserWindow } from 'electron';
 import {
   BoardIdSchema,
   DOCUMENT_COMMAND_TYPES,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
   ProjectIdSchema,
   createDocumentHistory,
   dispatchHistoryCommand,
@@ -34,7 +35,7 @@ const RENDERER_RECOVERY_POLL_INTERVAL_MS = 25;
 
 const createRecoveryProbeFixture = (): RecoveryProbeFixture => {
   const parsed = parseProjectDocument({
-    schemaVersion: 1,
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     id: PROBE_PROJECT_ID,
     name: 'Packaged recovery probe',
     boardIds: [PROBE_BOARD_ID],

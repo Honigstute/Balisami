@@ -6,10 +6,13 @@ import {
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
   dispatchDocumentCommand,
+  getControlSpec,
   parseProjectDocument,
   ProjectIdSchema,
   type ProjectDocument,
+  type ControlTypeId,
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
@@ -72,6 +75,14 @@ interface VisualConformanceFixtureProps {
   readonly runtimeLabel: string;
 }
 
+const requireControlVersion = (type: ControlTypeId): number => {
+  const definition = getControlSpec(type);
+  if (definition === undefined) {
+    throw new Error(`Visual fixture control '${type}' is not registered.`);
+  }
+  return definition.fileVersion;
+};
+
 const createSceneFixtureDocument = (): {
   readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
   readonly document: ProjectDocument;
@@ -89,7 +100,7 @@ const createSceneFixtureDocument = (): {
   const duplicateId = ElementIdSchema.parse('element_visualduplicate');
   const sideId = ElementIdSchema.parse('element_visualsidecard');
   const result = parseProjectDocument({
-    schemaVersion: 1,
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     id: projectId,
     name: 'Scene visual fixture',
     boardIds: [boardId],
@@ -105,6 +116,7 @@ const createSceneFixtureDocument = (): {
       [outerId]: {
         id: outerId,
         controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
         frame: { x: 160, y: 100, width: 520, height: 380 },
         locked: false,
         properties: {},
@@ -115,6 +127,7 @@ const createSceneFixtureDocument = (): {
       [groupId]: {
         id: groupId,
         controlType: FOUNDATION_CONTROL_TYPES.group,
+        controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.group),
         frame: { x: 160, y: 100, width: 520, height: 380 },
         locked: false,
         properties: {},
@@ -125,6 +138,7 @@ const createSceneFixtureDocument = (): {
       [titleId]: {
         id: titleId,
         controlType: CONTROL_TYPES.textLabel,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textLabel),
         frame: { x: 28, y: 28, width: 280, height: 28 },
         locked: false,
         properties: { text: 'Account settings' },
@@ -135,6 +149,7 @@ const createSceneFixtureDocument = (): {
       [fieldId]: {
         id: fieldId,
         controlType: CONTROL_TYPES.textInput,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textInput),
         frame: { x: 28, y: 96, width: 300, height: 48 },
         locked: false,
         properties: { text: 'Email address' },
@@ -145,6 +160,7 @@ const createSceneFixtureDocument = (): {
       [buttonId]: {
         id: buttonId,
         controlType: CONTROL_TYPES.button,
+        controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: { x: 28, y: 172, width: 128, height: 44 },
         locked: false,
         properties: { text: 'Continue' },
@@ -155,6 +171,7 @@ const createSceneFixtureDocument = (): {
       [sideId]: {
         id: sideId,
         controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+        controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
         frame: { x: 372, y: 28, width: 112, height: 304 },
         locked: false,
         properties: {},
@@ -185,7 +202,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
   const buttonId = ElementIdSchema.parse('element_alphabutton');
   const inputId = ElementIdSchema.parse('element_alphainput');
   const result = parseProjectDocument({
-    schemaVersion: 1,
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     id: projectId,
     name: 'Alpha visual fixture',
     boardIds: [boardId],
@@ -201,6 +218,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
       [rectangleId]: {
         id: rectangleId,
         controlType: CONTROL_TYPES.rectangle,
+        controlVersion: requireControlVersion(CONTROL_TYPES.rectangle),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.rectangle,
         locked: false,
         properties: {},
@@ -211,6 +229,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
       [titleId]: {
         id: titleId,
         controlType: CONTROL_TYPES.textLabel,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textLabel),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textLabel,
         locked: false,
         properties: { text: 'Account settings' },
@@ -221,6 +240,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
       [buttonId]: {
         id: buttonId,
         controlType: CONTROL_TYPES.button,
+        controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
         locked: false,
         properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
@@ -231,6 +251,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
       [inputId]: {
         id: inputId,
         controlType: CONTROL_TYPES.textInput,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textInput),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textInput,
         locked: false,
         properties: { text: 'Email address' },
@@ -262,6 +283,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       assetIds: [],
       childIds: [],
       controlType: CONTROL_TYPES.checkbox,
+      controlVersion: requireControlVersion(CONTROL_TYPES.checkbox),
       frame: { x: 76, y: 312, width: 180, height: 32 },
       id: checkboxId,
       link: null,

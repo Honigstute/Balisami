@@ -30,7 +30,11 @@ import {
   createViewportTransform,
   createWorldPoint,
 } from '../src/renderer/editor/viewport-transform';
-import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
+import {
+  createValidProjectDocumentInput,
+  DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
+} from './fixtures/project-document';
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
   readonly callbacks = new Map<number, (timestamp: number) => void>();
@@ -77,6 +81,7 @@ const parseMovePreviewFixture = (): ProjectDocument => {
   input.elementsById[OTHER_ID] = {
     id: OTHER_ID,
     controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+    controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: 180, y: 24, width: 100, height: 48 },
     locked: false,
     properties: {},

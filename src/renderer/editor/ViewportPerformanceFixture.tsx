@@ -5,6 +5,8 @@ import {
   BoardIdSchema,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
+  getControlSpec,
   parseProjectDocument,
   ProjectIdSchema,
   type ElementId,
@@ -31,6 +33,14 @@ interface PerformanceFixtureDocument {
   readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
   readonly document: ProjectDocument;
 }
+
+const RECTANGLE_CONTROL_VERSION = (() => {
+  const definition = getControlSpec(FOUNDATION_CONTROL_TYPES.rectangle);
+  if (definition === undefined) {
+    throw new Error('Viewport performance fixture Rectangle is not registered.');
+  }
+  return definition.fileVersion;
+})();
 
 class MeasuringAnimationFrameScheduler implements AnimationFrameScheduler {
   #enabled = false;
@@ -73,6 +83,7 @@ const createPerformanceFixtureDocument = (): PerformanceFixtureDocument => {
     elementsById[elementId] = {
       id: elementId,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: RECTANGLE_CONTROL_VERSION,
       frame: { x: column * 160 - 400, y: row * 120 - 300, width: 120, height: 80 },
       locked: false,
       properties: {},
@@ -83,7 +94,7 @@ const createPerformanceFixtureDocument = (): PerformanceFixtureDocument => {
   }
 
   const parsed = parseProjectDocument({
-    schemaVersion: 1,
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     id: projectId,
     name: 'Viewport performance fixture',
     boardIds: [boardId],

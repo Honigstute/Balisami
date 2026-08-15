@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { AssetIdSchema, BoardIdSchema, ElementIdSchema, ProjectIdSchema } from './ids';
 
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 1 as const;
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 2 as const;
 
 export const DocumentTitleSchema = z.string().trim().min(1).max(120);
 const PropertyKeySchema = z
@@ -90,18 +90,20 @@ export const ControlTypeIdSchema = z
   .regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/u, 'Expected a namespaced lowercase control type.')
   .brand<'ControlTypeId'>();
 
-export const ElementNodeSchema = z
-  .strictObject({
-    id: ElementIdSchema,
-    controlType: ControlTypeIdSchema,
-    frame: WorldRectSchema,
-    locked: z.boolean(),
-    properties: ElementPropertiesSchema,
-    childIds: z.array(ElementIdSchema).readonly(),
-    assetIds: z.array(AssetIdSchema).readonly(),
-    link: ElementLinkSchema.nullable(),
-  })
-  .readonly();
+const ElementNodeObjectSchema = z.strictObject({
+  id: ElementIdSchema,
+  controlType: ControlTypeIdSchema,
+  /** Persisted property-schema version owned by the registered control definition. */
+  controlVersion: z.number().int().positive(),
+  frame: WorldRectSchema,
+  locked: z.boolean(),
+  properties: ElementPropertiesSchema,
+  childIds: z.array(ElementIdSchema).readonly(),
+  assetIds: z.array(AssetIdSchema).readonly(),
+  link: ElementLinkSchema.nullable(),
+});
+
+export const ElementNodeSchema = ElementNodeObjectSchema.readonly();
 
 export const BoardSchema = z
   .strictObject({

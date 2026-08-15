@@ -23,6 +23,7 @@ import {
 import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
   type ProjectDocumentInputFixture,
 } from './fixtures/project-document';
 
@@ -41,6 +42,7 @@ const createTwoRectangleDocument = (rootX = 200, rootY = 100): ProjectDocument =
   input.elementsById[ROOT_ID] = {
     id: ROOT_ID,
     controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+    controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: rootX, y: rootY, width: 80, height: 60 },
     locked: false,
     properties: {},
@@ -57,6 +59,7 @@ const createOverlappingRectangleDocument = (topLocked = false): ProjectDocument 
   input.elementsById[ROOT_ID] = {
     id: ROOT_ID,
     controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+    controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: -4, y: 36.5, width: 120, height: 48 },
     locked: false,
     properties: {},
@@ -189,6 +192,7 @@ describe('document scene model', () => {
     reorderedInput.elementsById[ROOT_ID] = {
       id: ROOT_ID,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 200, y: 100, width: 80, height: 60 },
       locked: false,
       properties: {},
@@ -330,6 +334,7 @@ describe('document scene model', () => {
     input.elementsById[ROOT_ID] = {
       id: ROOT_ID,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: -4, y: 36.5, width: 120, height: 48 },
       locked: false,
       properties: {},

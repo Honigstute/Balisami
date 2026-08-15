@@ -25,7 +25,11 @@ import {
   createViewportZoom,
   createWorldPoint,
 } from '../src/renderer/editor/viewport-transform';
-import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
+import {
+  createValidProjectDocumentInput,
+  DOCUMENT_FIXTURE_IDS,
+  getFixtureControlVersion,
+} from './fixtures/project-document';
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
   readonly callbacks = new Map<number, (timestamp: number) => void>();
@@ -194,6 +198,7 @@ describe('move gesture integration', () => {
     const createRectangle = (id: typeof beforeId, x: number, width: number) => ({
       id,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+      controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x, y: 5_000, width, height: 20 },
       locked: false,
       properties: {},
