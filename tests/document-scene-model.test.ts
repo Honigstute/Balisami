@@ -16,6 +16,7 @@ import {
 import {
   createViewportSize,
   createViewportTransform,
+  createWorldPoint,
   createWorldRect,
 } from '../src/renderer/editor/viewport-transform';
 import {
@@ -46,6 +47,23 @@ const createTwoRectangleDocument = (): ProjectDocument => {
     assetIds: [],
     link: null,
   };
+  input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
+  return parseFixture(input);
+};
+
+const createOverlappingRectangleDocument = (topLocked = false): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  input.elementsById[ROOT_ID] = {
+    id: ROOT_ID,
+    controlType: FOUNDATION_CONTROL_TYPES.rectangle,
+    frame: { x: -4, y: 36.5, width: 120, height: 48 },
+    locked: false,
+    properties: {},
+    childIds: [],
+    assetIds: [],
+    link: null,
+  };
+  input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.locked = topLocked;
   input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
   return parseFixture(input);
 };
@@ -161,5 +179,68 @@ describe('document scene model', () => {
       updatedItemCount: 0,
     });
     expect(model.getItem(ROOT_ID)).toBeUndefined();
+  });
+
+  it('resolves exact overlap hits by canonical visual order and clicks through locked items', () => {
+    const model = new DocumentSceneModel();
+    const unlocked = createOverlappingRectangleDocument();
+    model.reconcile(unlocked, DOCUMENT_FIXTURE_IDS.board);
+    const point = createWorldPoint(20, 50);
+
+    expect(model.queryHitStack(point).map((item) => item.id)).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+      ROOT_ID,
+    ]);
+    expect(model.hitTestTopmost(point)?.id).toBe(DOCUMENT_FIXTURE_IDS.child);
+    expect(model.hitTestTopmost(createWorldPoint(500, 500))).toBeUndefined();
+
+    const topItem = model.getItem(DOCUMENT_FIXTURE_IDS.child);
+    const locked = createOverlappingRectangleDocument(true);
+    expect(model.reconcile(locked, DOCUMENT_FIXTURE_IDS.board)).toMatchObject({
+      changed: true,
+      updatedItemCount: 1,
+    });
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)).not.toBe(topItem);
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.path).toBe(topItem?.path);
+    expect(model.hitTestTopmost(point)?.id).toBe(ROOT_ID);
+    expect(model.hitTestTopmost(point, { includeLocked: true })?.id).toBe(
+      DOCUMENT_FIXTURE_IDS.child,
+    );
+  });
+
+  it('queries contained or intersecting selection regions in canonical order', () => {
+    const model = new DocumentSceneModel();
+    const document = createTwoRectangleDocument();
+    model.reconcile(document, DOCUMENT_FIXTURE_IDS.board);
+
+    expect(model.querySelectionRegion(createWorldRect(-10, 30, 140, 70), 'contained')).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(model.querySelectionRegion(createWorldRect(0, 40, 50, 20), 'contained')).toEqual([]);
+    expect(model.querySelectionRegion(createWorldRect(0, 40, 50, 20), 'intersecting')).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(model.querySelectionRegion(createWorldRect(-20, 20, 400, 200), 'contained')).toEqual([
+      ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(model.listSelectableItemIds()).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.child]);
+  });
+
+  it('excludes locked items from region and Select All candidates unless explicitly requested', () => {
+    const model = new DocumentSceneModel();
+    model.reconcile(createOverlappingRectangleDocument(true), DOCUMENT_FIXTURE_IDS.board);
+    const bounds = createWorldRect(-10, 30, 140, 70);
+
+    expect(model.querySelectionRegion(bounds, 'contained')).toEqual([ROOT_ID]);
+    expect(model.listSelectableItemIds()).toEqual([ROOT_ID]);
+    expect(model.querySelectionRegion(bounds, 'contained', { includeLocked: true })).toEqual([
+      ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
+    expect(model.listSelectableItemIds({ includeLocked: true })).toEqual([
+      ROOT_ID,
+      DOCUMENT_FIXTURE_IDS.child,
+    ]);
   });
 });

@@ -29,21 +29,24 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   color: inherit;
   font: inherit;
 }
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: calc(var(--border-width) * 2) solid var(--color-accent-strong);
   outline-offset: calc(var(--border-width) * 2);
 }
 
 button:disabled,
 input:disabled,
-select:disabled {
+select:disabled,
+textarea:disabled {
   cursor: default;
 }
 
@@ -527,6 +530,39 @@ p {
   cursor: grabbing;
 }
 
+.editor-viewport[data-selection-state='marquee'] {
+  cursor: crosshair;
+}
+
+.editor-viewport[data-selection-state='moving'] {
+  cursor: move;
+}
+
+.editor-viewport[data-resize-handle='north'],
+.editor-viewport[data-resize-handle='south'] {
+  cursor: ns-resize;
+}
+
+.editor-viewport[data-resize-handle='east'],
+.editor-viewport[data-resize-handle='west'] {
+  cursor: ew-resize;
+}
+
+.editor-viewport[data-resize-handle='northWest'],
+.editor-viewport[data-resize-handle='southEast'] {
+  cursor: nwse-resize;
+}
+
+.editor-viewport[data-resize-handle='northEast'],
+.editor-viewport[data-resize-handle='southWest'] {
+  cursor: nesw-resize;
+}
+
+.editor-viewport:focus-visible {
+  outline: calc(var(--border-width) * 2) solid var(--color-accent-strong);
+  outline-offset: calc(var(--border-width) * -2);
+}
+
 .editor-scene {
   display: block;
 }
@@ -543,8 +579,58 @@ p {
   stroke-width: calc(var(--border-width) * 2);
 }
 
+.selection-overlay__outline,
+.selection-overlay__handle {
+  pointer-events: none;
+  stroke: var(--color-accent-strong);
+  stroke-width: calc(var(--border-width) * 2);
+}
+
+.selection-overlay__outline {
+  fill: none;
+}
+
+.selection-overlay__handle {
+  fill: var(--color-canvas);
+}
+
+.marquee-overlay__rectangle {
+  pointer-events: none;
+  fill: var(--color-accent);
+  fill-opacity: var(--opacity-selection-fill);
+  stroke: var(--color-accent-strong);
+  stroke-width: var(--border-width);
+}
+
+[data-marquee-mode='intersecting'] .marquee-overlay__rectangle {
+  stroke-dasharray: var(--space-1) var(--space-1);
+}
+
 .editor-dom-overlay {
   pointer-events: none;
+}
+
+.text-edit-overlay {
+  position: absolute;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-1);
+  overflow: auto;
+  pointer-events: auto;
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  border: calc(var(--border-width) * 2) solid var(--color-accent-strong);
+  border-radius: 0;
+  outline: 0;
+  font-family: var(--font-wireframe);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height);
+  resize: none;
+  user-select: text;
+}
+
+.text-edit-overlay[hidden] {
+  display: none;
 }
 
 .canvas-empty {

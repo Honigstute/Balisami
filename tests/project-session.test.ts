@@ -2,7 +2,26 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { DOCUMENT_COMMAND_TYPES, ProjectIdSchema, type ProjectDocument } from '../src/domain';
+import {
+  DOCUMENT_COMMAND_TYPES,
+  ElementIdSchema,
+  ProjectIdSchema,
+  undoDocumentHistory,
+  type ProjectDocument,
+} from '../src/domain';
+import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
+import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
+import {
+  SelectionClipboardStore,
+  copySelectedElements,
+  pasteClipboardElements,
+} from '../src/renderer/editor/selection-clipboard';
+import { deleteSelectedElements } from '../src/renderer/editor/selection-delete';
+import { duplicateSelectedElements } from '../src/renderer/editor/selection-duplicate';
+import { SelectionStore } from '../src/renderer/editor/selection-store';
+import { TextEditInteraction } from '../src/renderer/editor/text-edit-interaction';
+import { createWorldRect } from '../src/renderer/editor/viewport-transform';
+import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
 import { ProjectSession } from '../src/renderer/projects/project-session';
 import type {
   DesktopApi,
@@ -31,6 +50,21 @@ const createDeferred = <Value>(): Deferred<Value> => {
   });
   return { promise, resolve };
 };
+
+class TestAnimationFrameScheduler implements AnimationFrameScheduler {
+  readonly callbacks = new Map<number, (timestamp: number) => void>();
+  #nextId = 1;
+
+  cancel = (requestId: number): void => {
+    this.callbacks.delete(requestId);
+  };
+
+  request = (callback: (timestamp: number) => void): number => {
+    const requestId = this.#nextId++;
+    this.callbacks.set(requestId, callback);
+    return requestId;
+  };
+}
 
 class FakeDesktopApi implements DesktopApi {
   readonly closeOutcomes = new Set<(outcome: ProjectCloseOutcome) => void>();
@@ -149,6 +183,327 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('commits one selection delete and reconciles only after ProjectSession accepts it', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const selection = new SelectionStore();
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      deleteSelectedElements(
+        document,
+        selection,
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+        {
+          commit: (commands) => {
+            const result = session.dispatchTransaction(commands, { label: 'Delete element' });
+            return result?.ok === true && result.changed ? result.history.document : undefined;
+          },
+        },
+      ),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Selection delete integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ elementId: DOCUMENT_FIXTURE_IDS.child, type: 'element.delete' }],
+      label: 'Delete element',
+    });
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toBeUndefined();
+    expect(selection.getSnapshot()).toMatchObject({ primaryId: undefined, selectedIds: [] });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
+  it('commits one selection duplicate and schedules one recovery point before selecting clones', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const selection = new SelectionStore();
+    const cloneId = ElementIdSchema.parse('element_sessionclone1');
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      duplicateSelectedElements(
+        document,
+        selection,
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+        () => cloneId,
+        {
+          commit: (commands) => {
+            const result = session.dispatchTransaction(commands, { label: 'Duplicate element' });
+            return result?.ok === true && result.changed ? result.history.document : undefined;
+          },
+        },
+      ),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Selection duplicate integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ element: { id: cloneId }, type: 'element.create' }],
+      label: 'Duplicate element',
+    });
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.childIds).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+      cloneId,
+    ]);
+    expect(history.document.elementsById[cloneId]?.frame).toEqual({
+      x: 26,
+      y: 34,
+      width: 120,
+      height: 48,
+    });
+    expect(selection.getSnapshot()).toMatchObject({ primaryId: cloneId, selectedIds: [cloneId] });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
+  it('keeps copy outside history and commits one recoverable paste before selecting the clone', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const selection = new SelectionStore();
+    const clipboard = new SelectionClipboardStore();
+    const cloneId = ElementIdSchema.parse('element_sessionpaste01');
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      copySelectedElements(
+        document,
+        selection,
+        [DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child],
+        clipboard,
+      ),
+    ).toBe(true);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
+    expect(desktop.recoveryRequests).toHaveLength(1);
+    expect(selection.getSnapshot()).toMatchObject({
+      primaryId: DOCUMENT_FIXTURE_IDS.child,
+      selectedIds: [DOCUMENT_FIXTURE_IDS.child],
+    });
+
+    expect(
+      pasteClipboardElements(document, selection, clipboard, () => cloneId, {
+        commit: (commands) => {
+          const result = session.dispatchTransaction(commands, { label: 'Paste element' });
+          return result?.ok === true && result.changed ? result.history.document : undefined;
+        },
+      }),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Selection paste integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ element: { id: cloneId }, type: 'element.create' }],
+      label: 'Paste element',
+    });
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.childIds).toEqual([
+      DOCUMENT_FIXTURE_IDS.child,
+      cloneId,
+    ]);
+    expect(history.document.elementsById[cloneId]?.frame).toEqual({
+      x: 26,
+      y: 34,
+      width: 120,
+      height: 48,
+    });
+    expect(selection.getSnapshot()).toMatchObject({ primaryId: cloneId, selectedIds: [cloneId] });
+    expect(clipboard.getSnapshot().pasteCount).toBe(1);
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
+  it('commits one held-arrow nudge through ProjectSession and schedules one recovery point', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const scheduler = new TestAnimationFrameScheduler();
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    const nudge = new KeyboardNudgeInteraction(
+      {
+        capture: (ids) => {
+          const current = session.getSnapshot().history?.document;
+          return current === undefined ? undefined : captureMoveTargets(current, ids);
+        },
+        commit: (commands) => {
+          const result = session.dispatchTransaction(commands, { label: 'Nudge element' });
+          return result?.ok === true && result.changed;
+        },
+      },
+      scheduler,
+    );
+
+    expect(
+      nudge.begin([DOCUMENT_FIXTURE_IDS.group, DOCUMENT_FIXTURE_IDS.child], 'ArrowRight', false),
+    ).toBe(true);
+    for (let index = 1; index < 500; index += 1) {
+      nudge.step('ArrowRight', false);
+    }
+    expect(desktop.recoveryRequests).toHaveLength(1);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
+
+    expect(nudge.complete()).toBe('committed');
+    expect(desktop.recoveryRequests).toHaveLength(2);
+    expect(desktop.recoveryRequests[1]).toMatchObject({ stateId: 1 });
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Nudge integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ elementId: DOCUMENT_FIXTURE_IDS.group, type: 'element.set-frame' }],
+      label: 'Nudge element',
+    });
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.group]?.frame.x).toBe(480);
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.frame).toEqual(
+      document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.frame,
+    );
+    expect(scheduler.callbacks.size).toBe(0);
+
+    const committedDocument = history.document;
+    expect(nudge.begin([DOCUMENT_FIXTURE_IDS.group], 'ArrowUp', true)).toBe(true);
+    nudge.step('ArrowUp', true);
+    expect(nudge.cancel()).toBe(true);
+    expect(session.getSnapshot().history?.document).toBe(committedDocument);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(1);
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
+  it('publishes one history entry for an explicit multi-command transaction', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+
+    const result = session.dispatchTransaction(
+      [
+        setBoardNote('Moved together'),
+        {
+          type: DOCUMENT_COMMAND_TYPES.renameBoard,
+          boardId: DOCUMENT_FIXTURE_IDS.board,
+          name: 'Renamed together',
+        },
+      ],
+      { label: 'Compound edit' },
+    );
+
+    expect(result).toMatchObject({ changed: true, ok: true });
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(1);
+    expect(session.getSnapshot().history?.undoEntries[0]).toMatchObject({
+      forwardCommands: [{ type: 'board.set-note' }, { type: 'board.rename' }],
+      label: 'Compound edit',
+    });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+  });
+
+  it('keeps an in-place text draft outside the document and commits one undoable recovery point', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    const interaction = new TextEditInteraction({
+      capture: (elementId) => {
+        const element = session.getSnapshot().history?.document.elementsById[elementId];
+        if (element === undefined) {
+          return undefined;
+        }
+        const text = element.properties.text;
+        return {
+          accessibleLabel: 'Edit element text',
+          elementId,
+          fontSizeWorldUnits: 16,
+          mode: 'single-line',
+          text: typeof text === 'string' ? text : '',
+          worldBounds: createWorldRect(10, 20, element.frame.width, element.frame.height),
+        };
+      },
+      commit: (target, text) => {
+        const element = session.getSnapshot().history?.document.elementsById[target.elementId];
+        if (element === undefined) {
+          return false;
+        }
+        const result = session.dispatch(
+          {
+            type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+            elementId: target.elementId,
+            properties: { ...element.properties, text },
+          },
+          { label: 'Edit text' },
+        );
+        return result?.ok === true && result.changed;
+      },
+    });
+
+    const documentBeforeDraft = session.getSnapshot().history?.document;
+    expect(interaction.begin(DOCUMENT_FIXTURE_IDS.child)).toBe(true);
+    expect(interaction.updateDraft('Accepted label')).toBe(true);
+    expect(session.getSnapshot().history?.document).toBe(documentBeforeDraft);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(interaction.complete()).toBe('committed');
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Text-edit integration history was not created.');
+    }
+    expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.properties).toMatchObject({
+      opacity: 0.75,
+      text: 'Accepted label',
+    });
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]?.label).toBe('Edit text');
+    expect(history.undoEntries[0]?.forwardCommands).toEqual([
+      {
+        elementId: DOCUMENT_FIXTURE_IDS.child,
+        properties: {
+          opacity: 0.75,
+          tags: ['example', true, null],
+          text: 'Accepted label',
+        },
+        type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      },
+    ]);
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
   it('waits for an explicit opaque recovery choice before creating a new history', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);

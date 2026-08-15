@@ -13,6 +13,7 @@ import {
 import type { ViewportPerformanceResult } from '../../shared/viewport-performance';
 import { AppShell } from '../shell/AppShell';
 import { DocumentScene } from './DocumentScene';
+import { DocumentSceneModel } from './document-scene-model';
 import { ViewportCameraStore, type AnimationFrameScheduler } from './viewport-camera-store';
 import {
   createDeviceScale,
@@ -122,6 +123,7 @@ export const ViewportPerformanceFixture = ({
   runtimeLabel,
 }: ViewportPerformanceFixtureProps) => {
   const [fixture] = useState(createPerformanceFixtureDocument);
+  const [model] = useState(() => new DocumentSceneModel());
   const [harness] = useState(() => {
     const scheduler = new MeasuringAnimationFrameScheduler();
     const camera = new ViewportCameraStore({
@@ -297,6 +299,7 @@ export const ViewportPerformanceFixture = ({
                   activeBoardId={fixture.boardId}
                   camera={harness.camera}
                   document={fixture.document}
+                  model={model}
                 />
               }
             />

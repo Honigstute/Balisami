@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { WorldSpatialIndex } from '../src/renderer/editor/spatial-index';
-import { createWorldRect } from '../src/renderer/editor/viewport-transform';
+import { createWorldPoint, createWorldRect } from '../src/renderer/editor/viewport-transform';
 
 describe('world spatial index', () => {
   it('returns exact intersections in stable ID order across negative cell coordinates', () => {
@@ -30,6 +30,19 @@ describe('world spatial index', () => {
     expect(index.remove('moving')).toBe(true);
     expect(index.remove('moving')).toBe(false);
     expect(index.size).toBe(0);
+  });
+
+  it('queries exact points on inclusive edges without giving the index stacking authority', () => {
+    const index = new WorldSpatialIndex<string>(100);
+    index.rebuild([
+      { bounds: createWorldRect(0, 0, 100, 100), id: 'z-bottom' },
+      { bounds: createWorldRect(50, 50, 100, 100), id: 'a-top' },
+    ]);
+
+    expect(index.queryPoint(createWorldPoint(50, 50))).toEqual(['a-top', 'z-bottom']);
+    expect(index.queryPoint(createWorldPoint(100, 100))).toEqual(['a-top', 'z-bottom']);
+    expect(index.queryPoint(createWorldPoint(151, 151))).toEqual([]);
+    expect(Object.isFrozen(index.queryPoint(createWorldPoint(-1, -1)))).toBe(true);
   });
 
   it('keeps oversized entries queryable without expanding them into unbounded cell lists', () => {

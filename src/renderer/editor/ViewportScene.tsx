@@ -1,6 +1,11 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
+import type { KeyboardNudgeInteraction } from './keyboard-nudge-interaction';
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from './scene-layers';
+import type { SelectionInteraction } from './selection-interaction';
+import type { SelectionStore } from './selection-store';
+import type { TextEditViewportRoute } from './text-edit-interaction';
+import type { ViewportShortcutPlatform } from './viewport-commands';
 import type { ViewportCameraStore } from './viewport-camera-store';
 import { ViewportInputController } from './viewport-input';
 import { createDeviceScale, createViewportSize } from './viewport-transform';
@@ -9,6 +14,16 @@ interface ViewportSceneProps {
   readonly camera: ViewportCameraStore;
   readonly domChildren?: ReactNode;
   readonly interactionChildren?: ReactNode;
+  readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
+  readonly onCopySelection?: () => boolean;
+  readonly onCutSelection?: () => boolean;
+  readonly onDeleteSelection?: () => boolean;
+  readonly onDuplicateSelection?: () => boolean;
+  readonly onPasteSelection?: () => boolean;
+  readonly selection?: SelectionStore;
+  readonly selectionInteraction?: SelectionInteraction;
+  readonly shortcutPlatform?: ViewportShortcutPlatform;
+  readonly textEdit?: TextEditViewportRoute;
   readonly worldChildren?: ReactNode;
 }
 
@@ -45,6 +60,16 @@ export const ViewportScene = ({
   camera,
   domChildren,
   interactionChildren,
+  keyboardNudgeInteraction,
+  onCopySelection,
+  onCutSelection,
+  onDeleteSelection,
+  onDuplicateSelection,
+  onPasteSelection,
+  selection,
+  selectionInteraction,
+  shortcutPlatform,
+  textEdit,
   worldChildren,
 }: ViewportSceneProps) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -101,10 +126,35 @@ export const ViewportScene = ({
     if (root === null) {
       return;
     }
-    const input = new ViewportInputController(root, camera);
+    const input = new ViewportInputController(root, camera, {
+      ...(onCopySelection === undefined ? {} : { copySelection: onCopySelection }),
+      ...(onCutSelection === undefined ? {} : { cutSelection: onCutSelection }),
+      ...(onDeleteSelection === undefined ? {} : { deleteSelection: onDeleteSelection }),
+      ...(onDuplicateSelection === undefined ? {} : { duplicateSelection: onDuplicateSelection }),
+      ...(keyboardNudgeInteraction === undefined
+        ? {}
+        : { keyboardNudge: keyboardNudgeInteraction }),
+      ...(selection === undefined ? {} : { selection }),
+      ...(selectionInteraction === undefined ? {} : { selectionInteraction }),
+      ...(onPasteSelection === undefined ? {} : { pasteSelection: onPasteSelection }),
+      ...(shortcutPlatform === undefined ? {} : { shortcutPlatform }),
+      ...(textEdit === undefined ? {} : { textEdit }),
+    });
     input.connect();
     return () => input.disconnect();
-  }, [camera]);
+  }, [
+    camera,
+    keyboardNudgeInteraction,
+    onCopySelection,
+    onCutSelection,
+    onDeleteSelection,
+    onDuplicateSelection,
+    onPasteSelection,
+    selection,
+    selectionInteraction,
+    shortcutPlatform,
+    textEdit,
+  ]);
 
   return (
     <div
@@ -112,8 +162,9 @@ export const ViewportScene = ({
       className="editor-viewport"
       data-camera-revision="0"
       data-pan-state="idle"
+      data-selection-state="idle"
       ref={rootRef}
-      tabIndex={-1}
+      tabIndex={0}
     >
       <svg aria-hidden="true" className="editor-scene" focusable="false">
         <g {...{ [SCENE_LAYER_ATTRIBUTE]: SCENE_LAYERS.world }} ref={worldRef}>

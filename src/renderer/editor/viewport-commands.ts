@@ -21,6 +21,7 @@ export const VIEWPORT_COMMAND_POLICY = Object.freeze({
 export interface ViewportCommandContext {
   readonly boardBounds: WorldRect | undefined;
   readonly camera: ViewportCameraStore;
+  readonly selectionBounds: WorldRect | undefined;
 }
 
 export interface ViewportShortcutInput {
@@ -82,7 +83,11 @@ export const executeViewportCommand = (
       context.camera.scheduleFraming({ bounds: context.boardBounds, kind: 'width' });
       return true;
     case VIEWPORT_COMMAND_IDS.fitSelection:
-      return false;
+      if (context.selectionBounds === undefined) {
+        return false;
+      }
+      context.camera.scheduleFraming({ bounds: context.selectionBounds, kind: 'fit' });
+      return true;
   }
 };
 

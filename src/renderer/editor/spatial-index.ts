@@ -1,4 +1,9 @@
-import { createWorldRect, type WorldRect } from './viewport-transform';
+import {
+  createWorldPoint,
+  createWorldRect,
+  type WorldPoint,
+  type WorldRect,
+} from './viewport-transform';
 
 export const SPATIAL_INDEX_POLICY = Object.freeze({
   defaultCellSize: 256,
@@ -50,6 +55,12 @@ const intersects = (first: WorldRect, second: WorldRect): boolean =>
   first.x + first.width >= second.x &&
   first.y <= second.y + second.height &&
   first.y + first.height >= second.y;
+
+const containsPoint = (bounds: WorldRect, point: WorldPoint): boolean =>
+  point.x >= bounds.x &&
+  point.x <= bounds.x + bounds.width &&
+  point.y >= bounds.y &&
+  point.y <= bounds.y + bounds.height;
 
 const compareIds = <Id extends string>(first: Id, second: Id): number =>
   first < second ? -1 : first > second ? 1 : 0;
@@ -185,6 +196,29 @@ export class WorldSpatialIndex<Id extends string> {
         .filter((id) => {
           const entry = this.#entries.get(id);
           return entry !== undefined && intersects(entry.bounds, bounds);
+        })
+        .sort(compareIds),
+    );
+  }
+
+  /** Exact point query in stable ID order; stacking remains a caller concern. */
+  queryPoint(pointInput: WorldPoint): readonly Id[] {
+    const point = createWorldPoint(pointInput.x, pointInput.y);
+    const cell = this.#cells.get(
+      `${String(Math.floor(point.x / this.#cellSize))}:${String(Math.floor(point.y / this.#cellSize))}`,
+    );
+    const candidates = new Set<Id>(this.#globalIds);
+    if (cell !== undefined) {
+      for (const id of cell) {
+        candidates.add(id);
+      }
+    }
+
+    return Object.freeze(
+      [...candidates]
+        .filter((id) => {
+          const entry = this.#entries.get(id);
+          return entry !== undefined && containsPoint(entry.bounds, point);
         })
         .sort(compareIds),
     );

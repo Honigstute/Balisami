@@ -11,15 +11,24 @@ import {
   createWorldRect,
   type ViewportSize,
   type ViewportTransform,
+  type WorldPoint,
   type WorldRect,
 } from './viewport-transform';
 
 export interface DocumentSceneItem {
   readonly bounds: WorldRect;
   readonly id: ElementId;
+  readonly locked: boolean;
   readonly path: string;
   readonly revision: string;
 }
+
+export interface DocumentSceneHitTestOptions {
+  /** Locked controls are normally click-through; explicit tooling may inspect them. */
+  readonly includeLocked?: boolean;
+}
+
+export type DocumentSceneSelectionRegionMode = 'contained' | 'intersecting';
 
 export interface DocumentSceneReconcileResult {
   readonly changed: boolean;
@@ -31,6 +40,7 @@ export interface DocumentSceneReconcileResult {
 interface DerivedSceneItem {
   readonly bounds: WorldRect;
   readonly id: ElementId;
+  readonly locked: boolean;
 }
 
 const boundsEqual = (first: WorldRect, second: WorldRect): boolean =>
@@ -38,6 +48,12 @@ const boundsEqual = (first: WorldRect, second: WorldRect): boolean =>
   first.y === second.y &&
   first.width === second.width &&
   first.height === second.height;
+
+const containsBounds = (outer: WorldRect, inner: WorldRect): boolean =>
+  inner.x >= outer.x &&
+  inner.y >= outer.y &&
+  inner.x + inner.width <= outer.x + outer.width &&
+  inner.y + inner.height <= outer.y + outer.height;
 
 const orderEqual = (first: readonly ElementId[], second: readonly ElementId[]): boolean =>
   first.length === second.length && first.every((id, index) => id === second[index]);
@@ -75,7 +91,7 @@ const deriveBoardSceneItems = (
       element.frame.height,
     );
     if (element.controlType === FOUNDATION_CONTROL_TYPES.rectangle) {
-      items.push(Object.freeze({ bounds, id: element.id }));
+      items.push(Object.freeze({ bounds, id: element.id, locked: element.locked }));
     }
     for (const childId of element.childIds) {
       visit(childId, bounds.x, bounds.y);
@@ -119,6 +135,7 @@ export const getRenderableBoardWorldBounds = (
 export class DocumentSceneModel {
   readonly #index = new WorldSpatialIndex<ElementId>();
   readonly #itemsById = new Map<ElementId, DocumentSceneItem>();
+  readonly #listeners = new Set<() => void>();
   #lastBoardId: BoardId | undefined;
   #lastDocument: ProjectDocument | undefined;
   #order: readonly ElementId[] = Object.freeze([]);
@@ -128,6 +145,26 @@ export class DocumentSceneModel {
   getItem(id: ElementId): DocumentSceneItem | undefined {
     return this.#itemsById.get(id);
   }
+
+  getRevisionSnapshot = (): number => this.#revision;
+
+  listItemIds(): readonly ElementId[] {
+    return this.#order;
+  }
+
+  listSelectableItemIds(options: DocumentSceneHitTestOptions = {}): readonly ElementId[] {
+    return Object.freeze(
+      this.#order.filter((id) => {
+        const item = this.#itemsById.get(id);
+        return item !== undefined && (!item.locked || options.includeLocked === true);
+      }),
+    );
+  }
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  };
 
   reconcile(document: ProjectDocument, boardId: BoardId | undefined): DocumentSceneReconcileResult {
     if (this.#lastDocument === document && this.#lastBoardId === boardId) {
@@ -152,13 +189,19 @@ export class DocumentSceneModel {
     }
     for (const derivedItem of derivedItems) {
       const existing = this.#itemsById.get(derivedItem.id);
-      if (existing !== undefined && boundsEqual(existing.bounds, derivedItem.bounds)) {
+      const geometryChanged =
+        existing === undefined || !boundsEqual(existing.bounds, derivedItem.bounds);
+      if (!geometryChanged && existing.locked === derivedItem.locked) {
         continue;
       }
       const item = Object.freeze({
         bounds: derivedItem.bounds,
         id: derivedItem.id,
-        path: createSeededSketchRectPath(derivedItem.bounds, derivedItem.id),
+        locked: derivedItem.locked,
+        path:
+          geometryChanged || existing === undefined
+            ? createSeededSketchRectPath(derivedItem.bounds, derivedItem.id)
+            : existing.path,
         revision: createItemRevision(derivedItem),
       });
       this.#itemsById.set(item.id, item);
@@ -176,6 +219,11 @@ export class DocumentSceneModel {
     }
     this.#lastDocument = document;
     this.#lastBoardId = boardId;
+    if (changed) {
+      for (const listener of this.#listeners) {
+        listener();
+      }
+    }
     return Object.freeze({ changed, removedItemCount, revision: this.#revision, updatedItemCount });
   }
 
@@ -192,6 +240,64 @@ export class DocumentSceneModel {
           const item = this.#itemsById.get(id);
           return item === undefined ? [] : [item];
         }),
+    );
+  }
+
+  /** Returns exact hits from visually topmost to bottommost canonical order. */
+  queryHitStack(
+    point: WorldPoint,
+    options: DocumentSceneHitTestOptions = {},
+  ): readonly DocumentSceneItem[] {
+    return Object.freeze(
+      this.#index
+        .queryPoint(point)
+        .flatMap((id) => {
+          const item = this.#itemsById.get(id);
+          if (item === undefined || (item.locked && options.includeLocked !== true)) {
+            return [];
+          }
+          return [item];
+        })
+        .sort(
+          (first, second) =>
+            (this.#orderById.get(second.id) ?? Number.MIN_SAFE_INTEGER) -
+            (this.#orderById.get(first.id) ?? Number.MIN_SAFE_INTEGER),
+        ),
+    );
+  }
+
+  hitTestTopmost(
+    point: WorldPoint,
+    options: DocumentSceneHitTestOptions = {},
+  ): DocumentSceneItem | undefined {
+    return this.queryHitStack(point, options)[0];
+  }
+
+  /** Restores canonical bottom-to-top order after a spatial region query. */
+  querySelectionRegion(
+    bounds: WorldRect,
+    mode: DocumentSceneSelectionRegionMode,
+    options: DocumentSceneHitTestOptions = {},
+  ): readonly ElementId[] {
+    return Object.freeze(
+      this.#index
+        .query(bounds)
+        .flatMap((id) => {
+          const item = this.#itemsById.get(id);
+          if (
+            item === undefined ||
+            (item.locked && options.includeLocked !== true) ||
+            (mode === 'contained' && !containsBounds(bounds, item.bounds))
+          ) {
+            return [];
+          }
+          return [id];
+        })
+        .sort(
+          (first, second) =>
+            (this.#orderById.get(first) ?? Number.MAX_SAFE_INTEGER) -
+            (this.#orderById.get(second) ?? Number.MAX_SAFE_INTEGER),
+        ),
     );
   }
 }

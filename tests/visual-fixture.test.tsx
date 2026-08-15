@@ -56,7 +56,19 @@ describe('visual conformance fixture contract', () => {
     ).toMatchObject({ kind: 'invalid' });
     expect(getRequestedVisualFixture('?visualFixture=popover')).toBe('popover');
     expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
+    expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
+    expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
+    expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
+    expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
+    expect(getRequestedVisualFixture('?visualFixture=duplicate')).toBe('duplicate');
+    expect(getRequestedVisualFixture('?visualFixture=paste')).toBe('paste');
+    expect(getRequestedVisualFixture('?visualFixture=textEdit')).toBe('textEdit');
+    expect(getRequestedVisualFixture('?visualFixture=nudge')).toBe('nudge');
+    expect(getRequestedVisualFixture('?visualFixture=marquee')).toBe('marquee');
     expect(getRequestedVisualFixture('?visualFixture=viewportZoom')).toBe('viewportZoom');
+    expect(getRequestedVisualFixture('?visualFixture=viewportSelectionZoom')).toBe(
+      'viewportSelectionZoom',
+    );
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -69,9 +81,138 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
+  it('renders an enabled Fit Selection command without replacing the shell', () => {
+    renderFixture('viewportSelectionZoom');
+
+    expect(screen.getByRole('button', { name: /Fit Selection/u })).toBeEnabled();
+    expect(screen.getByRole('dialog', { name: 'Zoom options' })).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
   it('mounts the deterministic document scene fixture inside the unchanged shell', () => {
     const view = renderFixture('scene');
 
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders fixed-screen selection geometry without replacing the scene or shell', () => {
+    const view = renderFixture('selection');
+
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders a transient move without changing canonical scene geometry or shell layout', () => {
+    const view = renderFixture('move');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '308');
+    expect(outline).toHaveAttribute('y', '332');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders a transient resize with aligned fixed-screen handles and stable shell layout', () => {
+    const view = renderFixture('resize');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '188');
+    expect(outline).toHaveAttribute('y', '272');
+    expect(outline).toHaveAttribute('width', '208');
+    expect(outline).toHaveAttribute('height', '84');
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders a coalesced keyboard nudge through the shared translation preview', () => {
+    const view = renderFixture('nudge');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '248');
+    expect(outline).toHaveAttribute('y', '302');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an accepted delete result without leaving transient selection UI', () => {
+    const view = renderFixture('delete');
+
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toBeNull();
+    expect(screen.getByText('Visual fixture · delete')).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an accepted duplicate result with only the clone selected', () => {
+    const view = renderFixture('duplicate');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '198');
+    expect(outline).toHaveAttribute('y', '282');
+    expect(screen.getByText('Visual fixture · duplicate')).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an accepted paste result with the offset clone selected', () => {
+    const view = renderFixture('paste');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(overlay).toHaveAttribute('data-selection-count', '1');
+    expect(outline).toHaveAttribute('x', '198');
+    expect(outline).toHaveAttribute('y', '282');
+    expect(screen.getByText('Visual fixture · paste')).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an active fixed-screen text editor without replacing selection or shell geometry', () => {
+    const view = renderFixture('textEdit');
+
+    const editor = screen.getByRole('textbox', { name: 'Edit button label' });
+    expect(editor).toHaveValue('Edit this label');
+    expect(editor).toHaveAttribute('data-text-edit-state', 'editing');
+    expect(editor).not.toHaveAttribute('hidden');
+    expect(view.container.querySelector('.editor-viewport')).toHaveAttribute(
+      'data-selection-state',
+      'editingText',
+    );
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+    expect(screen.getByText('Visual fixture · textEdit')).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
+  });
+
+  it('renders a fixed-screen directional marquee without replacing the scene or shell', () => {
+    const view = renderFixture('marquee');
+
+    const overlay = view.container.querySelector('[data-marquee-overlay="selection-region"]');
+    expect(overlay).not.toHaveAttribute('display', 'none');
+    expect(overlay).toHaveAttribute('data-marquee-mode', 'intersecting');
+    const rectangle = overlay?.querySelector('.marquee-overlay__rectangle');
+    expect(rectangle).toHaveAttribute('height', '300');
+    expect(rectangle).toHaveAttribute('width', '180');
+    expect(rectangle).toHaveAttribute('x', '260');
+    expect(rectangle).toHaveAttribute('y', '60');
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });

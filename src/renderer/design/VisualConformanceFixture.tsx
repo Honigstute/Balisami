@@ -2,8 +2,10 @@ import { useState } from 'react';
 
 import {
   BoardIdSchema,
+  DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  dispatchDocumentCommand,
   parseProjectDocument,
   ProjectIdSchema,
   type ProjectDocument,
@@ -11,10 +13,27 @@ import {
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
 import { DocumentScene } from '../editor/DocumentScene';
+import { DocumentSceneModel } from '../editor/document-scene-model';
+import { KeyboardNudgeInteraction } from '../editor/keyboard-nudge-interaction';
+import { MarqueeOverlay } from '../editor/MarqueeOverlay';
+import { captureMoveTargets } from '../editor/move-geometry';
+import { MoveInteraction } from '../editor/move-interaction';
+import { captureResizeTarget } from '../editor/resize-geometry';
+import { ResizeInteraction } from '../editor/resize-interaction';
+import { SelectionInteraction } from '../editor/selection-interaction';
+import { SelectionOverlay } from '../editor/SelectionOverlay';
+import { SelectionStore } from '../editor/selection-store';
+import { TextEditOverlay } from '../editor/TextEditOverlay';
+import { createTextEditViewportRoute, TextEditInteraction } from '../editor/text-edit-interaction';
 import { ViewportScene } from '../editor/ViewportScene';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
+import { createBrowserAnimationFrameScheduler } from '../editor/viewport-camera-store';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
-import { createWorldRect } from '../editor/viewport-transform';
+import {
+  createViewportPoint,
+  createWorldPoint,
+  createWorldRect,
+} from '../editor/viewport-transform';
 import { AppShell } from '../shell/AppShell';
 import { AppButton } from './AppButton';
 import { AppScroller } from './AppEmptyState';
@@ -39,6 +58,9 @@ interface VisualConformanceFixtureProps {
 const createSceneFixtureDocument = (): {
   readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
   readonly document: ProjectDocument;
+  readonly duplicateId: ReturnType<typeof ElementIdSchema.parse>;
+  readonly groupId: ReturnType<typeof ElementIdSchema.parse>;
+  readonly selectedId: ReturnType<typeof ElementIdSchema.parse>;
 } => {
   const projectId = ProjectIdSchema.parse('project_visualscene');
   const boardId = BoardIdSchema.parse('board_visualscene');
@@ -47,6 +69,7 @@ const createSceneFixtureDocument = (): {
   const titleId = ElementIdSchema.parse('element_visualtitle');
   const fieldId = ElementIdSchema.parse('element_visualfield');
   const buttonId = ElementIdSchema.parse('element_visualbutton');
+  const duplicateId = ElementIdSchema.parse('element_visualduplicate');
   const sideId = ElementIdSchema.parse('element_visualsidecard');
   const result = parseProjectDocument({
     schemaVersion: 1,
@@ -128,35 +151,275 @@ const createSceneFixtureDocument = (): {
   if (!result.ok) {
     throw new Error('The deterministic scene visual fixture is invalid.');
   }
-  return Object.freeze({ boardId, document: result.value });
+  return Object.freeze({
+    boardId,
+    document: result.value,
+    duplicateId,
+    groupId,
+    selectedId: buttonId,
+  });
 };
 
-const SceneFixture = () => {
+type SceneFixtureState =
+  | 'delete'
+  | 'duplicate'
+  | 'marquee'
+  | 'move'
+  | 'nudge'
+  | 'paste'
+  | 'plain'
+  | 'resize'
+  | 'selection'
+  | 'textEdit';
+
+const SceneFixture = ({
+  platform = 'win32',
+  state = 'plain',
+}: {
+  readonly platform?: 'darwin' | 'win32';
+  readonly state?: SceneFixtureState;
+}) => {
   const camera = useViewportCameraStore();
   const [fixture] = useState(createSceneFixtureDocument);
+  const [document] = useState(() => {
+    if (state === 'delete') {
+      const result = dispatchDocumentCommand(fixture.document, {
+        type: DOCUMENT_COMMAND_TYPES.deleteElement,
+        elementId: fixture.selectedId,
+      });
+      if (!result.ok || !result.changed) {
+        throw new Error('The deterministic delete visual fixture could not be created.');
+      }
+      return result.document;
+    }
+    if (state === 'duplicate' || state === 'paste') {
+      const source = fixture.document.elementsById[fixture.selectedId];
+      if (source === undefined) {
+        throw new Error('The deterministic inserted-element source is missing.');
+      }
+      const result = dispatchDocumentCommand(fixture.document, {
+        type: DOCUMENT_COMMAND_TYPES.createElement,
+        element: {
+          ...source,
+          id: fixture.duplicateId,
+          frame: { x: 38, y: 182, width: 128, height: 44 },
+          childIds: [],
+        },
+        owner: { kind: 'element', elementId: fixture.groupId },
+        index: 3,
+      });
+      if (!result.ok || !result.changed) {
+        throw new Error('The deterministic inserted-element visual fixture could not be created.');
+      }
+      return result.document;
+    }
+    return fixture.document;
+  });
+  const [editor] = useState(() => {
+    const model = new DocumentSceneModel();
+    model.reconcile(document, fixture.boardId);
+    const selection = new SelectionStore();
+    const selectedId =
+      state === 'duplicate' || state === 'paste' ? fixture.duplicateId : fixture.selectedId;
+    if (
+      state === 'selection' ||
+      state === 'move' ||
+      state === 'nudge' ||
+      state === 'resize' ||
+      state === 'duplicate' ||
+      state === 'paste' ||
+      state === 'textEdit'
+    ) {
+      selection.selectOnly(selectedId);
+    }
+    const moveInteraction = new MoveInteraction(
+      {
+        capture: (ids) => captureMoveTargets(document, ids),
+        commit: () => false,
+      },
+      createBrowserAnimationFrameScheduler(),
+    );
+    const keyboardNudgeInteraction = new KeyboardNudgeInteraction(
+      {
+        capture: (ids) => captureMoveTargets(document, ids),
+        commit: () => false,
+      },
+      createBrowserAnimationFrameScheduler(),
+    );
+    const resizeInteraction = new ResizeInteraction(
+      {
+        capture: (id) => captureResizeTarget(document, id),
+        commit: () => false,
+      },
+      createBrowserAnimationFrameScheduler(),
+    );
+    const interaction = new SelectionInteraction(selection, {
+      listSelectableIds: () => model.listSelectableItemIds(),
+      queryHitStack: (point) => model.queryHitStack(point).map((item) => item.id),
+      querySelectionRegion: (bounds, mode) => model.querySelectionRegion(bounds, mode),
+    });
+    const textEditInteraction = new TextEditInteraction({
+      capture: (elementId) => {
+        const item = model.getItem(elementId);
+        return item === undefined
+          ? undefined
+          : {
+              accessibleLabel: 'Edit button label',
+              elementId,
+              fontSizeWorldUnits: 16,
+              mode: 'single-line',
+              text: 'Edit this label',
+              worldBounds: item.bounds,
+            };
+      },
+      commit: () => false,
+    });
+    const textEdit = createTextEditViewportRoute({
+      interaction: textEditInteraction,
+      queryPointerTarget: (point) => model.queryHitStack(point)[0]?.id,
+      selection,
+    });
+    if (state === 'marquee') {
+      // Keep both endpoints inside the minimum packaged viewport. This fixture
+      // is evidence for the marquee itself, not merely for its mounted DOM.
+      interaction.beginPress({
+        altKey: false,
+        pointerId: 1,
+        shiftKey: false,
+        viewportPoint: createViewportPoint(440, 60),
+        worldPoint: createWorldPoint(440, 60),
+      });
+      interaction.updatePress(1, {
+        shiftKey: false,
+        viewportPoint: createViewportPoint(260, 360),
+        worldPoint: createWorldPoint(260, 360),
+      });
+    }
+    if (state === 'move') {
+      moveInteraction.begin({
+        pointerId: 2,
+        shiftKey: false,
+        startWorldPoint: createWorldPoint(0, 0),
+        targetIds: [fixture.selectedId],
+        worldPoint: createWorldPoint(120, 60),
+      });
+    }
+    if (state === 'resize') {
+      resizeInteraction.begin({
+        elementId: fixture.selectedId,
+        handle: 'southEast',
+        pointerId: 3,
+        shiftKey: false,
+        startWorldPoint: createWorldPoint(316, 316),
+        worldPoint: createWorldPoint(396, 356),
+      });
+    }
+    if (state === 'nudge') {
+      keyboardNudgeInteraction.begin([fixture.selectedId], 'ArrowRight', true);
+      for (let index = 1; index < 6; index += 1) {
+        keyboardNudgeInteraction.step('ArrowRight', true);
+      }
+      for (let index = 0; index < 3; index += 1) {
+        keyboardNudgeInteraction.step('ArrowDown', true);
+      }
+      keyboardNudgeInteraction.flushPending();
+    }
+    if (state === 'textEdit' && !textEdit.beginFromSelection()) {
+      throw new Error('The deterministic text-edit visual fixture could not be created.');
+    }
+    return Object.freeze({
+      interaction,
+      keyboardNudgeInteraction,
+      model,
+      moveInteraction,
+      resizeInteraction,
+      selection,
+      textEdit,
+      textEditInteraction,
+    });
+  });
   return (
     <ViewportScene
       camera={camera}
+      {...(state === 'selection' ||
+      state === 'move' ||
+      state === 'nudge' ||
+      state === 'resize' ||
+      state === 'duplicate' ||
+      state === 'paste' ||
+      state === 'textEdit'
+        ? {
+            interactionChildren: (
+              <SelectionOverlay
+                camera={camera}
+                {...(state === 'nudge'
+                  ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
+                  : {})}
+                model={editor.model}
+                {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
+                {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
+                selection={editor.selection}
+              />
+            ),
+          }
+        : state === 'marquee'
+          ? { interactionChildren: <MarqueeOverlay interaction={editor.interaction} /> }
+          : {})}
+      {...(state === 'textEdit'
+        ? {
+            domChildren: (
+              <TextEditOverlay
+                camera={camera}
+                interaction={editor.textEditInteraction}
+                platform={platform}
+              />
+            ),
+            textEdit: editor.textEdit,
+          }
+        : {})}
       worldChildren={
         <DocumentScene
           activeBoardId={fixture.boardId}
           camera={camera}
-          document={fixture.document}
+          document={document}
+          {...(state === 'nudge'
+            ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
+            : {})}
+          model={editor.model}
+          {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
+          {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
         />
       }
     />
   );
 };
 
-const ViewportZoomFixture = ({ platform }: { readonly platform: 'darwin' | 'win32' }) => {
+const ViewportZoomFixture = ({
+  platform,
+  withSelection = false,
+}: {
+  readonly platform: 'darwin' | 'win32';
+  readonly withSelection?: boolean;
+}) => {
   const camera = useViewportCameraStore();
   const [boardBounds] = useState(() => createWorldRect(0, 0, 1_200, 800));
+  const [fixture] = useState(createSceneFixtureDocument);
+  const [editor] = useState(() => {
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const selection = new SelectionStore();
+    if (withSelection) {
+      selection.selectOnly(fixture.selectedId);
+    }
+    return Object.freeze({ model, selection });
+  });
   return (
     <ViewportZoomControls
       boardBounds={boardBounds}
       camera={camera}
       defaultMenuOpen
       platform={platform}
+      {...(withSelection ? { sceneModel: editor.model, selection: editor.selection } : {})}
     />
   );
 };
@@ -302,15 +565,33 @@ export const VisualConformanceFixture = ({
   const regionContent =
     fixture === 'scene'
       ? { canvas: <SceneFixture /> }
-      : fixture === 'controls'
-        ? { inspector: <ControlStates /> }
-        : fixture === 'feedback'
-          ? { canvas: <StaticRegionFailure /> }
-          : fixture === 'tooltip'
-            ? { canvas: <TooltipFixture /> }
-            : fixture === 'popover'
-              ? { canvas: <PopoverFixture /> }
-              : undefined;
+      : fixture === 'selection'
+        ? { canvas: <SceneFixture state="selection" /> }
+        : fixture === 'move'
+          ? { canvas: <SceneFixture state="move" /> }
+          : fixture === 'resize'
+            ? { canvas: <SceneFixture state="resize" /> }
+            : fixture === 'delete'
+              ? { canvas: <SceneFixture state="delete" /> }
+              : fixture === 'duplicate'
+                ? { canvas: <SceneFixture state="duplicate" /> }
+                : fixture === 'paste'
+                  ? { canvas: <SceneFixture state="paste" /> }
+                  : fixture === 'textEdit'
+                    ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
+                    : fixture === 'nudge'
+                      ? { canvas: <SceneFixture state="nudge" /> }
+                      : fixture === 'marquee'
+                        ? { canvas: <SceneFixture state="marquee" /> }
+                        : fixture === 'controls'
+                          ? { inspector: <ControlStates /> }
+                          : fixture === 'feedback'
+                            ? { canvas: <StaticRegionFailure /> }
+                            : fixture === 'tooltip'
+                              ? { canvas: <TooltipFixture /> }
+                              : fixture === 'popover'
+                                ? { canvas: <PopoverFixture /> }
+                                : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -318,7 +599,11 @@ export const VisualConformanceFixture = ({
       <ModalFixture />
     ) : undefined;
   const viewportControls =
-    fixture === 'viewportZoom' ? <ViewportZoomFixture platform={platform} /> : undefined;
+    fixture === 'viewportZoom' ? (
+      <ViewportZoomFixture platform={platform} />
+    ) : fixture === 'viewportSelectionZoom' ? (
+      <ViewportZoomFixture platform={platform} withSelection />
+    ) : undefined;
 
   return (
     <AppShell

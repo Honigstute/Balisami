@@ -15,6 +15,7 @@ const isEditableTarget = (target: EventTarget | null): boolean =>
 export const useViewportCommands = (
   camera: ViewportCameraStore,
   boardBounds: WorldRect | undefined,
+  selectionBounds: WorldRect | undefined,
 ) => {
   const zoom = useSyncExternalStore(
     camera.subscribe,
@@ -23,8 +24,8 @@ export const useViewportCommands = (
   );
   const execute = useCallback(
     (command: ViewportCommandId): boolean =>
-      executeViewportCommand(command, { boardBounds, camera }),
-    [boardBounds, camera],
+      executeViewportCommand(command, { boardBounds, camera, selectionBounds }),
+    [boardBounds, camera, selectionBounds],
   );
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export const useViewportCommands = (
 
   return Object.freeze({
     canFitBoard: boardBounds !== undefined,
+    canFitSelection: selectionBounds !== undefined,
     canZoomIn: zoom < VIEWPORT_NUMERIC_POLICY.maximumZoom,
     canZoomOut: zoom > VIEWPORT_NUMERIC_POLICY.minimumZoom,
     execute,
