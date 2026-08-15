@@ -18,8 +18,22 @@ import {
   createControlSceneMarkPath,
   createControlSceneOutlinePath,
 } from '../src/renderer/controls/control-scene-geometry';
+import { createControlSceneProjection } from '../src/renderer/controls/control-scene-projection';
+import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
+import { createControlThumbnailProjection } from '../src/renderer/controls/control-thumbnail-projection';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
 import { createWorldPoint, createWorldRect } from '../src/renderer/editor/viewport-transform';
+
+const measurementService: ControlTextMeasurementService = {
+  measure: ({ fontSize, text }) => ({
+    baselineOffsets: [fontSize],
+    height: fontSize * 1.2,
+    lineCount: 1,
+    lineHeight: fontSize * 1.2,
+    lines: [text.replace(/\r\n?|\n/gu, ' ')],
+    width: text.length * fontSize * 0.5,
+  }),
+};
 
 describe('control definition conformance harness', () => {
   it('inserts, validates, serializes, reopens, and redraws every palette definition', () => {
@@ -106,6 +120,27 @@ describe('control definition conformance harness', () => {
         ),
       ).toBe(true);
       expect(getControlAccessibleName(definition, before.properties)).not.toBe('');
+      expect(definition.export.kind).toBe('scene');
+      expect(createControlThumbnailProjection(definition, measurementService)).toEqual(
+        createControlThumbnailProjection(definition, measurementService),
+      );
+      expect(
+        createControlSceneProjection({
+          bounds: beforeBounds,
+          definition,
+          identity: before.id,
+          properties: before.properties,
+          textMeasurementService: measurementService,
+        }),
+      ).toEqual(
+        createControlSceneProjection({
+          bounds: afterBounds,
+          definition,
+          identity: after.id,
+          properties: after.properties,
+          textMeasurementService: measurementService,
+        }),
+      );
       expect(createControlSceneOutlinePath(before.controlType, beforeBounds, before.id)).toBe(
         createControlSceneOutlinePath(after.controlType, afterBounds, after.id),
       );
