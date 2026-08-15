@@ -1056,9 +1056,20 @@ export const VisualConformanceFixture = ({
     ) : fixture === 'viewportSelectionZoom' ? (
       <ViewportZoomFixture platform={platform} withSelection />
     ) : undefined;
+  const inspectorControlType =
+    fixture === 'mvpAlpha'
+      ? CONTROL_TYPES.button
+      : fixture === 'registryControl'
+        ? CONTROL_TYPES.checkbox
+        : undefined;
+  const inspectorTitle =
+    inspectorControlType === undefined
+      ? undefined
+      : getControlSpec(inspectorControlType)?.palette?.label;
 
   return (
     <AppShell
+      {...(inspectorTitle === undefined ? {} : { inspectorTitle })}
       projectName={`Visual · ${fixture}`}
       projectOverlay={projectOverlay}
       quickAddShortcut={quickAddShortcut}

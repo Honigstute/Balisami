@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -12,7 +12,8 @@ import {
   TextEditInteraction,
 } from '../src/renderer/editor/text-edit-interaction';
 import type { ViewportAlignmentCommand } from '../src/renderer/editor/viewport-input';
-import { ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
+import { CONTROL_TYPES, ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
+import { CONTROL_DRAG_MIME_TYPE } from '../src/renderer/controls/control-drag-transfer';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import type { MoveTargetCapture } from '../src/renderer/editor/move-geometry';
 import { resolveSnap } from '../src/renderer/editor/snap-engine';
@@ -416,6 +417,93 @@ describe('viewport scene layers', () => {
     expect(selection.getSnapshot().selectedIds).toEqual([]);
     fireEvent.keyDown(root, { code: 'KeyA', metaKey: true });
     expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+    store.dispose();
+  });
+
+  it('click-selects and fast-drags an accessible SVG Button through its exact release point', () => {
+    mockViewportBounds();
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const moveScheduler = new TestAnimationFrameScheduler();
+    const store = createStore(cameraScheduler);
+    const commits: (readonly SetElementFrameCommand[])[] = [];
+    const move = new MoveInteraction(
+      {
+        capture: () => MOVE_CAPTURE,
+        commit: (commands) => {
+          commits.push(commands);
+          return true;
+        },
+      },
+      moveScheduler,
+    );
+    const selection = new SelectionStore();
+    const interaction = new SelectionInteraction(
+      selection,
+      {
+        listSelectableIds: () => [SELECTABLE_ID],
+        queryHitStack: () => [SELECTABLE_ID],
+        querySelectionRegion: () => [],
+      },
+      move,
+    );
+    render(
+      <ViewportScene
+        camera={store}
+        selectionInteraction={interaction}
+        worldChildren={<g data-testid="scene-button" role="button" />}
+      />,
+    );
+    const sceneButton = screen.getByTestId('scene-button');
+    cameraScheduler.flushNext();
+
+    fireEvent.pointerDown(sceneButton, { button: 0, clientX: 100, clientY: 100, pointerId: 71 });
+    fireEvent.pointerUp(sceneButton, { button: 0, clientX: 145, clientY: 125, pointerId: 71 });
+
+    expect(selection.getSnapshot().selectedIds).toEqual([SELECTABLE_ID]);
+    expect(commits).toEqual([
+      [
+        {
+          elementId: SELECTABLE_ID,
+          frame: { height: 50, width: 100, x: 55, y: 45 },
+          type: 'element.set-frame',
+        },
+      ],
+    ]);
+    expect(moveScheduler.callbacks.size).toBe(0);
+    store.dispose();
+  });
+
+  it('drops a typed shelf control at the canonical transformed world point', () => {
+    mockViewportBounds();
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const onInsertControlAt = vi.fn(() => true);
+    const view = render(<ViewportScene camera={store} onInsertControlAt={onInsertControlAt} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    scheduler.flushNext();
+    store.scheduleTransform(createViewportTransform({ panX: 50, panY: 0, zoom: 2 }));
+    scheduler.flushNext();
+    const dataTransfer = {
+      dropEffect: 'none',
+      getData: (type: string) => (type === CONTROL_DRAG_MIME_TYPE ? CONTROL_TYPES.button : ''),
+      types: [CONTROL_DRAG_MIME_TYPE],
+    } as unknown as DataTransfer;
+
+    expect(fireEvent.dragOver(root, { dataTransfer })).toBe(false);
+    expect(dataTransfer.dropEffect).toBe('copy');
+    const dropEvent = createEvent.drop(root, { dataTransfer });
+    Object.defineProperties(dropEvent, {
+      clientX: { value: 250 },
+      clientY: { value: 100 },
+    });
+    expect(fireEvent(root, dropEvent)).toBe(false);
+    expect(onInsertControlAt).toHaveBeenCalledWith(
+      CONTROL_TYPES.button,
+      expect.objectContaining({ x: 100, y: 50 }),
+    );
     store.dispose();
   });
 

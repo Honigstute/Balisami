@@ -463,8 +463,12 @@ p {
 }
 
 .panel-header h2 {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .panel-header__actions {
@@ -900,12 +904,6 @@ p {
 .inspector-section__heading span {
   color: var(--color-muted-ink);
   font-size: var(--font-size-caption);
-}
-
-.inspector-section--identity {
-  min-height: calc(var(--control-height) + var(--space-6));
-  align-content: center;
-  background: var(--color-panel);
 }
 
 .inspector-field-grid {

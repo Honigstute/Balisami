@@ -33,6 +33,7 @@ interface AppShellProps {
     readonly redoLabel?: string;
     readonly undoLabel?: string;
   };
+  readonly inspectorTitle?: ReactNode;
   readonly projectName?: string;
   readonly projectOverlay?: ReactNode;
   readonly projectProbeState?: { readonly attributeName: string; readonly value: string };
@@ -110,6 +111,7 @@ const LibraryPlaceholders = () => (
 
 export const AppShell = ({
   historyControls,
+  inspectorTitle = 'Inspector',
   projectName = 'Untitled project',
   projectOverlay,
   projectProbeState,
@@ -310,7 +312,7 @@ export const AppShell = ({
         className={`inspector-panel${shell.preferences.inspector.collapsed ? ' pane--collapsed' : ''}`}
       >
         <div className="panel-header panel-header--inspector">
-          <h2>Inspector</h2>
+          <h2>{inspectorTitle}</h2>
           <button
             aria-expanded={!shell.preferences.inspector.collapsed}
             aria-label={

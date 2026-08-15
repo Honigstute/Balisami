@@ -21,7 +21,7 @@ import {
   PROJECT_WORKFLOW_ALPHA_LAYOUT,
 } from '../../shared/project-workflow-alpha';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
-import { ControlInspector } from '../controls/ControlInspector';
+import { ControlInspector, ControlInspectorTitle } from '../controls/ControlInspector';
 import { calculateControlAutoSizeFrame } from '../controls/control-auto-size';
 import { ControlShelf } from '../controls/ControlShelf';
 import { getBrowserControlTextMeasurementService } from '../controls/control-text-measurement';
@@ -94,6 +94,7 @@ import {
   createWorldVector,
   viewportPointToWorld,
   worldRectToViewport,
+  type WorldPoint,
 } from '../editor/viewport-transform';
 import { waitForRendererPresentation } from './renderer-readiness';
 import { useRuntimeInfo } from './use-runtime-info';
@@ -445,7 +446,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         ? false
         : arrangeSelectedElements(currentDocument, selection, action, arrangementSource);
     };
-    const insertControl = (controlType: ControlTypeId) => {
+    const insertControl = (controlType: ControlTypeId, requestedCenter?: WorldPoint) => {
       const currentDocument = session.getSnapshot().history?.document;
       const boardId = currentDocument?.boardIds[0];
       const elementId = allocateEditorElementId();
@@ -453,16 +454,19 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         return undefined;
       }
       const viewport = camera.getViewportSnapshot();
-      const center = viewportPointToWorld(
-        createViewportPoint(viewport.width / 2, viewport.height / 2),
-        camera.getTransformSnapshot(),
-      );
+      const center =
+        requestedCenter ??
+        viewportPointToWorld(
+          createViewportPoint(viewport.width / 2, viewport.height / 2),
+          camera.getTransformSnapshot(),
+        );
       const command = createControlInsertionCommand({
         boardId,
         center,
         controlType,
         document: currentDocument,
         elementId,
+        ...(requestedCenter === undefined ? {} : { placement: 'exact' }),
       });
       if (command === undefined) {
         return undefined;
@@ -650,6 +654,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           ? {}
           : { undoLabel: `Undo ${selectUndoLabel(view.history) as string}` }),
       }}
+      inspectorTitle={
+        document === undefined ? undefined : (
+          <ControlInspectorTitle document={document} selection={editor.selection} />
+        )
+      }
       projectName={view.displayName}
       projectOverlay={
         view.dialog === undefined ? undefined : (
@@ -713,6 +722,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   onDeleteSelection: editor.deleteSelection,
                   onDuplicateSelection: editor.duplicateSelection,
                   onGroupSelection: editor.groupSelection,
+                  onInsertControlAt: (controlType: ControlTypeId, point: WorldPoint) =>
+                    editor.insertControl(controlType, point) !== undefined,
                   onLockSelection: editor.lockSelection,
                   onPasteSelection: editor.pasteSelection,
                   onSendSelectionBackward: editor.sendSelectionBackward,

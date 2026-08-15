@@ -64,4 +64,38 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.arrow,
     ]);
   });
+
+  it('centers exact drag placement without the click-insertion cascade', () => {
+    const boardId = BoardIdSchema.parse('board_controldrag');
+    const created = createEmptyProjectDocument({
+      boardId,
+      projectId: ProjectIdSchema.parse('project_controldrag'),
+    });
+    if (!created.ok) {
+      throw new Error('Drag insertion fixture is invalid.');
+    }
+    const firstId = ElementIdSchema.parse('element_controldrag_first');
+    const first = createControlInsertionCommand({
+      boardId,
+      center: createWorldPoint(100, 100),
+      controlType: CONTROL_TYPES.rectangle,
+      document: created.value,
+      elementId: firstId,
+    });
+    const inserted = dispatchDocumentCommand(created.value, first);
+    if (!inserted.ok || !inserted.changed) {
+      throw new Error('First drag insertion fixture control could not be inserted.');
+    }
+    const draggedId = ElementIdSchema.parse('element_controldrag_exact');
+    const dragged = createControlInsertionCommand({
+      boardId,
+      center: createWorldPoint(400, 300),
+      controlType: CONTROL_TYPES.button,
+      document: inserted.document,
+      elementId: draggedId,
+      placement: 'exact',
+    });
+
+    expect(dragged?.element.frame).toEqual({ height: 40, width: 120, x: 340, y: 280 });
+  });
 });

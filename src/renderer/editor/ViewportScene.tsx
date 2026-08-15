@@ -1,4 +1,7 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type DragEvent, type ReactNode } from 'react';
+
+import type { ControlTypeId } from '../../domain';
+import { CONTROL_DRAG_MIME_TYPE, parseDraggedControlType } from '../controls/control-drag-transfer';
 
 import type { KeyboardNudgeInteraction } from './keyboard-nudge-interaction';
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from './scene-layers';
@@ -8,7 +11,13 @@ import type { TextEditViewportRoute } from './text-edit-interaction';
 import type { ViewportShortcutPlatform } from './viewport-commands';
 import type { ViewportCameraStore } from './viewport-camera-store';
 import { ViewportInputController, type ViewportAlignmentCommand } from './viewport-input';
-import { createDeviceScale, createViewportSize } from './viewport-transform';
+import {
+  createDeviceScale,
+  createViewportPoint,
+  createViewportSize,
+  viewportPointToWorld,
+  type WorldPoint,
+} from './viewport-transform';
 
 interface ViewportSceneProps {
   readonly camera: ViewportCameraStore;
@@ -23,6 +32,7 @@ interface ViewportSceneProps {
   readonly onDeleteSelection?: () => boolean;
   readonly onDuplicateSelection?: () => boolean;
   readonly onGroupSelection?: () => boolean;
+  readonly onInsertControlAt?: (controlType: ControlTypeId, point: WorldPoint) => boolean;
   readonly onLockSelection?: () => boolean;
   readonly onPasteSelection?: () => boolean;
   readonly onSendSelectionBackward?: () => boolean;
@@ -78,6 +88,7 @@ export const ViewportScene = ({
   onDeleteSelection,
   onDuplicateSelection,
   onGroupSelection,
+  onInsertControlAt,
   onLockSelection,
   onPasteSelection,
   onSendSelectionBackward,
@@ -200,6 +211,41 @@ export const ViewportScene = ({
     textEdit,
   ]);
 
+  const handleControlDragOver = (event: DragEvent<HTMLDivElement>): void => {
+    if (
+      onInsertControlAt === undefined ||
+      !Array.from(event.dataTransfer.types).includes(CONTROL_DRAG_MIME_TYPE)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleControlDrop = (event: DragEvent<HTMLDivElement>): void => {
+    const root = rootRef.current;
+    const controlType = parseDraggedControlType(event.dataTransfer.getData(CONTROL_DRAG_MIME_TYPE));
+    if (root === null || controlType === undefined || onInsertControlAt === undefined) {
+      return;
+    }
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+      return;
+    }
+    const bounds = root.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return;
+    }
+    const viewportPoint = createViewportPoint(
+      event.clientX - bounds.left,
+      event.clientY - bounds.top,
+    );
+    event.preventDefault();
+    onInsertControlAt(
+      controlType,
+      viewportPointToWorld(viewportPoint, camera.getTransformSnapshot()),
+    );
+  };
+
   return (
     <div
       aria-label="Interactive canvas"
@@ -207,6 +253,8 @@ export const ViewportScene = ({
       data-camera-revision="0"
       data-pan-state="idle"
       data-selection-state="idle"
+      onDragOver={handleControlDragOver}
+      onDrop={handleControlDrop}
       ref={rootRef}
       tabIndex={0}
     >

@@ -15,6 +15,7 @@ export interface ControlInsertionRequest {
   readonly controlType: ControlTypeId;
   readonly document: ProjectDocument;
   readonly elementId: ElementId;
+  readonly placement?: 'cascade' | 'exact';
 }
 
 /**
@@ -30,7 +31,7 @@ export const createControlInsertionCommand = (
     return undefined;
   }
 
-  const cascadeOffset = (board.childIds.length % 8) * 12;
+  const cascadeOffset = request.placement === 'exact' ? 0 : (board.childIds.length % 8) * 12;
   return Object.freeze({
     type: DOCUMENT_COMMAND_TYPES.createElement,
     element: Object.freeze({

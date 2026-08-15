@@ -262,11 +262,17 @@ export const normalizeViewportWheel = (
   });
 };
 
-const isEditableTarget = (target: EventTarget | null): boolean =>
-  target instanceof Element &&
-  target.closest(
+const isEditableTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  const editable = target.closest(
     'a, button, input, select, textarea, [contenteditable="true"], [role="button"], [role="slider"]',
-  ) !== null;
+  );
+  // Scene controls expose SVG accessibility roles, but remain canvas geometry.
+  // Only DOM controls own their pointer/keyboard input independently.
+  return editable !== null && !(editable instanceof SVGElement);
+};
 
 const shouldStartPan = (event: PointerEvent, spacePressed: boolean): boolean =>
   event.button === 1 || (event.button === 0 && spacePressed);

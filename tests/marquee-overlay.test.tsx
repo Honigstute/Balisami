@@ -48,7 +48,7 @@ class TestAnimationFrameScheduler implements AnimationFrameScheduler {
 }
 
 describe('marquee overlay', () => {
-  it('renders directional preview geometry imperatively without React commits', () => {
+  it('renders intersecting preview geometry imperatively without React commits', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,
       height: 600,
@@ -92,15 +92,15 @@ describe('marquee overlay', () => {
       viewportPoint: createViewportPoint(100, 120),
       worldPoint: createWorldPoint(100, 120),
     };
-    const containedEnd = {
+    const forwardEnd = {
       viewportPoint: createViewportPoint(180, 170),
       worldPoint: createWorldPoint(180, 170),
     };
     interaction.beginPress({ altKey: false, pointerId: 1, shiftKey: false, ...start });
-    interaction.updatePress(1, { ...containedEnd, shiftKey: false });
+    interaction.updatePress(1, { ...forwardEnd, shiftKey: false });
 
     expect(group).not.toHaveAttribute('display');
-    expect(group).toHaveAttribute('data-marquee-mode', 'contained');
+    expect(group).toHaveAttribute('data-marquee-mode', 'intersecting');
     expect(group).toHaveAttribute('data-preview-count', '1');
     expect(rectangle).toHaveAttribute('x', '100');
     expect(rectangle).toHaveAttribute('y', '120');

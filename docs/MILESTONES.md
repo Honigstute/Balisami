@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M8 active — control-definition conformance slice
+Status: M9 active — library and interaction slice
 Last reviewed: 2026-08-15
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -455,11 +455,18 @@ Exit gate:
 - A normal new control is registered once and automatically becomes searchable, insertable, renderable, inspectable, serializable, migratable, thumbnail-capable, and exportable.
 - Representative controls round-trip without data loss and retain identical seeded sketch geometry across reopen.
 
-### [ ] M9 — Library, quick add, drag-create, and schema-driven inspector
+### [~] M9 — Library, quick add, drag-create, and schema-driven inspector
 
 Depends on: M8
 
 Objective: deliver the primary fast-create/edit loop visible in the references.
+
+Current progress (2026-08-15):
+
+- Every registry-backed shelf entry remains click-insertable and is now also a typed drag source. The viewport accepts only validated palette type IDs, converts the drop point through the canonical viewport transform once, and dispatches one exact-placement create command before selecting the new control. Click insertion retains its existing deterministic cascade while drag placement centers the control at the release point.
+- Accessible SVG scene roles no longer masquerade as editable DOM controls. A regression exercises click selection and a fast press-to-release Button drag with no intermediate pointer move, proving the exact release delta is flushed into one frame transaction with no pending animation-frame update. Marquee selection now consistently uses intersection in either drag direction, so touching a control is sufficient.
+- The fixed inspector header now derives its title from the selected registry definition or displays `<count> Controls` for a multi-selection. The duplicate identity section was removed from the scrolling body, long titles are contained with ellipsis, and the existing fixed grid track/internal scroll contract remains unchanged.
+- The initial interaction slice passes the complete local source gate across 158 source modules and 93 test files / 594 tests, including formatting, lint, dependency boundaries, strict TypeScript, and zero runtime vulnerabilities. The macOS arm64 package, fuse readback, launch smoke, all 27 isolated visual/scale captures, 921-byte create/edit/undo/redo/save/close/reopen workflow, and viewport benchmark pass; the benchmark records 0.40-ms p95 frame work and 9.40-ms p95 input latency. Original-resolution `mvpAlpha`, `registryControl`, and `marquee` captures were reviewed with the selection-derived header, removed duplicate identity block, intersection marquee styling, complete canvas geometry, and unchanged shell tracks.
 
 Deliverables:
 
@@ -577,4 +584,4 @@ Exit gate:
 
 ## Next action
 
-The next unchecked milestone is M9. Begin with one registry-backed shelf/search vertical slice: deterministic category and alias filtering, keyboard navigation, fixed-slot reachability, and overlay behavior without changing shell or viewport geometry. Extend that same path into Quick Add, click/drag/draw insertion, then the schema-driven mixed-value inspector rather than creating parallel metadata or control-specific branches. M8's documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.
+M9 is active. The next unchecked item is deterministic registry-backed category and alias filtering with keyboard navigation and end-of-shelf reachability, without changing shell or viewport geometry. Extend that same search path into Quick Add, then implement supported draw insertion and schema-driven mixed-value/batched inspector editing rather than creating parallel metadata or control-specific branches. M8's documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.

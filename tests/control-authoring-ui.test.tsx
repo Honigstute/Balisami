@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -12,8 +12,9 @@ import {
   type ControlTypeId,
   type WorldRect,
 } from '../src/domain';
-import { ControlInspector } from '../src/renderer/controls/ControlInspector';
+import { ControlInspector, ControlInspectorTitle } from '../src/renderer/controls/ControlInspector';
 import { ControlShelf } from '../src/renderer/controls/ControlShelf';
+import { CONTROL_DRAG_MIME_TYPE } from '../src/renderer/controls/control-drag-transfer';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
 import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
@@ -83,6 +84,25 @@ describe('alpha control authoring UI', () => {
     ]);
   });
 
+  it('makes every palette control a typed draggable shelf source', () => {
+    render(<ControlShelf onInsert={() => true} />);
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      effectAllowed: 'none',
+      setData: vi.fn((type: string, value: string) => data.set(type, value)),
+    } as unknown as DataTransfer;
+    const button = screen.getByRole('button', { name: 'Insert Button' });
+
+    expect(button).toHaveAttribute('draggable', 'true');
+    fireEvent.dragStart(button, { dataTransfer });
+
+    expect(dataTransfer.effectAllowed).toBe('copy');
+    expect(data.get(CONTROL_DRAG_MIME_TYPE)).toBe(CONTROL_TYPES.button);
+    for (const shelfItem of screen.getAllByRole('button')) {
+      expect(shelfItem).toHaveAttribute('draggable', 'true');
+    }
+  });
+
   it('renders every palette preview through a definition-derived SVG projection', () => {
     render(
       <ControlShelf
@@ -130,7 +150,7 @@ describe('alpha control authoring UI', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Button' })).toBeInTheDocument();
+    expect(screen.queryByText('Selected control')).not.toBeInTheDocument();
     const x = screen.getByRole('spinbutton', { name: 'X' });
     fireEvent.change(x, { target: { value: '260' } });
     fireEvent.blur(x);
@@ -167,7 +187,6 @@ describe('alpha control authoring UI', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Checkbox' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Checked' }));
     expect(onSetProperties).toHaveBeenCalledWith(
       elementId,
@@ -192,7 +211,7 @@ describe('alpha control authoring UI', () => {
       />,
     );
 
-    expect(screen.getAllByRole('heading', { name: 'Arrow' })).toHaveLength(2);
+    expect(screen.getAllByRole('heading', { name: 'Arrow' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Visual 2' }));
     expect(onSetProperties).toHaveBeenCalledWith(
       elementId,
@@ -227,5 +246,32 @@ describe('alpha control authoring UI', () => {
     fireEvent.click(screen.getByRole('button', { name: '↔ Auto-Size' }));
     await waitFor(() => expect(onAutoSize).toHaveBeenCalledOnce());
     expect(onAutoSize).toHaveBeenCalledWith(elementId);
+  });
+
+  it('puts the selected control identity in the fixed inspector header title', async () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.button);
+    const secondId = ElementIdSchema.parse('element_controlui_second');
+    const secondCommand = createControlInsertionCommand({
+      boardId: document.boardIds[0]!,
+      center: createWorldPoint(500, 240),
+      controlType: CONTROL_TYPES.rectangle,
+      document,
+      elementId: secondId,
+    });
+    const withSecond = dispatchDocumentCommand(document, secondCommand);
+    if (!withSecond.ok || !withSecond.changed) {
+      throw new Error('Second inspector-title fixture control could not be inserted.');
+    }
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    render(
+      <h2>
+        <ControlInspectorTitle document={withSecond.document} selection={selection} />
+      </h2>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Button' })).toBeInTheDocument();
+    await act(() => selection.replace([elementId, secondId], secondId));
+    expect(screen.getByRole('heading', { name: '2 Controls' })).toBeInTheDocument();
   });
 });

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type DragEvent } from 'react';
 
 import { listPaletteControlSpecs, type ControlTypeId } from '../../domain';
 import { ControlThumbnail } from './ControlThumbnail';
+import { CONTROL_DRAG_MIME_TYPE } from './control-drag-transfer';
 import {
   getBrowserControlTextMeasurementService,
   type ControlTextMeasurementService,
@@ -51,7 +52,12 @@ export const ControlShelf = ({ onInsert, textMeasurementService }: ControlShelfP
           <button
             aria-label={`Insert ${palette.label}`}
             className="control-library__item"
+            draggable
             key={spec.type}
+            onDragStart={(event: DragEvent<HTMLButtonElement>) => {
+              event.dataTransfer.effectAllowed = 'copy';
+              event.dataTransfer.setData(CONTROL_DRAG_MIME_TYPE, spec.type);
+            }}
             onClick={() => onInsert(spec.type)}
             title={`Insert ${palette.label}`}
             type="button"

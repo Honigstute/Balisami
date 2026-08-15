@@ -22,6 +22,11 @@ interface ControlInspectorProps {
   readonly selection: SelectionStore;
 }
 
+interface ControlInspectorTitleProps {
+  readonly document: ProjectDocument;
+  readonly selection: SelectionStore;
+}
+
 interface InspectorNumberInputProps {
   readonly label: string;
   readonly maximum?: number;
@@ -198,6 +203,22 @@ const InspectorFooter = () => (
   </div>
 );
 
+/** Keeps the fixed inspector header descriptive without duplicating identity in its body. */
+export const ControlInspectorTitle = ({ document, selection }: ControlInspectorTitleProps) => {
+  const snapshot = useSyncExternalStore(
+    selection.subscribe,
+    selection.getSnapshot,
+    selection.getSnapshot,
+  );
+  if (snapshot.selectedIds.length > 1) {
+    return <>{snapshot.selectedIds.length} Controls</>;
+  }
+  const elementId = snapshot.selectedIds.length === 1 ? snapshot.primaryId : undefined;
+  const element = elementId === undefined ? undefined : document.elementsById[elementId];
+  const definition = element === undefined ? undefined : getControlSpec(element.controlType);
+  return <>{definition?.palette?.label ?? (element === undefined ? 'Inspector' : 'Group')}</>;
+};
+
 export const ControlInspector = ({
   document,
   onAutoSize,
@@ -226,7 +247,6 @@ export const ControlInspector = ({
       <>
         <div className="inspector-scroll">
           <section className="inspector-section">
-            <h3>Multiple controls</h3>
             <p>
               {selectionSnapshot.selectedIds.length} controls selected. Move, arrange, or group them
               on the canvas.
@@ -256,7 +276,6 @@ export const ControlInspector = ({
   if (spec === undefined) {
     throw new Error(`Inspector received unknown control type '${element.controlType}'.`);
   }
-  const label = spec.palette?.label ?? 'Group';
   const commitFrame = (patch: Partial<WorldRect>): boolean =>
     onSetFrame(element.id, Object.freeze({ ...element.frame, ...patch }));
   const textMetadata = spec.capabilities.text;
@@ -278,10 +297,6 @@ export const ControlInspector = ({
   return (
     <>
       <div className="inspector-scroll" data-inspector-control={element.controlType}>
-        <section className="inspector-section inspector-section--identity">
-          <h3>{label}</h3>
-          <p>Selected control</p>
-        </section>
         <section className="inspector-section">
           <h3>Position</h3>
           <div className="inspector-field-grid">
