@@ -8,7 +8,7 @@ import {
   type ProjectDocument,
   type ReorderElementSiblingsCommand,
 } from '../../domain';
-import { resolveSelectionRoots } from './selection-roots';
+import { resolveSelectionRoots, resolveSiblingSelectionRoots } from './selection-roots';
 import type { SelectionStore } from './selection-store';
 
 export const SELECTION_LAYER_ACTIONS = Object.freeze({
@@ -41,9 +41,6 @@ export interface SelectionLayeringSource {
     label: string,
   ) => ProjectDocument | undefined;
 }
-
-const ownerKey = (owner: ElementOwner): string =>
-  owner.kind === 'board' ? `board:${owner.boardId}` : `element:${owner.elementId}`;
 
 const ordersEqual = (left: readonly ElementId[], right: readonly ElementId[]): boolean =>
   left.length === right.length && left.every((elementId, index) => elementId === right[index]);
@@ -101,7 +98,7 @@ export const planSelectionLayer = (
   selectedIds: readonly ElementId[],
   action: SelectionLayerAction,
 ): SelectionLayerPlan | undefined => {
-  const roots = resolveSelectionRoots(document, selectedIds);
+  const roots = resolveSiblingSelectionRoots(document, selectedIds);
   if (roots === undefined) {
     return undefined;
   }
@@ -113,42 +110,26 @@ export const planSelectionLayer = (
   ) {
     return undefined;
   }
-  const firstLocation =
-    roots.rootIds[0] === undefined ? undefined : roots.locations.get(roots.rootIds[0]);
-  if (
-    firstLocation === undefined ||
-    roots.rootIds.some((elementId) => {
-      const location = roots.locations.get(elementId);
-      return location === undefined || ownerKey(location.owner) !== ownerKey(firstLocation.owner);
-    })
-  ) {
-    return undefined;
-  }
-
-  const childIds = selectOwnerChildIds(document, firstLocation.owner);
+  const childIds = selectOwnerChildIds(document, roots.owner);
   if (childIds === undefined) {
     return undefined;
   }
   const rootSet = new Set(roots.rootIds);
-  const rootIds = childIds.filter((elementId) => rootSet.has(elementId));
-  if (rootIds.length !== roots.rootIds.length) {
-    return undefined;
-  }
   const targetOrder = createTargetOrder(childIds, rootSet, action);
   if (ordersEqual(childIds, targetOrder)) {
     return undefined;
   }
   const command = ReorderElementSiblingsCommandSchema.safeParse({
     type: DOCUMENT_COMMAND_TYPES.reorderElementSiblings,
-    owner: firstLocation.owner,
+    owner: roots.owner,
     childIds: targetOrder,
   });
   return command.success
     ? Object.freeze({
         action,
         command: command.data,
-        owner: firstLocation.owner,
-        rootIds: Object.freeze(rootIds),
+        owner: roots.owner,
+        rootIds: roots.rootIds,
       })
     : undefined;
 };

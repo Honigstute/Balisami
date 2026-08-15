@@ -11,6 +11,7 @@ import {
   createTextEditViewportRoute,
   TextEditInteraction,
 } from '../src/renderer/editor/text-edit-interaction';
+import type { ViewportAlignmentCommand } from '../src/renderer/editor/viewport-input';
 import { ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import type { MoveTargetCapture } from '../src/renderer/editor/move-geometry';
@@ -873,6 +874,7 @@ describe('viewport scene layers', () => {
     const cameraScheduler = new TestAnimationFrameScheduler();
     const nudgeScheduler = new TestAnimationFrameScheduler();
     const store = createStore(cameraScheduler);
+    const alignSelection = vi.fn<(action: ViewportAlignmentCommand) => boolean>(() => true);
     const copySelection = vi.fn(() => true);
     const bringSelectionForward = vi.fn(() => true);
     const bringSelectionToFront = vi.fn(() => true);
@@ -901,6 +903,7 @@ describe('viewport scene layers', () => {
         camera={store}
         domChildren={<input aria-label="Duplicate-safe inline editor" />}
         keyboardNudgeInteraction={nudge}
+        onAlignSelection={alignSelection}
         onBringSelectionForward={bringSelectionForward}
         onBringSelectionToFront={bringSelectionToFront}
         onCopySelection={copySelection}
@@ -928,6 +931,8 @@ describe('viewport scene layers', () => {
 
     expect(fireEvent.keyDown(input, { code: 'KeyD', metaKey: true })).toBe(true);
     expect(fireEvent.keyDown(input, { code: 'KeyC', metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(input, { altKey: true, code: 'Digit1', metaKey: true })).toBe(true);
+    expect(alignSelection).not.toHaveBeenCalled();
     expect(copySelection).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(root, { code: 'KeyD', ctrlKey: true })).toBe(true);
     expect(fireEvent.keyDown(root, { altKey: true, code: 'KeyD', metaKey: true })).toBe(true);
@@ -951,6 +956,9 @@ describe('viewport scene layers', () => {
     );
     expect(fireEvent.keyDown(root, { code: 'Digit2', metaKey: true })).toBe(false);
     expect(fireEvent.keyDown(root, { code: 'Digit3', metaKey: true })).toBe(false);
+    for (const code of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6']) {
+      expect(fireEvent.keyDown(root, { altKey: true, code, metaKey: true })).toBe(false);
+    }
     expect(copySelection).toHaveBeenCalledTimes(1);
     expect(cutSelection).toHaveBeenCalledTimes(1);
     expect(pasteSelection).toHaveBeenCalledTimes(1);
@@ -962,6 +970,14 @@ describe('viewport scene layers', () => {
     expect(sendSelectionToBack).toHaveBeenCalledTimes(1);
     expect(lockSelection).toHaveBeenCalledTimes(1);
     expect(unlockAll).toHaveBeenCalledTimes(1);
+    expect(alignSelection.mock.calls.map(([action]) => action)).toEqual([
+      'align-left',
+      'align-center',
+      'align-right',
+      'align-top',
+      'align-middle',
+      'align-bottom',
+    ]);
     expect(fireEvent.keyDown(root, { code: 'KeyG', metaKey: true, repeat: true })).toBe(false);
     expect(groupSelection).toHaveBeenCalledTimes(1);
     expect(fireEvent.keyDown(root, { code: 'KeyC', metaKey: true, repeat: true })).toBe(false);
@@ -1000,6 +1016,7 @@ describe('viewport scene layers', () => {
     );
     expect(fireEvent.keyDown(root, { code: 'Digit2', ctrlKey: true })).toBe(false);
     expect(fireEvent.keyDown(root, { code: 'Digit3', ctrlKey: true })).toBe(false);
+    expect(fireEvent.keyDown(root, { altKey: true, code: 'Digit1', ctrlKey: true })).toBe(false);
     expect(pasteSelection).toHaveBeenCalledTimes(2);
     expect(groupSelection).toHaveBeenCalledTimes(2);
     expect(ungroupSelection).toHaveBeenCalledTimes(2);
@@ -1007,6 +1024,7 @@ describe('viewport scene layers', () => {
     expect(sendSelectionToBack).toHaveBeenCalledTimes(2);
     expect(lockSelection).toHaveBeenCalledTimes(2);
     expect(unlockAll).toHaveBeenCalledTimes(2);
+    expect(alignSelection).toHaveBeenLastCalledWith('align-left');
 
     view.unmount();
     expect(nudgeScheduler.callbacks.size).toBe(0);

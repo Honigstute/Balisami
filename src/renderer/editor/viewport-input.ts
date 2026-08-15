@@ -60,6 +60,12 @@ export interface ViewportSnapBypassInput {
 }
 
 export const VIEWPORT_EDIT_COMMANDS = Object.freeze({
+  alignBottom: 'align-bottom',
+  alignCenter: 'align-center',
+  alignLeft: 'align-left',
+  alignMiddle: 'align-middle',
+  alignRight: 'align-right',
+  alignTop: 'align-top',
   bringForward: 'bring-forward',
   bringToFront: 'bring-to-front',
   copy: 'copy',
@@ -75,8 +81,13 @@ export const VIEWPORT_EDIT_COMMANDS = Object.freeze({
 } as const);
 export type ViewportEditCommand =
   (typeof VIEWPORT_EDIT_COMMANDS)[keyof typeof VIEWPORT_EDIT_COMMANDS];
+export type ViewportAlignmentCommand = Extract<
+  ViewportEditCommand,
+  'align-bottom' | 'align-center' | 'align-left' | 'align-middle' | 'align-right' | 'align-top'
+>;
 
 export interface ViewportInputControllerOptions {
+  readonly alignSelection?: (action: ViewportAlignmentCommand) => boolean;
   readonly bringSelectionForward?: () => boolean;
   readonly bringSelectionToFront?: () => boolean;
   readonly copySelection?: () => boolean;
@@ -118,11 +129,29 @@ export const resolveViewportEditShortcut = (
   input: ViewportEditShortcutInput,
   platform: ViewportShortcutPlatform,
 ): ViewportEditCommand | undefined => {
-  if (
-    input.altKey ||
-    (platform === 'darwin' ? !input.metaKey || input.ctrlKey : !input.ctrlKey || input.metaKey)
-  ) {
+  if (platform === 'darwin' ? !input.metaKey || input.ctrlKey : !input.ctrlKey || input.metaKey) {
     return undefined;
+  }
+  if (input.altKey) {
+    if (input.shiftKey) {
+      return undefined;
+    }
+    switch (input.code) {
+      case 'Digit1':
+        return VIEWPORT_EDIT_COMMANDS.alignLeft;
+      case 'Digit2':
+        return VIEWPORT_EDIT_COMMANDS.alignCenter;
+      case 'Digit3':
+        return VIEWPORT_EDIT_COMMANDS.alignRight;
+      case 'Digit4':
+        return VIEWPORT_EDIT_COMMANDS.alignTop;
+      case 'Digit5':
+        return VIEWPORT_EDIT_COMMANDS.alignMiddle;
+      case 'Digit6':
+        return VIEWPORT_EDIT_COMMANDS.alignBottom;
+      default:
+        return undefined;
+    }
   }
   if (input.code === 'KeyG') {
     return input.shiftKey ? VIEWPORT_EDIT_COMMANDS.ungroup : VIEWPORT_EDIT_COMMANDS.group;
@@ -247,6 +276,7 @@ const shouldStartPan = (event: PointerEvent, spacePressed: boolean): boolean =>
  * the camera store remains the authority for transform state and frame pacing.
  */
 export class ViewportInputController {
+  readonly #alignSelection: ((action: ViewportAlignmentCommand) => boolean) | undefined;
   readonly #bringSelectionForward: (() => boolean) | undefined;
   readonly #bringSelectionToFront: (() => boolean) | undefined;
   readonly #camera: ViewportCameraStore;
@@ -286,6 +316,7 @@ export class ViewportInputController {
   ) {
     this.#root = root;
     this.#camera = camera;
+    this.#alignSelection = options.alignSelection;
     this.#bringSelectionForward = options.bringSelectionForward;
     this.#bringSelectionToFront = options.bringSelectionToFront;
     this.#selectionInteraction = options.selectionInteraction;
@@ -773,6 +804,15 @@ export class ViewportInputController {
 
   #getEditAction(command: ViewportEditCommand): (() => boolean) | undefined {
     switch (command) {
+      case VIEWPORT_EDIT_COMMANDS.alignBottom:
+      case VIEWPORT_EDIT_COMMANDS.alignCenter:
+      case VIEWPORT_EDIT_COMMANDS.alignLeft:
+      case VIEWPORT_EDIT_COMMANDS.alignMiddle:
+      case VIEWPORT_EDIT_COMMANDS.alignRight:
+      case VIEWPORT_EDIT_COMMANDS.alignTop:
+        return this.#alignSelection === undefined
+          ? undefined
+          : () => this.#alignSelection?.(command) === true;
       case VIEWPORT_EDIT_COMMANDS.bringForward:
         return this.#bringSelectionForward;
       case VIEWPORT_EDIT_COMMANDS.bringToFront:

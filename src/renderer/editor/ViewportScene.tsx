@@ -7,7 +7,7 @@ import type { SelectionStore } from './selection-store';
 import type { TextEditViewportRoute } from './text-edit-interaction';
 import type { ViewportShortcutPlatform } from './viewport-commands';
 import type { ViewportCameraStore } from './viewport-camera-store';
-import { ViewportInputController } from './viewport-input';
+import { ViewportInputController, type ViewportAlignmentCommand } from './viewport-input';
 import { createDeviceScale, createViewportSize } from './viewport-transform';
 
 interface ViewportSceneProps {
@@ -15,6 +15,7 @@ interface ViewportSceneProps {
   readonly domChildren?: ReactNode;
   readonly interactionChildren?: ReactNode;
   readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
+  readonly onAlignSelection?: (action: ViewportAlignmentCommand) => boolean;
   readonly onBringSelectionForward?: () => boolean;
   readonly onBringSelectionToFront?: () => boolean;
   readonly onCopySelection?: () => boolean;
@@ -69,6 +70,7 @@ export const ViewportScene = ({
   domChildren,
   interactionChildren,
   keyboardNudgeInteraction,
+  onAlignSelection,
   onBringSelectionForward,
   onBringSelectionToFront,
   onCopySelection,
@@ -143,6 +145,7 @@ export const ViewportScene = ({
       return;
     }
     const input = new ViewportInputController(root, camera, {
+      ...(onAlignSelection === undefined ? {} : { alignSelection: onAlignSelection }),
       ...(onBringSelectionForward === undefined
         ? {}
         : { bringSelectionForward: onBringSelectionForward }),
@@ -177,6 +180,7 @@ export const ViewportScene = ({
   }, [
     camera,
     keyboardNudgeInteraction,
+    onAlignSelection,
     onBringSelectionForward,
     onBringSelectionToFront,
     onCopySelection,

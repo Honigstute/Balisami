@@ -24,6 +24,11 @@ import { ResizeInteraction } from '../editor/resize-interaction';
 import { getResizeSnapProfile, resolveResizeSnap } from '../editor/resize-snapping';
 import { createSceneSnapCandidates } from '../editor/scene-snap-candidates';
 import {
+  arrangeSelectedElements,
+  type SelectionArrangementAction,
+  type SelectionArrangementSource,
+} from '../editor/selection-arrangement';
+import {
   SelectionClipboardStore,
   copySelectedElements,
   cutSelectedElements,
@@ -343,7 +348,20 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         ? false
         : layerSelectedElements(currentDocument, selection, action, layeringSource);
     };
+    const arrangementSource: SelectionArrangementSource = {
+      commit(commands, label) {
+        const result = session.dispatchTransaction(commands, { label });
+        return result?.ok === true && result.changed ? result.history.document : undefined;
+      },
+    };
+    const arrangeSelection = (action: SelectionArrangementAction): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      return currentDocument === undefined
+        ? false
+        : arrangeSelectedElements(currentDocument, selection, action, arrangementSource);
+    };
     return Object.freeze({
+      arrangeSelection,
       bringSelectionForward: () => layerSelection(SELECTION_LAYER_ACTIONS.bringForward),
       bringSelectionToFront: () => layerSelection(SELECTION_LAYER_ACTIONS.bringToFront),
       copySelection,
@@ -453,6 +471,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     </>
                   ),
                   keyboardNudgeInteraction: editor.keyboardNudgeInteraction,
+                  onAlignSelection: editor.arrangeSelection,
                   onBringSelectionForward: editor.bringSelectionForward,
                   onBringSelectionToFront: editor.bringSelectionToFront,
                   onCopySelection: editor.copySelection,

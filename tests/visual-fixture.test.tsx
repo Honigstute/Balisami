@@ -60,6 +60,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
     expect(getRequestedVisualFixture('?visualFixture=smartGuides')).toBe('smartGuides');
     expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
+    expect(getRequestedVisualFixture('?visualFixture=alignSelection')).toBe('alignSelection');
     expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
     expect(getRequestedVisualFixture('?visualFixture=duplicate')).toBe('duplicate');
     expect(getRequestedVisualFixture('?visualFixture=paste')).toBe('paste');
@@ -151,6 +152,22 @@ describe('visual conformance fixture contract', () => {
     expect(guides).not.toHaveAttribute('display', 'none');
     expect(guides).toHaveAttribute('data-guide-count', '2');
     expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders an accepted three-element alignment with stable multi-selection geometry', () => {
+    const view = renderFixture('alignSelection');
+
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    const outline = overlay?.querySelector('.selection-overlay__outline');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(overlay).toHaveAttribute('data-selection-count', '3');
+    expect(outline).toHaveAttribute('x', '188');
+    expect(outline).toHaveAttribute('y', '128');
+    expect(outline).toHaveAttribute('width', '300');
+    expect(outline).toHaveAttribute('height', '188');
+    expect(overlay?.querySelectorAll('.selection-overlay__handle')).toHaveLength(8);
+    expect(screen.getByText('Visual fixture · alignSelection')).toBeInTheDocument();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 

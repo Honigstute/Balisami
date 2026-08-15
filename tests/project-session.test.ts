@@ -13,6 +13,10 @@ import {
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
 import { captureMoveTargets } from '../src/renderer/editor/move-geometry';
 import {
+  arrangeSelectedElements,
+  SELECTION_ARRANGEMENT_ACTIONS,
+} from '../src/renderer/editor/selection-arrangement';
+import {
   SelectionClipboardStore,
   copySelectedElements,
   pasteClipboardElements,
@@ -185,6 +189,86 @@ const setBoardNote = (text: string) => ({
 });
 
 describe('renderer project session', () => {
+  it('commits multi-element alignment as one history entry and one recovery schedule', async () => {
+    const baseDocument = createAssetFreeProjectDocument();
+    const board = baseDocument.boardsById[DOCUMENT_FIXTURE_IDS.board];
+    const child = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (board === undefined || child === undefined) {
+      throw new Error('Alignment integration fixture is incomplete.');
+    }
+    const secondId = ElementIdSchema.parse('element_align002');
+    const thirdId = ElementIdSchema.parse('element_align003');
+    const parsed = parseProjectDocument({
+      ...baseDocument,
+      boardsById: {
+        ...baseDocument.boardsById,
+        [board.id]: {
+          ...board,
+          childIds: [DOCUMENT_FIXTURE_IDS.group, secondId, thirdId],
+        },
+      },
+      elementsById: {
+        ...baseDocument.elementsById,
+        [secondId]: {
+          ...child,
+          id: secondId,
+          frame: { x: 140, y: 96, width: 80, height: 40 },
+          childIds: [],
+        },
+        [thirdId]: {
+          ...child,
+          id: thirdId,
+          frame: { x: 260, y: 144, width: 110, height: 55 },
+          childIds: [],
+        },
+      },
+    });
+    if (!parsed.ok) {
+      throw new Error(`Alignment integration fixture is invalid: ${JSON.stringify(parsed.issues)}`);
+    }
+    const document = parsed.value;
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    const selection = new SelectionStore();
+    selection.replace([thirdId, DOCUMENT_FIXTURE_IDS.group, secondId], DOCUMENT_FIXTURE_IDS.group);
+    await session.start();
+    expect(desktop.recoveryRequests).toHaveLength(1);
+
+    expect(
+      arrangeSelectedElements(document, selection, SELECTION_ARRANGEMENT_ACTIONS.alignTop, {
+        commit: (commands, label) => {
+          const result = session.dispatchTransaction(commands, { label });
+          return result?.ok === true && result.changed ? result.history.document : undefined;
+        },
+      }),
+    ).toBe(true);
+
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Alignment integration history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [
+        { elementId: secondId, type: 'element.set-frame' },
+        { elementId: thirdId, type: 'element.set-frame' },
+      ],
+      label: 'Align elements top',
+    });
+    expect(history.document.elementsById[secondId]?.frame.y).toBe(12.5);
+    expect(history.document.elementsById[thirdId]?.frame.y).toBe(12.5);
+    expect(selection.getSnapshot()).toEqual({
+      primaryId: DOCUMENT_FIXTURE_IDS.group,
+      revision: 2,
+      selectedIds: [DOCUMENT_FIXTURE_IDS.group, secondId, thirdId],
+    });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+
+    const undone = undoDocumentHistory(history);
+    expect(undone).toMatchObject({ changed: true, ok: true });
+    expect(undone.history.document).toEqual(document);
+  });
+
   it('commits a multi-element unlock as one history entry and one recovery schedule', async () => {
     const baseDocument = createAssetFreeProjectDocument();
     const group = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.group];

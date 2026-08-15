@@ -359,6 +359,24 @@ rejected, and the exact prior order is the command inverse. Accepted output is v
 selection is reconciled to canonical roots. Exact idle `Cmd/Ctrl+ArrowDown`,
 `Cmd/Ctrl+Shift+ArrowDown`, `Cmd/Ctrl+ArrowUp`, and `Cmd/Ctrl+Shift+ArrowUp` route the four actions.
 
+Align/distribute operates only on canonical, effectively unlocked selection roots that share one
+owner. World bounds are the comparison vocabulary; each result is converted back to the existing
+owner-local frame before a validated `element.set-frame` command is emitted. Alignment requires two
+roots and holds the selection's primary canonical root fixed as the reference for left, center,
+right, top, middle, or bottom. A descendant primary resolves to its selected root; an unavailable
+primary falls back deterministically to the topmost canonical root. Exact idle
+`Cmd/Ctrl+Alt/Option+1…6` route those six reference-documented actions, while editable targets,
+repeat, Shift, and cross-platform modifier chords remain native.
+
+Horizontal or vertical distribution requires at least three roots. It sorts by geometric leading
+edge with canonical order as the tie-break, keeps the two geometric outer roots fixed, and places
+only interior roots at equal nonnegative edge gaps. A span that cannot contain all selected sizes
+without overlap/reordering rejects instead of inventing negative spacing. Distribution deliberately
+has no keyboard chord until a documented product command is chosen; the same planner and availability
+API can feed the later multi-selection toolbar or menu. Semantic no-ops create no history entry. Every
+accepted align/distribute action is one transaction and recovery event, selection is canonicalized
+only after exact output verification, and one inverse restores the prior local frames byte-for-byte.
+
 Guides are ephemeral overlays and never export or enter history. Align/distribute actions use the same geometry vocabulary but execute as commands.
 
 ## 9. Persistence and recovery

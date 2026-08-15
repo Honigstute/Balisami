@@ -22,6 +22,10 @@ import { captureResizeTarget } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
 import { getResizeSnapProfile, resolveResizeSnap } from '../editor/resize-snapping';
 import { createSceneSnapCandidates } from '../editor/scene-snap-candidates';
+import {
+  planSelectionArrangement,
+  SELECTION_ARRANGEMENT_ACTIONS,
+} from '../editor/selection-arrangement';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
@@ -204,7 +208,36 @@ const createGroupSelectionFixtureDocument = (
   return document;
 };
 
+const createAlignedSelectionFixtureDocument = (
+  fixture: ReturnType<typeof createSceneFixtureDocument>,
+): ProjectDocument => {
+  const group = fixture.document.elementsById[fixture.groupId];
+  const [titleId, fieldId, buttonId] = group?.childIds ?? [];
+  if (titleId === undefined || fieldId === undefined || buttonId === undefined) {
+    throw new Error('The deterministic alignment visual fixture is incomplete.');
+  }
+  const plan = planSelectionArrangement(
+    fixture.document,
+    [buttonId, titleId, fieldId],
+    fieldId,
+    SELECTION_ARRANGEMENT_ACTIONS.alignRight,
+  );
+  if (plan === undefined || plan.commands.length !== 2) {
+    throw new Error('The deterministic alignment visual fixture could not be planned.');
+  }
+  let document = fixture.document;
+  for (const command of plan.commands) {
+    const result = dispatchDocumentCommand(document, command);
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic alignment visual fixture could not be created.');
+    }
+    document = result.document;
+  }
+  return document;
+};
+
 type SceneFixtureState =
+  | 'alignSelection'
   | 'delete'
   | 'duplicate'
   | 'groupSelection'
@@ -228,6 +261,9 @@ const SceneFixture = ({
   const camera = useViewportCameraStore();
   const [fixture] = useState(createSceneFixtureDocument);
   const [document] = useState(() => {
+    if (state === 'alignSelection') {
+      return createAlignedSelectionFixtureDocument(fixture);
+    }
     if (state === 'groupSelection') {
       return createGroupSelectionFixtureDocument(fixture);
     }
@@ -268,13 +304,20 @@ const SceneFixture = ({
     const model = new DocumentSceneModel();
     model.reconcile(document, fixture.boardId);
     const selection = new SelectionStore();
+    const alignmentIds = document.elementsById[fixture.groupId]?.childIds.slice(0, 3) ?? [];
     const selectedId =
       state === 'duplicate' || state === 'paste'
         ? fixture.duplicateId
         : state === 'groupSelection'
           ? fixture.groupId
           : fixture.selectedId;
-    if (
+    if (state === 'alignSelection') {
+      const primaryId = alignmentIds[1];
+      if (alignmentIds.length !== 3 || primaryId === undefined) {
+        throw new Error('The deterministic alignment selection could not be restored.');
+      }
+      selection.replace(alignmentIds, primaryId);
+    } else if (
       state === 'selection' ||
       state === 'move' ||
       state === 'smartGuides' ||
@@ -454,6 +497,7 @@ const SceneFixture = ({
       state === 'smartGuides' ||
       state === 'nudge' ||
       state === 'resize' ||
+      state === 'alignSelection' ||
       state === 'groupSelection' ||
       state === 'duplicate' ||
       state === 'paste' ||
@@ -698,27 +742,29 @@ export const VisualConformanceFixture = ({
               ? { canvas: <SceneFixture state="resize" /> }
               : fixture === 'groupSelection'
                 ? { canvas: <SceneFixture state="groupSelection" /> }
-                : fixture === 'delete'
-                  ? { canvas: <SceneFixture state="delete" /> }
-                  : fixture === 'duplicate'
-                    ? { canvas: <SceneFixture state="duplicate" /> }
-                    : fixture === 'paste'
-                      ? { canvas: <SceneFixture state="paste" /> }
-                      : fixture === 'textEdit'
-                        ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
-                        : fixture === 'nudge'
-                          ? { canvas: <SceneFixture state="nudge" /> }
-                          : fixture === 'marquee'
-                            ? { canvas: <SceneFixture state="marquee" /> }
-                            : fixture === 'controls'
-                              ? { inspector: <ControlStates /> }
-                              : fixture === 'feedback'
-                                ? { canvas: <StaticRegionFailure /> }
-                                : fixture === 'tooltip'
-                                  ? { canvas: <TooltipFixture /> }
-                                  : fixture === 'popover'
-                                    ? { canvas: <PopoverFixture /> }
-                                    : undefined;
+                : fixture === 'alignSelection'
+                  ? { canvas: <SceneFixture state="alignSelection" /> }
+                  : fixture === 'delete'
+                    ? { canvas: <SceneFixture state="delete" /> }
+                    : fixture === 'duplicate'
+                      ? { canvas: <SceneFixture state="duplicate" /> }
+                      : fixture === 'paste'
+                        ? { canvas: <SceneFixture state="paste" /> }
+                        : fixture === 'textEdit'
+                          ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
+                          : fixture === 'nudge'
+                            ? { canvas: <SceneFixture state="nudge" /> }
+                            : fixture === 'marquee'
+                              ? { canvas: <SceneFixture state="marquee" /> }
+                              : fixture === 'controls'
+                                ? { inspector: <ControlStates /> }
+                                : fixture === 'feedback'
+                                  ? { canvas: <StaticRegionFailure /> }
+                                  : fixture === 'tooltip'
+                                    ? { canvas: <TooltipFixture /> }
+                                    : fixture === 'popover'
+                                      ? { canvas: <PopoverFixture /> }
+                                      : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

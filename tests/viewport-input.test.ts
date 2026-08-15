@@ -95,6 +95,24 @@ describe('viewport wheel normalization', () => {
       VIEWPORT_EDIT_COMMANDS.unlockAll,
     );
     expect(
+      resolveViewportEditShortcut({ ...macInput, altKey: true, code: 'Digit1' }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.alignLeft);
+    expect(
+      resolveViewportEditShortcut({ ...macInput, altKey: true, code: 'Digit2' }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.alignCenter);
+    expect(
+      resolveViewportEditShortcut({ ...macInput, altKey: true, code: 'Digit3' }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.alignRight);
+    expect(
+      resolveViewportEditShortcut({ ...macInput, altKey: true, code: 'Digit4' }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.alignTop);
+    expect(
+      resolveViewportEditShortcut({ ...macInput, altKey: true, code: 'Digit5' }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.alignMiddle);
+    expect(
+      resolveViewportEditShortcut({ ...macInput, altKey: true, code: 'Digit6' }, 'darwin'),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.alignBottom);
+    expect(
       resolveViewportEditShortcut(
         { ...macInput, code: 'KeyC', ctrlKey: true, metaKey: false },
         'win32',
@@ -108,10 +126,25 @@ describe('viewport wheel normalization', () => {
     ).toBeUndefined();
     expect(
       resolveViewportEditShortcut(
+        { ...macInput, altKey: true, code: 'Digit1', shiftKey: true },
+        'darwin',
+      ),
+    ).toBeUndefined();
+    expect(
+      resolveViewportEditShortcut({ ...macInput, altKey: true, code: 'KeyC' }, 'darwin'),
+    ).toBeUndefined();
+    expect(
+      resolveViewportEditShortcut(
         { ...macInput, code: 'KeyG', ctrlKey: true, metaKey: false },
         'win32',
       ),
     ).toBe(VIEWPORT_EDIT_COMMANDS.group);
+    expect(
+      resolveViewportEditShortcut(
+        { ...macInput, altKey: true, code: 'Digit6', ctrlKey: true, metaKey: false },
+        'win32',
+      ),
+    ).toBe(VIEWPORT_EDIT_COMMANDS.alignBottom);
     expect(resolveViewportEditShortcut({ ...macInput, code: 'KeyA' }, 'darwin')).toBeUndefined();
   });
 
