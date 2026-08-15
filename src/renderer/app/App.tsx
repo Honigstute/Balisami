@@ -15,6 +15,10 @@ import {
 } from '../../domain';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
 import { isViewportPerformanceProbeRequested } from '../../shared/viewport-performance';
+import {
+  PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT,
+  PROJECT_WORKFLOW_ALPHA_LAYOUT,
+} from '../../shared/project-workflow-alpha';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { ControlInspector } from '../controls/ControlInspector';
 import { ControlShelf } from '../controls/ControlShelf';
@@ -542,27 +546,27 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         {
           type: DOCUMENT_COMMAND_TYPES.setElementFrame,
           elementId: cardId,
-          frame: { x: 320, y: 220, width: 420, height: 280 },
+          frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.rectangle,
         },
         {
           type: DOCUMENT_COMMAND_TYPES.setElementFrame,
           elementId: titleId,
-          frame: { x: 356, y: 252, width: 300, height: 36 },
+          frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textLabel,
         },
         {
           type: DOCUMENT_COMMAND_TYPES.setElementFrame,
           elementId: inputId,
-          frame: { x: 356, y: 320, width: 320, height: 44 },
+          frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textInput,
         },
         {
           type: DOCUMENT_COMMAND_TYPES.setElementFrame,
           elementId: buttonId,
-          frame: { x: 356, y: 392, width: 136, height: 44 },
+          frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
         },
         {
           type: DOCUMENT_COMMAND_TYPES.setElementProperties,
           elementId: buttonId,
-          properties: { text: 'Alpha button' },
+          properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
         },
       ],
       { label: 'Edit alpha button' },

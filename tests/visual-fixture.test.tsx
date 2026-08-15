@@ -120,7 +120,7 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Insert Text Input' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Scene' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Button' })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue('Continue');
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue('Alpha button');
     await waitFor(() => {
       expect(view.container.querySelector('[data-control-visual="text"]')).not.toBeNull();
       expect(view.container.querySelector('[data-control-visual="input"]')).not.toBeNull();

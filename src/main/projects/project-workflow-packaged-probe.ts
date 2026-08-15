@@ -2,6 +2,10 @@ import type { BrowserWindow } from 'electron';
 import path from 'node:path';
 
 import { CONTROL_TYPES, type ProjectDocument } from '../../domain';
+import {
+  PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT,
+  PROJECT_WORKFLOW_ALPHA_LAYOUT,
+} from '../../shared/project-workflow-alpha';
 import type { NativeProjectDialogs } from '../dialogs/project-dialogs';
 import { openProjectFile } from '../files/project-file-service';
 import { captureSmokeScreenshot } from '../smoke-test';
@@ -40,10 +44,10 @@ const hasAcceptedAlphaControls = (document: ProjectDocument): boolean => {
   const elements = board.childIds.map((elementId) => document.elementsById[elementId]);
   const button = elements[2];
   const expectedFrames = [
-    { x: 320, y: 220, width: 420, height: 280 },
-    { x: 356, y: 252, width: 300, height: 36 },
-    { x: 356, y: 392, width: 136, height: 44 },
-    { x: 356, y: 320, width: 320, height: 44 },
+    PROJECT_WORKFLOW_ALPHA_LAYOUT.rectangle,
+    PROJECT_WORKFLOW_ALPHA_LAYOUT.textLabel,
+    PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
+    PROJECT_WORKFLOW_ALPHA_LAYOUT.textInput,
   ] as const;
   const framesMatch = elements.every((element, index) => {
     const expected = expectedFrames[index];
@@ -65,7 +69,7 @@ const hasAcceptedAlphaControls = (document: ProjectDocument): boolean => {
         CONTROL_TYPES.button,
         CONTROL_TYPES.textInput,
       ].join('|') &&
-    button?.properties.text === 'Alpha button' &&
+    button?.properties.text === PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT &&
     framesMatch
   );
 };

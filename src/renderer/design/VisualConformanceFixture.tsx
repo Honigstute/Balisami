@@ -13,6 +13,10 @@ import {
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { VisualFixtureName } from '../../shared/visual-fixture';
+import {
+  PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT,
+  PROJECT_WORKFLOW_ALPHA_LAYOUT,
+} from '../../shared/project-workflow-alpha';
 import { ControlInspector } from '../controls/ControlInspector';
 import { ControlShelf } from '../controls/ControlShelf';
 import { WireframeNavigator } from '../controls/WireframeNavigator';
@@ -173,6 +177,82 @@ const createSceneFixtureDocument = (): {
   });
 };
 
+const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const projectId = ProjectIdSchema.parse('project_visualalpha');
+  const boardId = BoardIdSchema.parse('board_visualalpha');
+  const rectangleId = ElementIdSchema.parse('element_alpharectangle');
+  const titleId = ElementIdSchema.parse('element_alphatitle');
+  const buttonId = ElementIdSchema.parse('element_alphabutton');
+  const inputId = ElementIdSchema.parse('element_alphainput');
+  const result = parseProjectDocument({
+    schemaVersion: 1,
+    id: projectId,
+    name: 'Alpha visual fixture',
+    boardIds: [boardId],
+    boardsById: {
+      [boardId]: {
+        id: boardId,
+        name: 'Scene',
+        note: { text: '' },
+        childIds: [rectangleId, titleId, buttonId, inputId],
+      },
+    },
+    elementsById: {
+      [rectangleId]: {
+        id: rectangleId,
+        controlType: CONTROL_TYPES.rectangle,
+        frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.rectangle,
+        locked: false,
+        properties: {},
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [titleId]: {
+        id: titleId,
+        controlType: CONTROL_TYPES.textLabel,
+        frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textLabel,
+        locked: false,
+        properties: { text: 'Account settings' },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [buttonId]: {
+        id: buttonId,
+        controlType: CONTROL_TYPES.button,
+        frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
+        locked: false,
+        properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [inputId]: {
+        id: inputId,
+        controlType: CONTROL_TYPES.textInput,
+        frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textInput,
+        locked: false,
+        properties: { text: 'Email address' },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+    },
+    assetsById: {},
+  });
+  if (!result.ok) {
+    throw new Error('The deterministic alpha visual fixture is invalid.');
+  }
+  return Object.freeze({
+    boardId,
+    document: result.value,
+    duplicateId: ElementIdSchema.parse('element_alphaduplicate'),
+    groupId: ElementIdSchema.parse('element_alphagroup'),
+    selectedId: buttonId,
+  });
+};
+
 const createGroupSelectionFixtureDocument = (
   fixture: ReturnType<typeof createSceneFixtureDocument>,
 ): ProjectDocument => {
@@ -241,6 +321,7 @@ const createAlignedSelectionFixtureDocument = (
 };
 
 type SceneFixtureState =
+  | 'alpha'
   | 'alignSelection'
   | 'delete'
   | 'duplicate'
@@ -264,7 +345,9 @@ const SceneFixture = ({
   readonly state?: SceneFixtureState;
 }) => {
   const camera = useViewportCameraStore();
-  const [fixture] = useState(createSceneFixtureDocument);
+  const [fixture] = useState(() =>
+    state === 'alpha' ? createAlphaFixtureDocument() : createSceneFixtureDocument(),
+  );
   const [document] = useState(() => {
     if (state === 'alignSelection') {
       return createAlignedSelectionFixtureDocument(fixture);
@@ -324,6 +407,7 @@ const SceneFixture = ({
       selection.replace(alignmentIds, primaryId);
     } else if (
       state === 'selection' ||
+      state === 'alpha' ||
       state === 'move' ||
       state === 'smartGuides' ||
       state === 'equalGaps' ||
@@ -507,6 +591,7 @@ const SceneFixture = ({
     <ViewportScene
       camera={camera}
       {...(state === 'selection' ||
+      state === 'alpha' ||
       state === 'move' ||
       state === 'smartGuides' ||
       state === 'equalGaps' ||
@@ -739,7 +824,7 @@ const ModalFixture = () => (
 );
 
 const AlphaInspectorFixture = () => {
-  const [fixture] = useState(createSceneFixtureDocument);
+  const [fixture] = useState(createAlphaFixtureDocument);
   const [selection] = useState(() => {
     const store = new SelectionStore();
     store.selectOnly(fixture.selectedId);
@@ -756,7 +841,7 @@ const AlphaInspectorFixture = () => {
 };
 
 const AlphaNavigatorFixture = () => {
-  const [fixture] = useState(createSceneFixtureDocument);
+  const [fixture] = useState(createAlphaFixtureDocument);
   return <WireframeNavigator activeBoardId={fixture.boardId} document={fixture.document} />;
 };
 
@@ -797,7 +882,7 @@ export const VisualConformanceFixture = ({
                                 ? { canvas: <SceneFixture state="marquee" /> }
                                 : fixture === 'mvpAlpha'
                                   ? {
-                                      canvas: <SceneFixture state="selection" />,
+                                      canvas: <SceneFixture state="alpha" />,
                                       inspector: <AlphaInspectorFixture />,
                                       navigator: <AlphaNavigatorFixture />,
                                       shelf: <ControlShelf onInsert={() => false} />,
