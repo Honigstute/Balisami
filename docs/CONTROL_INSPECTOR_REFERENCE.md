@@ -184,3 +184,6 @@ support auto-sizing.
    boundary; renderer code never imports Node.js or Electron.
 8. **Unknowns:** Keep unresolved option labels and custom-editor semantics
    explicit. Do not convert a screenshot assumption into persisted schema.
+9. **Icon catalog:** Icon-capable controls and direct icon insertion use the
+   single curated outline catalog defined in
+   [`ICON_LIBRARY_REFERENCE.md`](./ICON_LIBRARY_REFERENCE.md).
