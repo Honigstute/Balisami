@@ -307,6 +307,8 @@ Candidate classes are:
 
 Resolution is deterministic: explicit grid setting, closest distance, candidate priority, stable element/order tie-break. X and Y resolve independently. Acquire/release hysteresis prevents a guide from flickering near the threshold. A documented modifier bypasses snapping without changing the committed pointer delta unexpectedly.
 
+The M7 move implementation acquires within six CSS pixels and retains the current lock through a 1.5× release threshold. Candidate discovery converts both values exactly once by zoom and queries two narrow spatial-index bands: an X-alignment band and a Y-alignment band, each extending at most 1,200 CSS pixels in the perpendicular direction. It never uses a dense square scan. Locked controls remain valid alignment geometry, while moved roots and all affected descendants are excluded. Object candidates win container candidates, which win grid candidates only after geometric distance; canonical scene order and stable IDs resolve remaining ties. Holding the exact platform primary modifier (`Command` on macOS, `Control` on Windows) bypasses snapping and clears hysteresis locks without changing the raw pointer delta. Move resolution runs at most once per animation frame, and resolver failure falls back to raw movement without crossing or disabling the existing command boundary.
+
 Guides are ephemeral overlays and never export or enter history. Align/distribute actions use the same geometry vocabulary but execute as commands.
 
 ## 9. Persistence and recovery
