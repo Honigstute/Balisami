@@ -36,6 +36,7 @@ describe('move geometry', () => {
           id: DOCUMENT_FIXTURE_IDS.group,
         },
       ],
+      worldBounds: { x: -20, y: 12.5, width: 320, height: 180 },
     });
     expect(Object.isFrozen(capture)).toBe(true);
     expect(Object.isFrozen(capture?.targets[0]?.frame)).toBe(true);

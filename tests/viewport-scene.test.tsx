@@ -14,6 +14,7 @@ import {
 import { ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import type { MoveTargetCapture } from '../src/renderer/editor/move-geometry';
+import { resolveSnap } from '../src/renderer/editor/snap-engine';
 import { ResizeInteraction } from '../src/renderer/editor/resize-interaction';
 import type { ResizeTargetCapture } from '../src/renderer/editor/resize-geometry';
 import {
@@ -25,6 +26,7 @@ import {
   createViewportSize,
   createViewportPoint,
   createViewportTransform,
+  createViewportZoom,
   createWorldRect,
   viewportPointToWorld,
 } from '../src/renderer/editor/viewport-transform';
@@ -40,6 +42,7 @@ const MOVE_CAPTURE: MoveTargetCapture = Object.freeze({
       id: SELECTABLE_ID,
     }),
   ]),
+  worldBounds: createWorldRect(10, 20, 100, 50),
 });
 
 const RESIZE_CAPTURE: ResizeTargetCapture = Object.freeze({
@@ -468,12 +471,25 @@ describe('viewport scene layers', () => {
     const moveScheduler = new TestAnimationFrameScheduler();
     const store = createStore(cameraScheduler);
     const commits: (readonly SetElementFrameCommand[])[] = [];
+    const snapBypassRequests: boolean[] = [];
     const move = new MoveInteraction(
       {
         capture: () => MOVE_CAPTURE,
         commit: (commands) => {
           commits.push(commands);
           return true;
+        },
+        resolveSnap: (request) => {
+          snapBypassRequests.push(request.snapBypassed);
+          return resolveSnap({
+            activeAxes: request.activeAxes,
+            bypass: request.snapBypassed,
+            candidates: [],
+            movingBounds: request.capture.worldBounds,
+            previousLocks: request.previousLocks,
+            rawDelta: request.rawDelta,
+            zoom: createViewportZoom(1),
+          });
         },
       },
       moveScheduler,
@@ -489,7 +505,9 @@ describe('viewport scene layers', () => {
       },
       move,
     );
-    const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
+    const view = render(
+      <ViewportScene camera={store} selectionInteraction={interaction} shortcutPlatform="win32" />,
+    );
     const root = view.container.querySelector<HTMLElement>('.editor-viewport');
     if (root === null) {
       throw new Error('Viewport root did not mount.');
@@ -498,6 +516,7 @@ describe('viewport scene layers', () => {
 
     fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 41 });
     fireEvent.pointerMove(root, { clientX: 140, clientY: 115, pointerId: 41 });
+    expect(snapBypassRequests.at(-1)).toBe(false);
     expect(root).toHaveAttribute('data-selection-state', 'moving');
     expect(move.getSnapshot()).toMatchObject({ delta: { x: 40, y: 15 }, kind: 'moving' });
     const transformBeforeWheel = store.getTransformSnapshot();
@@ -517,8 +536,21 @@ describe('viewport scene layers', () => {
     expect(commits).toHaveLength(0);
 
     fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 43 });
-    fireEvent.pointerMove(root, { clientX: 130, clientY: 170, pointerId: 43, shiftKey: true });
-    fireEvent.pointerUp(root, { clientX: 130, clientY: 170, pointerId: 43, shiftKey: true });
+    fireEvent.pointerMove(root, {
+      clientX: 130,
+      clientY: 170,
+      ctrlKey: true,
+      pointerId: 43,
+      shiftKey: true,
+    });
+    fireEvent.pointerUp(root, {
+      clientX: 130,
+      clientY: 170,
+      ctrlKey: true,
+      pointerId: 43,
+      shiftKey: true,
+    });
+    expect(snapBypassRequests.at(-1)).toBe(true);
     expect(root).toHaveAttribute('data-selection-state', 'idle');
     expect(commits).toEqual([
       [

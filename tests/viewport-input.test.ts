@@ -7,6 +7,7 @@ import {
   VIEWPORT_EDIT_COMMANDS,
   isViewportDeleteKey,
   isViewportDuplicateShortcut,
+  isViewportSnapBypassed,
   normalizeViewportWheel,
   resolveViewportEditShortcut,
   type ViewportWheelInput,
@@ -79,6 +80,24 @@ describe('viewport wheel normalization', () => {
     expect(resolveViewportEditShortcut({ ...macInput, metaKey: false }, 'darwin')).toBeUndefined();
     expect(resolveViewportEditShortcut({ ...macInput, shiftKey: true }, 'darwin')).toBeUndefined();
     expect(resolveViewportEditShortcut({ ...macInput, code: 'KeyA' }, 'darwin')).toBeUndefined();
+  });
+
+  it('maps temporary snap bypass to the exact platform primary modifier', () => {
+    expect(isViewportSnapBypassed({ altKey: false, ctrlKey: false, metaKey: true }, 'darwin')).toBe(
+      true,
+    );
+    expect(isViewportSnapBypassed({ altKey: false, ctrlKey: true, metaKey: false }, 'win32')).toBe(
+      true,
+    );
+    expect(isViewportSnapBypassed({ altKey: false, ctrlKey: true, metaKey: false }, 'darwin')).toBe(
+      false,
+    );
+    expect(isViewportSnapBypassed({ altKey: false, ctrlKey: true, metaKey: true }, 'win32')).toBe(
+      false,
+    );
+    expect(isViewportSnapBypassed({ altKey: true, ctrlKey: false, metaKey: true }, 'darwin')).toBe(
+      false,
+    );
   });
 
   it('normalizes pixel, line, and page wheel units into viewport-pixel pan', () => {

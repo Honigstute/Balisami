@@ -34,6 +34,7 @@ export interface SelectionPointerPosition {
 }
 
 export interface SelectionPointerUpdate extends SelectionPointerPosition {
+  readonly snapBypassed?: boolean;
   readonly shiftKey: boolean;
 }
 
@@ -269,6 +270,7 @@ export class SelectionInteraction {
       return (
         this.#move?.update({
           pointerId,
+          snapBypassed: position.snapBypassed ?? false,
           shiftKey: position.shiftKey,
           worldPoint: position.worldPoint,
         }) ?? false
@@ -324,6 +326,7 @@ export class SelectionInteraction {
       this.#setActiveGesture(undefined);
       const completion = this.#move?.complete({
         pointerId,
+        snapBypassed: position.snapBypassed ?? false,
         shiftKey: position.shiftKey,
         worldPoint: position.worldPoint,
       });
@@ -436,6 +439,7 @@ export class SelectionInteraction {
     if (
       !this.#move.begin({
         pointerId: gesture.pointerId,
+        snapBypassed: position.snapBypassed ?? false,
         shiftKey: position.shiftKey,
         startWorldPoint: gesture.startWorldPoint,
         targetIds,

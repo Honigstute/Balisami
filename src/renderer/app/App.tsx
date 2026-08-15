@@ -21,6 +21,7 @@ import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget, hitTestResizeHandle } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
+import { createSceneSnapCandidates } from '../editor/scene-snap-candidates';
 import {
   SelectionClipboardStore,
   copySelectedElements,
@@ -38,6 +39,8 @@ import { SelectionInteraction } from '../editor/selection-interaction';
 import { MarqueeOverlay } from '../editor/MarqueeOverlay';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
+import { resolveSnap } from '../editor/snap-engine';
+import { SnapGuideOverlay } from '../editor/SnapGuideOverlay';
 import { ViewportEmptyState, ViewportScene } from '../editor/ViewportScene';
 import { useViewportCameraStore } from '../editor/use-viewport-camera-store';
 import { ViewportZoomControls } from '../editor/ViewportZoomControls';
@@ -92,6 +95,23 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             label: commands.length === 1 ? 'Move element' : 'Move elements',
           });
           return result?.ok === true && result.changed;
+        },
+        resolveSnap: ({ activeAxes, capture, previousLocks, rawDelta, snapBypassed }) => {
+          const zoom = camera.getTransformSnapshot().zoom;
+          return resolveSnap({
+            activeAxes,
+            bypass: snapBypassed,
+            candidates: createSceneSnapCandidates(model, {
+              excludedIds: capture.affectedIds,
+              movingBounds: capture.worldBounds,
+              rawDelta,
+              zoom,
+            }),
+            movingBounds: capture.worldBounds,
+            previousLocks,
+            rawDelta,
+            zoom,
+          });
         },
       },
       createBrowserAnimationFrameScheduler(),
@@ -314,6 +334,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               : {
                   interactionChildren: (
                     <>
+                      <SnapGuideOverlay camera={camera} moveInteraction={editor.moveInteraction} />
                       <SelectionOverlay
                         camera={camera}
                         keyboardNudgeInteraction={editor.keyboardNudgeInteraction}

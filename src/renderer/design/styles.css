@@ -594,6 +594,13 @@ p {
   fill: var(--color-canvas);
 }
 
+.snap-guide-overlay__line {
+  pointer-events: none;
+  stroke: var(--color-guide);
+  stroke-linecap: square;
+  stroke-width: var(--border-width);
+}
+
 .marquee-overlay__rectangle {
   pointer-events: none;
   fill: var(--color-accent);

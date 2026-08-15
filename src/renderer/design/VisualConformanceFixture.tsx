@@ -20,9 +20,12 @@ import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget } from '../editor/resize-geometry';
 import { ResizeInteraction } from '../editor/resize-interaction';
+import { createSceneSnapCandidates } from '../editor/scene-snap-candidates';
 import { SelectionInteraction } from '../editor/selection-interaction';
 import { SelectionOverlay } from '../editor/SelectionOverlay';
 import { SelectionStore } from '../editor/selection-store';
+import { resolveSnap } from '../editor/snap-engine';
+import { SnapGuideOverlay } from '../editor/SnapGuideOverlay';
 import { TextEditOverlay } from '../editor/TextEditOverlay';
 import { createTextEditViewportRoute, TextEditInteraction } from '../editor/text-edit-interaction';
 import { ViewportScene } from '../editor/ViewportScene';
@@ -170,6 +173,7 @@ type SceneFixtureState =
   | 'plain'
   | 'resize'
   | 'selection'
+  | 'smartGuides'
   | 'textEdit';
 
 const SceneFixture = ({
@@ -224,6 +228,7 @@ const SceneFixture = ({
     if (
       state === 'selection' ||
       state === 'move' ||
+      state === 'smartGuides' ||
       state === 'nudge' ||
       state === 'resize' ||
       state === 'duplicate' ||
@@ -236,6 +241,27 @@ const SceneFixture = ({
       {
         capture: (ids) => captureMoveTargets(document, ids),
         commit: () => false,
+        ...(state === 'smartGuides'
+          ? {
+              resolveSnap: ({ activeAxes, capture, previousLocks, rawDelta, snapBypassed }) => {
+                const zoom = camera.getTransformSnapshot().zoom;
+                return resolveSnap({
+                  activeAxes,
+                  bypass: snapBypassed,
+                  candidates: createSceneSnapCandidates(model, {
+                    excludedIds: capture.affectedIds,
+                    movingBounds: capture.worldBounds,
+                    rawDelta,
+                    zoom,
+                  }),
+                  movingBounds: capture.worldBounds,
+                  previousLocks,
+                  rawDelta,
+                  zoom,
+                });
+              },
+            }
+          : {}),
       },
       createBrowserAnimationFrameScheduler(),
     );
@@ -295,13 +321,14 @@ const SceneFixture = ({
         worldPoint: createWorldPoint(260, 360),
       });
     }
-    if (state === 'move') {
+    if (state === 'move' || state === 'smartGuides') {
       moveInteraction.begin({
         pointerId: 2,
+        snapBypassed: false,
         shiftKey: false,
         startWorldPoint: createWorldPoint(0, 0),
         targetIds: [fixture.selectedId],
-        worldPoint: createWorldPoint(120, 60),
+        worldPoint: state === 'smartGuides' ? createWorldPoint(0, -30) : createWorldPoint(120, 60),
       });
     }
     if (state === 'resize') {
@@ -343,6 +370,7 @@ const SceneFixture = ({
       camera={camera}
       {...(state === 'selection' ||
       state === 'move' ||
+      state === 'smartGuides' ||
       state === 'nudge' ||
       state === 'resize' ||
       state === 'duplicate' ||
@@ -350,16 +378,23 @@ const SceneFixture = ({
       state === 'textEdit'
         ? {
             interactionChildren: (
-              <SelectionOverlay
-                camera={camera}
-                {...(state === 'nudge'
-                  ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
-                  : {})}
-                model={editor.model}
-                {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
-                {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
-                selection={editor.selection}
-              />
+              <>
+                {state === 'smartGuides' ? (
+                  <SnapGuideOverlay camera={camera} moveInteraction={editor.moveInteraction} />
+                ) : null}
+                <SelectionOverlay
+                  camera={camera}
+                  {...(state === 'nudge'
+                    ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
+                    : {})}
+                  model={editor.model}
+                  {...(state === 'move' || state === 'smartGuides'
+                    ? { moveInteraction: editor.moveInteraction }
+                    : {})}
+                  {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
+                  selection={editor.selection}
+                />
+              </>
             ),
           }
         : state === 'marquee'
@@ -386,7 +421,9 @@ const SceneFixture = ({
             ? { keyboardNudgeInteraction: editor.keyboardNudgeInteraction }
             : {})}
           model={editor.model}
-          {...(state === 'move' ? { moveInteraction: editor.moveInteraction } : {})}
+          {...(state === 'move' || state === 'smartGuides'
+            ? { moveInteraction: editor.moveInteraction }
+            : {})}
           {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
         />
       }
@@ -569,29 +606,31 @@ export const VisualConformanceFixture = ({
         ? { canvas: <SceneFixture state="selection" /> }
         : fixture === 'move'
           ? { canvas: <SceneFixture state="move" /> }
-          : fixture === 'resize'
-            ? { canvas: <SceneFixture state="resize" /> }
-            : fixture === 'delete'
-              ? { canvas: <SceneFixture state="delete" /> }
-              : fixture === 'duplicate'
-                ? { canvas: <SceneFixture state="duplicate" /> }
-                : fixture === 'paste'
-                  ? { canvas: <SceneFixture state="paste" /> }
-                  : fixture === 'textEdit'
-                    ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
-                    : fixture === 'nudge'
-                      ? { canvas: <SceneFixture state="nudge" /> }
-                      : fixture === 'marquee'
-                        ? { canvas: <SceneFixture state="marquee" /> }
-                        : fixture === 'controls'
-                          ? { inspector: <ControlStates /> }
-                          : fixture === 'feedback'
-                            ? { canvas: <StaticRegionFailure /> }
-                            : fixture === 'tooltip'
-                              ? { canvas: <TooltipFixture /> }
-                              : fixture === 'popover'
-                                ? { canvas: <PopoverFixture /> }
-                                : undefined;
+          : fixture === 'smartGuides'
+            ? { canvas: <SceneFixture state="smartGuides" /> }
+            : fixture === 'resize'
+              ? { canvas: <SceneFixture state="resize" /> }
+              : fixture === 'delete'
+                ? { canvas: <SceneFixture state="delete" /> }
+                : fixture === 'duplicate'
+                  ? { canvas: <SceneFixture state="duplicate" /> }
+                  : fixture === 'paste'
+                    ? { canvas: <SceneFixture state="paste" /> }
+                    : fixture === 'textEdit'
+                      ? { canvas: <SceneFixture platform={platform} state="textEdit" /> }
+                      : fixture === 'nudge'
+                        ? { canvas: <SceneFixture state="nudge" /> }
+                        : fixture === 'marquee'
+                          ? { canvas: <SceneFixture state="marquee" /> }
+                          : fixture === 'controls'
+                            ? { inspector: <ControlStates /> }
+                            : fixture === 'feedback'
+                              ? { canvas: <StaticRegionFailure /> }
+                              : fixture === 'tooltip'
+                                ? { canvas: <TooltipFixture /> }
+                                : fixture === 'popover'
+                                  ? { canvas: <PopoverFixture /> }
+                                  : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />

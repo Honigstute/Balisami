@@ -53,6 +53,12 @@ export interface ViewportDuplicateShortcutInput {
   readonly shiftKey: boolean;
 }
 
+export interface ViewportSnapBypassInput {
+  readonly altKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+}
+
 export const VIEWPORT_EDIT_COMMANDS = Object.freeze({
   copy: 'copy',
   cut: 'cut',
@@ -121,6 +127,14 @@ export const isViewportDuplicateShortcut = (
   input: ViewportDuplicateShortcutInput,
   platform: ViewportShortcutPlatform,
 ): boolean => resolveViewportEditShortcut(input, platform) === VIEWPORT_EDIT_COMMANDS.duplicate;
+
+/** Matches the documented platform-primary modifier without accepting chords. */
+export const isViewportSnapBypassed = (
+  input: ViewportSnapBypassInput,
+  platform: ViewportShortcutPlatform,
+): boolean =>
+  !input.altKey &&
+  (platform === 'darwin' ? input.metaKey && !input.ctrlKey : input.ctrlKey && !input.metaKey);
 
 const clampWheelDelta = (value: number): number =>
   Math.max(
@@ -487,6 +501,10 @@ export class ViewportInputController {
         position !== undefined &&
         this.#selectionInteraction?.updatePress(event.pointerId, {
           ...position,
+          snapBypassed:
+            this.#shortcutPlatform === undefined
+              ? false
+              : isViewportSnapBypassed(event, this.#shortcutPlatform),
           shiftKey: event.shiftKey,
         })
       ) {
@@ -515,6 +533,10 @@ export class ViewportInputController {
         position !== undefined &&
         this.#selectionInteraction?.completePress(event.pointerId, {
           ...position,
+          snapBypassed:
+            this.#shortcutPlatform === undefined
+              ? false
+              : isViewportSnapBypassed(event, this.#shortcutPlatform),
           shiftKey: event.shiftKey,
         })
       ) {

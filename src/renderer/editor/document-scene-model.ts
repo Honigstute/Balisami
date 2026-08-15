@@ -300,4 +300,29 @@ export class DocumentSceneModel {
         ),
     );
   }
+
+  /**
+   * Returns nearby snap sources in canonical order. Locked items remain valid
+   * alignment geometry; moved roots and every following descendant are
+   * excluded by the interaction capture rather than by selection state here.
+   */
+  querySnapItems(
+    bounds: WorldRect,
+    excludedIds: readonly ElementId[],
+  ): readonly DocumentSceneItem[] {
+    const excluded = new Set(excludedIds);
+    return Object.freeze(
+      this.#index
+        .query(bounds)
+        .flatMap((id) => {
+          const item = this.#itemsById.get(id);
+          return item === undefined || excluded.has(id) ? [] : [item];
+        })
+        .sort(
+          (first, second) =>
+            (this.#orderById.get(first.id) ?? Number.MAX_SAFE_INTEGER) -
+            (this.#orderById.get(second.id) ?? Number.MAX_SAFE_INTEGER),
+        ),
+    );
+  }
 }

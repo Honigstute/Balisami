@@ -243,4 +243,27 @@ describe('document scene model', () => {
       DOCUMENT_FIXTURE_IDS.child,
     ]);
   });
+
+  it('returns nearby snap sources in canonical order while retaining locked geometry', () => {
+    const model = new DocumentSceneModel();
+    model.reconcile(createOverlappingRectangleDocument(true), DOCUMENT_FIXTURE_IDS.board);
+
+    const candidates = model.querySnapItems(createWorldRect(-20, 20, 320, 200), []);
+
+    expect(candidates.map((item) => item.id)).toEqual([ROOT_ID, DOCUMENT_FIXTURE_IDS.child]);
+    expect(candidates[1]?.locked).toBe(true);
+    expect(Object.isFrozen(candidates)).toBe(true);
+  });
+
+  it('excludes every affected move item before snap candidate generation', () => {
+    const model = new DocumentSceneModel();
+    model.reconcile(createTwoRectangleDocument(), DOCUMENT_FIXTURE_IDS.board);
+
+    expect(
+      model
+        .querySnapItems(createWorldRect(-20, 20, 320, 200), [DOCUMENT_FIXTURE_IDS.child])
+        .map((item) => item.id),
+    ).toEqual([ROOT_ID]);
+    expect(model.querySnapItems(createWorldRect(500, 500, 40, 40), [])).toEqual([]);
+  });
 });

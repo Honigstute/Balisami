@@ -219,6 +219,7 @@ describe('document SVG scene', () => {
 
     move.begin({
       pointerId: 4,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(0, 0),
       targetIds: [DOCUMENT_FIXTURE_IDS.child],
@@ -227,6 +228,7 @@ describe('document SVG scene', () => {
     for (let index = 1; index <= 500; index += 1) {
       move.update({
         pointerId: 4,
+        snapBypassed: false,
         shiftKey: false,
         worldPoint: createWorldPoint(index / 10, index / 20),
       });

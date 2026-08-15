@@ -12,8 +12,15 @@ import {
   type ElementId,
 } from '../src/domain';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
+import { createSceneSnapCandidates } from '../src/renderer/editor/scene-snap-candidates';
+import { resolveSnap } from '../src/renderer/editor/snap-engine';
 import { WorldSpatialIndex } from '../src/renderer/editor/spatial-index';
-import { createWorldPoint, createWorldRect } from '../src/renderer/editor/viewport-transform';
+import {
+  createViewportZoom,
+  createWorldPoint,
+  createWorldRect,
+  createWorldVector,
+} from '../src/renderer/editor/viewport-transform';
 import { createEditorSpatialFixture } from './fixtures/editor-spatial-fixture';
 
 const percentile95 = (samples: readonly number[]): number => {
@@ -123,6 +130,37 @@ describe('viewport algorithm performance fixtures', () => {
         createWorldRect((sample % 50) * 20, (sample % 20) * 20, 400, 300),
         sample % 2 === 0 ? 'contained' : 'intersecting',
       );
+      durations.push(performance.now() - start);
+    }
+
+    expect(percentile95(durations)).toBeLessThanOrEqual(20);
+  });
+
+  it('keeps indexed snap candidate query and deterministic resolution below budget', () => {
+    const fixture = createHitTestFixture(5_000);
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const zoom = createViewportZoom(1);
+    const movingBounds = createWorldRect(980, 480, 12, 12);
+    const durations: number[] = [];
+
+    for (let sample = 0; sample < 100; sample += 1) {
+      const rawDelta = createWorldVector((sample % 20) - 10, (sample % 12) - 6);
+      const start = performance.now();
+      const candidates = createSceneSnapCandidates(model, {
+        excludedIds: [ElementIdSchema.parse('element_hit002449')],
+        movingBounds,
+        rawDelta,
+        zoom,
+      });
+      resolveSnap({
+        activeAxes: { x: true, y: true },
+        bypass: false,
+        candidates,
+        movingBounds,
+        rawDelta,
+        zoom,
+      });
       durations.push(performance.now() - start);
     }
 

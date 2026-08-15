@@ -1,12 +1,19 @@
 import {
   DOCUMENT_COMMAND_TYPES,
   createElementLocationIndex,
+  selectSelectionWorldBounds,
   type ElementId,
   type ProjectDocument,
   type SetElementFrameCommand,
   type WorldRect as ElementFrame,
 } from '../../domain';
-import { createWorldVector, type WorldPoint, type WorldVector } from './viewport-transform';
+import {
+  createWorldRect,
+  createWorldVector,
+  type WorldPoint,
+  type WorldRect,
+  type WorldVector,
+} from './viewport-transform';
 
 export interface MoveTargetSnapshot {
   readonly frame: ElementFrame;
@@ -18,6 +25,8 @@ export interface MoveTargetCapture {
   readonly affectedIds: readonly ElementId[];
   /** Only roots receive frame commands; selected descendants must not move twice. */
   readonly targets: readonly MoveTargetSnapshot[];
+  /** Canonical world-space union of the roots used by snapping and overlays. */
+  readonly worldBounds: WorldRect;
 }
 
 const hasSelectedAncestor = (
@@ -61,6 +70,10 @@ export const captureMoveTargets = (
   const movableSet = new Set(movableIds);
   const locations = createElementLocationIndex(document);
   const rootIds = movableIds.filter((id) => !hasSelectedAncestor(id, movableSet, locations));
+  const selectedBounds = selectSelectionWorldBounds(document, rootIds, locations);
+  if (selectedBounds === undefined) {
+    return undefined;
+  }
   const targets = rootIds.map((id): MoveTargetSnapshot => {
     const element = document.elementsById[id];
     if (element === undefined) {
@@ -87,6 +100,12 @@ export const captureMoveTargets = (
   return Object.freeze({
     affectedIds: Object.freeze(affectedIds),
     targets: Object.freeze(targets),
+    worldBounds: createWorldRect(
+      selectedBounds.x,
+      selectedBounds.y,
+      selectedBounds.width,
+      selectedBounds.height,
+    ),
   });
 };
 

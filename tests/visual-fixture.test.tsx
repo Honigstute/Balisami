@@ -58,6 +58,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=scene')).toBe('scene');
     expect(getRequestedVisualFixture('?visualFixture=selection')).toBe('selection');
     expect(getRequestedVisualFixture('?visualFixture=move')).toBe('move');
+    expect(getRequestedVisualFixture('?visualFixture=smartGuides')).toBe('smartGuides');
     expect(getRequestedVisualFixture('?visualFixture=resize')).toBe('resize');
     expect(getRequestedVisualFixture('?visualFixture=delete')).toBe('delete');
     expect(getRequestedVisualFixture('?visualFixture=duplicate')).toBe('duplicate');
@@ -116,6 +117,21 @@ describe('visual conformance fixture contract', () => {
     expect(overlay).toHaveAttribute('data-selection-count', '1');
     expect(outline).toHaveAttribute('x', '308');
     expect(outline).toHaveAttribute('y', '332');
+    expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders fixed-screen smart guides without changing the scene or shell layout', () => {
+    const view = renderFixture('smartGuides');
+
+    const guides = view.container.querySelector('[data-snap-guide-overlay="move-guides"]');
+    const overlay = view.container.querySelector('[data-selection-overlay="bounds"]');
+    expect(guides).not.toHaveAttribute('display', 'none');
+    expect(guides).toHaveAttribute('data-guide-count', '2');
+    expect(
+      guides?.querySelectorAll('.snap-guide-overlay__line:not([display="none"])'),
+    ).toHaveLength(2);
+    expect(overlay).not.toHaveAttribute('display', 'none');
     expect(view.container.querySelector('[data-scene-content="document-elements"]')).not.toBeNull();
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });

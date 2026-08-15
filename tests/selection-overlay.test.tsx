@@ -153,6 +153,7 @@ describe('selection overlay', () => {
 
     move.begin({
       pointerId: 8,
+      snapBypassed: false,
       shiftKey: false,
       startWorldPoint: createWorldPoint(0, 0),
       targetIds: [DOCUMENT_FIXTURE_IDS.child],

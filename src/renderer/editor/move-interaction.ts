@@ -1,15 +1,31 @@
 import type { ElementId, SetElementFrameCommand } from '../../domain';
 import type { AnimationFrameScheduler } from './viewport-camera-store';
 import { createMoveCommands, resolveMoveDelta, type MoveTargetCapture } from './move-geometry';
-import type { WorldPoint, WorldVector } from './viewport-transform';
+import type { SnapActiveAxes, SnapGuideDescriptor, SnapLocks, SnapResolution } from './snap-engine';
+import {
+  createWorldPoint,
+  createWorldVector,
+  type WorldPoint,
+  type WorldVector,
+} from './viewport-transform';
+
+export interface MoveSnapRequest {
+  readonly activeAxes: SnapActiveAxes;
+  readonly capture: MoveTargetCapture;
+  readonly previousLocks: SnapLocks;
+  readonly rawDelta: WorldVector;
+  readonly snapBypassed: boolean;
+}
 
 export interface MoveInteractionSource {
   readonly capture: (targetIds: readonly ElementId[]) => MoveTargetCapture | undefined;
   readonly commit: (commands: readonly SetElementFrameCommand[]) => boolean;
+  readonly resolveSnap?: (request: MoveSnapRequest) => SnapResolution;
 }
 
 export interface MovePointerInput {
   readonly pointerId: number;
+  readonly snapBypassed: boolean;
   readonly shiftKey: boolean;
   readonly worldPoint: WorldPoint;
 }
@@ -24,6 +40,7 @@ export type MoveCompletion = 'committed' | 'failed' | 'unchanged';
 interface MovingSnapshot {
   readonly affectedIds: readonly ElementId[];
   readonly delta: WorldVector;
+  readonly guides: readonly SnapGuideDescriptor[];
   readonly kind: 'moving';
   readonly pointerId: number;
   readonly targetIds: readonly ElementId[];
@@ -38,6 +55,8 @@ interface ActiveMove {
 }
 
 const IDLE_SNAPSHOT: MoveInteractionSnapshot = Object.freeze({ kind: 'idle' });
+const EMPTY_GUIDES: readonly SnapGuideDescriptor[] = Object.freeze([]);
+const EMPTY_LOCKS: SnapLocks = Object.freeze({});
 
 const requirePointerId = (pointerId: number): number => {
   if (!Number.isSafeInteger(pointerId) || pointerId < 0) {
@@ -46,13 +65,15 @@ const requirePointerId = (pointerId: number): number => {
   return pointerId;
 };
 
-const deltasEqual = (first: WorldVector, second: WorldVector): boolean =>
-  first.x === second.x && first.y === second.y;
-
-const createMovingSnapshot = (active: ActiveMove, delta: WorldVector): MovingSnapshot =>
+const createMovingSnapshot = (
+  active: ActiveMove,
+  delta: WorldVector,
+  guides: readonly SnapGuideDescriptor[],
+): MovingSnapshot =>
   Object.freeze({
     affectedIds: active.capture.affectedIds,
     delta,
+    guides,
     kind: 'moving',
     pointerId: active.pointerId,
     targetIds: Object.freeze(active.capture.targets.map((target) => target.id)),
@@ -69,7 +90,8 @@ export class MoveInteraction {
   readonly #source: MoveInteractionSource;
 
   #active: ActiveMove | undefined;
-  #pending: MoveInteractionSnapshot | undefined;
+  #locks: SnapLocks = EMPTY_LOCKS;
+  #pendingInput: MovePointerInput | undefined;
   #scheduledFrameId: number | undefined;
   #snapshot: MoveInteractionSnapshot = IDLE_SNAPSHOT;
 
@@ -89,7 +111,8 @@ export class MoveInteraction {
     if (this.#active !== undefined) {
       return false;
     }
-    const pointerId = requirePointerId(input.pointerId);
+    const normalizedInput = this.#copyPointerInput(input);
+    const pointerId = normalizedInput.pointerId;
     const capture = this.#source.capture(input.targetIds);
     if (capture === undefined || capture.targets.length === 0) {
       return false;
@@ -97,15 +120,11 @@ export class MoveInteraction {
     const active = Object.freeze({
       capture,
       pointerId,
-      startWorldPoint: input.startWorldPoint,
+      startWorldPoint: createWorldPoint(input.startWorldPoint.x, input.startWorldPoint.y),
     });
     this.#active = active;
-    this.#publish(
-      createMovingSnapshot(
-        active,
-        resolveMoveDelta(input.startWorldPoint, input.worldPoint, input.shiftKey),
-      ),
-    );
+    this.#locks = EMPTY_LOCKS;
+    this.#publish(this.#resolveSnapshot(active, normalizedInput));
     return true;
   }
 
@@ -114,15 +133,7 @@ export class MoveInteraction {
     if (active === undefined || active.pointerId !== input.pointerId) {
       return false;
     }
-    const next = createMovingSnapshot(
-      active,
-      resolveMoveDelta(active.startWorldPoint, input.worldPoint, input.shiftKey),
-    );
-    const latest = this.#pending ?? this.#snapshot;
-    if (latest.kind === 'moving' && deltasEqual(latest.delta, next.delta)) {
-      return true;
-    }
-    this.#pending = next;
+    this.#pendingInput = this.#copyPointerInput(input);
     if (this.#scheduledFrameId === undefined) {
       this.#scheduledFrameId = this.#scheduler.request(this.#handleAnimationFrame);
     }
@@ -168,10 +179,11 @@ export class MoveInteraction {
       this.#scheduler.cancel(this.#scheduledFrameId);
       this.#scheduledFrameId = undefined;
     }
-    const pending = this.#pending;
-    this.#pending = undefined;
-    if (pending !== undefined) {
-      this.#publish(pending);
+    const pendingInput = this.#pendingInput;
+    this.#pendingInput = undefined;
+    const active = this.#active;
+    if (pendingInput !== undefined && active !== undefined) {
+      this.#publish(this.#resolveSnapshot(active, pendingInput));
     }
   }
 
@@ -180,17 +192,19 @@ export class MoveInteraction {
       this.#scheduler.cancel(this.#scheduledFrameId);
     }
     this.#scheduledFrameId = undefined;
-    this.#pending = undefined;
+    this.#pendingInput = undefined;
     this.#active = undefined;
+    this.#locks = EMPTY_LOCKS;
     this.#publish(IDLE_SNAPSHOT);
   }
 
   #handleAnimationFrame = (): void => {
     this.#scheduledFrameId = undefined;
-    const pending = this.#pending;
-    this.#pending = undefined;
-    if (pending !== undefined) {
-      this.#publish(pending);
+    const pendingInput = this.#pendingInput;
+    this.#pendingInput = undefined;
+    const active = this.#active;
+    if (pendingInput !== undefined && active !== undefined) {
+      this.#publish(this.#resolveSnapshot(active, pendingInput));
     }
   };
 
@@ -199,5 +213,51 @@ export class MoveInteraction {
     for (const listener of this.#listeners) {
       listener();
     }
+  }
+
+  #copyPointerInput(input: MovePointerInput): MovePointerInput {
+    if (typeof input.snapBypassed !== 'boolean' || typeof input.shiftKey !== 'boolean') {
+      throw new TypeError('Move modifiers must be boolean values.');
+    }
+    return Object.freeze({
+      pointerId: requirePointerId(input.pointerId),
+      snapBypassed: input.snapBypassed,
+      shiftKey: input.shiftKey,
+      worldPoint: createWorldPoint(input.worldPoint.x, input.worldPoint.y),
+    });
+  }
+
+  #resolveSnapshot(active: ActiveMove, input: MovePointerInput): MovingSnapshot {
+    const normalizedInput = this.#copyPointerInput(input);
+    const rawDelta = resolveMoveDelta(
+      active.startWorldPoint,
+      normalizedInput.worldPoint,
+      normalizedInput.shiftKey,
+    );
+    const activeAxes: SnapActiveAxes = normalizedInput.shiftKey
+      ? Object.freeze({ x: rawDelta.y === 0, y: rawDelta.y !== 0 })
+      : Object.freeze({ x: true, y: true });
+    try {
+      const resolution = this.#source.resolveSnap?.({
+        activeAxes,
+        capture: active.capture,
+        previousLocks: this.#locks,
+        rawDelta,
+        snapBypassed: normalizedInput.snapBypassed,
+      });
+      if (resolution !== undefined) {
+        this.#locks = resolution.locks;
+        return createMovingSnapshot(
+          active,
+          createWorldVector(resolution.adjustedDelta.x, resolution.adjustedDelta.y),
+          resolution.guides,
+        );
+      }
+    } catch {
+      // Snapping is assistive. A resolver fault must not break move ownership,
+      // corrupt the transaction, or strand a stale hysteresis lock.
+    }
+    this.#locks = EMPTY_LOCKS;
+    return createMovingSnapshot(active, createWorldVector(rawDelta.x, rawDelta.y), EMPTY_GUIDES);
   }
 }
