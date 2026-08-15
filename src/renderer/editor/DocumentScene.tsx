@@ -10,6 +10,8 @@ import {
 import {
   createControlSceneMarkPath,
   createControlSceneOutlinePath,
+  controlSceneHasFill,
+  controlSceneHasOutline,
   getControlScenePrimitiveBounds,
 } from '../controls/control-scene-geometry';
 import { calculateControlSceneTextLayout } from '../controls/control-scene-text-layout';
@@ -180,7 +182,13 @@ class DocumentScenePresenter {
     this.#updateElementGeometry(
       element,
       snapshot.worldBounds,
-      createControlSceneOutlinePath(item.controlType, snapshot.worldBounds, snapshot.elementId),
+      createControlSceneOutlinePath(
+        item.controlType,
+        snapshot.worldBounds,
+        snapshot.elementId,
+        item.properties,
+      ),
+      item.properties,
       item,
     );
   }
@@ -189,7 +197,7 @@ class DocumentScenePresenter {
     const element = this.#elementsById.get(id);
     const item = this.#canonicalItemsById.get(id);
     if (element !== undefined && item !== undefined) {
-      this.#updateElementGeometry(element, item.bounds, item.path, item);
+      this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
     }
   }
 
@@ -224,7 +232,7 @@ class DocumentScenePresenter {
     } else {
       element.setAttribute('aria-checked', String(item.properties[checkedProperty] === true));
     }
-    this.#updateElementGeometry(element, item.bounds, item.path, item);
+    this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
     element.dataset.sceneRevision = item.revision;
   }
 
@@ -232,6 +240,7 @@ class DocumentScenePresenter {
     element: SVGGElement,
     bounds: DocumentSceneItem['bounds'],
     path: string,
+    properties: DocumentSceneItem['properties'],
     item: DocumentSceneItem,
   ): void {
     const fill = element.children[0];
@@ -256,7 +265,7 @@ class DocumentScenePresenter {
     fillElement.setAttribute('width', String(primitiveBounds.width));
     fillElement.setAttribute('height', String(primitiveBounds.height));
     outlineElement.setAttribute('d', path);
-    const markPath = createControlSceneMarkPath(item.controlType, bounds, item.id, item.properties);
+    const markPath = createControlSceneMarkPath(item.controlType, bounds, item.id, properties);
     markElement.setAttribute('d', markPath);
     markElement.setAttribute('display', markPath.length === 0 ? 'none' : 'inline');
 
@@ -264,9 +273,39 @@ class DocumentScenePresenter {
     if (spec === undefined) {
       throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
     }
-    const hasOutline = item.visualKind !== 'text' && item.visualKind !== 'transparent';
-    fillElement.setAttribute('display', hasOutline ? 'inline' : 'none');
-    outlineElement.setAttribute('display', hasOutline ? 'inline' : 'none');
+    fillElement.setAttribute('display', controlSceneHasFill(spec) ? 'inline' : 'none');
+    outlineElement.setAttribute('display', controlSceneHasOutline(spec) ? 'inline' : 'none');
+
+    const color = properties.color;
+    fillElement.style.removeProperty('fill');
+    outlineElement.style.removeProperty('stroke');
+    markElement.style.removeProperty('stroke');
+    if (typeof color === 'string' && color !== 'default') {
+      if (spec.scene.kind === 'browser') {
+        fillElement.style.fill = color;
+      } else {
+        outlineElement.style.stroke = color;
+        markElement.style.stroke = color;
+      }
+    }
+    element.style.opacity =
+      typeof properties.opacity === 'number' ? String(properties.opacity) : '';
+    const strokeStyle = properties.strokeStyle;
+    if (typeof strokeStyle === 'string') {
+      element.dataset.controlStrokeStyle = strokeStyle;
+    } else {
+      delete element.dataset.controlStrokeStyle;
+    }
+    if (typeof properties.borderMode === 'string') {
+      element.dataset.controlBorderMode = properties.borderMode;
+    } else {
+      delete element.dataset.controlBorderMode;
+    }
+    if (typeof properties.showBorder === 'boolean') {
+      element.dataset.controlShowBorder = String(properties.showBorder);
+    } else {
+      delete element.dataset.controlShowBorder;
+    }
 
     this.#updateElementText(textElement, bounds, item);
   }

@@ -287,6 +287,7 @@ export class DocumentSceneModel {
         existing.kind !== derivedItem.kind ||
         existing.controlType !== derivedItem.controlType ||
         !boundsEqual(existing.bounds, derivedItem.bounds);
+      const presentationChanged = existing === undefined || existing.revision !== revision;
       if (
         !geometryChanged &&
         existing.locked === derivedItem.locked &&
@@ -305,11 +306,12 @@ export class DocumentSceneModel {
         path:
           derivedItem.kind === 'container' || derivedItem.visualKind === 'text'
             ? ''
-            : geometryChanged || existing === undefined
+            : geometryChanged || presentationChanged
               ? createControlSceneOutlinePath(
                   derivedItem.controlType,
                   derivedItem.bounds,
                   derivedItem.id,
+                  derivedItem.properties,
                 )
               : existing.path,
         properties: derivedItem.properties,

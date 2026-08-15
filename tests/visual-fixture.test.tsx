@@ -148,11 +148,21 @@ describe('visual conformance fixture contract', () => {
     const view = renderFixture('registryControl');
 
     expect(screen.getByRole('button', { name: 'Insert Checkbox' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Image' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Browser Window' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Arrow' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Checkbox' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Checked' })).toHaveAttribute('aria-pressed', 'true');
     await waitFor(() => {
       const checkbox = view.container.querySelector('[data-control-visual="checkbox"]');
+      const image = view.container.querySelector('[data-control-visual="image"]');
+      const browser = view.container.querySelector('[data-control-visual="browser"]');
+      const arrow = view.container.querySelector('[data-control-visual="arrow"]');
       expect(checkbox).not.toBeNull();
+      expect(image).not.toBeNull();
+      expect(browser).not.toBeNull();
+      expect(arrow).not.toBeNull();
+      expect(arrow).toHaveAttribute('data-control-stroke-style', 'dashed');
       expect(checkbox).toHaveAttribute('aria-checked', 'true');
       expect(checkbox).toHaveAttribute('aria-label', 'Remember me');
       expect(checkbox).toHaveAttribute('role', 'checkbox');

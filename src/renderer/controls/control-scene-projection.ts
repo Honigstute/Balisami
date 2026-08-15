@@ -41,7 +41,7 @@ export const createControlSceneProjection = ({
   Object.freeze({
     bounds,
     markPath: createControlSceneMarkPath(definition.type, bounds, identity, properties),
-    outlinePath: createControlSceneOutlinePath(definition.type, bounds, identity),
+    outlinePath: createControlSceneOutlinePath(definition.type, bounds, identity, properties),
     primitiveBounds: getControlScenePrimitiveBounds(definition.type, bounds),
     textLayout:
       textMeasurementService === undefined

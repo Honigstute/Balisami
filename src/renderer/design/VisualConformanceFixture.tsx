@@ -277,26 +277,93 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
 const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
   const fixture = createAlphaFixtureDocument();
   const checkboxId = ElementIdSchema.parse('element_registrycheckbox');
-  const result = dispatchDocumentCommand(fixture.document, {
-    type: DOCUMENT_COMMAND_TYPES.createElement,
-    element: {
-      assetIds: [],
-      childIds: [],
-      controlType: CONTROL_TYPES.checkbox,
-      controlVersion: requireControlVersion(CONTROL_TYPES.checkbox),
-      frame: { x: 76, y: 312, width: 180, height: 32 },
-      id: checkboxId,
-      link: null,
-      locked: false,
-      properties: { checked: true, text: 'Remember me' },
+  const browserId = ElementIdSchema.parse('element_registrybrowser');
+  const imageId = ElementIdSchema.parse('element_registryimage');
+  const arrowId = ElementIdSchema.parse('element_registryarrow');
+  let document = fixture.document;
+  const commands = [
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.browser,
+        controlVersion: requireControlVersion(CONTROL_TYPES.browser),
+        frame: { x: 390, y: 50, width: 160, height: 220 },
+        id: browserId,
+        link: null,
+        locked: false,
+        properties: { borderMode: 'visual-1', color: 'default', scrollbar: true },
+      },
+      index: fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
     },
-    index: fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0,
-    owner: { boardId: fixture.boardId, kind: 'board' },
-  });
-  if (!result.ok || !result.changed) {
-    throw new Error('The deterministic registry-control fixture is invalid.');
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.imagePlaceholder,
+        controlVersion: requireControlVersion(CONTROL_TYPES.imagePlaceholder),
+        frame: { x: 12, y: 64, width: 56, height: 56 },
+        id: imageId,
+        link: null,
+        locked: false,
+        properties: { showBorder: true },
+      },
+      index: 0,
+      owner: { elementId: browserId, kind: 'element' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.arrow,
+        controlVersion: requireControlVersion(CONTROL_TYPES.arrow),
+        frame: { x: 82, y: 72, width: 64, height: 72 },
+        id: arrowId,
+        link: null,
+        locked: false,
+        properties: {
+          color: 'default',
+          endArrow: true,
+          labelPosition: 0.5,
+          opacity: 1,
+          routing: 'visual-2',
+          startArrow: true,
+          strokeStyle: 'dashed',
+          text: 'Flow',
+        },
+      },
+      index: 1,
+      owner: { elementId: browserId, kind: 'element' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.checkbox,
+        controlVersion: requireControlVersion(CONTROL_TYPES.checkbox),
+        frame: { x: 76, y: 312, width: 180, height: 32 },
+        id: checkboxId,
+        link: null,
+        locked: false,
+        properties: { checked: true, text: 'Remember me' },
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+  ] as const;
+  for (const command of commands) {
+    const result = dispatchDocumentCommand(document, command);
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic registry-control fixture is invalid.');
+    }
+    document = result.document;
   }
-  return Object.freeze({ ...fixture, document: result.document, selectedId: checkboxId });
+  return Object.freeze({ ...fixture, document, selectedId: checkboxId });
 };
 
 const createGroupSelectionFixtureDocument = (

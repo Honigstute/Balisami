@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CONTROL_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
   getControlSpec,
@@ -68,6 +69,36 @@ const createOverlappingRectangleDocument = (topLocked = false): ProjectDocument 
     link: null,
   };
   input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.locked = topLocked;
+  input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
+  return parseFixture(input);
+};
+
+const createArrowDocument = (routing: 'visual-1' | 'visual-2' = 'visual-1'): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const definition = getControlSpec(CONTROL_TYPES.arrow);
+  if (definition === undefined) {
+    throw new Error('Arrow definition is missing.');
+  }
+  input.elementsById[ROOT_ID] = {
+    assetIds: [],
+    childIds: [],
+    controlType: CONTROL_TYPES.arrow,
+    controlVersion: definition.fileVersion,
+    frame: { height: 100, width: 100, x: 200, y: 100 },
+    id: ROOT_ID,
+    link: null,
+    locked: false,
+    properties: {
+      color: 'default',
+      endArrow: true,
+      labelPosition: 0.5,
+      opacity: 1,
+      routing,
+      startArrow: false,
+      strokeStyle: 'solid',
+      text: '',
+    },
+  };
   input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
   return parseFixture(input);
 };
@@ -284,6 +315,51 @@ describe('document scene model', () => {
     // ROOT_ID ends at (480, 360); this point is outside its frame but within tolerance.
     expect(model.hitTestTopmost(createWorldPoint(486, 366))?.id).toBe(ROOT_ID);
     expect(model.hitTestTopmost(createWorldPoint(492, 372))).toBeUndefined();
+  });
+
+  it('uses the registered Arrow tolerance outside its raw frame', () => {
+    const model = new DocumentSceneModel();
+    model.reconcile(createArrowDocument(), DOCUMENT_FIXTURE_IDS.board);
+
+    expect(model.hitTestTopmost(createWorldPoint(304, 204))?.id).toBe(ROOT_ID);
+    expect(model.hitTestTopmost(createWorldPoint(308, 208))).toBeUndefined();
+  });
+
+  it('rebuilds property-driven Arrow geometry without a control-type scene branch', () => {
+    const model = new DocumentSceneModel();
+    model.reconcile(createArrowDocument(), DOCUMENT_FIXTURE_IDS.board);
+    const straightPath = model.getItem(ROOT_ID)?.path;
+    model.reconcile(createArrowDocument('visual-2'), DOCUMENT_FIXTURE_IDS.board);
+
+    expect(model.getItem(ROOT_ID)?.path).not.toBe(straightPath);
+  });
+
+  it('renders Browser as a visible child-owning container', () => {
+    const input = createValidProjectDocumentInput();
+    const browser = getControlSpec(CONTROL_TYPES.browser);
+    if (browser === undefined) {
+      throw new Error('Browser definition is missing.');
+    }
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.controlType = CONTROL_TYPES.browser;
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.controlVersion = browser.fileVersion;
+    input.elementsById[DOCUMENT_FIXTURE_IDS.group]!.properties = {
+      borderMode: 'visual-1',
+      color: 'default',
+      scrollbar: false,
+    };
+    const document = parseFixture(input);
+    const model = new DocumentSceneModel();
+    model.reconcile(document, DOCUMENT_FIXTURE_IDS.board);
+
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)).toMatchObject({
+      kind: 'object',
+      visualKind: 'browser',
+    });
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)?.path).not.toBe('');
+    expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)?.owner).toEqual({
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+      kind: 'element',
+    });
   });
 
   it('queries contained or intersecting selection regions in canonical order', () => {

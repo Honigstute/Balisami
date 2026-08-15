@@ -27,6 +27,7 @@ interface InspectorNumberInputProps {
   readonly maximum?: number;
   readonly minimum?: number;
   readonly onCommit: (value: number) => boolean;
+  readonly step?: number | 'any';
   readonly value: number;
 }
 
@@ -45,6 +46,7 @@ const InspectorNumberInput = ({
   maximum,
   minimum,
   onCommit,
+  step = 'any',
   value,
 }: InspectorNumberInputProps) => {
   const canonical = formatInspectorNumber(value);
@@ -90,7 +92,7 @@ const InspectorNumberInput = ({
       onBlur={commit}
       onChange={(event) => setDraft(event.currentTarget.value)}
       onKeyDown={blurOnEnter}
-      step="any"
+      step={step}
       {...(validation === undefined ? {} : { validation })}
       value={draft}
     />
@@ -136,8 +138,8 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
 
 interface InspectorPropertyFieldProps {
   readonly field: ControlInspectorPropertyField;
-  readonly onCommit: (property: string, value: boolean | string) => boolean;
-  readonly value: boolean | string;
+  readonly onCommit: (property: string, value: boolean | number | string) => boolean;
+  readonly value: boolean | number | string;
 }
 
 /** Property field kinds are registry vocabulary, not control-type branches. */
@@ -160,6 +162,28 @@ const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFie
       <InspectorTextInput
         label={field.label}
         onCommit={(nextValue) => onCommit(field.property, nextValue)}
+        value={value}
+      />
+    );
+  }
+  if (field.kind === 'choice' && typeof value === 'string') {
+    return (
+      <AppSegmentedControl
+        label={field.label}
+        onChange={(nextValue) => onCommit(field.property, nextValue)}
+        options={field.options}
+        value={value}
+      />
+    );
+  }
+  if (field.kind === 'number' && typeof value === 'number') {
+    return (
+      <InspectorNumberInput
+        label={field.label}
+        maximum={field.maximum}
+        minimum={field.minimum}
+        onCommit={(nextValue) => onCommit(field.property, nextValue)}
+        step={field.step}
         value={value}
       />
     );
@@ -309,7 +333,11 @@ export const ControlInspector = ({
             <h3>{section.label}</h3>
             {section.fields.map((field) => {
               const value = element.properties[field.property];
-              if (typeof value !== 'boolean' && typeof value !== 'string') {
+              if (
+                typeof value !== 'boolean' &&
+                typeof value !== 'number' &&
+                typeof value !== 'string'
+              ) {
                 throw new Error(
                   `Inspector property '${field.property}' is missing from '${element.controlType}'.`,
                 );
