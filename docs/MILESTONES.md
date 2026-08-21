@@ -1,7 +1,7 @@
 # Balsamic milestones
 
 Status: M9 active — library and interaction slice
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-21
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
 
@@ -461,12 +461,14 @@ Depends on: M8
 
 Objective: deliver the primary fast-create/edit loop visible in the references.
 
-Current progress (2026-08-15):
+Current progress (2026-08-21):
 
 - Every registry-backed shelf entry remains click-insertable and is now also a typed drag source. The viewport accepts only validated palette type IDs, converts the drop point through the canonical viewport transform once, and dispatches one exact-placement create command before selecting the new control. Click insertion retains its existing deterministic cascade while drag placement centers the control at the release point.
 - Accessible SVG scene roles no longer masquerade as editable DOM controls. A regression exercises click selection and a fast press-to-release Button drag with no intermediate pointer move, proving the exact release delta is flushed into one frame transaction with no pending animation-frame update. Marquee selection now consistently uses intersection in either drag direction, so touching a control is sufficient.
 - The fixed inspector header now derives its title from the selected registry definition or displays `<count> Controls` for a multi-selection. The duplicate identity section was removed from the scrolling body, long titles are contained with ellipsis, and the existing fixed grid track/internal scroll contract remains unchanged.
 - The initial interaction slice passes the complete local source gate across 158 source modules and 93 test files / 594 tests, including formatting, lint, dependency boundaries, strict TypeScript, and zero runtime vulnerabilities. The macOS arm64 package, fuse readback, launch smoke, all 27 isolated visual/scale captures, 921-byte create/edit/undo/redo/save/close/reopen workflow, and viewport benchmark pass; the benchmark records 0.40-ms p95 frame work and 9.40-ms p95 input latency. Original-resolution `mvpAlpha`, `registryControl`, and `marquee` captures were reviewed with the selection-derived header, removed duplicate identity block, intersection marquee styling, complete canvas geometry, and unchanged shell tracks.
+- Pointer completion no longer depends exclusively on a captured `pointerup` reaching the canvas root. Pointer capture remains primary, while a narrowly filtered window fallback preserves exact move/resize/pan tracking when Chromium or the native compositor refuses or hands off capture. A capture-loss event with no pressed buttons completes from its final coordinates; active-button capture loss, `pointercancel`, blur, Escape, and teardown still cancel and restore the immutable start. Capture/release races are contained without renderer exceptions, and every accepted move still flushes one final delta into one command/history entry.
+- The hardened release slice passes the complete 93-file / 596-test source gate across 158 source modules with formatting, lint, boundaries, strict TypeScript, and zero runtime vulnerabilities. Focused regressions cover immediate release, 500 coalesced updates, capture refusal with release outside the viewport, release-signaled capture loss, active-button cancellation, snapping, exact undo, and shelf drop conversion. The macOS arm64 package, fuse readback, launch smoke, all 27 visual/scale captures, 922-byte save/close/reopen workflow, and packaged viewport benchmark pass; the benchmark records 0.40-ms p95 frame work and 17.10-ms p95 input latency with unchanged shell and move geometry.
 
 Deliverables:
 

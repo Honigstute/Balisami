@@ -5,7 +5,11 @@ import {
   type KeyboardNudgeInteraction,
   type KeyboardNudgeKey,
 } from './keyboard-nudge-interaction';
-import type { SelectionInteraction, SelectionPointerPosition } from './selection-interaction';
+import type {
+  SelectionInteraction,
+  SelectionPointerPosition,
+  SelectionPointerUpdate,
+} from './selection-interaction';
 import type { ResizeHandle } from './resize-geometry';
 import type { SelectionStore } from './selection-store';
 import type { TextEditViewportRoute } from './text-edit-interaction';
@@ -359,6 +363,8 @@ export class ViewportInputController {
     this.#root.addEventListener('wheel', this.#handleWheel, { passive: false });
     window.addEventListener('blur', this.#handleWindowBlur);
     window.addEventListener('keyup', this.#handleKeyUp);
+    window.addEventListener('pointermove', this.#handleWindowPointerMove);
+    window.addEventListener('pointerup', this.#handleWindowPointerUp);
     this.#unsubscribeKeyboardNudge = this.#keyboardNudge?.subscribe(this.#updateSelectionState);
     this.#unsubscribeSelection = this.#selection?.subscribe(this.#handleSelectionChange);
     this.#unsubscribeSelectionInteraction = this.#selectionInteraction?.subscribe(
@@ -399,6 +405,8 @@ export class ViewportInputController {
     this.#root.removeEventListener('wheel', this.#handleWheel);
     window.removeEventListener('blur', this.#handleWindowBlur);
     window.removeEventListener('keyup', this.#handleKeyUp);
+    window.removeEventListener('pointermove', this.#handleWindowPointerMove);
+    window.removeEventListener('pointerup', this.#handleWindowPointerUp);
   }
 
   #handleKeyDown = (event: KeyboardEvent): void => {
@@ -539,7 +547,7 @@ export class ViewportInputController {
         startClientY: event.clientY,
         startTransform: this.#camera.getTransformSnapshot(),
       });
-      this.#root.setPointerCapture?.(event.pointerId);
+      this.#capturePointer(event.pointerId);
       this.#updatePanState();
       this.#updateSelectionState();
       return;
@@ -571,7 +579,7 @@ export class ViewportInputController {
     ) {
       event.preventDefault();
       this.#hoveredResizeHandle = undefined;
-      this.#root.setPointerCapture?.(event.pointerId);
+      this.#capturePointer(event.pointerId);
       this.#updateSelectionState();
     }
   };
@@ -612,6 +620,25 @@ export class ViewportInputController {
     this.#schedulePanPosition(activePan, event.clientX, event.clientY);
   };
 
+  /**
+   * Pointer capture is the primary ownership path. These window listeners are
+   * a narrow fallback for a browser/platform capture handoff: events already
+   * routed through the viewport bubble to window and are deliberately ignored.
+   */
+  #handleWindowPointerMove = (event: PointerEvent): void => {
+    if (!this.#eventNeedsWindowFallback(event)) {
+      return;
+    }
+    this.#handlePointerMove(event);
+  };
+
+  #handleWindowPointerUp = (event: PointerEvent): void => {
+    if (!this.#eventNeedsWindowFallback(event)) {
+      return;
+    }
+    this.#handlePointerUp(event);
+  };
+
   #handlePointerUp = (event: PointerEvent): void => {
     if (this.#isTextEditing()) {
       return;
@@ -631,9 +658,7 @@ export class ViewportInputController {
         })
       ) {
         event.preventDefault();
-        if (this.#root.hasPointerCapture?.(event.pointerId)) {
-          this.#root.releasePointerCapture?.(event.pointerId);
-        }
+        this.#releaseSelectionPointerCapture(event.pointerId);
         this.#updateSelectionState();
       }
       return;
@@ -642,9 +667,7 @@ export class ViewportInputController {
     this.#schedulePanPosition(activePan, event.clientX, event.clientY);
     this.#camera.flushPending();
     this.#activePan = undefined;
-    if (this.#root.hasPointerCapture?.(event.pointerId)) {
-      this.#root.releasePointerCapture?.(event.pointerId);
-    }
+    this.#releaseSelectionPointerCapture(event.pointerId);
     this.#updatePanState();
   };
 
@@ -694,8 +717,30 @@ export class ViewportInputController {
 
   #handleLostPointerCapture = (event: PointerEvent): void => {
     if (this.#activePan?.pointerId === event.pointerId) {
-      this.#cancelPan();
+      if (event.buttons === 0) {
+        this.#handlePointerUp(event);
+      } else {
+        this.#cancelPan();
+      }
       return;
+    }
+    const snapshot = this.#selectionInteraction?.getSnapshot();
+    if (snapshot?.kind === 'idle' || snapshot?.pointerId !== event.pointerId) {
+      return;
+    }
+    // A capture-loss event with no pressed buttons is a terminal release, not
+    // a cancellation. Commit its exact coordinates before considering the
+    // gesture abandoned; pointercancel and blur remain the cancellation paths.
+    if (event.buttons === 0) {
+      const position = this.#createSelectionPointerUpdate(event);
+      if (
+        position !== undefined &&
+        this.#selectionInteraction?.completePress(event.pointerId, position)
+      ) {
+        event.preventDefault();
+        this.#updateSelectionState();
+        return;
+      }
     }
     if (this.#selectionInteraction?.cancelPress(event.pointerId)) {
       this.#updateSelectionState();
@@ -894,9 +939,7 @@ export class ViewportInputController {
     this.#activePan = undefined;
     this.#camera.scheduleTransform(activePan.startTransform, activePan.startFraming);
     this.#camera.flushPending();
-    if (this.#root.hasPointerCapture?.(activePan.pointerId)) {
-      this.#root.releasePointerCapture?.(activePan.pointerId);
-    }
+    this.#releaseSelectionPointerCapture(activePan.pointerId);
     this.#updatePanState();
   }
 
@@ -941,9 +984,52 @@ export class ViewportInputController {
     });
   }
 
+  #createSelectionPointerUpdate(event: PointerEvent): SelectionPointerUpdate | undefined {
+    const position = this.#getSelectionPosition(event);
+    if (position === undefined) {
+      return undefined;
+    }
+    return Object.freeze({
+      ...position,
+      snapBypassed:
+        this.#shortcutPlatform === undefined
+          ? false
+          : isViewportSnapBypassed(event, this.#shortcutPlatform),
+      shiftKey: event.shiftKey,
+    });
+  }
+
+  #eventNeedsWindowFallback(event: PointerEvent): boolean {
+    const snapshot = this.#selectionInteraction?.getSnapshot();
+    const ownsPointer =
+      this.#activePan?.pointerId === event.pointerId ||
+      (snapshot !== undefined &&
+        snapshot.kind !== 'idle' &&
+        snapshot.pointerId === event.pointerId);
+    if (!ownsPointer) {
+      return false;
+    }
+    const target = event.target;
+    return !(target instanceof Node) || !this.#root.contains(target);
+  }
+
   #releaseSelectionPointerCapture(pointerId: number): void {
-    if (this.#root.hasPointerCapture?.(pointerId)) {
-      this.#root.releasePointerCapture?.(pointerId);
+    try {
+      if (this.#root.hasPointerCapture?.(pointerId)) {
+        this.#root.releasePointerCapture?.(pointerId);
+      }
+    } catch {
+      // A platform capture handoff can invalidate ownership between the check
+      // and release. Gesture state has already reached its terminal path.
+    }
+  }
+
+  #capturePointer(pointerId: number): void {
+    try {
+      this.#root.setPointerCapture?.(pointerId);
+    } catch {
+      // Window-level pointer fallbacks retain exact tracking when the browser
+      // refuses capture during a native or compositor ownership transition.
     }
   }
 

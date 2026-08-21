@@ -473,6 +473,132 @@ describe('viewport scene layers', () => {
     store.dispose();
   });
 
+  it('commits the exact window release when the browser refuses pointer capture', () => {
+    mockViewportBounds();
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const moveScheduler = new TestAnimationFrameScheduler();
+    const store = createStore(cameraScheduler);
+    const commits: (readonly SetElementFrameCommand[])[] = [];
+    const move = new MoveInteraction(
+      {
+        capture: () => MOVE_CAPTURE,
+        commit: (commands) => {
+          commits.push(commands);
+          return true;
+        },
+      },
+      moveScheduler,
+    );
+    const interaction = new SelectionInteraction(
+      new SelectionStore(),
+      {
+        listSelectableIds: () => [SELECTABLE_ID],
+        queryHitStack: () => [SELECTABLE_ID],
+        querySelectionRegion: () => [],
+      },
+      move,
+    );
+    const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    root.setPointerCapture = vi.fn(() => {
+      throw new DOMException('Synthetic native capture refusal.');
+    });
+    root.hasPointerCapture = vi.fn(() => false);
+    cameraScheduler.flushNext();
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 72 });
+    fireEvent.pointerMove(window, {
+      buttons: 1,
+      clientX: 140,
+      clientY: 125,
+      pointerId: 72,
+    });
+    fireEvent.pointerUp(window, { buttons: 0, clientX: 165, clientY: 145, pointerId: 72 });
+
+    expect(commits).toEqual([
+      [
+        {
+          elementId: SELECTABLE_ID,
+          frame: { height: 50, width: 100, x: 75, y: 65 },
+          type: 'element.set-frame',
+        },
+      ],
+    ]);
+    expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(moveScheduler.callbacks.size).toBe(0);
+    store.dispose();
+  });
+
+  it('treats button-up capture loss as completion but active-button capture loss as cancellation', () => {
+    mockViewportBounds();
+    const cameraScheduler = new TestAnimationFrameScheduler();
+    const moveScheduler = new TestAnimationFrameScheduler();
+    const store = createStore(cameraScheduler);
+    const commits: (readonly SetElementFrameCommand[])[] = [];
+    const move = new MoveInteraction(
+      {
+        capture: () => MOVE_CAPTURE,
+        commit: (commands) => {
+          commits.push(commands);
+          return true;
+        },
+      },
+      moveScheduler,
+    );
+    const interaction = new SelectionInteraction(
+      new SelectionStore(),
+      {
+        listSelectableIds: () => [SELECTABLE_ID],
+        queryHitStack: () => [SELECTABLE_ID],
+        querySelectionRegion: () => [],
+      },
+      move,
+    );
+    const view = render(<ViewportScene camera={store} selectionInteraction={interaction} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    cameraScheduler.flushNext();
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 73 });
+    fireEvent.pointerMove(root, {
+      buttons: 1,
+      clientX: 130,
+      clientY: 120,
+      pointerId: 73,
+    });
+    fireEvent.lostPointerCapture(root, {
+      buttons: 0,
+      clientX: 155,
+      clientY: 135,
+      pointerId: 73,
+    });
+    expect(commits).toHaveLength(1);
+    expect(commits[0]?.[0]).toMatchObject({ frame: { x: 65, y: 55 } });
+
+    fireEvent.pointerDown(root, { button: 0, clientX: 155, clientY: 135, pointerId: 74 });
+    fireEvent.pointerMove(root, {
+      buttons: 1,
+      clientX: 190,
+      clientY: 165,
+      pointerId: 74,
+    });
+    fireEvent.lostPointerCapture(root, {
+      buttons: 1,
+      clientX: 190,
+      clientY: 165,
+      pointerId: 74,
+    });
+    expect(commits).toHaveLength(1);
+    expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
+    expect(move.getSnapshot()).toEqual({ kind: 'idle' });
+    store.dispose();
+  });
+
   it('drops a typed shelf control at the canonical transformed world point', () => {
     mockViewportBounds();
     const scheduler = new TestAnimationFrameScheduler();
@@ -532,7 +658,7 @@ describe('viewport scene layers', () => {
     expect(selection.getSnapshot()).toBe(before);
 
     fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 32 });
-    fireEvent.lostPointerCapture(root, { pointerId: 32 });
+    fireEvent.lostPointerCapture(root, { buttons: 1, pointerId: 32 });
     expect(interaction.getSnapshot()).toEqual({ kind: 'idle' });
     expect(selection.getSnapshot()).toBe(before);
 
@@ -619,7 +745,7 @@ describe('viewport scene layers', () => {
     fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 42 });
     fireEvent.pointerMove(root, { clientX: 130, clientY: 170, pointerId: 42, shiftKey: true });
     expect(move.getSnapshot()).toMatchObject({ delta: { x: 0, y: 70 }, kind: 'moving' });
-    fireEvent.lostPointerCapture(root, { pointerId: 42 });
+    fireEvent.lostPointerCapture(root, { buttons: 1, pointerId: 42 });
     expect(root).toHaveAttribute('data-selection-state', 'idle');
     expect(move.getSnapshot()).toEqual({ kind: 'idle' });
     expect(commits).toHaveLength(0);
@@ -747,7 +873,7 @@ describe('viewport scene layers', () => {
 
     fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 53 });
     fireEvent.pointerMove(root, { clientX: 130, clientY: 110, pointerId: 53 });
-    fireEvent.lostPointerCapture(root, { pointerId: 53 });
+    fireEvent.lostPointerCapture(root, { buttons: 1, pointerId: 53 });
     expect(resize.getSnapshot()).toEqual({ kind: 'idle' });
 
     fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 54 });
