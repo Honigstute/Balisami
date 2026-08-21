@@ -10,7 +10,8 @@ Before editing code:
 2. Read `docs/PROJECT_BLUEPRINT.md` completely.
 3. Read `docs/MILESTONES.md` completely.
 4. Locate the single active milestone and work only inside its stated scope.
-5. Inspect the existing implementation and tests instead of reconstructing intent from chat history.
+5. Consult `docs/TROUBLESHOOTING.md` when the reported symptom matches a recorded failure class.
+6. Inspect the existing implementation and tests instead of reconstructing intent from chat history.
 
 If the documents and code disagree, stop expanding the feature. Resolve the discrepancy in the canonical document and implementation together.
 
