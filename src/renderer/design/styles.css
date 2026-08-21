@@ -1824,6 +1824,66 @@ p {
   opacity: var(--opacity-disabled);
 }
 
+.app-choice-popover__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  text-align: left;
+}
+
+.app-choice-popover__trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-choice-popover__options {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.app-choice-popover__option {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 0 var(--space-2);
+  color: var(--color-ink);
+  text-align: left;
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-compact);
+}
+
+.app-choice-popover__option:hover,
+.app-choice-popover__option:focus-visible {
+  background: var(--color-chrome);
+  border-color: var(--color-control-border);
+}
+
+.app-choice-popover__option[aria-selected='true'] {
+  color: var(--color-canvas);
+  background: var(--color-accent-strong);
+}
+
+.app-color-popover__palette {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.app-color-popover__palette .app-swatch {
+  width: 100%;
+}
+
+.app-color-popover__custom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
 .app-segments {
   display: flex;
   width: 100%;

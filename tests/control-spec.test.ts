@@ -95,10 +95,16 @@ describe('control definition registry', () => {
     expect(getControlSpec(CONTROL_TYPES.imagePlaceholder)?.palette).toMatchObject({
       drawShortcut: 'KeyI',
     });
-    expect(getControlSpec(CONTROL_TYPES.browser)).toMatchObject({
+    const browser = getControlSpec(CONTROL_TYPES.browser);
+    expect(browser).toMatchObject({
       capabilities: { grouping: 'container', resizeAxes: 'both' },
       defaultProperties: { borderMode: 'visual-1', color: 'default', scrollbar: false },
       scene: { hitShape: { kind: 'bounds' }, kind: 'browser' },
+    });
+    expect(browser?.inspector[0]?.fields.find((field) => field.property === 'color')).toEqual({
+      kind: 'color',
+      label: 'Color',
+      property: 'color',
     });
     expect(getControlSpec(CONTROL_TYPES.arrow)).toMatchObject({
       capabilities: { grouping: 'leaf', resizeAxes: 'both', text: { property: 'text' } },
@@ -121,6 +127,21 @@ describe('control definition registry', () => {
       throw new Error('Representative control definition is missing.');
     }
     expect(() => assertControlDefinitionsConform([checkbox, checkbox])).toThrow(/duplicate type/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...arrow,
+          inspector: arrow.inspector.map((section) => ({
+            ...section,
+            fields: section.fields.map((field) =>
+              field.kind === 'choice' && field.property === 'routing'
+                ? { ...field, kind: 'select' as const }
+                : field,
+            ),
+          })),
+        },
+      ]),
+    ).not.toThrow();
     expect(() =>
       assertControlDefinitionsConform([
         {

@@ -104,10 +104,10 @@ export interface ControlInspectorChoiceOption {
 }
 
 export type ControlInspectorPropertyField =
-  | (ControlInspectorPropertyFieldBase & Readonly<{ kind: 'boolean' | 'text' }>)
+  | (ControlInspectorPropertyFieldBase & Readonly<{ kind: 'boolean' | 'color' | 'text' }>)
   | (ControlInspectorPropertyFieldBase &
       Readonly<{
-        kind: 'choice';
+        kind: 'choice' | 'select';
         options: readonly ControlInspectorChoiceOption[];
       }>)
   | (ControlInspectorPropertyFieldBase &
@@ -263,12 +263,15 @@ export const assertControlDefinitionsConform = (
       for (const field of section.fields) {
         const value = definition.defaultProperties[field.property];
         const choiceValues =
-          field.kind === 'choice' ? field.options.map((option) => option.value) : [];
+          field.kind === 'choice' || field.kind === 'select'
+            ? field.options.map((option) => option.value)
+            : [];
         if (
           field.label.trim().length === 0 ||
           (field.kind === 'boolean' && typeof value !== 'boolean') ||
           (field.kind === 'text' && typeof value !== 'string') ||
-          (field.kind === 'choice' &&
+          (field.kind === 'color' && typeof value !== 'string') ||
+          ((field.kind === 'choice' || field.kind === 'select') &&
             (typeof value !== 'string' ||
               field.options.length < 2 ||
               new Set(choiceValues).size !== choiceValues.length ||

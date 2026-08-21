@@ -9,6 +9,8 @@ import {
   type WorldRect,
 } from '../../domain';
 import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
+import { AppChoicePopover } from '../design/AppChoicePopover';
+import { AppColorPopover } from '../design/AppColorPopover';
 import { AppButton } from '../design/AppButton';
 import { AppInput } from '../design/AppInput';
 import { AppSegmentedControl } from '../design/AppSegmentedControl';
@@ -72,21 +74,22 @@ const InspectorNumberInput = ({
   const canonical = value.value === undefined ? '' : formatInspectorNumber(value.value);
   const [draft, setDraft] = useState(canonical);
   const [validation, setValidation] = useState<string>();
+  const suppressNextBlur = useRef(false);
 
   useEffect(() => {
     setDraft(canonical);
     setValidation(undefined);
   }, [canonical]);
 
-  const commit = (): void => {
-    if (value.mixed && draft === canonical) {
-      return;
+  const commit = (candidate: string): boolean => {
+    if (value.mixed && candidate === canonical) {
+      return true;
     }
-    if (draft.trim().length === 0) {
+    if (candidate.trim().length === 0) {
       setValidation('Enter a finite number.');
-      return;
+      return false;
     }
-    const parsed = Number(draft);
+    const parsed = Number(candidate);
     if (
       !Number.isFinite(parsed) ||
       (minimum !== undefined && parsed < minimum) ||
@@ -99,15 +102,49 @@ const InspectorNumberInput = ({
       } else if (maximum !== undefined) {
         setValidation(`Maximum ${formatInspectorNumber(maximum)}.`);
       }
-      return;
+      return false;
     }
     if (parsed === value.value || onCommit(parsed)) {
       setDraft(formatInspectorNumber(parsed));
       setValidation(undefined);
-      return;
+      return true;
     }
     setDraft(canonical);
     setValidation('The value could not be applied.');
+    return false;
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      suppressNextBlur.current = true;
+      setDraft(canonical);
+      setValidation(undefined);
+      event.currentTarget.blur();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (commit(draft)) {
+        suppressNextBlur.current = true;
+        event.currentTarget.blur();
+      }
+      return;
+    }
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+      return;
+    }
+    event.preventDefault();
+    const parsedDraft = Number(draft);
+    const base = draft.trim().length > 0 && Number.isFinite(parsedDraft) ? parsedDraft : 0;
+    const increment = (typeof step === 'number' ? step : 1) * (event.shiftKey ? 10 : 1);
+    const direction = event.key === 'ArrowUp' ? 1 : -1;
+    const next = Math.min(
+      maximum ?? Infinity,
+      Math.max(minimum ?? -Infinity, base + increment * direction),
+    );
+    setDraft(formatInspectorNumber(next));
+    setValidation(undefined);
   };
 
   return (
@@ -117,9 +154,15 @@ const InspectorNumberInput = ({
       max={maximum}
       min={minimum}
       mixed={value.mixed}
-      onBlur={commit}
+      onBlur={() => {
+        if (suppressNextBlur.current) {
+          suppressNextBlur.current = false;
+          return;
+        }
+        commit(draft);
+      }}
       onChange={(event) => setDraft(event.currentTarget.value)}
-      onKeyDown={blurOnEnter}
+      onKeyDown={handleKeyDown}
       step={step}
       {...(validation === undefined ? {} : { validation })}
       value={draft}
@@ -200,9 +243,30 @@ const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFie
       />
     );
   }
+  if (field.kind === 'color' && (typeof value.value === 'string' || value.mixed)) {
+    return (
+      <AppColorPopover
+        label={field.label}
+        mixed={value.mixed}
+        onChange={(nextValue) => onCommit(field.property, nextValue)}
+        value={typeof value.value === 'string' ? value.value : undefined}
+      />
+    );
+  }
   if (field.kind === 'choice' && (typeof value.value === 'string' || value.mixed)) {
     return (
       <AppSegmentedControl
+        label={field.label}
+        mixed={value.mixed}
+        onChange={(nextValue) => onCommit(field.property, nextValue)}
+        options={field.options}
+        value={typeof value.value === 'string' ? value.value : undefined}
+      />
+    );
+  }
+  if (field.kind === 'select' && (typeof value.value === 'string' || value.mixed)) {
+    return (
+      <AppChoicePopover
         label={field.label}
         mixed={value.mixed}
         onChange={(nextValue) => onCommit(field.property, nextValue)}

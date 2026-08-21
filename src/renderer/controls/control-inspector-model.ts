@@ -58,7 +58,10 @@ const areFieldsCompatible = (
   ) {
     return false;
   }
-  if (first.kind === 'choice' && second.kind === 'choice') {
+  if (
+    (first.kind === 'choice' || first.kind === 'select') &&
+    (second.kind === 'choice' || second.kind === 'select')
+  ) {
     return (
       first.options.length === second.options.length &&
       first.options.every(
@@ -86,7 +89,11 @@ const readPrimitiveProperty = (
   if (
     (field.kind === 'boolean' && typeof value === 'boolean') ||
     (field.kind === 'number' && typeof value === 'number') ||
-    ((field.kind === 'choice' || field.kind === 'text') && typeof value === 'string')
+    ((field.kind === 'choice' ||
+      field.kind === 'color' ||
+      field.kind === 'select' ||
+      field.kind === 'text') &&
+      typeof value === 'string')
   ) {
     return value;
   }

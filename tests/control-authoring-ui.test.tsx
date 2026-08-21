@@ -23,6 +23,7 @@ import { createControlInsertionCommand } from '../src/renderer/controls/control-
 import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
+import { DESIGN_TOKENS } from '../src/shared/design-tokens';
 
 const createControlDocument = (controlType = CONTROL_TYPES.button) => {
   const boardId = BoardIdSchema.parse('board_controlui');
@@ -287,6 +288,45 @@ describe('alpha control authoring UI', () => {
     });
   });
 
+  it('steps numeric drafts predictably and commits or cancels them from the keyboard', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.button);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetFrames = vi.fn<(updates: readonly ControlInspectorFrameUpdate[]) => boolean>(
+      () => true,
+    );
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={onSetFrames}
+        onSetProperties={() => true}
+        selection={selection}
+      />,
+    );
+
+    const x = screen.getByRole<HTMLInputElement>('spinbutton', { name: 'X' });
+    const startingX = Number(x.value);
+    x.focus();
+    fireEvent.keyDown(x, { key: 'ArrowUp' });
+    expect(x).toHaveValue(startingX + 1);
+    fireEvent.keyDown(x, { key: 'ArrowUp', shiftKey: true });
+    expect(x).toHaveValue(startingX + 11);
+    expect(onSetFrames).not.toHaveBeenCalled();
+    fireEvent.keyDown(x, { key: 'Enter' });
+    expect(onSetFrames.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      frame: { x: startingX + 11 },
+    });
+
+    onSetFrames.mockClear();
+    x.focus();
+    fireEvent.change(x, { target: { value: String(startingX + 50) } });
+    fireEvent.keyDown(x, { key: 'Escape' });
+    expect(x).toHaveValue(startingX);
+    expect(onSetFrames).not.toHaveBeenCalled();
+  });
+
   it('omits property fields that are not shared by every selected registry schema', () => {
     const first = createControlDocument(CONTROL_TYPES.button);
     const secondId = ElementIdSchema.parse('element_controlui_mixed_schema');
@@ -374,6 +414,12 @@ describe('alpha control authoring UI', () => {
     expect(onSetProperties.mock.calls[1]?.[0]?.[0]).toMatchObject({
       elementId,
       properties: { labelPosition: 0.75 },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Color' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Accent' }));
+    expect(onSetProperties.mock.calls[2]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { color: DESIGN_TOKENS.color.accentStrong },
     });
   });
 

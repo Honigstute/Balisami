@@ -411,7 +411,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         ],
         property: 'borderMode',
       },
-      { kind: 'text', label: 'Color', property: 'color' },
+      { kind: 'color', label: 'Color', property: 'color' },
       { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
     ]),
     minimumSize: createSize(160, 120),
@@ -471,7 +471,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         property: 'labelPosition',
         step: 0.05,
       },
-      { kind: 'text', label: 'Color', property: 'color' },
+      { kind: 'color', label: 'Color', property: 'color' },
       {
         kind: 'number',
         label: 'Opacity',
