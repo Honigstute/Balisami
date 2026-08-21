@@ -1137,6 +1137,11 @@ p {
   cursor: crosshair;
 }
 
+.editor-viewport[data-draw-state='armed'],
+.editor-viewport[data-draw-state='drawing'] {
+  cursor: crosshair;
+}
+
 .editor-viewport[data-selection-state='moving'] {
   cursor: move;
 }
@@ -1245,6 +1250,15 @@ p {
 
 [data-marquee-mode='intersecting'] .marquee-overlay__rectangle {
   stroke-dasharray: var(--space-1) var(--space-1);
+}
+
+.control-draw-overlay__frame {
+  pointer-events: none;
+  fill: var(--color-accent);
+  fill-opacity: var(--opacity-selection-fill);
+  stroke: var(--color-accent-strong);
+  stroke-dasharray: var(--space-2) var(--space-1);
+  stroke-width: calc(var(--border-width) * 2);
 }
 
 .editor-dom-overlay {

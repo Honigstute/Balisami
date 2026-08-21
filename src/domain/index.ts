@@ -90,6 +90,7 @@ export {
   CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
   getControlSpec,
+  getControlSpecByDrawShortcut,
   listPaletteControlSpecs,
   listControlSpecs,
 } from './controls/control-spec';

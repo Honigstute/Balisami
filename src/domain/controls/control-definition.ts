@@ -35,6 +35,8 @@ export interface ControlAutoSizePolicy {
 
 export interface ControlPaletteMetadata {
   readonly category: ControlCategory;
+  /** Physical key held while drawing this control, or null when unsupported. */
+  readonly drawShortcut: string | null;
   readonly label: string;
   readonly order: number;
 }
@@ -208,6 +210,7 @@ export const assertControlDefinitionsConform = (
 ): void => {
   const types = new Set<string>();
   const paletteOrders = new Set<number>();
+  const drawShortcuts = new Set<string>();
 
   for (const definition of definitions) {
     if (types.has(definition.type)) {
@@ -373,14 +376,22 @@ export const assertControlDefinitionsConform = (
     }
 
     if (definition.palette !== null) {
+      const drawShortcut = definition.palette.drawShortcut;
       if (
         definition.palette.label.trim().length === 0 ||
         !Number.isSafeInteger(definition.palette.order) ||
-        paletteOrders.has(definition.palette.order)
+        paletteOrders.has(definition.palette.order) ||
+        (drawShortcut !== null &&
+          (!/^Key[A-Z]$/u.test(drawShortcut) ||
+            drawShortcuts.has(drawShortcut) ||
+            definition.capabilities.resizeAxes !== 'both'))
       ) {
         throw new Error(`Control '${definition.type}' has invalid palette metadata.`);
       }
       paletteOrders.add(definition.palette.order);
+      if (drawShortcut !== null) {
+        drawShortcuts.add(drawShortcut);
+      }
     }
 
     if (definition.migrations.length !== definition.fileVersion - 1) {

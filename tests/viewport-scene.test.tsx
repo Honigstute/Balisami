@@ -14,6 +14,8 @@ import {
 import type { ViewportAlignmentCommand } from '../src/renderer/editor/viewport-input';
 import { CONTROL_TYPES, ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
 import { CONTROL_DRAG_MIME_TYPE } from '../src/renderer/controls/control-drag-transfer';
+import { ControlDrawOverlay } from '../src/renderer/editor/ControlDrawOverlay';
+import { ControlDrawInteraction } from '../src/renderer/editor/control-draw-interaction';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
 import type { MoveTargetCapture } from '../src/renderer/editor/move-geometry';
 import { resolveSnap } from '../src/renderer/editor/snap-engine';
@@ -149,6 +151,65 @@ describe('viewport scene layers', () => {
     expect(worldLayer).toHaveAttribute('transform', 'matrix(1.5 0 0 1.5 120 -45)');
     expect(root).toHaveAttribute('data-camera-revision', '2');
     expect(worldRenderCount).toBe(1);
+    store.dispose();
+  });
+
+  it('draws a registry-supported control through exact transformed release geometry', () => {
+    mockViewportBounds();
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const commit = vi.fn(() => true);
+    const drawInteraction = new ControlDrawInteraction({ commit });
+    const view = render(
+      <ViewportScene
+        camera={store}
+        drawInteraction={drawInteraction}
+        interactionChildren={<ControlDrawOverlay camera={store} interaction={drawInteraction} />}
+      />,
+    );
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    const overlay = view.container.querySelector<SVGGElement>('[data-control-draw-overlay]');
+    const frame = overlay?.querySelector('rect');
+    if (root === null || overlay === null || frame === null) {
+      throw new Error('Control draw fixture did not mount.');
+    }
+    scheduler.flushNext();
+    store.scheduleTransform(createViewportTransform({ panX: 40, panY: 20, zoom: 2 }));
+    scheduler.flushNext();
+
+    fireEvent.keyDown(root, { code: 'KeyR', key: 'r' });
+    expect(root).toHaveAttribute('data-draw-state', 'armed');
+    fireEvent.pointerDown(root, { button: 0, clientX: 100, clientY: 100, pointerId: 81 });
+    fireEvent.pointerMove(root, { clientX: 260, clientY: 220, pointerId: 81 });
+
+    expect(root).toHaveAttribute('data-draw-state', 'drawing');
+    expect(root).toHaveAttribute('data-selection-state', 'idle');
+    expect(overlay).not.toHaveAttribute('display');
+    expect(frame).toHaveAttribute('x', '100');
+    expect(frame).toHaveAttribute('y', '100');
+    expect(frame).toHaveAttribute('width', '160');
+    expect(frame).toHaveAttribute('height', '120');
+
+    fireEvent.pointerUp(window, { button: 0, clientX: 280, clientY: 240, pointerId: 81 });
+
+    expect(commit).toHaveBeenCalledOnce();
+    expect(commit).toHaveBeenCalledWith(CONTROL_TYPES.rectangle, {
+      x: 30,
+      y: 40,
+      width: 90,
+      height: 70,
+    });
+    expect(root).toHaveAttribute('data-draw-state', 'armed');
+    expect(overlay).toHaveAttribute('display', 'none');
+    fireEvent.keyUp(window, { code: 'KeyR', key: 'r' });
+    expect(root).toHaveAttribute('data-draw-state', 'idle');
+
+    fireEvent.keyDown(root, { code: 'KeyI', key: 'i' });
+    fireEvent.pointerDown(root, { button: 0, clientX: 200, clientY: 180, pointerId: 82 });
+    fireEvent.pointerMove(root, { clientX: 300, clientY: 260, pointerId: 82 });
+    fireEvent.keyDown(root, { code: 'Escape', key: 'Escape' });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(root).toHaveAttribute('data-draw-state', 'idle');
     store.dispose();
   });
 

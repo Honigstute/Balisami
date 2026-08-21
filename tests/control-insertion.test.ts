@@ -10,7 +10,7 @@ import {
   listPaletteControlSpecs,
 } from '../src/domain';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
-import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
+import { createWorldPoint, createWorldRect } from '../src/renderer/editor/viewport-transform';
 
 describe('registry-backed control insertion', () => {
   it('creates every palette control through the canonical command boundary', () => {
@@ -97,5 +97,40 @@ describe('registry-backed control insertion', () => {
     });
 
     expect(dragged?.element.frame).toEqual({ height: 40, width: 120, x: 340, y: 280 });
+  });
+
+  it('preserves an exact registry-constrained draw frame in the single create command', () => {
+    const boardId = BoardIdSchema.parse('board_controldraw');
+    const created = createEmptyProjectDocument({
+      boardId,
+      projectId: ProjectIdSchema.parse('project_controldraw'),
+    });
+    if (!created.ok) {
+      throw new Error('Draw insertion fixture is invalid.');
+    }
+    const frame = createWorldRect(40, 50, 260, 180);
+    const command = createControlInsertionCommand({
+      boardId,
+      center: createWorldPoint(170, 140),
+      controlType: CONTROL_TYPES.rectangle,
+      document: created.value,
+      elementId: ElementIdSchema.parse('element_drawncontrol'),
+      frame,
+      placement: 'exact',
+    });
+
+    expect(command?.element.frame).toBe(frame);
+    expect(command?.element.controlType).toBe(CONTROL_TYPES.rectangle);
+    expect(
+      createControlInsertionCommand({
+        boardId,
+        center: createWorldPoint(0, 0),
+        controlType: CONTROL_TYPES.rectangle,
+        document: created.value,
+        elementId: ElementIdSchema.parse('element_invaliddraw'),
+        frame: createWorldRect(0, 0, 1, 1),
+        placement: 'exact',
+      }),
+    ).toBeUndefined();
   });
 });

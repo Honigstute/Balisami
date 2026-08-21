@@ -161,6 +161,41 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: 'Redo Insert Button' })).toBeEnabled();
   });
 
+  it('draws one registry-supported control as one exact undoable history entry', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    const canvas = await screen.findByRole('main', { name: 'Canvas viewport' });
+    const viewport = canvas.querySelector<HTMLElement>('.editor-viewport');
+    if (viewport === null) {
+      throw new Error('Editor viewport did not mount.');
+    }
+
+    fireEvent.keyDown(viewport, { code: 'KeyR', key: 'r' });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 80, clientY: 90, pointerId: 90 });
+    fireEvent.pointerMove(viewport, { clientX: 300, clientY: 250, pointerId: 90 });
+    fireEvent.pointerUp(viewport, { button: 0, clientX: 320, clientY: 270, pointerId: 90 });
+    fireEvent.keyUp(window, { code: 'KeyR', key: 'r' });
+
+    const undo = await screen.findByRole('button', { name: 'Undo Draw Rectangle' });
+    expect(undo).toBeEnabled();
+    expect(screen.getByRole('heading', { name: 'Rectangle' })).toBeInTheDocument();
+    fireEvent.click(undo);
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Redo Draw Rectangle' })).toBeEnabled();
+  });
+
   it('keeps the project home behind one explicit startup recovery decision', async () => {
     const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
       status: 'cancelled',

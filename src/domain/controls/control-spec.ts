@@ -88,7 +88,8 @@ const createPalette = (
   label: string,
   category: ControlPaletteMetadata['category'],
   order: number,
-): ControlPaletteMetadata => Object.freeze({ category, label, order });
+  drawShortcut: string | null = null,
+): ControlPaletteMetadata => Object.freeze({ category, drawShortcut, label, order });
 
 const createText = (
   alignment: ControlTextCapability['alignment'],
@@ -224,7 +225,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     export: createExport('scene'),
     minimumSize: createSize(24, 24),
     maximumSize: null,
-    palette: createPalette('Rectangle', 'Common', 10),
+    palette: createPalette('Rectangle', 'Common', 10, 'KeyR'),
     propertiesSchema: ElementPropertiesSchema,
     scene: createScene('rectangle', []),
     tags: ['container', 'panel'],
@@ -374,7 +375,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ]),
     minimumSize: createSize(24, 24),
     maximumSize: null,
-    palette: createPalette('Image', 'Assets', 60),
+    palette: createPalette('Image', 'Assets', 60, 'KeyI'),
     propertiesSchema: imagePlaceholderPropertiesSchema,
     scene: createScene('image', ['showBorder']),
     tags: ['asset', 'placeholder'],
@@ -526,9 +527,18 @@ assertControlDefinitionsConform(CONTROL_DEFINITIONS);
 const CONTROL_DEFINITION_BY_TYPE = new Map<string, ControlDefinition>(
   CONTROL_DEFINITIONS.map((definition) => [definition.type, definition]),
 );
+const CONTROL_DEFINITION_BY_DRAW_SHORTCUT = new Map<string, ControlDefinition>(
+  CONTROL_DEFINITIONS.flatMap((definition) => {
+    const shortcut = definition.palette?.drawShortcut;
+    return shortcut === null || shortcut === undefined ? [] : [[shortcut, definition] as const];
+  }),
+);
 
 export const getControlSpec = (type: string): ControlDefinition | undefined =>
   CONTROL_DEFINITION_BY_TYPE.get(type);
+
+export const getControlSpecByDrawShortcut = (code: string): ControlDefinition | undefined =>
+  CONTROL_DEFINITION_BY_DRAW_SHORTCUT.get(code);
 
 export const listControlSpecs = (): readonly ControlDefinition[] => CONTROL_DEFINITIONS;
 

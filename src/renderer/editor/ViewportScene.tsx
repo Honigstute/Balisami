@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, type DragEvent, type ReactNode } from 'react';
 import type { ControlTypeId } from '../../domain';
 import { CONTROL_DRAG_MIME_TYPE, parseDraggedControlType } from '../controls/control-drag-transfer';
 
+import type { ControlDrawInteraction } from './control-draw-interaction';
 import type { KeyboardNudgeInteraction } from './keyboard-nudge-interaction';
 import { SCENE_LAYER_ATTRIBUTE, SCENE_LAYERS } from './scene-layers';
 import type { SelectionInteraction } from './selection-interaction';
@@ -21,6 +22,7 @@ import {
 
 interface ViewportSceneProps {
   readonly camera: ViewportCameraStore;
+  readonly drawInteraction?: ControlDrawInteraction;
   readonly domChildren?: ReactNode;
   readonly interactionChildren?: ReactNode;
   readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
@@ -78,6 +80,7 @@ export const ViewportEmptyState = () => (
 export const ViewportScene = ({
   camera,
   domChildren,
+  drawInteraction,
   interactionChildren,
   keyboardNudgeInteraction,
   onAlignSelection,
@@ -166,6 +169,7 @@ export const ViewportScene = ({
       ...(onCopySelection === undefined ? {} : { copySelection: onCopySelection }),
       ...(onCutSelection === undefined ? {} : { cutSelection: onCutSelection }),
       ...(onDeleteSelection === undefined ? {} : { deleteSelection: onDeleteSelection }),
+      ...(drawInteraction === undefined ? {} : { drawInteraction }),
       ...(onDuplicateSelection === undefined ? {} : { duplicateSelection: onDuplicateSelection }),
       ...(onGroupSelection === undefined ? {} : { groupSelection: onGroupSelection }),
       ...(onLockSelection === undefined ? {} : { lockSelection: onLockSelection }),
@@ -190,6 +194,7 @@ export const ViewportScene = ({
     return () => input.disconnect();
   }, [
     camera,
+    drawInteraction,
     keyboardNudgeInteraction,
     onAlignSelection,
     onBringSelectionForward,

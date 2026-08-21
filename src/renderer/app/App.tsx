@@ -38,6 +38,8 @@ import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { ProjectHome } from '../projects/ProjectHome';
 import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
+import { ControlDrawOverlay } from '../editor/ControlDrawOverlay';
+import { ControlDrawInteraction } from '../editor/control-draw-interaction';
 import {
   countRenderableBoardElements,
   DocumentSceneModel,
@@ -97,6 +99,7 @@ import { ViewportZoomControls } from '../editor/ViewportZoomControls';
 import { createBrowserAnimationFrameScheduler } from '../editor/viewport-camera-store';
 import {
   createViewportPoint,
+  createWorldPoint,
   createWorldVector,
   viewportPointToWorld,
   worldRectToViewport,
@@ -149,6 +152,70 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     const clipboard = new SelectionClipboardStore();
     const model = new DocumentSceneModel();
     const selection = new SelectionStore();
+    const commitControlInsertion = (
+      controlType: ControlTypeId,
+      input: Readonly<{
+        center: WorldPoint;
+        frame?: WorldRect;
+        placement?: 'cascade' | 'exact';
+        verb: 'Draw' | 'Insert';
+      }>,
+    ) => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const boardId = currentDocument?.boardIds[0];
+      const elementId = allocateEditorElementId();
+      if (currentDocument === undefined || boardId === undefined || elementId === undefined) {
+        return undefined;
+      }
+      const command = createControlInsertionCommand({
+        boardId,
+        center: input.center,
+        controlType,
+        document: currentDocument,
+        elementId,
+        ...(input.frame === undefined ? {} : { frame: input.frame }),
+        ...(input.placement === undefined ? {} : { placement: input.placement }),
+      });
+      if (command === undefined) {
+        return undefined;
+      }
+      const result = session.dispatch(command, {
+        label: `${input.verb} ${getControlSpec(controlType)?.palette?.label ?? 'control'}`,
+      });
+      if (
+        result?.ok !== true ||
+        !result.changed ||
+        result.history.document.elementsById[elementId] === undefined
+      ) {
+        return undefined;
+      }
+      selection.selectOnly(elementId);
+      return elementId;
+    };
+    const insertControlAtFrame = (controlType: ControlTypeId, frame: WorldRect) =>
+      commitControlInsertion(controlType, {
+        center: createWorldPoint(frame.x + frame.width / 2, frame.y + frame.height / 2),
+        frame,
+        placement: 'exact',
+        verb: 'Draw',
+      });
+    const insertControl = (controlType: ControlTypeId, requestedCenter?: WorldPoint) => {
+      const viewport = camera.getViewportSnapshot();
+      const center =
+        requestedCenter ??
+        viewportPointToWorld(
+          createViewportPoint(viewport.width / 2, viewport.height / 2),
+          camera.getTransformSnapshot(),
+        );
+      return commitControlInsertion(controlType, {
+        center,
+        ...(requestedCenter === undefined ? {} : { placement: 'exact' }),
+        verb: 'Insert',
+      });
+    };
+    const drawInteraction = new ControlDrawInteraction({
+      commit: (controlType, frame) => insertControlAtFrame(controlType, frame) !== undefined,
+    });
     const textEditInteraction = new TextEditInteraction({
       capture: (elementId) => {
         const currentDocument = session.getSnapshot().history?.document;
@@ -464,44 +531,6 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         ? false
         : arrangeSelectedElements(currentDocument, selection, action, arrangementSource);
     };
-    const insertControl = (controlType: ControlTypeId, requestedCenter?: WorldPoint) => {
-      const currentDocument = session.getSnapshot().history?.document;
-      const boardId = currentDocument?.boardIds[0];
-      const elementId = allocateEditorElementId();
-      if (currentDocument === undefined || boardId === undefined || elementId === undefined) {
-        return undefined;
-      }
-      const viewport = camera.getViewportSnapshot();
-      const center =
-        requestedCenter ??
-        viewportPointToWorld(
-          createViewportPoint(viewport.width / 2, viewport.height / 2),
-          camera.getTransformSnapshot(),
-        );
-      const command = createControlInsertionCommand({
-        boardId,
-        center,
-        controlType,
-        document: currentDocument,
-        elementId,
-        ...(requestedCenter === undefined ? {} : { placement: 'exact' }),
-      });
-      if (command === undefined) {
-        return undefined;
-      }
-      const result = session.dispatch(command, {
-        label: `Insert ${getControlSpec(controlType)?.palette?.label ?? 'control'}`,
-      });
-      if (
-        result?.ok !== true ||
-        !result.changed ||
-        result.history.document.elementsById[elementId] === undefined
-      ) {
-        return undefined;
-      }
-      selection.selectOnly(elementId);
-      return elementId;
-    };
     return Object.freeze({
       arrangeSelection,
       bringSelectionForward: () => layerSelection(SELECTION_LAYER_ACTIONS.bringForward),
@@ -509,6 +538,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       copySelection,
       cutSelection,
       deleteSelection,
+      drawInteraction,
       duplicateSelection,
       groupSelection,
       insertControl,
@@ -757,6 +787,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         canvas: (
           <ViewportScene
             camera={camera}
+            drawInteraction={editor.drawInteraction}
             {...(document === undefined
               ? {}
               : {
@@ -767,6 +798,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                         moveInteraction={editor.moveInteraction}
                         resizeInteraction={editor.resizeInteraction}
                       />
+                      <ControlDrawOverlay camera={camera} interaction={editor.drawInteraction} />
                       <SelectionOverlay
                         camera={camera}
                         keyboardNudgeInteraction={editor.keyboardNudgeInteraction}

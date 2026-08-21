@@ -89,6 +89,12 @@ describe('control definition registry', () => {
       defaultProperties: { showBorder: false },
       scene: { hitShape: { kind: 'bounds' }, kind: 'image' },
     });
+    expect(getControlSpec(CONTROL_TYPES.rectangle)?.palette).toMatchObject({
+      drawShortcut: 'KeyR',
+    });
+    expect(getControlSpec(CONTROL_TYPES.imagePlaceholder)?.palette).toMatchObject({
+      drawShortcut: 'KeyI',
+    });
     expect(getControlSpec(CONTROL_TYPES.browser)).toMatchObject({
       capabilities: { grouping: 'container', resizeAxes: 'both' },
       defaultProperties: { borderMode: 'visual-1', color: 'default', scrollbar: false },
@@ -103,13 +109,15 @@ describe('control definition registry', () => {
         strokeStyle: 'solid',
       },
       scene: { hitShape: { kind: 'line', tolerance: 6 }, kind: 'arrow' },
+      palette: { drawShortcut: null },
     });
   });
 
   it('rejects duplicate registrations and definitions with invalid defaults', () => {
     const checkbox = getControlSpec(CONTROL_TYPES.checkbox);
     const arrow = getControlSpec(CONTROL_TYPES.arrow);
-    if (checkbox === undefined || arrow === undefined) {
+    const rectangle = getControlSpec(CONTROL_TYPES.rectangle);
+    if (checkbox === undefined || arrow === undefined || rectangle === undefined) {
       throw new Error('Representative control definition is missing.');
     }
     expect(() => assertControlDefinitionsConform([checkbox, checkbox])).toThrow(/duplicate type/u);
@@ -208,6 +216,29 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/inspector field/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...arrow,
+          palette: {
+            ...(arrow.palette as NonNullable<typeof arrow.palette>),
+            drawShortcut: 'A',
+          },
+        },
+      ]),
+    ).toThrow(/palette metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        rectangle,
+        {
+          ...arrow,
+          palette: {
+            ...(arrow.palette as NonNullable<typeof arrow.palette>),
+            drawShortcut: 'KeyR',
+          },
+        },
+      ]),
+    ).toThrow(/palette metadata/u);
     expect(() =>
       assertControlDefinitionsConform([
         {
