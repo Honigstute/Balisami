@@ -126,6 +126,41 @@ If the terminal path reports a successful changed transaction and canonical geom
 - Disabling snapping globally when the failure is actually missed completion.
 - Swallowing command failure and removing the preview without a diagnostic signal.
 
+## Failure class: readiness signal precedes mutation availability
+
+### Observable pattern
+
+- The correct project or screen is visible, but an immediate create/edit action is ignored.
+- A deterministic startup or reopen workflow fails while the same action succeeds after a short delay.
+- Read-only assertions pass, yet the first validated command returns no result because a transition freeze is still active.
+
+### General mechanism
+
+Asynchronous replacement can publish the new canonical document before its transition-finalizer releases the mutation gate. If the public `ready` signal is derived only from document presence, consumers may act during this intermediate publication. The UI looks ready while the command authority correctly rejects input.
+
+### Required invariants
+
+- Public readiness means both canonical data is installed and the normal command boundary accepts work.
+- Transition/freeze state has one owner and is included in the readiness derivation rather than replicated in each consumer.
+- Consumers do not use timers or animation frames to guess when a transition has finished.
+- The transition publishes again after releasing its freeze.
+
+### Diagnostic procedure
+
+Trace every publication during startup/replacement with document presence, transition ownership, mutation-freeze state, readiness, and one harmless command result. A publication with `ready = true` and a rejected command confirms this class. If the command authority accepts work, inspect stale closures, IDs, validation, or document ownership instead.
+
+### Regression requirements
+
+- Hold the native replacement promise unresolved and assert readiness remains false and commands remain blocked.
+- Resolve the transition, then assert readiness becomes true and the same command is accepted.
+- Exercise at least one packaged immediate-action workflow without adding delay-based retries.
+
+### Common incomplete fixes
+
+- Delaying only the failing test or consumer.
+- Adding a second local `isLoading` flag instead of fixing the authoritative readiness selector.
+- Releasing the mutation freeze before the replacement is fully validated and installed.
+
 ## Entry template
 
 ```markdown

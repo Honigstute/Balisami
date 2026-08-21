@@ -197,6 +197,32 @@ const startNewSession = async (session: ProjectSession): Promise<void> => {
 };
 
 describe('renderer project session', () => {
+  it('does not report a project ready until its transition accepts renderer commands', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    let resolveStart:
+      ((result: Awaited<ReturnType<DesktopApi['startProject']>>) => void) | undefined;
+    desktop.startProject = () =>
+      new Promise((resolve) => {
+        resolveStart = resolve;
+      });
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+
+    const transition = session.startNewProject();
+    expect(session.getSnapshot()).toMatchObject({ isReady: false, isTransitioning: true });
+    expect(session.dispatch(setBoardNote('Blocked during transition'))).toBeUndefined();
+    resolveStart?.({
+      status: 'completed',
+      value: { assetsById: {}, displayName: document.name, document, source: 'new' },
+      warnings: [],
+    });
+    await transition;
+
+    expect(session.getSnapshot()).toMatchObject({ isReady: true, isTransitioning: false });
+    expect(session.dispatch(setBoardNote('Accepted after transition'))?.ok).toBe(true);
+  });
+
   it('waits at the project home and opens a recent project without creating an untitled one', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);

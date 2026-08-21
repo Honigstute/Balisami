@@ -876,7 +876,10 @@ export class ProjectSession {
       history,
       isClosing: this.#closingRequestId !== undefined,
       isDirty,
-      isReady: !this.#starting && history !== undefined,
+      // Ready means renderer commands are accepted, not merely that a document
+      // has arrived. Native project replacement publishes once before its
+      // transition finally releases the interaction freeze.
+      isReady: !this.#starting && !this.#interactionFrozen && history !== undefined,
       isSaving: this.#savePromise !== undefined,
       isTransitioning: this.#transitionPromise !== undefined,
       source: this.#source,
