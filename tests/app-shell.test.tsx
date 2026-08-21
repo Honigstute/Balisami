@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/renderer/app/App';
@@ -71,15 +71,36 @@ describe('application shell', () => {
     installDesktopApi(createDesktopApi({ reportRendererReady }));
   });
 
-  it('renders every stable shell region', async () => {
+  it('shows the project home before mounting the editor and starts new explicitly', async () => {
+    const fixtureDocument = createAssetFreeProjectDocument();
+    const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: fixtureDocument.name,
+        document: fixtureDocument,
+        source: 'new',
+      },
+      warnings: [],
+    });
+    installDesktopApi(createDesktopApi({ reportRendererReady, startProject }));
     render(<App />);
 
-    expect(screen.getByRole('banner')).toBeInTheDocument();
+    expect(await screen.findByText('No recent projects yet')).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: 'Canvas viewport' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Built for quick thinking')).not.toBeInTheDocument();
+    expect(startProject).not.toHaveBeenCalled();
+
+    const newProject = screen.getByRole('button', { name: 'New project' });
+    await waitFor(() => expect(newProject).toBeEnabled());
+    fireEvent.click(newProject);
+
+    expect(await screen.findByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Control categories' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Wireframes' })).toBeInTheDocument();
-    expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Inspector' })).toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'Control library is loading' })).toBeInTheDocument();
+    expect(startProject).toHaveBeenCalledOnce();
     for (const region of Object.values(SHELL_REGIONS)) {
       expect(document.querySelectorAll(`[${SHELL_REGION_ATTRIBUTE}="${region}"]`)).toHaveLength(1);
     }
@@ -97,7 +118,7 @@ describe('application shell', () => {
     });
   });
 
-  it('uses the Windows shortcut label when the desktop reports Windows', async () => {
+  it('uses the Windows shortcut label after a project is opened', async () => {
     installDesktopApi(
       createDesktopApi({
         getRuntimeInfo: vi.fn().mockResolvedValue({
@@ -112,14 +133,17 @@ describe('application shell', () => {
 
     render(<App />);
 
-    await waitFor(() => {
-      expect(screen.getByText('Windows · x64 · v0.1.0 · Packaged')).toBeInTheDocument();
-    });
+    await screen.findByText('No recent projects yet');
+    const newProject = screen.getByRole('button', { name: 'New project' });
+    expect(newProject).toBeEnabled();
+    fireEvent.click(newProject);
+
+    expect(await screen.findByText('Windows · x64 · v0.1.0 · Packaged')).toBeInTheDocument();
     expect(screen.getByText('Ctrl K')).toBeInTheDocument();
     expect(screen.queryByText('⌘ K')).not.toBeInTheDocument();
   });
 
-  it('keeps the shell mounted behind one explicit startup recovery decision', async () => {
+  it('keeps the project home behind one explicit startup recovery decision', async () => {
     const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
       status: 'cancelled',
     });
@@ -149,7 +173,8 @@ describe('application shell', () => {
     expect(
       await screen.findByRole('alertdialog', { name: 'Unsaved work is available' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: 'Canvas viewport' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Restore' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Discard' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Start New and Keep Recovery' })).toBeEnabled();
@@ -160,7 +185,7 @@ describe('application shell', () => {
     });
   });
 
-  it('keeps the shell mounted behind one bounded startup error overlay', async () => {
+  it('keeps the project home behind one bounded startup error overlay', async () => {
     installDesktopApi(
       createDesktopApi({
         getProjectStartupOptions: vi.fn().mockResolvedValue({
@@ -179,24 +204,60 @@ describe('application shell', () => {
     expect(
       await screen.findByRole('alertdialog', { name: 'Recovery could not be checked' }),
     ).toHaveAccessibleDescription('Existing recovery files were not changed.');
-    expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: 'Canvas viewport' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Start New' })).toHaveFocus();
   });
 
-  it('contains no enabled placeholder actions', () => {
+  it('opens the latest recent project directly from the home screen', async () => {
+    const document = createAssetFreeProjectDocument();
+    const recentProjectId = 'a'.repeat(64);
+    const openRecentProject = vi.fn<DesktopApi['openRecentProject']>().mockResolvedValue({
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: 'Launch plan',
+        document,
+        source: 'project-file',
+      },
+      warnings: [],
+    });
+    installDesktopApi(
+      createDesktopApi({
+        getProjectStartupOptions: vi.fn().mockResolvedValue({
+          status: 'completed',
+          value: {
+            ignoredRecoveryEvidenceCount: 0,
+            recentProjects: [
+              {
+                displayName: 'Launch plan',
+                id: recentProjectId,
+                lastOpenedAtEpochMs: 1_787_000_000_000,
+              },
+            ],
+            recoveries: [],
+          },
+          warnings: [],
+        }),
+        openRecentProject,
+      }),
+    );
     render(<App />);
 
-    for (const button of screen.getAllByRole('button')) {
-      if (button.hasAttribute('aria-expanded')) {
-        expect(button).toBeEnabled();
-      } else {
-        expect(button).toBeDisabled();
-      }
-    }
+    const recentProject = await screen.findByRole('button', { name: 'Open Launch plan' });
+    expect(screen.getByText('Last project')).toBeInTheDocument();
+    fireEvent.click(recentProject);
+
+    expect(await screen.findByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
+    expect(openRecentProject).toHaveBeenCalledWith({
+      currentProject: { dirty: false, projectDisplayName: 'No project open' },
+      recentProjectId,
+    });
+    expect(screen.getByText('Launch plan')).toBeInTheDocument();
   });
 
-  it('uses the reserved status strip when the bridge fails', async () => {
+  it('keeps a failed desktop bridge inside the project home', async () => {
     reportRendererReady = vi.fn<DesktopApi['reportRendererReady']>().mockResolvedValue(undefined);
     installDesktopApi(
       createDesktopApi({
@@ -210,11 +271,13 @@ describe('application shell', () => {
     await waitFor(() => {
       expect(screen.getByText('Desktop bridge unavailable')).toBeInTheDocument();
     });
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New project' })).toBeDisabled();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(reportRendererReady).not.toHaveBeenCalled();
   });
 
-  it('keeps renderer-readiness failure inside the reserved status strip', async () => {
+  it('keeps renderer-readiness failure inside the project home', async () => {
     installDesktopApi(
       createDesktopApi({
         getRuntimeInfo: vi.fn().mockResolvedValue({
@@ -232,6 +295,7 @@ describe('application shell', () => {
     await waitFor(() => {
       expect(screen.getByText('Desktop bridge unavailable')).toBeInTheDocument();
     });
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

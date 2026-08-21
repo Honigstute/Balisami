@@ -59,6 +59,17 @@ export interface ProjectSessionView {
   readonly isSaving: boolean;
   readonly isTransitioning: boolean;
   readonly source: ProjectOpenedValue['source'] | undefined;
+  readonly startup:
+    | {
+        readonly status: 'loading';
+      }
+    | {
+        readonly ignoredEvidenceCount: number;
+        readonly problem: UserOperationProblem | undefined;
+        readonly recentProjects: readonly RecentProjectSummary[];
+        readonly status: 'ready';
+      }
+    | undefined;
   readonly statusLabel: string;
   readonly statusTone: ProjectSaveTone;
 }
@@ -136,6 +147,8 @@ export class ProjectSession {
   #lastWarnings: readonly UserOperationWarning[] = Object.freeze([]);
   #recoveryRevision = 0;
   #recoveryState: RecoveryState = 'idle';
+  #recentProjects: readonly RecentProjectSummary[] = Object.freeze([]);
+  #ignoredRecoveryEvidenceCount = 0;
   #savePromise: Promise<void> | undefined;
   #startPromise: Promise<void> | undefined;
   #starting = true;
@@ -172,6 +185,9 @@ export class ProjectSession {
       const result = await this.#desktop.getProjectStartupOptions();
       if (result.status === 'completed') {
         this.#lastWarnings = result.warnings;
+        this.#recentProjects = result.value.recentProjects;
+        this.#ignoredRecoveryEvidenceCount = result.value.ignoredRecoveryEvidenceCount;
+        this.#starting = false;
         if (result.value.recoveries.length > 0) {
           this.#dialog = Object.freeze({
             ignoredEvidenceCount: result.value.ignoredRecoveryEvidenceCount,
@@ -181,7 +197,7 @@ export class ProjectSession {
           this.#publish();
           return;
         }
-        await this.#startNewProject();
+        this.#publish();
         return;
       }
       this.#lastProblem =
@@ -199,6 +215,7 @@ export class ProjectSession {
         message: 'Choose Start New to continue without changing existing recovery files.',
       };
     }
+    this.#starting = false;
     this.#dialog = Object.freeze({ kind: 'startup-problem', problem: this.#lastProblem });
     this.#publish();
   }
@@ -291,7 +308,9 @@ export class ProjectSession {
         }
         const recoveries = current.recoveries.filter((choice) => choice.id !== recoveryId);
         if (recoveries.length === 0) {
-          await this.#startNewProject();
+          this.#dialog = undefined;
+          this.#lastProblem = undefined;
+          this.#publish();
           return;
         }
         this.#dialog = Object.freeze({ ...current, recoveries: Object.freeze(recoveries) });
@@ -461,7 +480,7 @@ export class ProjectSession {
     ) => Promise<Awaited<ReturnType<DesktopApi['openProject']>>>,
   ): Promise<void> {
     if (this.#history === undefined) {
-      return Promise.resolve();
+      return this.#openFromHome(open);
     }
     return this.#runTransition(async () => {
       await this.#savePromise;
@@ -520,6 +539,36 @@ export class ProjectSession {
         if (restored.ok) {
           this.#history = restored.history;
         }
+      }
+      this.#publish();
+    });
+  }
+
+  #openFromHome(
+    open: (
+      currentProject: ProjectReplacementRequest,
+    ) => Promise<Awaited<ReturnType<DesktopApi['openProject']>>>,
+  ): Promise<void> {
+    return this.#runTransition(async () => {
+      this.#lastProblem = undefined;
+      this.#publish();
+      try {
+        const result = await open(
+          Object.freeze({ dirty: false, projectDisplayName: 'No project open' }),
+        );
+        if (result.status === 'completed') {
+          this.#installOpenedProject(result.value, result.warnings);
+          return;
+        }
+        if (result.status === 'failed') {
+          this.#lastProblem = result.problem;
+        }
+      } catch {
+        this.#lastProblem = {
+          code: 'open-failed',
+          title: 'The desktop open action did not finish',
+          message: 'No project was opened. Retry or start a new project.',
+        };
       }
       this.#publish();
     });
@@ -831,6 +880,17 @@ export class ProjectSession {
       isSaving: this.#savePromise !== undefined,
       isTransitioning: this.#transitionPromise !== undefined,
       source: this.#source,
+      startup:
+        history !== undefined
+          ? undefined
+          : this.#starting
+            ? Object.freeze({ status: 'loading' as const })
+            : Object.freeze({
+                ignoredEvidenceCount: this.#ignoredRecoveryEvidenceCount,
+                problem: this.#lastProblem,
+                recentProjects: this.#recentProjects,
+                status: 'ready' as const,
+              }),
       statusLabel,
       statusTone,
     });

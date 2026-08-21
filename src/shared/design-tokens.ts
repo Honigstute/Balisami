@@ -41,6 +41,7 @@ export const DESIGN_TOKENS = {
     bodySize: 13,
     titleSize: 14,
     lineHeight: 1.4,
+    displayLineHeight: 1.15,
     tracking: {
       compact: '0.01em',
       label: '0.04em',
@@ -168,6 +169,7 @@ export const DESIGN_TOKEN_CSS_VARIABLES = {
   '--font-size-body': px(DESIGN_TOKENS.font.bodySize),
   '--font-size-title': px(DESIGN_TOKENS.font.titleSize),
   '--line-height': String(DESIGN_TOKENS.font.lineHeight),
+  '--display-line-height': String(DESIGN_TOKENS.font.displayLineHeight),
   '--font-weight-regular': String(DESIGN_TOKENS.font.weight.regular),
   '--font-weight-medium': String(DESIGN_TOKENS.font.weight.medium),
   '--font-weight-semibold': String(DESIGN_TOKENS.font.weight.semibold),

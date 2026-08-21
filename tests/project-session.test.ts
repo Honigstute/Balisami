@@ -80,6 +80,7 @@ class FakeDesktopApi implements DesktopApi {
   readonly recoveryRequests: unknown[] = [];
   readonly saveRequests: ProjectHistorySnapshotRequest[] = [];
   readonly openRequests: unknown[] = [];
+  readonly recentOpenRequests: unknown[] = [];
 
   nextDiscard: ProjectRecoveryDiscardedResult | undefined;
   nextOpen: ProjectOpenedResult | undefined;
@@ -134,8 +135,10 @@ class FakeDesktopApi implements DesktopApi {
     return Promise.resolve(this.nextOpen ?? { status: 'cancelled' });
   };
 
-  openRecentProject: DesktopApi['openRecentProject'] = () =>
-    Promise.resolve({ status: 'cancelled' });
+  openRecentProject: DesktopApi['openRecentProject'] = (request) => {
+    this.recentOpenRequests.push(request);
+    return Promise.resolve(this.nextOpen ?? { status: 'cancelled' });
+  };
 
   respondToProjectClose = (response: ProjectCloseResponse): void => {
     this.closeResponses.push(response);
@@ -188,12 +191,70 @@ const setBoardNote = (text: string) => ({
   note: { text },
 });
 
+const startNewSession = async (session: ProjectSession): Promise<void> => {
+  await session.start();
+  await session.startNewProject();
+};
+
 describe('renderer project session', () => {
+  it('waits at the project home and opens a recent project without creating an untitled one', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const recentProjectId = 'a'.repeat(64);
+    desktop.nextStartup = {
+      status: 'completed',
+      value: {
+        ignoredRecoveryEvidenceCount: 0,
+        recentProjects: [
+          { displayName: 'Latest wireframe', id: recentProjectId, lastOpenedAtEpochMs: 100 },
+        ],
+        recoveries: [],
+      },
+      warnings: [],
+    };
+    desktop.nextOpen = {
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: 'Latest wireframe',
+        document,
+        source: 'project-file',
+      },
+      warnings: [],
+    };
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+
+    await session.start();
+
+    expect(session.getSnapshot()).toMatchObject({
+      history: undefined,
+      isReady: false,
+      startup: {
+        recentProjects: [{ displayName: 'Latest wireframe', id: recentProjectId }],
+        status: 'ready',
+      },
+    });
+
+    await session.openRecentProject(recentProjectId);
+
+    expect(desktop.recentOpenRequests).toEqual([
+      {
+        currentProject: { dirty: false, projectDisplayName: 'No project open' },
+        recentProjectId,
+      },
+    ]);
+    expect(session.getSnapshot()).toMatchObject({
+      displayName: 'Latest wireframe',
+      isReady: true,
+      startup: undefined,
+    });
+  });
+
   it('publishes undo and redo through the same history and recovery authority', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     const initialRecoveryCount = desktop.recoveryRequests.length;
 
     expect(session.dispatch(setBoardNote('Alpha history'))).toMatchObject({
@@ -251,7 +312,7 @@ describe('renderer project session', () => {
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     const selection = new SelectionStore();
     selection.replace([thirdId, DOCUMENT_FIXTURE_IDS.group, secondId], DOCUMENT_FIXTURE_IDS.group);
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -310,7 +371,7 @@ describe('renderer project session', () => {
     const document = parsed.value;
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -341,7 +402,7 @@ describe('renderer project session', () => {
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     const selection = new SelectionStore();
     selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -383,7 +444,7 @@ describe('renderer project session', () => {
     const selection = new SelectionStore();
     const cloneId = ElementIdSchema.parse('element_sessionclone1');
     selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -436,7 +497,7 @@ describe('renderer project session', () => {
     const clipboard = new SelectionClipboardStore();
     const cloneId = ElementIdSchema.parse('element_sessionpaste01');
     selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -496,7 +557,7 @@ describe('renderer project session', () => {
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     const scheduler = new TestAnimationFrameScheduler();
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     const nudge = new KeyboardNudgeInteraction(
@@ -557,7 +618,7 @@ describe('renderer project session', () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
 
     const result = session.dispatchTransaction(
       [
@@ -584,7 +645,7 @@ describe('renderer project session', () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     const interaction = new TextEditInteraction({
@@ -698,7 +759,7 @@ describe('renderer project session', () => {
     expect(session.getSnapshot().history?.document).toEqual(document);
   });
 
-  it('starts a new project only after the last recovery is explicitly discarded', async () => {
+  it('returns to the project home after the last recovery is explicitly discarded', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const recoveryId = 'e01a0907-b8dc-4991-8435-81b9bb0a9e16';
@@ -718,10 +779,11 @@ describe('renderer project session', () => {
 
     expect(session.getSnapshot()).toMatchObject({
       dialog: undefined,
-      isDirty: true,
-      isReady: true,
+      history: undefined,
+      isDirty: false,
+      isReady: false,
+      startup: { recentProjects: [], status: 'ready' },
     });
-    expect(session.getSnapshot().history?.document).toEqual(document);
   });
 
   it('keeps a failed recovery choice visible and reports one stable problem', async () => {
@@ -762,7 +824,7 @@ describe('renderer project session', () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
 
     expect(session.dispatch(setBoardNote('Captured by save'))?.ok).toBe(true);
     const deferred = createDeferred<ProjectSavedResult>();
@@ -800,7 +862,7 @@ describe('renderer project session', () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Keep this exact edit'));
     const before = session.getSnapshot().history;
 
@@ -836,7 +898,7 @@ describe('renderer project session', () => {
       warnings: [],
     };
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Old project edit'));
 
     await session.openProject();
@@ -855,7 +917,7 @@ describe('renderer project session', () => {
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     const unbind = session.bindDesktopEvents();
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Approved close snapshot'));
 
     desktop.emitCloseRequest({ requestId: 'close-1' });
@@ -884,7 +946,7 @@ describe('renderer project session', () => {
       warnings: [],
     });
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Unsaved'));
 
     await session.save();
@@ -899,7 +961,7 @@ describe('renderer project session', () => {
     const desktop = new FakeDesktopApi(document);
     desktop.nextSave = Promise.reject(new Error('private path: /Users/person/secret.project'));
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Unsaved'));
 
     await session.save();

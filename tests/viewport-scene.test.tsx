@@ -128,7 +128,10 @@ describe('viewport scene layers', () => {
         1,
       );
     }
-    expect(screen.getByText('Built for quick thinking')).toBeInTheDocument();
+    expect(screen.getByText('Your canvas is ready')).toBeInTheDocument();
+    expect(
+      screen.getByText('Choose a control from the library, or drag one directly onto the canvas.'),
+    ).toBeInTheDocument();
     expect(scheduler.callbacks.size).toBe(1);
     scheduler.flushNext();
 

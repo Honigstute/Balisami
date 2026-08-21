@@ -66,8 +66,8 @@ export const ViewportEmptyState = () => (
       <span className="canvas-empty__line" />
       <span className="canvas-empty__button" />
     </div>
-    <h1>Built for quick thinking</h1>
-    <p>The canvas, selection model, and smart guides attach here without changing the shell.</p>
+    <h1>Your canvas is ready</h1>
+    <p>Choose a control from the library, or drag one directly onto the canvas.</p>
   </div>
 );
 

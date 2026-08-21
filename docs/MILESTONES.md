@@ -1,7 +1,7 @@
 # Balsamic milestones
 
 Status: M9 active — library and interaction slice
-Last reviewed: 2026-08-21
+Last reviewed: 2026-08-22
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
 
@@ -461,8 +461,10 @@ Depends on: M8
 
 Objective: deliver the primary fast-create/edit loop visible in the references.
 
-Current progress (2026-08-21):
+Current progress (2026-08-22):
 
+- A product-priority startup-home slice now precedes further M9 work. Ordinary startup no longer creates or reveals an untitled editor document: it presents a full-window local project desk and waits for an explicit New Project, native Open, or path-free Recent Project choice. The newest recent entry is identified as the last project; empty, loading, operation-failure, and unavailable-desktop states retain the same screen geometry. Recovery remains a blocking decision above the project desk and a failed recovery/recent action stays visible on that decision surface without a second error banner.
+- The temporary “Built for quick thinking” milestone copy was removed from the empty editor canvas and replaced with direct placement guidance. The ordinary packaged smoke gate now validates the startup home's root, start, recent, and action geometry at minimum and normal native window sizes, while editor visual fixtures retain the existing strict shell-geometry gate. Focused verification passes 47 startup/session/canvas/token cases, strict TypeScript, affected-source lint, macOS arm64 packaging, and the startup-only packaged smoke. Its original-resolution startup capture was reviewed with a real latest-project row, enabled New/Open actions, contained recent-project scrolling, no editor flash, and no clipping at the checked sizes.
 - Every registry-backed shelf entry remains click-insertable and is now also a typed drag source. The viewport accepts only validated palette type IDs, converts the drop point through the canonical viewport transform once, and dispatches one exact-placement create command before selecting the new control. Click insertion retains its existing deterministic cascade while drag placement centers the control at the release point.
 - Accessible SVG scene roles no longer masquerade as editable DOM controls. A regression exercises click selection and a fast press-to-release Button drag with no intermediate pointer move, proving the exact release delta is flushed into one frame transaction with no pending animation-frame update. Marquee selection now consistently uses intersection in either drag direction, so touching a control is sufficient.
 - The fixed inspector header now derives its title from the selected registry definition or displays `<count> Controls` for a multi-selection. The duplicate identity section was removed from the scrolling body, long titles are contained with ellipsis, and the existing fixed grid track/internal scroll contract remains unchanged.

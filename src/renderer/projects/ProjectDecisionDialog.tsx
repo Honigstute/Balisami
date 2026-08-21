@@ -8,6 +8,7 @@ import {
   AppModalRow,
 } from '../design/AppModal';
 import type { ProjectSessionDialog } from './project-session';
+import type { UserOperationProblem } from '../../shared/user-operation';
 
 interface ProjectDecisionDialogProps {
   readonly busy: boolean;
@@ -18,6 +19,7 @@ interface ProjectDecisionDialogProps {
   readonly onOpenRecent: (recentProjectId: string) => void;
   readonly onRestoreRecovery: (recoveryId: string) => void;
   readonly onStartNew: () => void;
+  readonly problem?: UserOperationProblem;
 }
 
 const formatCaptureTime = (capturedAtEpochMs: number): string => {
@@ -44,6 +46,7 @@ export const ProjectDecisionDialog = ({
   onOpenRecent,
   onRestoreRecovery,
   onStartNew,
+  problem,
 }: ProjectDecisionDialogProps) => {
   if (dialog.kind === 'startup-problem') {
     return (
@@ -82,6 +85,11 @@ export const ProjectDecisionDialog = ({
           title="Recent projects"
           titleId="recent-projects-title"
         />
+        {problem === undefined ? null : (
+          <AppModalNotice>
+            {problem.title}: {problem.message}
+          </AppModalNotice>
+        )}
         {dialog.projects.length === 0 ? (
           <p className="app-modal__empty">No recent projects are available yet.</p>
         ) : (
@@ -125,6 +133,11 @@ export const ProjectDecisionDialog = ({
         title="Unsaved work is available"
         titleId="project-recovery-title"
       />
+      {problem === undefined ? null : (
+        <AppModalNotice>
+          {problem.title}: {problem.message}
+        </AppModalNotice>
+      )}
       {dialog.ignoredEvidenceCount > 0 ? (
         <AppModalNotice>
           {dialog.ignoredEvidenceCount} damaged recovery item

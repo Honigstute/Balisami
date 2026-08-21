@@ -34,6 +34,7 @@ import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
+import { ProjectHome } from '../projects/ProjectHome';
 import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
 import {
@@ -142,6 +143,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   });
   const { session, view } = project;
   const packagedProbeStarted = useRef(false);
+  const packagedProbeProjectStarted = useRef(false);
   const [editor] = useState(() => {
     const clipboard = new SelectionClipboardStore();
     const model = new DocumentSceneModel();
@@ -542,6 +544,18 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       : view.history?.document.boardsById[firstBoardId]?.note.text;
   useEffect(() => {
     if (
+      packagedProbeProjectStarted.current ||
+      !packagedProbeEnabled ||
+      view.startup?.status !== 'ready' ||
+      view.dialog !== undefined
+    ) {
+      return;
+    }
+    packagedProbeProjectStarted.current = true;
+    void session.startNewProject();
+  }, [packagedProbeEnabled, session, view.dialog, view.startup]);
+  useEffect(() => {
+    if (
       packagedProbeStarted.current ||
       !packagedProbeEnabled ||
       !view.isReady ||
@@ -655,6 +669,43 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       }),
     [editor],
   );
+  const projectDecisionOverlay =
+    view.dialog === undefined ? undefined : (
+      <ProjectDecisionDialog
+        busy={view.isTransitioning}
+        dialog={view.dialog}
+        onDismiss={() => session.dismissDialog()}
+        onDiscardRecovery={(recoveryId) => void session.discardRecovery(recoveryId)}
+        onOpenFile={() => void session.openProject()}
+        onOpenRecent={(recentProjectId) => void session.openRecentProject(recentProjectId)}
+        onRestoreRecovery={(recoveryId) => void session.restoreRecovery(recoveryId)}
+        onStartNew={() => void session.startNewProject()}
+        {...(view.startup?.status !== 'ready' || view.startup.problem === undefined
+          ? {}
+          : { problem: view.startup.problem })}
+      />
+    );
+
+  if (document === undefined) {
+    return (
+      <ProjectHome
+        busy={view.isTransitioning}
+        onNewProject={() => void session.startNewProject()}
+        onOpenProject={() => void session.openProject()}
+        onOpenRecent={(recentProjectId) => void session.openRecentProject(recentProjectId)}
+        {...(projectDecisionOverlay === undefined ? {} : { overlay: projectDecisionOverlay })}
+        {...(view.dialog !== undefined ||
+        view.startup?.status !== 'ready' ||
+        view.startup.problem === undefined
+          ? {}
+          : { problem: view.startup.problem })}
+        {...(view.startup?.status === 'ready'
+          ? { recentProjects: view.startup.recentProjects }
+          : {})}
+      />
+    );
+  }
+
   return (
     <AppShell
       controlCategoryNavigation={{
@@ -680,20 +731,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         )
       }
       projectName={view.displayName}
-      projectOverlay={
-        view.dialog === undefined ? undefined : (
-          <ProjectDecisionDialog
-            busy={view.isTransitioning}
-            dialog={view.dialog}
-            onDismiss={() => session.dismissDialog()}
-            onDiscardRecovery={(recoveryId) => void session.discardRecovery(recoveryId)}
-            onOpenFile={() => void session.openProject()}
-            onOpenRecent={(recentProjectId) => void session.openRecentProject(recentProjectId)}
-            onRestoreRecovery={(recoveryId) => void session.restoreRecovery(recoveryId)}
-            onStartNew={() => void session.startNewProject()}
-          />
-        )
-      }
+      projectOverlay={projectDecisionOverlay}
       {...(packagedRecoveryRestore
         ? {
             projectProbeState: {
@@ -897,20 +935,28 @@ export const App = () => {
 
   if (runtime.status === 'loading') {
     return (
-      <AppShell
-        quickAddShortcut="Ctrl/Cmd K"
-        statusLabel="Connecting to desktop…"
-        statusTone="quiet"
+      <ProjectHome
+        busy
+        onNewProject={() => undefined}
+        onOpenProject={() => undefined}
+        onOpenRecent={() => undefined}
       />
     );
   }
 
   if (runtime.status === 'unavailable' || readinessFailed) {
     return (
-      <AppShell
-        quickAddShortcut="Ctrl/Cmd K"
-        statusLabel="Desktop bridge unavailable"
-        statusTone="problem"
+      <ProjectHome
+        busy
+        onNewProject={() => undefined}
+        onOpenProject={() => undefined}
+        onOpenRecent={() => undefined}
+        problem={{
+          code: 'unexpected-native-failure',
+          message: 'Restart the app to reconnect to the desktop project service.',
+          title: 'Desktop bridge unavailable',
+        }}
+        recentProjects={[]}
       />
     );
   }
