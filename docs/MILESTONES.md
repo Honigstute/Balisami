@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M9 active — library and interaction slice
+Status: M10 active — boards, notes, links, alternates, and presentation
 Last reviewed: 2026-08-22
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -455,7 +455,7 @@ Exit gate:
 - A normal new control is registered once and automatically becomes searchable, insertable, renderable, inspectable, serializable, migratable, thumbnail-capable, and exportable.
 - Representative controls round-trip without data loss and retain identical seeded sketch geometry across reopen.
 
-### [~] M9 — Library, quick add, drag-create, and schema-driven inspector
+### [x] M9 — Library, quick add, drag-create, and schema-driven inspector
 
 Depends on: M8
 
@@ -484,6 +484,10 @@ Current progress (2026-08-22):
 - Focused numeric/overlay verification passes 31 keyboard-draft, registry-conformance, application-control, listbox, color, inspector, and design-token cases across six directly affected test files, plus strict TypeScript, affected-source lint, and the dependency-boundary guard. No package or broad visual matrix was run before the M9 exit-gate audit.
 - The M9 exit audit confirmed that all eight representative definitions share the registry-backed find/insert, exact hit/scene, generic transform/snap, validated command/history, delete, deterministic file round-trip, accessibility, thumbnail, and export-projection paths. The complete local source gate passes 96 files / 620 tests across 171 source modules with formatting, lint, boundaries, strict TypeScript, and zero runtime vulnerabilities. The macOS arm64 package, fuse readback, startup smoke, and complete 27-case visual/scale matrix pass; original-resolution startup, registry-control, application-control, and popover artifacts were reviewed with fixed shell tracks, all eight shelf/scene controls, contained inspector content, and no clipping or renderer error.
 - The packaged create/edit/undo/redo/save/close/reopen audit exposed one genuine startup-home integration race: the new document was briefly published as ready while its project-transition mutation freeze still rejected the probe's immediate insertions. Project-session readiness now includes mutation availability at its single owner. A focused 31-case session/app/workflow regression set passes, and the rebuilt package completes the 921-byte save/reopen workflow without delay-based retries. The packaged viewport budget also passes at 0.70 ms p95 frame work and 17.30 ms p95 input latency. The reusable failure mechanic and diagnostic procedure are recorded in `docs/TROUBLESHOOTING.md`.
+
+Completion evidence (2026-08-22):
+
+- Commit `b3d70f1` passed both final [push Quality run 32534570806](https://github.com/Honigstute/Balisami/actions/runs/32534570806) and independent [PR Quality run 32534573930](https://github.com/Honigstute/Balisami/actions/runs/32534573930) on native macOS 26 arm64 and Windows 2025 x64. All four jobs passed source verification, package and Electron fuse verification, packaged smoke, the 27-case visual/scale matrix, viewport performance, create/edit/undo/redo/save/close/reopen workflow, forced-crash recovery, and native alpha artifact creation/upload.
 
 Deliverables:
 
@@ -601,4 +605,4 @@ Exit gate:
 
 ## Next action
 
-M9 is implementation-complete locally. The next integration gate is the final native macOS/Windows CI run for this branch; after it passes, mark M9 complete and activate M10 board/navigation work. Visible icon picking remains M11 work because its persisted `iconId` contract is not present in the current representative schemas. The Arrow draw shortcut remains deferred until its persisted endpoint-direction contract is evidence-backed. M8's other documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.
+Start M10 with the existing validated board command/document seams: make navigator board selection session-owned and keyboard-accessible while preserving the fixed shell, then add one focused CRUD vertical slice through the existing command boundary. Define alternate-version rules before implementing alternates. Visible icon picking remains M11 work because its persisted `iconId` contract is not present in the current representative schemas. The Arrow draw shortcut remains deferred until its persisted endpoint-direction contract is evidence-backed. M8's other documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.
