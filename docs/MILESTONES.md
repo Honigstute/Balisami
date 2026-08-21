@@ -508,6 +508,10 @@ Depends on: M9
 
 Objective: turn the single-board editor into a useful wireframing project.
 
+Current progress (2026-08-22):
+
+- Board selection now has one session-only owner rather than being derived from board order. Navigator click plus Arrow, Home, and End navigation select the active board without creating document history or dirty state; selection changes cancel element interaction/editing and clear element selection before the active scene changes. Every active-board canvas path now uses that session choice, while document replacement and future board deletion reconcile deterministically to the first remaining canonical board. The fixed navigator/shell geometry remains unchanged.
+
 Deliverables:
 
 - Navigator CRUD, rename, reorder, duplicate, thumbnails, keyboard navigation, and recoverable trash/delete behavior.

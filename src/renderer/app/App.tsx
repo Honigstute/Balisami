@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
@@ -35,6 +35,7 @@ import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { ProjectHome } from '../projects/ProjectHome';
+import { ActiveBoardStore } from '../projects/active-board-store';
 import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
 import { ControlDrawOverlay } from '../editor/ControlDrawOverlay';
@@ -149,6 +150,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   const packagedProbeProjectStarted = useRef(false);
   const [editor] = useState(() => {
     const clipboard = new SelectionClipboardStore();
+    const activeBoard = new ActiveBoardStore();
     const model = new DocumentSceneModel();
     const selection = new SelectionStore();
     const commitControlInsertion = (
@@ -161,7 +163,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       }>,
     ) => {
       const currentDocument = session.getSnapshot().history?.document;
-      const boardId = currentDocument?.boardIds[0];
+      const boardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
       const elementId = allocateEditorElementId();
       if (currentDocument === undefined || boardId === undefined || elementId === undefined) {
         return undefined;
@@ -501,7 +503,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     };
     const unlockAll = (): boolean => {
       const currentDocument = session.getSnapshot().history?.document;
-      const activeBoardId = currentDocument?.boardIds[0];
+      const activeBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
       return currentDocument === undefined || activeBoardId === undefined
         ? false
         : unlockAllBoardElements(currentDocument, activeBoardId, lockingSource);
@@ -532,6 +534,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     };
     return Object.freeze({
       arrangeSelection,
+      activeBoard,
       bringSelectionForward: () => layerSelection(SELECTION_LAYER_ACTIONS.bringForward),
       bringSelectionToFront: () => layerSelection(SELECTION_LAYER_ACTIONS.bringToFront),
       copySelection,
@@ -557,21 +560,44 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       unlockAll,
     });
   });
-  const firstBoardId = view.history?.document.boardIds[0];
   const document = view.history?.document;
+  const selectedBoardId = useSyncExternalStore(
+    editor.activeBoard.subscribe,
+    editor.activeBoard.getSnapshot,
+    editor.activeBoard.getSnapshot,
+  );
+  const activeBoardId =
+    selectedBoardId !== undefined && document?.boardIds.includes(selectedBoardId)
+      ? selectedBoardId
+      : document?.boardIds[0];
   const hasRenderableElements = useMemo(
-    () => document !== undefined && countRenderableBoardElements(document, firstBoardId) > 0,
-    [document, firstBoardId],
+    () => document !== undefined && countRenderableBoardElements(document, activeBoardId) > 0,
+    [activeBoardId, document],
   );
   const boardBounds = useMemo(
     () =>
-      document === undefined ? undefined : getRenderableBoardWorldBounds(document, firstBoardId),
-    [document, firstBoardId],
+      document === undefined ? undefined : getRenderableBoardWorldBounds(document, activeBoardId),
+    [activeBoardId, document],
   );
-  const firstBoardNote =
-    firstBoardId === undefined
+  const activeBoardNote =
+    activeBoardId === undefined
       ? undefined
-      : view.history?.document.boardsById[firstBoardId]?.note.text;
+      : view.history?.document.boardsById[activeBoardId]?.note.text;
+  const selectActiveBoard = useCallback(
+    (boardId: NonNullable<typeof activeBoardId>): void => {
+      if (!editor.activeBoard.select(boardId)) {
+        return;
+      }
+      editor.keyboardNudgeInteraction.cancel();
+      editor.selectionInteraction.cancelPress();
+      editor.textEditInteraction.cancel();
+      editor.selection.clear();
+    },
+    [editor],
+  );
+  useEffect(() => {
+    editor.activeBoard.reconcile(document?.boardIds ?? []);
+  }, [document, editor]);
   useEffect(() => {
     if (
       packagedProbeProjectStarted.current ||
@@ -590,7 +616,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       !packagedProbeEnabled ||
       !view.isReady ||
       view.history === undefined ||
-      firstBoardId === undefined
+      activeBoardId === undefined
     ) {
       return;
     }
@@ -647,7 +673,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     editor.selection.selectOnly(buttonId);
     const noted = session.dispatch({
       type: DOCUMENT_COMMAND_TYPES.setBoardNote,
-      boardId: firstBoardId,
+      boardId: activeBoardId,
       note: { text: projectWorkflowProbeContract.note },
     });
     if (noted?.ok !== true || !noted.changed) {
@@ -667,7 +693,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         'true',
       );
     });
-  }, [camera, editor, firstBoardId, packagedProbeEnabled, session, view.history, view.isReady]);
+  }, [activeBoardId, camera, editor, packagedProbeEnabled, session, view.history, view.isReady]);
   useEffect(
     () =>
       editor.model.subscribe(() => {
@@ -769,7 +795,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               value: JSON.stringify({
                 isDirty: view.isDirty,
                 isReady: view.isReady,
-                note: firstBoardNote,
+                note: activeBoardNote,
                 source: view.source,
               }),
             },
@@ -847,7 +873,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               ? {
                   worldChildren: (
                     <DocumentScene
-                      activeBoardId={firstBoardId}
+                      activeBoardId={activeBoardId}
                       camera={camera}
                       document={document}
                       keyboardNudgeInteraction={editor.keyboardNudgeInteraction}
@@ -919,7 +945,13 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   selection={editor.selection}
                 />
               ),
-              navigator: <WireframeNavigator activeBoardId={firstBoardId} document={document} />,
+              navigator: (
+                <WireframeNavigator
+                  activeBoardId={activeBoardId}
+                  document={document}
+                  onSelectBoard={selectActiveBoard}
+                />
+              ),
               shelf: (
                 <ControlShelf
                   category={activeControlCategory}

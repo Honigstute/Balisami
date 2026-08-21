@@ -984,7 +984,13 @@ const RegistryControlInspectorFixture = () => {
 
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
-  return <WireframeNavigator activeBoardId={fixture.boardId} document={fixture.document} />;
+  return (
+    <WireframeNavigator
+      activeBoardId={fixture.boardId}
+      document={fixture.document}
+      onSelectBoard={() => undefined}
+    />
+  );
 };
 
 export const VisualConformanceFixture = ({
