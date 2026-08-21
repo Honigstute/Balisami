@@ -957,7 +957,7 @@ const AlphaInspectorFixture = () => {
     <ControlInspector
       document={fixture.document}
       onAutoSize={() => Promise.resolve(false)}
-      onSetFrame={() => false}
+      onSetFrames={() => false}
       onSetProperties={() => false}
       selection={selection}
     />
@@ -975,7 +975,7 @@ const RegistryControlInspectorFixture = () => {
     <ControlInspector
       document={fixture.document}
       onAutoSize={() => Promise.resolve(false)}
-      onSetFrame={() => false}
+      onSetFrames={() => false}
       onSetProperties={() => false}
       selection={selection}
     />

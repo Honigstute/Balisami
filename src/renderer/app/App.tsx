@@ -11,7 +11,6 @@ import {
   selectRedoLabel,
   selectUndoLabel,
   type ControlTypeId,
-  type ElementProperties,
   type WorldRect,
 } from '../../domain';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
@@ -889,27 +888,30 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     // Already-canonical geometry is a successful semantic no-op and adds no history.
                     return result?.ok === true;
                   }}
-                  onSetFrame={(elementId, frame: WorldRect) => {
-                    const result = session.dispatch(
-                      {
+                  onSetFrames={(updates) => {
+                    const result = session.dispatchTransaction(
+                      updates.map(({ elementId, frame }) => ({
                         type: DOCUMENT_COMMAND_TYPES.setElementFrame,
                         elementId,
                         frame,
+                      })),
+                      {
+                        coalesceKey: `inspector-frame:${String(editor.selection.getSnapshot().revision)}`,
+                        label: updates.length === 1 ? 'Edit geometry' : 'Edit control geometry',
                       },
-                      { coalesceKey: `inspector-frame:${elementId}`, label: 'Edit geometry' },
                     );
                     return result?.ok === true && result.changed;
                   }}
-                  onSetProperties={(elementId, properties: ElementProperties) => {
-                    const result = session.dispatch(
-                      {
+                  onSetProperties={(updates) => {
+                    const result = session.dispatchTransaction(
+                      updates.map(({ elementId, properties }) => ({
                         type: DOCUMENT_COMMAND_TYPES.setElementProperties,
                         elementId,
                         properties,
-                      },
+                      })),
                       {
-                        coalesceKey: `inspector-properties:${elementId}`,
-                        label: 'Edit properties',
+                        coalesceKey: `inspector-properties:${String(editor.selection.getSnapshot().revision)}`,
+                        label: updates.length === 1 ? 'Edit properties' : 'Edit control properties',
                       },
                     );
                     return result?.ok === true && result.changed;

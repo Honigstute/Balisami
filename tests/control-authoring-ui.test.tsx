@@ -4,15 +4,19 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   BoardIdSchema,
   CONTROL_TYPES,
+  DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
   createEmptyProjectDocument,
   dispatchDocumentCommand,
-  type ElementProperties,
   type ControlTypeId,
-  type WorldRect,
 } from '../src/domain';
-import { ControlInspector, ControlInspectorTitle } from '../src/renderer/controls/ControlInspector';
+import {
+  ControlInspector,
+  ControlInspectorTitle,
+  type ControlInspectorFrameUpdate,
+  type ControlInspectorPropertiesUpdate,
+} from '../src/renderer/controls/ControlInspector';
 import { ControlShelf } from '../src/renderer/controls/ControlShelf';
 import { CONTROL_DRAG_MIME_TYPE } from '../src/renderer/controls/control-drag-transfer';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
@@ -175,15 +179,17 @@ describe('alpha control authoring UI', () => {
     const { document, elementId } = createControlDocument();
     const selection = new SelectionStore();
     selection.selectOnly(elementId);
-    const onSetFrame = vi.fn<(id: typeof elementId, frame: WorldRect) => boolean>(() => true);
-    const onSetProperties = vi.fn<(id: typeof elementId, properties: ElementProperties) => boolean>(
+    const onSetFrames = vi.fn<(updates: readonly ControlInspectorFrameUpdate[]) => boolean>(
       () => true,
     );
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
     render(
       <ControlInspector
         document={document}
         onAutoSize={() => Promise.resolve(true)}
-        onSetFrame={onSetFrame}
+        onSetFrames={onSetFrames}
         onSetProperties={onSetProperties}
         selection={selection}
       />,
@@ -193,7 +199,7 @@ describe('alpha control authoring UI', () => {
     const x = screen.getByRole('spinbutton', { name: 'X' });
     fireEvent.change(x, { target: { value: '260' } });
     fireEvent.blur(x);
-    expect(onSetFrame).toHaveBeenCalledWith(elementId, expect.objectContaining({ x: 260 }));
+    expect(onSetFrames.mock.calls[0]?.[0]?.[0]).toMatchObject({ elementId, frame: { x: 260 } });
 
     const width = screen.getByRole('spinbutton', { name: 'Width' });
     fireEvent.change(width, { target: { value: '2' } });
@@ -203,48 +209,154 @@ describe('alpha control authoring UI', () => {
     const content = screen.getByRole('textbox', { name: 'Content' });
     fireEvent.change(content, { target: { value: 'Continue' } });
     fireEvent.blur(content);
-    expect(onSetProperties).toHaveBeenCalledWith(
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
       elementId,
-      expect.objectContaining({ text: 'Continue' }),
+      properties: { text: 'Continue' },
+    });
+  });
+
+  it('shows mixed values and emits one complete batch for shared multi-selection edits', () => {
+    const first = createControlDocument(CONTROL_TYPES.button);
+    const secondId = ElementIdSchema.parse('element_controlui_batch_second');
+    const inserted = dispatchDocumentCommand(
+      first.document,
+      createControlInsertionCommand({
+        boardId: first.document.boardIds[0]!,
+        center: createWorldPoint(500, 240),
+        controlType: CONTROL_TYPES.button,
+        document: first.document,
+        elementId: secondId,
+      }),
     );
+    if (!inserted.ok || !inserted.changed) {
+      throw new Error('Multi-inspector fixture control could not be inserted.');
+    }
+    const edited = dispatchDocumentCommand(inserted.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: secondId,
+      properties: { text: 'Secondary' },
+    });
+    if (!edited.ok || !edited.changed) {
+      throw new Error('Multi-inspector fixture control could not be edited.');
+    }
+    const selection = new SelectionStore();
+    selection.replace([first.elementId, secondId], secondId);
+    const onSetFrames = vi.fn<(updates: readonly ControlInspectorFrameUpdate[]) => boolean>(
+      () => true,
+    );
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={edited.document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={onSetFrames}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    const x = screen.getByRole('spinbutton', { name: /X\s*Mixed/u });
+    const content = screen.getByRole('textbox', { name: /Content\s*Mixed/u });
+    expect(x).toHaveValue(null);
+    expect(content).toHaveValue('');
+    fireEvent.blur(x);
+    fireEvent.blur(content);
+    expect(onSetFrames).not.toHaveBeenCalled();
+    expect(onSetProperties).not.toHaveBeenCalled();
+
+    fireEvent.change(x, { target: { value: '128' } });
+    fireEvent.blur(x);
+    const frameUpdates = onSetFrames.mock.calls[0]?.[0];
+    expect(frameUpdates).toHaveLength(2);
+    expect(frameUpdates?.[0]).toMatchObject({ elementId: first.elementId, frame: { x: 128 } });
+    expect(frameUpdates?.[1]).toMatchObject({ elementId: secondId, frame: { x: 128 } });
+
+    fireEvent.change(content, { target: { value: 'Shared' } });
+    fireEvent.blur(content);
+    const propertyUpdates = onSetProperties.mock.calls[0]?.[0];
+    expect(propertyUpdates).toHaveLength(2);
+    expect(propertyUpdates?.[0]).toMatchObject({
+      elementId: first.elementId,
+      properties: { text: 'Shared' },
+    });
+    expect(propertyUpdates?.[1]).toMatchObject({
+      elementId: secondId,
+      properties: { text: 'Shared' },
+    });
+  });
+
+  it('omits property fields that are not shared by every selected registry schema', () => {
+    const first = createControlDocument(CONTROL_TYPES.button);
+    const secondId = ElementIdSchema.parse('element_controlui_mixed_schema');
+    const inserted = dispatchDocumentCommand(
+      first.document,
+      createControlInsertionCommand({
+        boardId: first.document.boardIds[0]!,
+        center: createWorldPoint(500, 240),
+        controlType: CONTROL_TYPES.checkbox,
+        document: first.document,
+        elementId: secondId,
+      }),
+    );
+    if (!inserted.ok || !inserted.changed) {
+      throw new Error('Mixed-schema inspector fixture could not be inserted.');
+    }
+    const selection = new SelectionStore();
+    selection.replace([first.elementId, secondId], secondId);
+    render(
+      <ControlInspector
+        document={inserted.document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={() => true}
+        selection={selection}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Position' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Size' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Checked' })).not.toBeInTheDocument();
   });
 
   it('renders registry boolean fields without a checkbox-specific inspector branch', () => {
     const { document, elementId } = createControlDocument(CONTROL_TYPES.checkbox);
     const selection = new SelectionStore();
     selection.selectOnly(elementId);
-    const onSetProperties = vi.fn<(id: typeof elementId, properties: ElementProperties) => boolean>(
-      () => true,
-    );
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
     render(
       <ControlInspector
         document={document}
         onAutoSize={() => Promise.resolve(true)}
-        onSetFrame={() => true}
+        onSetFrames={() => true}
         onSetProperties={onSetProperties}
         selection={selection}
       />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Checked' }));
-    expect(onSetProperties).toHaveBeenCalledWith(
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
       elementId,
-      expect.objectContaining({ checked: true, text: 'Checkbox' }),
-    );
+      properties: { checked: true, text: 'Checkbox' },
+    });
   });
 
   it('renders Arrow choice and number fields through the generic inspector vocabulary', () => {
     const { document, elementId } = createControlDocument(CONTROL_TYPES.arrow);
     const selection = new SelectionStore();
     selection.selectOnly(elementId);
-    const onSetProperties = vi.fn<(id: typeof elementId, properties: ElementProperties) => boolean>(
-      () => true,
-    );
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
     render(
       <ControlInspector
         document={document}
         onAutoSize={() => Promise.resolve(true)}
-        onSetFrame={() => true}
+        onSetFrames={() => true}
         onSetProperties={onSetProperties}
         selection={selection}
       />,
@@ -252,17 +364,17 @@ describe('alpha control authoring UI', () => {
 
     expect(screen.getAllByRole('heading', { name: 'Arrow' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Visual 2' }));
-    expect(onSetProperties).toHaveBeenCalledWith(
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
       elementId,
-      expect.objectContaining({ routing: 'visual-2' }),
-    );
+      properties: { routing: 'visual-2' },
+    });
     const labelPosition = screen.getByRole('spinbutton', { name: 'Label Position' });
     fireEvent.change(labelPosition, { target: { value: '0.75' } });
     fireEvent.blur(labelPosition);
-    expect(onSetProperties).toHaveBeenCalledWith(
+    expect(onSetProperties.mock.calls[1]?.[0]?.[0]).toMatchObject({
       elementId,
-      expect.objectContaining({ labelPosition: 0.75 }),
-    );
+      properties: { labelPosition: 0.75 },
+    });
   });
 
   it('exposes the definition-owned Auto-Size action without a control-type branch', async () => {
@@ -276,7 +388,7 @@ describe('alpha control authoring UI', () => {
       <ControlInspector
         document={document}
         onAutoSize={onAutoSize}
-        onSetFrame={() => true}
+        onSetFrames={() => true}
         onSetProperties={() => true}
         selection={selection}
       />,

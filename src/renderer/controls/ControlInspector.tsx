@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
 
 import {
   getControlSpec,
@@ -13,12 +13,27 @@ import { AppButton } from '../design/AppButton';
 import { AppInput } from '../design/AppInput';
 import { AppSegmentedControl } from '../design/AppSegmentedControl';
 import type { SelectionStore } from '../editor/selection-store';
+import {
+  createControlInspectorModel,
+  type InspectorPrimitive,
+  type InspectorValue,
+} from './control-inspector-model';
+
+export interface ControlInspectorFrameUpdate {
+  readonly elementId: ElementId;
+  readonly frame: WorldRect;
+}
+
+export interface ControlInspectorPropertiesUpdate {
+  readonly elementId: ElementId;
+  readonly properties: ElementProperties;
+}
 
 interface ControlInspectorProps {
   readonly document: ProjectDocument;
   readonly onAutoSize: (elementId: ElementId) => Promise<boolean>;
-  readonly onSetFrame: (elementId: ElementId, frame: WorldRect) => boolean;
-  readonly onSetProperties: (elementId: ElementId, properties: ElementProperties) => boolean;
+  readonly onSetFrames: (updates: readonly ControlInspectorFrameUpdate[]) => boolean;
+  readonly onSetProperties: (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean;
   readonly selection: SelectionStore;
 }
 
@@ -33,7 +48,7 @@ interface InspectorNumberInputProps {
   readonly minimum?: number;
   readonly onCommit: (value: number) => boolean;
   readonly step?: number | 'any';
-  readonly value: number;
+  readonly value: InspectorValue<number>;
 }
 
 const formatInspectorNumber = (value: number): string =>
@@ -54,7 +69,7 @@ const InspectorNumberInput = ({
   step = 'any',
   value,
 }: InspectorNumberInputProps) => {
-  const canonical = formatInspectorNumber(value);
+  const canonical = value.value === undefined ? '' : formatInspectorNumber(value.value);
   const [draft, setDraft] = useState(canonical);
   const [validation, setValidation] = useState<string>();
 
@@ -64,6 +79,13 @@ const InspectorNumberInput = ({
   }, [canonical]);
 
   const commit = (): void => {
+    if (value.mixed && draft === canonical) {
+      return;
+    }
+    if (draft.trim().length === 0) {
+      setValidation('Enter a finite number.');
+      return;
+    }
     const parsed = Number(draft);
     if (
       !Number.isFinite(parsed) ||
@@ -79,7 +101,7 @@ const InspectorNumberInput = ({
       }
       return;
     }
-    if (parsed === value || onCommit(parsed)) {
+    if (parsed === value.value || onCommit(parsed)) {
       setDraft(formatInspectorNumber(parsed));
       setValidation(undefined);
       return;
@@ -94,6 +116,7 @@ const InspectorNumberInput = ({
       label={label}
       max={maximum}
       min={minimum}
+      mixed={value.mixed}
       onBlur={commit}
       onChange={(event) => setDraft(event.currentTarget.value)}
       onKeyDown={blurOnEnter}
@@ -107,24 +130,28 @@ const InspectorNumberInput = ({
 interface InspectorTextInputProps {
   readonly label: string;
   readonly onCommit: (value: string) => boolean;
-  readonly value: string;
+  readonly value: InspectorValue<string>;
 }
 
 const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps) => {
-  const [draft, setDraft] = useState(value);
+  const canonical = value.value ?? '';
+  const [draft, setDraft] = useState(canonical);
   const [validation, setValidation] = useState<string>();
 
   useEffect(() => {
-    setDraft(value);
+    setDraft(canonical);
     setValidation(undefined);
-  }, [value]);
+  }, [canonical]);
 
   const commit = (): void => {
-    if (draft === value || onCommit(draft)) {
+    if (value.mixed && draft === canonical) {
+      return;
+    }
+    if (draft === value.value || onCommit(draft)) {
       setValidation(undefined);
       return;
     }
-    setDraft(value);
+    setDraft(canonical);
     setValidation('The text could not be applied.');
   };
 
@@ -132,6 +159,7 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
     <AppInput
       label={label}
       maxLength={CONTROL_TEXT_POLICY.maximumLength}
+      mixed={value.mixed}
       onBlur={commit}
       onChange={(event) => setDraft(event.currentTarget.value)}
       onKeyDown={blurOnEnter}
@@ -144,44 +172,46 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
 interface InspectorPropertyFieldProps {
   readonly field: ControlInspectorPropertyField;
   readonly onCommit: (property: string, value: boolean | number | string) => boolean;
-  readonly value: boolean | number | string;
+  readonly value: InspectorValue<InspectorPrimitive>;
 }
 
 /** Property field kinds are registry vocabulary, not control-type branches. */
 const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFieldProps) => {
-  if (field.kind === 'boolean' && typeof value === 'boolean') {
+  if (field.kind === 'boolean' && (typeof value.value === 'boolean' || value.mixed)) {
     return (
       <AppSegmentedControl
         label={field.label}
+        mixed={value.mixed}
         onChange={(nextValue) => onCommit(field.property, nextValue === 'true')}
         options={[
           { label: 'Unchecked', value: 'false' },
           { label: 'Checked', value: 'true' },
         ]}
-        value={String(value)}
+        value={value.value === undefined ? undefined : String(value.value)}
       />
     );
   }
-  if (field.kind === 'text' && typeof value === 'string') {
+  if (field.kind === 'text' && (typeof value.value === 'string' || value.mixed)) {
     return (
       <InspectorTextInput
         label={field.label}
         onCommit={(nextValue) => onCommit(field.property, nextValue)}
-        value={value}
+        value={value as InspectorValue<string>}
       />
     );
   }
-  if (field.kind === 'choice' && typeof value === 'string') {
+  if (field.kind === 'choice' && (typeof value.value === 'string' || value.mixed)) {
     return (
       <AppSegmentedControl
         label={field.label}
+        mixed={value.mixed}
         onChange={(nextValue) => onCommit(field.property, nextValue)}
         options={field.options}
-        value={value}
+        value={typeof value.value === 'string' ? value.value : undefined}
       />
     );
   }
-  if (field.kind === 'number' && typeof value === 'number') {
+  if (field.kind === 'number' && (typeof value.value === 'number' || value.mixed)) {
     return (
       <InspectorNumberInput
         label={field.label}
@@ -189,7 +219,7 @@ const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFie
         minimum={field.minimum}
         onCommit={(nextValue) => onCommit(field.property, nextValue)}
         step={field.step}
-        value={value}
+        value={value as InspectorValue<number>}
       />
     );
   }
@@ -222,7 +252,7 @@ export const ControlInspectorTitle = ({ document, selection }: ControlInspectorT
 export const ControlInspector = ({
   document,
   onAutoSize,
-  onSetFrame,
+  onSetFrames,
   onSetProperties,
   selection,
 }: ControlInspectorProps) => {
@@ -231,34 +261,21 @@ export const ControlInspector = ({
     selection.getSnapshot,
     selection.getSnapshot,
   );
-  const elementId =
-    selectionSnapshot.selectedIds.length === 1 ? selectionSnapshot.primaryId : undefined;
-  const element = elementId === undefined ? undefined : document.elementsById[elementId];
+  const model = createControlInspectorModel(document, selectionSnapshot.selectedIds);
+  const element = model?.elements.length === 1 ? model.elements[0] : undefined;
   const [autoSizePending, setAutoSizePending] = useState(false);
   const [autoSizeValidation, setAutoSizeValidation] = useState<string>();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setAutoSizePending(false);
     setAutoSizeValidation(undefined);
-  }, [elementId]);
+    if (scrollRef.current !== null) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [selectionSnapshot.revision]);
 
-  if (selectionSnapshot.selectedIds.length > 1) {
-    return (
-      <>
-        <div className="inspector-scroll">
-          <section className="inspector-section">
-            <p>
-              {selectionSnapshot.selectedIds.length} controls selected. Move, arrange, or group them
-              on the canvas.
-            </p>
-          </section>
-        </div>
-        <InspectorFooter />
-      </>
-    );
-  }
-
-  if (elementId === undefined || element === undefined) {
+  if (model === undefined) {
     return (
       <>
         <div className="inspector-scroll">
@@ -272,19 +289,22 @@ export const ControlInspector = ({
     );
   }
 
-  const spec = getControlSpec(element.controlType);
-  if (spec === undefined) {
-    throw new Error(`Inspector received unknown control type '${element.controlType}'.`);
-  }
+  const spec = element === undefined ? undefined : getControlSpec(element.controlType);
   const commitFrame = (patch: Partial<WorldRect>): boolean =>
-    onSetFrame(element.id, Object.freeze({ ...element.frame, ...patch }));
-  const textMetadata = spec.capabilities.text;
+    onSetFrames(
+      model.elements.map((selectedElement) =>
+        Object.freeze({
+          elementId: selectedElement.id,
+          frame: Object.freeze({ ...selectedElement.frame, ...patch }),
+        }),
+      ),
+    );
 
   const autoSize = async (): Promise<void> => {
     setAutoSizePending(true);
     setAutoSizeValidation(undefined);
     try {
-      if (!(await onAutoSize(element.id))) {
+      if (element === undefined || !(await onAutoSize(element.id))) {
         setAutoSizeValidation('The control could not be auto-sized.');
       }
     } catch {
@@ -296,21 +316,25 @@ export const ControlInspector = ({
 
   return (
     <>
-      <div className="inspector-scroll" data-inspector-control={element.controlType}>
+      <div
+        className="inspector-scroll"
+        ref={scrollRef}
+        {...(element === undefined ? {} : { 'data-inspector-control': element.controlType })}
+      >
         <section className="inspector-section">
           <h3>Position</h3>
           <div className="inspector-field-grid">
             <InspectorNumberInput
-              key={`${element.id}-x`}
+              key={`${String(selectionSnapshot.revision)}-inspector-x`}
               label="X"
               onCommit={(x) => commitFrame({ x })}
-              value={element.frame.x}
+              value={model.frame.x}
             />
             <InspectorNumberInput
-              key={`${element.id}-y`}
+              key={`${String(selectionSnapshot.revision)}-inspector-y`}
               label="Y"
               onCommit={(y) => commitFrame({ y })}
-              value={element.frame.y}
+              value={model.frame.y}
             />
           </div>
         </section>
@@ -318,23 +342,31 @@ export const ControlInspector = ({
           <h3>Size</h3>
           <div className="inspector-field-grid">
             <InspectorNumberInput
-              key={`${element.id}-width`}
+              key={`${String(selectionSnapshot.revision)}-inspector-width`}
               label="Width"
-              {...(spec.maximumSize === null ? {} : { maximum: spec.maximumSize.width })}
-              minimum={spec.minimumSize.width}
+              {...(model.frame.width.maximum === undefined
+                ? {}
+                : { maximum: model.frame.width.maximum })}
+              {...(model.frame.width.minimum === undefined
+                ? {}
+                : { minimum: model.frame.width.minimum })}
               onCommit={(width) => commitFrame({ width })}
-              value={element.frame.width}
+              value={model.frame.width}
             />
             <InspectorNumberInput
-              key={`${element.id}-height`}
+              key={`${String(selectionSnapshot.revision)}-inspector-height`}
               label="Height"
-              {...(spec.maximumSize === null ? {} : { maximum: spec.maximumSize.height })}
-              minimum={spec.minimumSize.height}
+              {...(model.frame.height.maximum === undefined
+                ? {}
+                : { maximum: model.frame.height.maximum })}
+              {...(model.frame.height.minimum === undefined
+                ? {}
+                : { minimum: model.frame.height.minimum })}
               onCommit={(height) => commitFrame({ height })}
-              value={element.frame.height}
+              value={model.frame.height}
             />
           </div>
-          {spec.autoSize === null ? null : (
+          {(spec?.autoSize ?? null) === null ? null : (
             <div className="inspector-auto-size">
               <AppButton disabled={autoSizePending} onClick={() => void autoSize()}>
                 {autoSizePending ? 'Auto-Sizing…' : '↔ Auto-Size'}
@@ -343,37 +375,36 @@ export const ControlInspector = ({
             </div>
           )}
         </section>
-        {spec.inspector.map((section) => (
+        {model.propertySections.map((section) => (
           <section className="inspector-section" key={section.label}>
             <h3>{section.label}</h3>
             {section.fields.map((field) => {
-              const value = element.properties[field.property];
-              if (
-                typeof value !== 'boolean' &&
-                typeof value !== 'number' &&
-                typeof value !== 'string'
-              ) {
-                throw new Error(
-                  `Inspector property '${field.property}' is missing from '${element.controlType}'.`,
-                );
-              }
               return (
                 <InspectorPropertyField
-                  field={field}
-                  key={`${element.id}-${field.property}`}
+                  field={field.field}
+                  key={`${String(selectionSnapshot.revision)}-${section.label}-${field.field.property}`}
                   onCommit={(property, nextValue) =>
                     onSetProperties(
-                      element.id,
-                      Object.freeze({ ...element.properties, [property]: nextValue }),
+                      model.elements.map((selectedElement) =>
+                        Object.freeze({
+                          elementId: selectedElement.id,
+                          properties: Object.freeze({
+                            ...selectedElement.properties,
+                            [property]: nextValue,
+                          }),
+                        }),
+                      ),
                     )
                   }
-                  value={value}
+                  value={field}
                 />
               );
             })}
-            {textMetadata === null ? null : (
+            {model.elements.every(
+              (selectedElement) => getControlSpec(selectedElement.controlType)?.capabilities.text,
+            ) ? (
               <p>Double-click the control or press Enter to edit on canvas.</p>
-            )}
+            ) : null}
           </section>
         ))}
       </div>
