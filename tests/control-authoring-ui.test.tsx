@@ -103,6 +103,45 @@ describe('alpha control authoring UI', () => {
     }
   });
 
+  it('filters the shelf by registry category and the shared alias search path', () => {
+    const view = render(<ControlShelf category="Forms" onInsert={() => true} />);
+
+    expect(
+      screen.getAllByRole('button').map((button) => button.getAttribute('aria-label')),
+    ).toEqual(['Insert Text Input', 'Insert Checkbox']);
+
+    view.rerender(<ControlShelf onInsert={() => true} query="cta" />);
+    expect(screen.getByRole('button', { name: 'Insert Button' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button')[0]).toHaveAccessibleName('Insert Button');
+
+    view.rerender(<ControlShelf onInsert={() => true} query="missing-control" />);
+    expect(screen.queryAllByRole('button')).toEqual([]);
+    expect(screen.getByRole('status')).toHaveTextContent('No matching controls');
+  });
+
+  it('uses one roving tab stop and reaches either shelf end with the keyboard', () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    render(<ControlShelf onInsert={() => true} />);
+    const items = screen.getAllByRole('button');
+    expect(items.map((item) => item.tabIndex)).toEqual([0, -1, -1, -1, -1, -1, -1, -1]);
+
+    items[0]?.focus();
+    fireEvent.keyDown(items[0] as HTMLButtonElement, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(items[1]);
+    expect(items[1]).toHaveAttribute('tabindex', '0');
+
+    fireEvent.keyDown(items[1] as HTMLButtonElement, { key: 'End' });
+    expect(document.activeElement).toBe(items.at(-1));
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+
+    fireEvent.keyDown(items.at(-1) as HTMLButtonElement, { key: 'Home' });
+    expect(document.activeElement).toBe(items[0]);
+  });
+
   it('renders every palette preview through a definition-derived SVG projection', () => {
     render(
       <ControlShelf

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
@@ -24,6 +24,10 @@ import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { ControlInspector, ControlInspectorTitle } from '../controls/ControlInspector';
 import { calculateControlAutoSizeFrame } from '../controls/control-auto-size';
 import { ControlShelf } from '../controls/ControlShelf';
+import {
+  listControlLibraryCategories,
+  type ControlLibraryCategory,
+} from '../controls/control-library-query';
 import { getBrowserControlTextMeasurementService } from '../controls/control-text-measurement';
 import { createControlInsertionCommand } from '../controls/control-insertion';
 import { WireframeNavigator } from '../controls/WireframeNavigator';
@@ -117,6 +121,17 @@ interface ProjectWorkspaceProps {
 
 const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectWorkspaceProps) => {
   const camera = useViewportCameraStore();
+  const controlCategories = useMemo(() => listControlLibraryCategories(), []);
+  const [activeControlCategory, setActiveControlCategory] = useState<ControlLibraryCategory>('All');
+  const selectControlCategory = useCallback(
+    (category: string): void => {
+      const registeredCategory = controlCategories.find((candidate) => candidate === category);
+      if (registeredCategory !== undefined) {
+        setActiveControlCategory(registeredCategory);
+      }
+    },
+    [controlCategories],
+  );
   const query = new URLSearchParams(window.location.search);
   const packagedProbeEnabled =
     query.get(projectWorkflowProbeContract.queryKey) === projectWorkflowProbeContract.queryValue;
@@ -642,6 +657,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   );
   return (
     <AppShell
+      controlCategoryNavigation={{
+        activeCategory: activeControlCategory,
+        categories: controlCategories,
+        onSelectCategory: selectControlCategory,
+      }}
       historyControls={{
         canRedo: (view.history?.redoEntries.length ?? 0) > 0,
         canUndo: (view.history?.undoEntries.length ?? 0) > 0,
@@ -823,6 +843,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               navigator: <WireframeNavigator activeBoardId={firstBoardId} document={document} />,
               shelf: (
                 <ControlShelf
+                  category={activeControlCategory}
                   onInsert={(controlType) => editor.insertControl(controlType) !== undefined}
                 />
               ),

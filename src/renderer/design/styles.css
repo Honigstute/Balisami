@@ -330,6 +330,11 @@ p {
   background: var(--color-accent-strong);
 }
 
+.category-tab:not(:disabled):hover {
+  color: var(--color-ink);
+  background: var(--color-chrome);
+}
+
 .category-tab:disabled {
   opacity: var(--opacity-enabled);
 }
@@ -430,6 +435,14 @@ p {
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.control-library__empty {
+  display: grid;
+  min-width: 100%;
+  color: var(--color-muted-ink);
+  font-size: var(--font-size-caption);
+  place-items: center;
 }
 
 .navigator-panel,

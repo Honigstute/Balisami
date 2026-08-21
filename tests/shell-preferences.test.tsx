@@ -39,6 +39,51 @@ describe('shell preferences', () => {
     ).toBeUndefined();
   });
 
+  it('renders controlled registry categories without changing the shell track', () => {
+    const onSelectCategory = vi.fn();
+    const categories = ['All', 'Buttons', 'Forms'];
+    const view = render(
+      <AppShell
+        controlCategoryNavigation={{
+          activeCategory: 'All',
+          categories,
+          onSelectCategory,
+        }}
+        quickAddShortcut="Ctrl/Cmd K"
+        statusLabel="Ready"
+        statusTone="ready"
+      />,
+    );
+    const root = screen.getByTestId('app-shell');
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Forms' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Forms' }));
+    expect(onSelectCategory).toHaveBeenCalledWith('Forms');
+
+    view.rerender(
+      <AppShell
+        controlCategoryNavigation={{
+          activeCategory: 'Forms',
+          categories,
+          onSelectCategory,
+        }}
+        quickAddShortcut="Ctrl/Cmd K"
+        statusLabel="Ready"
+        statusTone="ready"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Forms' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('app-shell')).toBe(root);
+    expect(root).toHaveAttribute(
+      SHELL_LAYOUT_ATTRIBUTES.navigatorWidth,
+      String(DESIGN_TOKENS.shell.navigatorWidth),
+    );
+    expect(root).toHaveAttribute(
+      SHELL_LAYOUT_ATTRIBUTES.inspectorWidth,
+      String(DESIGN_TOKENS.shell.inspectorWidth),
+    );
+  });
+
   it('clamps widths while preserving the last expanded width through collapse', () => {
     const expanded = setShellPaneWidth(DEFAULT_SHELL_PREFERENCES, 'navigator', 10_000);
     expect(expanded.navigator.width).toBe(DESIGN_TOKENS.shell.navigatorMaxWidth);

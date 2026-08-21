@@ -24,7 +24,14 @@ export interface AppShellRegionContent {
   readonly shelf?: ReactNode;
 }
 
+export interface ControlCategoryNavigation {
+  readonly activeCategory: string;
+  readonly categories: readonly string[];
+  readonly onSelectCategory: (category: string) => void;
+}
+
 interface AppShellProps {
+  readonly controlCategoryNavigation?: ControlCategoryNavigation;
   readonly historyControls?: {
     readonly canRedo: boolean;
     readonly canUndo: boolean;
@@ -46,7 +53,7 @@ interface AppShellProps {
   readonly viewportControls?: ReactNode;
 }
 
-const categories = [
+const placeholderCategories = [
   'All',
   'Common',
   'Forms',
@@ -110,6 +117,7 @@ const LibraryPlaceholders = () => (
 );
 
 export const AppShell = ({
+  controlCategoryNavigation,
   historyControls,
   inspectorTitle = 'Inspector',
   projectName = 'Untitled project',
@@ -135,6 +143,8 @@ export const AppShell = ({
     '--inspector-current-width': `${String(inspectorTrackWidth)}px`,
     '--navigator-current-width': `${String(navigatorTrackWidth)}px`,
   };
+  const categories = controlCategoryNavigation?.categories ?? placeholderCategories;
+  const activeCategory = controlCategoryNavigation?.activeCategory ?? categories[0];
 
   return (
     <div
@@ -212,12 +222,14 @@ export const AppShell = ({
         aria-label="Control categories"
         className="category-bar"
       >
-        {categories.map((category, index) => (
+        {categories.map((category) => (
           <button
-            aria-current={index === 0 ? 'page' : undefined}
+            aria-current={category === activeCategory ? 'page' : undefined}
             className="category-tab"
-            disabled
+            disabled={controlCategoryNavigation === undefined}
             key={category}
+            onClick={() => controlCategoryNavigation?.onSelectCategory(category)}
+            type="button"
           >
             {category}
           </button>
