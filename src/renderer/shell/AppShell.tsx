@@ -44,6 +44,7 @@ interface AppShellProps {
   readonly projectName?: string;
   readonly projectOverlay?: ReactNode;
   readonly projectProbeState?: { readonly attributeName: string; readonly value: string };
+  readonly quickAdd?: ReactNode;
   readonly quickAddShortcut: string;
   readonly regionContent?: AppShellRegionContent;
   readonly statusLabel: string;
@@ -123,6 +124,7 @@ export const AppShell = ({
   projectName = 'Untitled project',
   projectOverlay,
   projectProbeState,
+  quickAdd,
   quickAddShortcut,
   regionContent = {},
   statusLabel,
@@ -200,11 +202,13 @@ export const AppShell = ({
           <DisabledToolbarActions actions={toolbarActionsAfterViewport} />
         </div>
 
-        <div className="quick-add" role="search">
-          <Icon name="search" />
-          <input aria-label="Quick add" disabled placeholder="Quick add" type="search" />
-          <kbd>{quickAddShortcut}</kbd>
-        </div>
+        {quickAdd ?? (
+          <button aria-label="Quick add" className="quick-add" disabled type="button">
+            <Icon name="search" />
+            <span>Quick add</span>
+            <kbd>{quickAddShortcut}</kbd>
+          </button>
+        )}
       </header>
 
       <div

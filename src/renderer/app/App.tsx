@@ -24,6 +24,7 @@ import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { ControlInspector, ControlInspectorTitle } from '../controls/ControlInspector';
 import { calculateControlAutoSizeFrame } from '../controls/control-auto-size';
 import { ControlShelf } from '../controls/ControlShelf';
+import { QuickAdd } from '../controls/QuickAdd';
 import {
   listControlLibraryCategories,
   type ControlLibraryCategory,
@@ -746,6 +747,12 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           }
         : {})}
       quickAddShortcut={quickAddShortcut}
+      quickAdd={
+        <QuickAdd
+          onInsert={(controlType) => editor.insertControl(controlType) !== undefined}
+          shortcutLabel={quickAddShortcut}
+        />
+      }
       regionContent={{
         canvas: (
           <ViewportScene

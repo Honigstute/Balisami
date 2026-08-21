@@ -143,6 +143,24 @@ describe('application shell', () => {
     expect(screen.queryByText('⌘ K')).not.toBeInTheDocument();
   });
 
+  it('quick-adds one registry control as one undoable history entry', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const search = screen.getByRole('combobox', { name: 'Find a control' });
+    fireEvent.change(search, { target: { value: 'cta' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    const undo = await screen.findByRole('button', { name: 'Undo Insert Button' });
+    expect(undo).toBeEnabled();
+    fireEvent.click(undo);
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Redo Insert Button' })).toBeEnabled();
+  });
+
   it('keeps the project home behind one explicit startup recovery decision', async () => {
     const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
       status: 'cancelled',
