@@ -194,4 +194,32 @@ describe('control thumbnail projection', () => {
       ),
     );
   });
+
+  it('projects the static iOS Picker with deterministic definition-owned marks', () => {
+    const definition = getControlSpec(CONTROL_TYPES.iosPicker);
+    if (definition === undefined) {
+      throw new Error('iOS Picker control is missing.');
+    }
+    const bounds = createWorldRect(
+      0,
+      0,
+      definition.defaultSize.width,
+      definition.defaultSize.height,
+    );
+    const mark = createControlSceneMarkPath(
+      definition.type,
+      bounds,
+      'ios-picker-seed',
+      definition.defaultProperties,
+    );
+    expect(mark).not.toBe('');
+    expect(mark).toBe(
+      createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        'ios-picker-seed',
+        definition.defaultProperties,
+      ),
+    );
+  });
 });

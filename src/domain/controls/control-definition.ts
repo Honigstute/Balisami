@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { ControlTypeId, ElementProperties, JsonValue } from '../document/schema';
 
 export type ControlCategory =
-  'Assets' | 'Buttons' | 'Common' | 'Containers' | 'Forms' | 'Media' | 'Text';
+  'Assets' | 'Buttons' | 'Common' | 'Containers' | 'Forms' | 'Media' | 'Text' | 'iOS';
 export type ControlVisualKind =
   | 'arrow'
   | 'browser'
@@ -15,6 +15,7 @@ export type ControlVisualKind =
   | 'checkbox'
   | 'image'
   | 'input'
+  | 'ios-picker'
   | 'playback'
   | 'rectangle'
   | 'text'

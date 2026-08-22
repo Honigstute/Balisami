@@ -50,7 +50,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(16);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(17);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -70,6 +70,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.videoPlayer,
       CONTROL_TYPES.volumeSlider,
       CONTROL_TYPES.webcam,
+      CONTROL_TYPES.iosPicker,
     ]);
   });
 

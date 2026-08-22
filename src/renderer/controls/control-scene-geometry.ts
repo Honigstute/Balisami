@@ -205,6 +205,43 @@ const createPlaybackMarkPath = (bounds: WorldRect, elementId: string): string =>
   ].join(' ');
 };
 
+const createIosPickerMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const marks: string[] = [];
+  for (const [index, ratio] of [0.42, 0.58].entries()) {
+    marks.push(
+      createSeededSketchLinePath({
+        end: createWorldPoint(bounds.x + bounds.width, bounds.y + bounds.height * ratio),
+        seed: `${elementId}:ios-picker-selection:${String(index)}`,
+        start: createWorldPoint(bounds.x, bounds.y + bounds.height * ratio),
+      }),
+    );
+  }
+  for (let column = 1; column < 3; column += 1) {
+    const x = bounds.x + (bounds.width * column) / 3;
+    marks.push(
+      createSeededSketchLinePath({
+        end: createWorldPoint(x, bounds.y + bounds.height * 0.88),
+        seed: `${elementId}:ios-picker-column:${String(column)}`,
+        start: createWorldPoint(x, bounds.y + bounds.height * 0.12),
+      }),
+    );
+  }
+  for (let row = 1; row < 6; row += 1) {
+    const y = bounds.y + (bounds.height * row) / 6;
+    for (let column = 0; column < 3; column += 1) {
+      const centerX = bounds.x + bounds.width * ((column + 0.5) / 3);
+      marks.push(
+        createSeededSketchLinePath({
+          end: createWorldPoint(centerX + bounds.width * 0.06, y),
+          seed: `${elementId}:ios-picker-value:${String(row)}:${String(column)}`,
+          start: createWorldPoint(centerX - bounds.width * 0.06, y),
+        }),
+      );
+    }
+  }
+  return marks.join(' ');
+};
+
 const createChartBarMarkPath = (bounds: WorldRect, elementId: string): string =>
   [
     [0.14, 0.72],
@@ -551,6 +588,9 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'playback') {
     return createPlaybackMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'ios-picker') {
+    return createIosPickerMarkPath(bounds, elementId);
   }
   if (definition.scene.kind === 'video-player') {
     return createVideoPlayerMarkPath(bounds, elementId);

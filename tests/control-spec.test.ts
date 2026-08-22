@@ -32,6 +32,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.videoPlayer,
       CONTROL_TYPES.volumeSlider,
       CONTROL_TYPES.webcam,
+      CONTROL_TYPES.iosPicker,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -57,6 +58,7 @@ describe('control definition registry', () => {
       'Video Player',
       'Volume Slider',
       'Webcam',
+      'iOS Picker',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -167,6 +169,14 @@ describe('control definition registry', () => {
       inspector: [],
       palette: { category: 'Common' },
       scene: { hitShape: { kind: 'bounds' }, kind: 'calendar', propertyKeys: [] },
+    });
+    expect(getControlSpec(CONTROL_TYPES.iosPicker)).toMatchObject({
+      accessibility: { role: 'img' },
+      autoSize: null,
+      defaultProperties: {},
+      inspector: [],
+      palette: { category: 'iOS' },
+      scene: { hitShape: { kind: 'bounds' }, kind: 'ios-picker', propertyKeys: [] },
     });
     for (const [type, kind, size] of [
       [CONTROL_TYPES.playback, 'playback', { height: 36, width: 110 }],

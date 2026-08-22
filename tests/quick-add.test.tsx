@@ -118,10 +118,11 @@ describe('Quick Add', () => {
       CONTROL_TYPES.videoPlayer,
       CONTROL_TYPES.volumeSlider,
       CONTROL_TYPES.webcam,
+      CONTROL_TYPES.iosPicker,
     ]) {
       preferences = recordQuickAddRecent(preferences, type);
     }
     expect(preferences.recent).toHaveLength(MAX_QUICK_ADD_RECENT);
-    expect(preferences.recent[0]).toBe(CONTROL_TYPES.webcam);
+    expect(preferences.recent[0]).toBe(CONTROL_TYPES.iosPicker);
   });
 });

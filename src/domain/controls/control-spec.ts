@@ -45,6 +45,7 @@ export const CONTROL_TYPES = Object.freeze({
   videoPlayer: ControlTypeIdSchema.parse('wireframe.video-player'),
   volumeSlider: ControlTypeIdSchema.parse('wireframe.volume-slider'),
   webcam: ControlTypeIdSchema.parse('wireframe.webcam'),
+  iosPicker: ControlTypeIdSchema.parse('wireframe.ios-picker'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -822,6 +823,34 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['camera', 'media', 'person', 'video'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.webcam,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('iOS picker', 'img'),
+    aliases: ['ios wheel picker', 'wheel picker'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(214, 160),
+    export: createExport('scene'),
+    minimumSize: createSize(96, 72),
+    maximumSize: null,
+    palette: createPalette('iOS Picker', 'iOS', 170),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('ios-picker', []),
+    tags: ['ios', 'mobile', 'picker', 'wheel'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.iosPicker,
   }),
 ]);
 

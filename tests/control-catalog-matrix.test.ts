@@ -23,6 +23,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry visual fixture; hit-shape, accessibility, and auto-size',
   'wireframe.image-placeholder':
     'common harness; registry visual fixture; image and thumbnail projection',
+  'wireframe.ios-picker':
+    'common harness; registry visual fixture; deterministic iOS Picker scene geometry',
   'wireframe.playback':
     'common harness; registry visual fixture; deterministic Media scene geometry',
   'wireframe.text-input': 'common harness; registry visual fixture; control auto-size',
