@@ -123,10 +123,11 @@ describe('Quick Add', () => {
       CONTROL_TYPES.vSplitter,
       CONTROL_TYPES.redX,
       CONTROL_TYPES.squigglyBlock,
+      CONTROL_TYPES.streetMap,
     ]) {
       preferences = recordQuickAddRecent(preferences, type);
     }
     expect(preferences.recent).toHaveLength(MAX_QUICK_ADD_RECENT);
-    expect(preferences.recent[0]).toBe(CONTROL_TYPES.squigglyBlock);
+    expect(preferences.recent[0]).toBe(CONTROL_TYPES.streetMap);
   });
 });

@@ -50,6 +50,7 @@ export const CONTROL_TYPES = Object.freeze({
   vSplitter: ControlTypeIdSchema.parse('wireframe.v-splitter'),
   redX: ControlTypeIdSchema.parse('wireframe.red-x'),
   squigglyBlock: ControlTypeIdSchema.parse('wireframe.squiggly-block-of-text'),
+  streetMap: ControlTypeIdSchema.parse('wireframe.street-map'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -967,6 +968,34 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['content', 'markup', 'placeholder', 'text'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.squigglyBlock,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Street map', 'img'),
+    aliases: ['city map', 'map'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(252, 222),
+    export: createExport('scene'),
+    minimumSize: createSize(96, 72),
+    maximumSize: null,
+    palette: createPalette('Street Map', 'Assets', 220),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('street-map', []),
+    tags: ['asset', 'location', 'map', 'street'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.streetMap,
   }),
 ]);
 

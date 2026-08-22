@@ -128,6 +128,7 @@ describe('alpha control authoring UI', () => {
       'V.Splitter',
       'Red X',
       'Squiggly Block of Text',
+      'Street Map',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -153,6 +154,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.vSplitter,
       CONTROL_TYPES.redX,
       CONTROL_TYPES.squigglyBlock,
+      CONTROL_TYPES.streetMap,
     ]);
   });
 
@@ -264,6 +266,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.vSplitter,
       CONTROL_TYPES.redX,
       CONTROL_TYPES.squigglyBlock,
+      CONTROL_TYPES.streetMap,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);

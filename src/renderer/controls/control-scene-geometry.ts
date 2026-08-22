@@ -294,6 +294,45 @@ const createSquigglyBlockMarkPath = (bounds: WorldRect, elementId: string): stri
   return lines.join(' ');
 };
 
+const createStreetMapMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const point = (x: number, y: number) =>
+    createWorldPoint(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
+  return [
+    createSeededPolylinePath(
+      [
+        point(0.02, 0.72),
+        point(0.24, 0.65),
+        point(0.48, 0.62),
+        point(0.74, 0.5),
+        point(0.98, 0.46),
+      ],
+      elementId,
+      'street-map-primary-horizontal',
+    ),
+    createSeededPolylinePath(
+      [point(0.18, 0), point(0.24, 0.32), point(0.28, 0.62), point(0.32, 1)],
+      elementId,
+      'street-map-primary-vertical',
+    ),
+    createSeededPolylinePath(
+      [point(0.58, 0), point(0.62, 0.36), point(0.7, 0.74), point(0.72, 1)],
+      elementId,
+      'street-map-secondary-vertical',
+    ),
+    createSeededPolylinePath(
+      [point(0, 0.34), point(0.32, 0.27), point(0.64, 0.22), point(1, 0.12)],
+      elementId,
+      'street-map-secondary-horizontal',
+    ),
+    createSeededPolylinePath(
+      [point(0.04, 0.72), point(0.2, 0.58), point(0.4, 0.56), point(0.44, 0.72), point(0.06, 0.8)],
+      elementId,
+      'street-map-park',
+      true,
+    ),
+  ].join(' ');
+};
+
 const createChartBarMarkPath = (bounds: WorldRect, elementId: string): string =>
   [
     [0.14, 0.72],
@@ -655,6 +694,9 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'squiggly-block') {
     return createSquigglyBlockMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'street-map') {
+    return createStreetMapMarkPath(bounds, elementId);
   }
   if (definition.scene.kind === 'video-player') {
     return createVideoPlayerMarkPath(bounds, elementId);
