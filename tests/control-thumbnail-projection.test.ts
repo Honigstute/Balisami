@@ -222,4 +222,34 @@ describe('control thumbnail projection', () => {
       ),
     );
   });
+
+  it('projects both static splitters with deterministic definition-owned marks', () => {
+    for (const type of [CONTROL_TYPES.hSplitter, CONTROL_TYPES.vSplitter]) {
+      const definition = getControlSpec(type);
+      if (definition === undefined) {
+        throw new Error(`Splitter control '${type}' is missing.`);
+      }
+      const bounds = createWorldRect(
+        0,
+        0,
+        definition.defaultSize.width,
+        definition.defaultSize.height,
+      );
+      const mark = createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        `splitter-seed:${definition.type}`,
+        definition.defaultProperties,
+      );
+      expect(mark).not.toBe('');
+      expect(mark).toBe(
+        createControlSceneMarkPath(
+          definition.type,
+          bounds,
+          `splitter-seed:${definition.type}`,
+          definition.defaultProperties,
+        ),
+      );
+    }
+  });
 });

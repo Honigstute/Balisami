@@ -242,6 +242,26 @@ const createIosPickerMarkPath = (bounds: WorldRect, elementId: string): string =
   return marks.join(' ');
 };
 
+const createSplitterMarkPath = (
+  bounds: WorldRect,
+  elementId: string,
+  orientation: 'horizontal' | 'vertical',
+): string => {
+  const horizontal = orientation === 'horizontal';
+  return [-1, 0, 1]
+    .map((offset, index) => {
+      const x = bounds.x + bounds.width / 2 + (horizontal ? offset * bounds.height * 0.55 : 0);
+      const y = bounds.y + bounds.height / 2 + (horizontal ? 0 : offset * bounds.width * 0.55);
+      return createSeededCirclePath(
+        createWorldPoint(x, y),
+        Math.max(0.8, Math.min(bounds.width, bounds.height) * 0.09),
+        elementId,
+        `${orientation}-splitter-grip:${String(index)}`,
+      );
+    })
+    .join(' ');
+};
+
 const createChartBarMarkPath = (bounds: WorldRect, elementId: string): string =>
   [
     [0.14, 0.72],
@@ -591,6 +611,12 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'ios-picker') {
     return createIosPickerMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'h-splitter') {
+    return createSplitterMarkPath(bounds, elementId, 'horizontal');
+  }
+  if (definition.scene.kind === 'v-splitter') {
+    return createSplitterMarkPath(bounds, elementId, 'vertical');
   }
   if (definition.scene.kind === 'video-player') {
     return createVideoPlayerMarkPath(bounds, elementId);

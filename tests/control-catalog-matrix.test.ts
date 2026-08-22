@@ -23,6 +23,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry visual fixture; hit-shape, accessibility, and auto-size',
   'wireframe.image-placeholder':
     'common harness; registry visual fixture; image and thumbnail projection',
+  'wireframe.h-splitter':
+    'common harness; registry visual fixture; deterministic Layout scene geometry',
   'wireframe.ios-picker':
     'common harness; registry visual fixture; deterministic iOS Picker scene geometry',
   'wireframe.playback':
@@ -33,6 +35,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry visual fixture; deterministic Media scene geometry',
   'wireframe.volume-slider':
     'common harness; registry visual fixture; deterministic Media scene geometry',
+  'wireframe.v-splitter':
+    'common harness; registry visual fixture; deterministic Layout scene geometry',
   'wireframe.webcam': 'common harness; registry visual fixture; deterministic Media scene geometry',
 });
 

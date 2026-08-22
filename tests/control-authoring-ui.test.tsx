@@ -124,6 +124,8 @@ describe('alpha control authoring UI', () => {
       'Volume Slider',
       'Webcam',
       'iOS Picker',
+      'H.Splitter',
+      'V.Splitter',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -145,6 +147,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.volumeSlider,
       CONTROL_TYPES.webcam,
       CONTROL_TYPES.iosPicker,
+      CONTROL_TYPES.hSplitter,
+      CONTROL_TYPES.vSplitter,
     ]);
   });
 
@@ -252,6 +256,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.volumeSlider,
       CONTROL_TYPES.webcam,
       CONTROL_TYPES.iosPicker,
+      CONTROL_TYPES.hSplitter,
+      CONTROL_TYPES.vSplitter,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);

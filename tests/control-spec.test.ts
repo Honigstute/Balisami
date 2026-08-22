@@ -33,6 +33,8 @@ describe('control definition registry', () => {
       CONTROL_TYPES.volumeSlider,
       CONTROL_TYPES.webcam,
       CONTROL_TYPES.iosPicker,
+      CONTROL_TYPES.hSplitter,
+      CONTROL_TYPES.vSplitter,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -59,6 +61,8 @@ describe('control definition registry', () => {
       'Volume Slider',
       'Webcam',
       'iOS Picker',
+      'H.Splitter',
+      'V.Splitter',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -178,6 +182,19 @@ describe('control definition registry', () => {
       palette: { category: 'iOS' },
       scene: { hitShape: { kind: 'bounds' }, kind: 'ios-picker', propertyKeys: [] },
     });
+    for (const [type, kind] of [
+      [CONTROL_TYPES.hSplitter, 'h-splitter'],
+      [CONTROL_TYPES.vSplitter, 'v-splitter'],
+    ] as const) {
+      expect(getControlSpec(type)).toMatchObject({
+        accessibility: { role: 'img' },
+        autoSize: null,
+        defaultProperties: {},
+        inspector: [],
+        palette: { category: 'Layout' },
+        scene: { hitShape: { kind: 'bounds' }, kind, propertyKeys: [] },
+      });
+    }
     for (const [type, kind, size] of [
       [CONTROL_TYPES.playback, 'playback', { height: 36, width: 110 }],
       [CONTROL_TYPES.videoPlayer, 'video-player', { height: 200, width: 300 }],
