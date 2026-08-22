@@ -333,6 +333,44 @@ const createStreetMapMarkPath = (bounds: WorldRect, elementId: string): string =
   ].join(' ');
 };
 
+const createToolbarMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const marks: string[] = [];
+  const itemCount = 9;
+  for (let item = 1; item < itemCount; item += 1) {
+    const x = bounds.x + (bounds.width * item) / itemCount;
+    marks.push(
+      createSeededSketchLinePath({
+        end: createWorldPoint(x, bounds.y + bounds.height * 0.84),
+        seed: `${elementId}:toolbar-divider:${String(item)}`,
+        start: createWorldPoint(x, bounds.y + bounds.height * 0.16),
+      }),
+    );
+  }
+  for (let item = 0; item < itemCount; item += 1) {
+    const centerX = bounds.x + bounds.width * ((item + 0.5) / itemCount);
+    const centerY = bounds.y + bounds.height / 2;
+    if (item % 3 === 0) {
+      marks.push(
+        createSeededCirclePath(
+          createWorldPoint(centerX, centerY),
+          bounds.height * 0.18,
+          elementId,
+          `toolbar-mark:${String(item)}`,
+        ),
+      );
+    } else {
+      marks.push(
+        createSeededSketchLinePath({
+          end: createWorldPoint(centerX + bounds.width * 0.02, centerY),
+          seed: `${elementId}:toolbar-mark:${String(item)}`,
+          start: createWorldPoint(centerX - bounds.width * 0.02, centerY),
+        }),
+      );
+    }
+  }
+  return marks.join(' ');
+};
+
 const createChartBarMarkPath = (bounds: WorldRect, elementId: string): string =>
   [
     [0.14, 0.72],
@@ -697,6 +735,9 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'street-map') {
     return createStreetMapMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'toolbar') {
+    return createToolbarMarkPath(bounds, elementId);
   }
   if (definition.scene.kind === 'video-player') {
     return createVideoPlayerMarkPath(bounds, elementId);

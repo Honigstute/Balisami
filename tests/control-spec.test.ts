@@ -38,6 +38,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.redX,
       CONTROL_TYPES.squigglyBlock,
       CONTROL_TYPES.streetMap,
+      CONTROL_TYPES.toolbar,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -69,6 +70,7 @@ describe('control definition registry', () => {
       'Red X',
       'Squiggly Block of Text',
       'Street Map',
+      'Toolbar',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -189,6 +191,12 @@ describe('control definition registry', () => {
       inspector: [],
       palette: { category: 'Assets' },
       scene: { kind: 'street-map', propertyKeys: [] },
+    });
+    expect(getControlSpec(CONTROL_TYPES.toolbar)).toMatchObject({
+      defaultProperties: {},
+      inspector: [],
+      palette: { category: 'Common' },
+      scene: { kind: 'toolbar', propertyKeys: [] },
     });
     expect(getControlSpec(CONTROL_TYPES.calendar)).toMatchObject({
       accessibility: { role: 'img' },

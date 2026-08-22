@@ -51,6 +51,7 @@ export const CONTROL_TYPES = Object.freeze({
   redX: ControlTypeIdSchema.parse('wireframe.red-x'),
   squigglyBlock: ControlTypeIdSchema.parse('wireframe.squiggly-block-of-text'),
   streetMap: ControlTypeIdSchema.parse('wireframe.street-map'),
+  toolbar: ControlTypeIdSchema.parse('wireframe.toolbar'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -996,6 +997,34 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['asset', 'location', 'map', 'street'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.streetMap,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Toolbar', 'img'),
+    aliases: ['editor toolbar', 'format toolbar'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(261, 29),
+    export: createExport('scene'),
+    minimumSize: createSize(120, 24),
+    maximumSize: null,
+    palette: createPalette('Toolbar', 'Common', 230),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('toolbar', []),
+    tags: ['actions', 'editor', 'formatting', 'toolbar'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.toolbar,
   }),
 ]);
 

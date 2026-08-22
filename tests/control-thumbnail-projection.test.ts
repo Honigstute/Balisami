@@ -310,4 +310,32 @@ describe('control thumbnail projection', () => {
       ),
     );
   });
+
+  it('projects the static Toolbar with deterministic definition-owned marks', () => {
+    const definition = getControlSpec(CONTROL_TYPES.toolbar);
+    if (definition === undefined) {
+      throw new Error('Toolbar control is missing.');
+    }
+    const bounds = createWorldRect(
+      0,
+      0,
+      definition.defaultSize.width,
+      definition.defaultSize.height,
+    );
+    const mark = createControlSceneMarkPath(
+      definition.type,
+      bounds,
+      'toolbar-seed',
+      definition.defaultProperties,
+    );
+    expect(mark).not.toBe('');
+    expect(mark).toBe(
+      createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        'toolbar-seed',
+        definition.defaultProperties,
+      ),
+    );
+  });
 });

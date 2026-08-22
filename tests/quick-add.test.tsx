@@ -124,10 +124,11 @@ describe('Quick Add', () => {
       CONTROL_TYPES.redX,
       CONTROL_TYPES.squigglyBlock,
       CONTROL_TYPES.streetMap,
+      CONTROL_TYPES.toolbar,
     ]) {
       preferences = recordQuickAddRecent(preferences, type);
     }
     expect(preferences.recent).toHaveLength(MAX_QUICK_ADD_RECENT);
-    expect(preferences.recent[0]).toBe(CONTROL_TYPES.streetMap);
+    expect(preferences.recent[0]).toBe(CONTROL_TYPES.toolbar);
   });
 });
