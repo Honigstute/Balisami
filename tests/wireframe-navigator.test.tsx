@@ -13,6 +13,13 @@ import { WireframeNavigator } from '../src/renderer/controls/WireframeNavigator'
 
 const FIRST_BOARD_ID = BoardIdSchema.parse('board_navigator01');
 const SECOND_BOARD_ID = BoardIdSchema.parse('board_navigator02');
+const ALTERNATE_BOARD_ID = BoardIdSchema.parse('board_navigator_alt');
+const VERSION_PROPS = {
+  onCreateAlternate: () => true,
+  onDuplicateAlternate: () => true,
+  onRenameAlternate: () => true,
+  onSelectVersion: () => true,
+} as const;
 
 const createTwoBoardDocument = () => {
   const initial = createEmptyProjectDocument({
@@ -40,11 +47,34 @@ const createTwoBoardDocument = () => {
   return result.document;
 };
 
+const createAlternateDocument = () => {
+  const document = createTwoBoardDocument();
+  const result = dispatchDocumentCommand(document, {
+    type: DOCUMENT_COMMAND_TYPES.createAlternate,
+    canonicalBoardId: FIRST_BOARD_ID,
+    alternate: BoardSchema.parse({
+      childIds: [],
+      id: ALTERNATE_BOARD_ID,
+      name: 'Review version',
+      note: { text: '' },
+      alternateIds: [],
+      selectedAlternateId: null,
+    }),
+    index: 0,
+    selectAfterCreate: ALTERNATE_BOARD_ID,
+  });
+  if (!result.ok || !result.changed) {
+    throw new Error('Navigator fixture could not create an alternate.');
+  }
+  return result.document;
+};
+
 describe('wireframe navigator', () => {
   it('selects boards by click and supports roving Arrow/Home/End navigation', () => {
     const onSelectBoard = vi.fn();
     render(
       <WireframeNavigator
+        {...VERSION_PROPS}
         activeBoardId={FIRST_BOARD_ID}
         document={createTwoBoardDocument()}
         onDuplicateBoard={() => true}
@@ -76,6 +106,7 @@ describe('wireframe navigator', () => {
     const onRenameBoard = vi.fn(() => true);
     render(
       <WireframeNavigator
+        {...VERSION_PROPS}
         activeBoardId={FIRST_BOARD_ID}
         document={createTwoBoardDocument()}
         onDuplicateBoard={() => true}
@@ -120,6 +151,7 @@ describe('wireframe navigator', () => {
     const onReorderBoard = vi.fn(() => true);
     render(
       <WireframeNavigator
+        {...VERSION_PROPS}
         activeBoardId={FIRST_BOARD_ID}
         document={createTwoBoardDocument()}
         onDuplicateBoard={onDuplicateBoard}
@@ -166,6 +198,7 @@ describe('wireframe navigator', () => {
     }
     const { rerender } = render(
       <WireframeNavigator
+        {...VERSION_PROPS}
         activeBoardId={FIRST_BOARD_ID}
         document={source}
         onDuplicateBoard={() => true}
@@ -186,6 +219,7 @@ describe('wireframe navigator', () => {
 
     rerender(
       <WireframeNavigator
+        {...VERSION_PROPS}
         activeBoardId={FIRST_BOARD_ID}
         document={trashed.document}
         onDuplicateBoard={() => true}
@@ -203,5 +237,43 @@ describe('wireframe navigator', () => {
     expect(screen.getByRole('button', { name: 'Move “Wireframe 1” to Trash' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
     expect(onRestoreBoard).toHaveBeenCalledWith(SECOND_BOARD_ID);
+  });
+
+  it('selects, creates, duplicates, and renames versions from the active board panel', () => {
+    const onCreateAlternate = vi.fn(() => true);
+    const onDuplicateAlternate = vi.fn(() => true);
+    const onRenameAlternate = vi.fn(() => true);
+    const onSelectVersion = vi.fn(() => true);
+    render(
+      <WireframeNavigator
+        activeBoardId={FIRST_BOARD_ID}
+        document={createAlternateDocument()}
+        onCreateAlternate={onCreateAlternate}
+        onDuplicateAlternate={onDuplicateAlternate}
+        onDuplicateBoard={() => true}
+        onRenameAlternate={onRenameAlternate}
+        onRenameBoard={() => true}
+        onRequestTrashBoard={() => undefined}
+        onReorderBoard={() => true}
+        onRestoreBoard={() => true}
+        onSelectBoard={() => undefined}
+        onSelectVersion={onSelectVersion}
+        shortcutPlatform="darwin"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Current' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Official' }));
+    expect(onSelectVersion).toHaveBeenCalledWith(FIRST_BOARD_ID, null);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Alternate' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate Version' }));
+    expect(onCreateAlternate).toHaveBeenCalledWith(FIRST_BOARD_ID);
+    expect(onDuplicateAlternate).toHaveBeenCalledWith(FIRST_BOARD_ID);
+
+    const rename = screen.getByRole('textbox', { name: 'Alternate name' });
+    fireEvent.change(rename, { target: { value: '  Final review  ' } });
+    fireEvent.keyDown(rename, { key: 'Enter' });
+    expect(onRenameAlternate).toHaveBeenCalledWith(ALTERNATE_BOARD_ID, 'Final review');
   });
 });

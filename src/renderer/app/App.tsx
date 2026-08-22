@@ -9,6 +9,7 @@ import {
   ElementIdSchema,
   getControlSpec,
   getControlAccessibleName,
+  selectBoardPresentationId,
   selectRedoLabel,
   selectUndoLabel,
   type BoardId,
@@ -41,6 +42,7 @@ import { BoardTrashDialog } from '../projects/BoardTrashDialog';
 import { BoardNoteEditor } from '../projects/BoardNoteEditor';
 import { ActiveBoardStore } from '../projects/active-board-store';
 import { createBoardCreationCommand } from '../projects/board-creation';
+import { planBoardAlternateClone } from '../projects/board-alternate';
 import { planBoardDuplicate } from '../projects/board-duplicate';
 import {
   createBoardRestoreCommand,
@@ -189,7 +191,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       }>,
     ) => {
       const currentDocument = session.getSnapshot().history?.document;
-      const boardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
+      const canonicalBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
+      const boardId =
+        currentDocument === undefined || canonicalBoardId === undefined
+          ? undefined
+          : selectBoardPresentationId(currentDocument, canonicalBoardId);
       const elementId = allocateEditorElementId();
       if (currentDocument === undefined || boardId === undefined || elementId === undefined) {
         return undefined;
@@ -529,10 +535,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     };
     const unlockAll = (): boolean => {
       const currentDocument = session.getSnapshot().history?.document;
-      const activeBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
-      return currentDocument === undefined || activeBoardId === undefined
+      const canonicalBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
+      const presentationBoardId =
+        currentDocument === undefined || canonicalBoardId === undefined
+          ? undefined
+          : selectBoardPresentationId(currentDocument, canonicalBoardId);
+      return currentDocument === undefined || presentationBoardId === undefined
         ? false
-        : unlockAllBoardElements(currentDocument, activeBoardId, lockingSource);
+        : unlockAllBoardElements(currentDocument, presentationBoardId, lockingSource);
     };
     const layeringSource: SelectionLayeringSource = {
       commit(commands, label) {
@@ -597,32 +607,51 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     selectedBoardId !== undefined && document?.boardIds.includes(selectedBoardId)
       ? selectedBoardId
       : document?.boardIds[0];
+  const presentationBoardId =
+    document === undefined || activeBoardId === undefined
+      ? undefined
+      : selectBoardPresentationId(document, activeBoardId);
   const hasRenderableElements = useMemo(
-    () => document !== undefined && countRenderableBoardElements(document, activeBoardId) > 0,
-    [activeBoardId, document],
+    () => document !== undefined && countRenderableBoardElements(document, presentationBoardId) > 0,
+    [document, presentationBoardId],
   );
   const boardBounds = useMemo(
     () =>
-      document === undefined ? undefined : getRenderableBoardWorldBounds(document, activeBoardId),
-    [activeBoardId, document],
+      document === undefined
+        ? undefined
+        : getRenderableBoardWorldBounds(document, presentationBoardId),
+    [document, presentationBoardId],
   );
   const activeBoardNote =
-    activeBoardId === undefined
+    presentationBoardId === undefined
       ? undefined
-      : view.history?.document.boardsById[activeBoardId]?.note.text;
+      : view.history?.document.boardsById[presentationBoardId]?.note.text;
   const activeBoard =
     activeBoardId === undefined ? undefined : view.history?.document.boardsById[activeBoardId];
+  const activeVersionBoard =
+    presentationBoardId === undefined
+      ? undefined
+      : view.history?.document.boardsById[presentationBoardId];
+  const activeBoardTitle =
+    activeBoard === undefined
+      ? undefined
+      : activeVersionBoard !== undefined && activeVersionBoard.id !== activeBoard.id
+        ? `${activeBoard.name} · ${activeVersionBoard.name}`
+        : activeBoard.name;
+  const resetElementInteraction = useCallback((): void => {
+    editor.keyboardNudgeInteraction.cancel();
+    editor.selectionInteraction.cancelPress();
+    editor.textEditInteraction.cancel();
+    editor.selection.clear();
+  }, [editor]);
   const selectActiveBoard = useCallback(
     (boardId: NonNullable<typeof activeBoardId>): void => {
       if (!editor.activeBoard.select(boardId)) {
         return;
       }
-      editor.keyboardNudgeInteraction.cancel();
-      editor.selectionInteraction.cancelPress();
-      editor.textEditInteraction.cancel();
-      editor.selection.clear();
+      resetElementInteraction();
     },
-    [editor],
+    [editor.activeBoard, resetElementInteraction],
   );
   const createBoard = useCallback((): boolean => {
     const currentDocument = session.getSnapshot().history?.document;
@@ -703,6 +732,55 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       return true;
     },
     [selectActiveBoard, session],
+  );
+  const cloneBoardAlternate = useCallback(
+    (canonicalBoardId: BoardId, mode: 'create' | 'duplicate'): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const alternateBoardId = allocateEditorBoardId();
+      if (currentDocument === undefined || alternateBoardId === undefined) {
+        return false;
+      }
+      const plan = planBoardAlternateClone(
+        currentDocument,
+        canonicalBoardId,
+        alternateBoardId,
+        () => allocateEditorElementId(),
+        mode,
+      );
+      if (plan === undefined) {
+        return false;
+      }
+      const result = session.dispatchTransaction(plan.commands, {
+        label: mode === 'create' ? 'Create alternate' : 'Duplicate board version',
+      });
+      if (
+        result?.ok !== true ||
+        !result.changed ||
+        result.history.document.boardsById[alternateBoardId] === undefined
+      ) {
+        return false;
+      }
+      resetElementInteraction();
+      return true;
+    },
+    [resetElementInteraction, session],
+  );
+  const selectBoardVersion = useCallback(
+    (canonicalBoardId: BoardId, alternateId: BoardId | null): boolean => {
+      const result = session.dispatch({
+        type: DOCUMENT_COMMAND_TYPES.selectBoardVersion,
+        canonicalBoardId,
+        alternateId,
+      });
+      if (result?.ok !== true) {
+        return false;
+      }
+      if (result.changed) {
+        resetElementInteraction();
+      }
+      return true;
+    },
+    [resetElementInteraction, session],
   );
   const requestTrashBoard = useCallback(
     (boardId: BoardId): void => {
@@ -811,7 +889,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       !packagedProbeEnabled ||
       !view.isReady ||
       view.history === undefined ||
-      activeBoardId === undefined
+      activeBoardId === undefined ||
+      presentationBoardId === undefined
     ) {
       return;
     }
@@ -868,7 +947,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     editor.selection.selectOnly(buttonId);
     const noted = session.dispatch({
       type: DOCUMENT_COMMAND_TYPES.setBoardNote,
-      boardId: activeBoardId,
+      boardId: presentationBoardId,
       note: { text: projectWorkflowProbeContract.note },
     });
     if (noted?.ok !== true || !noted.changed) {
@@ -888,7 +967,16 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         'true',
       );
     });
-  }, [activeBoardId, camera, editor, packagedProbeEnabled, session, view.history, view.isReady]);
+  }, [
+    activeBoardId,
+    camera,
+    editor,
+    packagedProbeEnabled,
+    presentationBoardId,
+    session,
+    view.history,
+    view.isReady,
+  ]);
   useEffect(
     () =>
       editor.model.subscribe(() => {
@@ -992,7 +1080,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         document === undefined ? undefined : (
           <ControlInspectorTitle
             document={document}
-            emptyTitle={activeBoard?.name}
+            emptyTitle={activeBoardTitle}
             selection={editor.selection}
           />
         )
@@ -1085,7 +1173,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               ? {
                   worldChildren: (
                     <DocumentScene
-                      activeBoardId={activeBoardId}
+                      activeBoardId={presentationBoardId}
                       camera={camera}
                       document={document}
                       keyboardNudgeInteraction={editor.keyboardNudgeInteraction}
@@ -1105,8 +1193,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                 <ControlInspector
                   document={document}
                   emptyContent={
-                    activeBoard === undefined ? undefined : (
-                      <BoardNoteEditor board={activeBoard} onCommit={setBoardNote} />
+                    activeVersionBoard === undefined ? undefined : (
+                      <BoardNoteEditor board={activeVersionBoard} onCommit={setBoardNote} />
                     )
                   }
                   onAutoSize={async (elementId) => {
@@ -1179,12 +1267,16 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                 <WireframeNavigator
                   activeBoardId={activeBoardId}
                   document={document}
+                  onCreateAlternate={(boardId) => cloneBoardAlternate(boardId, 'create')}
                   onDuplicateBoard={duplicateBoard}
+                  onDuplicateAlternate={(boardId) => cloneBoardAlternate(boardId, 'duplicate')}
                   onRenameBoard={renameBoard}
+                  onRenameAlternate={renameBoard}
                   onRequestTrashBoard={requestTrashBoard}
                   onReorderBoard={reorderBoard}
                   onRestoreBoard={restoreBoard}
                   onSelectBoard={selectActiveBoard}
+                  onSelectVersion={selectBoardVersion}
                   shortcutPlatform={platform}
                   thumbnailStore={editor.thumbnails}
                 />

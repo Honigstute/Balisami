@@ -1,21 +1,19 @@
 import {
   BoardSchema,
   CreateBoardCommandSchema,
-  CreateElementCommandSchema,
   DOCUMENT_COMMAND_TYPES,
-  createElementLocationIndex,
-  selectBoardElementIds,
+  selectBoardPresentationId,
   type BoardId,
   type DocumentCommand,
   type ElementId,
-  type ElementOwner,
   type ProjectDocument,
 } from '../../domain';
+import {
+  planBoardContentClone,
+  type BoardContentCloneElementIdAllocator,
+} from './board-content-clone';
 
-export type BoardDuplicateElementIdAllocator = (
-  sourceElementId: ElementId,
-  sourceIndex: number,
-) => ElementId | undefined;
+export type BoardDuplicateElementIdAllocator = BoardContentCloneElementIdAllocator;
 
 export interface BoardDuplicatePlan {
   readonly cloneBoardId: BoardId;
@@ -23,6 +21,7 @@ export interface BoardDuplicatePlan {
   readonly commands: readonly DocumentCommand[];
   readonly sourceBoardId: BoardId;
   readonly sourceElementIds: readonly ElementId[];
+  readonly sourceVersionId: BoardId;
 }
 
 const getDuplicateName = (document: ProjectDocument, sourceName: string): string => {
@@ -39,52 +38,35 @@ const getDuplicateName = (document: ProjectDocument, sourceName: string): string
   }
 };
 
-/**
- * Plans a complete board clone in canonical pre-order. Parents are created
- * before children, allowing the ordinary validated element-create command to
- * remain the only ownership mutation boundary.
- */
+/** Plans a new canonical board from the source family's currently selected version. */
 export const planBoardDuplicate = (
   document: ProjectDocument,
   sourceBoardId: BoardId,
   cloneBoardId: BoardId,
   allocateElementId: BoardDuplicateElementIdAllocator,
 ): BoardDuplicatePlan | undefined => {
-  const sourceBoard = document.boardsById[sourceBoardId];
+  const canonicalBoard = document.boardsById[sourceBoardId];
   const sourceBoardIndex = document.boardIds.indexOf(sourceBoardId);
+  const sourceVersionId = selectBoardPresentationId(document, sourceBoardId);
   if (
-    sourceBoard === undefined ||
+    canonicalBoard === undefined ||
+    sourceVersionId === undefined ||
     sourceBoardIndex < 0 ||
     document.boardsById[cloneBoardId] !== undefined
   ) {
     return undefined;
   }
-  const sourceElementIds = selectBoardElementIds(document, sourceBoardId);
-  if (sourceElementIds === undefined) {
+  const sourceVersion = document.boardsById[sourceVersionId];
+  if (sourceVersion === undefined) {
     return undefined;
   }
 
-  const cloneElementIds: ElementId[] = [];
-  const cloneIdBySource = new Map<ElementId, ElementId>();
-  for (const [sourceIndex, sourceElementId] of sourceElementIds.entries()) {
-    const cloneElementId = allocateElementId(sourceElementId, sourceIndex);
-    if (
-      cloneElementId === undefined ||
-      document.elementsById[cloneElementId] !== undefined ||
-      cloneElementIds.includes(cloneElementId)
-    ) {
-      return undefined;
-    }
-    cloneElementIds.push(cloneElementId);
-    cloneIdBySource.set(sourceElementId, cloneElementId);
-  }
-
   const cloneBoard = BoardSchema.safeParse({
-    ...sourceBoard,
+    ...sourceVersion,
     alternateIds: [],
     childIds: [],
     id: cloneBoardId,
-    name: getDuplicateName(document, sourceBoard.name),
+    name: getDuplicateName(document, canonicalBoard.name),
     selectedAlternateId: null,
   });
   const createBoard = CreateBoardCommandSchema.safeParse({
@@ -96,54 +78,26 @@ export const planBoardDuplicate = (
     return undefined;
   }
 
-  const locationIndex = createElementLocationIndex(document);
-  const commands: DocumentCommand[] = [createBoard.data];
-  for (const sourceElementId of sourceElementIds) {
-    const sourceElement = document.elementsById[sourceElementId];
-    const cloneElementId = cloneIdBySource.get(sourceElementId);
-    const location = locationIndex.get(sourceElementId);
-    if (sourceElement === undefined || cloneElementId === undefined || location === undefined) {
-      return undefined;
-    }
-    let owner: ElementOwner | undefined;
-    if (location.owner.kind === 'board') {
-      if (location.owner.boardId === sourceBoardId) {
-        owner = Object.freeze({ kind: 'board', boardId: cloneBoardId });
-      }
-    } else {
-      const cloneParentId = cloneIdBySource.get(location.owner.elementId);
-      if (cloneParentId !== undefined) {
-        owner = Object.freeze({ kind: 'element', elementId: cloneParentId });
-      }
-    }
-    if (owner === undefined) {
-      return undefined;
-    }
-    const createElement = CreateElementCommandSchema.safeParse({
-      type: DOCUMENT_COMMAND_TYPES.createElement,
-      element: {
-        ...sourceElement,
-        childIds: [],
-        id: cloneElementId,
-        link:
-          sourceElement.link?.kind === 'board' && sourceElement.link.boardId === sourceBoardId
-            ? { kind: 'board', boardId: cloneBoardId }
-            : sourceElement.link,
-      },
-      owner,
-      index: location.index,
-    });
-    if (!createElement.success) {
-      return undefined;
-    }
-    commands.push(createElement.data);
+  const content = planBoardContentClone(
+    document,
+    sourceVersionId,
+    cloneBoardId,
+    allocateElementId,
+    {
+      remapBoardLink: (linkedBoardId) =>
+        linkedBoardId === sourceBoardId ? cloneBoardId : linkedBoardId,
+    },
+  );
+  if (content === undefined) {
+    return undefined;
   }
 
   return Object.freeze({
     cloneBoardId,
-    cloneElementIds: Object.freeze(cloneElementIds),
-    commands: Object.freeze(commands),
+    cloneElementIds: content.cloneElementIds,
+    commands: Object.freeze([createBoard.data, ...content.commands]),
     sourceBoardId,
-    sourceElementIds,
+    sourceElementIds: content.sourceElementIds,
+    sourceVersionId,
   });
 };

@@ -35,6 +35,7 @@ const NEW_ELEMENT_ID = ElementIdSchema.parse('element_newnode01');
 const SECOND_NEW_ELEMENT_ID = ElementIdSchema.parse('element_newnode02');
 const MISSING_ELEMENT_ID = ElementIdSchema.parse('element_missing01');
 const ALTERNATE_BOARD_ID = BoardIdSchema.parse('board_alternate01');
+const SECOND_ALTERNATE_BOARD_ID = BoardIdSchema.parse('board_alternate02');
 
 const parseFixture = (input: unknown): ProjectDocument => {
   const result = parseProjectDocument(input);
@@ -101,6 +102,21 @@ const createTwoBoardDocument = (linkToSecondary = false): ProjectDocument => {
   if (linkToSecondary) {
     getFixtureElement(input).link = { kind: 'board', boardId: SECONDARY_BOARD_ID };
   }
+  return parseFixture(input);
+};
+
+const createAlternateFamilyDocument = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.alternateIds = [ALTERNATE_BOARD_ID];
+  input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.selectedAlternateId = ALTERNATE_BOARD_ID;
+  input.boardsById[ALTERNATE_BOARD_ID] = {
+    id: ALTERNATE_BOARD_ID,
+    name: 'Alternate 1',
+    note: { text: 'Alternate note' },
+    childIds: [],
+    alternateIds: [],
+    selectedAlternateId: null,
+  };
   return parseFixture(input);
 };
 
@@ -232,6 +248,96 @@ describe('document command dispatcher', () => {
     });
     expect(result.error).toMatchObject({ code: 'conflict' });
     expect(result.error.message).toContain('must have no alternates');
+  });
+
+  it('creates an alternate at an explicit family index and restores the prior selection', () => {
+    const document = createAlternateFamilyDocument();
+    const alternate = createBoard(SECOND_ALTERNATE_BOARD_ID, 'Alternate 2');
+
+    const created = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.createAlternate,
+      canonicalBoardId: DOCUMENT_FIXTURE_IDS.board,
+      alternate,
+      index: 1,
+      selectAfterCreate: SECOND_ALTERNATE_BOARD_ID,
+    });
+
+    expect(created.document.boardIds).toBe(document.boardIds);
+    expect(created.document.trashedBoardIds).toBe(document.trashedBoardIds);
+    expect(created.document.boardsById[DOCUMENT_FIXTURE_IDS.board]).toMatchObject({
+      alternateIds: [ALTERNATE_BOARD_ID, SECOND_ALTERNATE_BOARD_ID],
+      selectedAlternateId: SECOND_ALTERNATE_BOARD_ID,
+    });
+    expect(created.document.boardsById[SECOND_ALTERNATE_BOARD_ID]).toEqual(alternate);
+    expect(created.inverse).toEqual({
+      type: DOCUMENT_COMMAND_TYPES.deleteAlternate,
+      canonicalBoardId: DOCUMENT_FIXTURE_IDS.board,
+      alternateId: SECOND_ALTERNATE_BOARD_ID,
+      selectAfterDelete: ALTERNATE_BOARD_ID,
+    });
+    expect(created.label).toBe('Create alternate “Alternate 2”');
+    expectInverseRestores(document, created);
+  });
+
+  it('deletes only an empty family member and restores its record, order, and selection', () => {
+    const document = createAlternateFamilyDocument();
+
+    const deleted = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.deleteAlternate,
+      canonicalBoardId: DOCUMENT_FIXTURE_IDS.board,
+      alternateId: ALTERNATE_BOARD_ID,
+      selectAfterDelete: null,
+    });
+
+    expect(deleted.document.boardsById[ALTERNATE_BOARD_ID]).toBeUndefined();
+    expect(deleted.document.boardsById[DOCUMENT_FIXTURE_IDS.board]).toMatchObject({
+      alternateIds: [],
+      selectedAlternateId: null,
+    });
+    expect(deleted.inverse).toEqual({
+      type: DOCUMENT_COMMAND_TYPES.createAlternate,
+      canonicalBoardId: DOCUMENT_FIXTURE_IDS.board,
+      alternate: document.boardsById[ALTERNATE_BOARD_ID],
+      index: 0,
+      selectAfterCreate: ALTERNATE_BOARD_ID,
+    });
+    expectInverseRestores(document, deleted);
+
+    const invalidSelection = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.deleteAlternate,
+      canonicalBoardId: DOCUMENT_FIXTURE_IDS.board,
+      alternateId: ALTERNATE_BOARD_ID,
+      selectAfterDelete: SECOND_ALTERNATE_BOARD_ID,
+    });
+    expect(invalidSelection.error.code).toBe('conflict');
+  });
+
+  it('selects official or an owned alternate with exact inverse and no-op behavior', () => {
+    const document = createAlternateFamilyDocument();
+
+    const selectedOfficial = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.selectBoardVersion,
+      canonicalBoardId: DOCUMENT_FIXTURE_IDS.board,
+      alternateId: null,
+    });
+    expect(
+      selectedOfficial.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.selectedAlternateId,
+    ).toBeNull();
+    expectInverseRestores(document, selectedOfficial);
+
+    const unchanged = expectUnchanged(document, {
+      type: DOCUMENT_COMMAND_TYPES.selectBoardVersion,
+      canonicalBoardId: DOCUMENT_FIXTURE_IDS.board,
+      alternateId: ALTERNATE_BOARD_ID,
+    });
+    expect(unchanged.document).toBe(document);
+
+    const missing = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.selectBoardVersion,
+      canonicalBoardId: DOCUMENT_FIXTURE_IDS.board,
+      alternateId: SECOND_ALTERNATE_BOARD_ID,
+    });
+    expect(missing.error.code).toBe('not-found');
   });
 
   it('renames a board with normalized input, reports no-ops, and restores the prior name', () => {

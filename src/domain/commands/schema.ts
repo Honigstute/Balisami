@@ -15,11 +15,14 @@ import {
 
 export const DOCUMENT_COMMAND_TYPES = Object.freeze({
   createBoard: 'board.create',
+  createAlternate: 'board.create-alternate',
   deleteBoard: 'board.delete',
+  deleteAlternate: 'board.delete-alternate',
   restoreBoard: 'board.restore',
   reorderBoard: 'board.reorder',
   renameBoard: 'board.rename',
   setBoardNote: 'board.set-note',
+  selectBoardVersion: 'board.select-version',
   trashBoard: 'board.trash',
   createElement: 'element.create',
   deleteElement: 'element.delete',
@@ -34,10 +37,10 @@ export const DOCUMENT_COMMAND_TYPES = Object.freeze({
 });
 
 const EmptyBoardSchema = BoardSchema.refine((board) => board.childIds.length === 0, {
-  message: 'A board.create command can only introduce an empty board.',
+  message: 'A board command can only introduce an empty board-shaped record.',
   path: ['childIds'],
 }).refine((board) => board.alternateIds.length === 0 && board.selectedAlternateId === null, {
-  message: 'A board.create command cannot introduce alternate-version state.',
+  message: 'A board command cannot introduce nested alternate-version state.',
   path: ['alternateIds'],
 });
 
@@ -99,10 +102,29 @@ export const CreateBoardCommandSchema = z
   })
   .readonly();
 
+export const CreateAlternateCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.createAlternate),
+    canonicalBoardId: BoardIdSchema,
+    alternate: EmptyBoardSchema,
+    index: z.number().int().nonnegative(),
+    selectAfterCreate: BoardIdSchema.nullable(),
+  })
+  .readonly();
+
 export const DeleteBoardCommandSchema = z
   .strictObject({
     type: z.literal(DOCUMENT_COMMAND_TYPES.deleteBoard),
     boardId: BoardIdSchema,
+  })
+  .readonly();
+
+export const DeleteAlternateCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.deleteAlternate),
+    canonicalBoardId: BoardIdSchema,
+    alternateId: BoardIdSchema,
+    selectAfterDelete: BoardIdSchema.nullable(),
   })
   .readonly();
 
@@ -143,6 +165,14 @@ export const SetBoardNoteCommandSchema = z
     type: z.literal(DOCUMENT_COMMAND_TYPES.setBoardNote),
     boardId: BoardIdSchema,
     note: BoardNoteSchema,
+  })
+  .readonly();
+
+export const SelectBoardVersionCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.selectBoardVersion),
+    canonicalBoardId: BoardIdSchema,
+    alternateId: BoardIdSchema.nullable(),
   })
   .readonly();
 
@@ -243,11 +273,14 @@ export const UngroupElementCommandSchema = z
 
 const BOARD_COMMAND_SCHEMAS = [
   CreateBoardCommandSchema,
+  CreateAlternateCommandSchema,
   DeleteBoardCommandSchema,
+  DeleteAlternateCommandSchema,
   RestoreBoardCommandSchema,
   ReorderBoardCommandSchema,
   RenameBoardCommandSchema,
   SetBoardNoteCommandSchema,
+  SelectBoardVersionCommandSchema,
   TrashBoardCommandSchema,
 ] as const;
 
@@ -274,11 +307,14 @@ export const DocumentCommandSchema = z.discriminatedUnion('type', [
 ]);
 
 export type CreateBoardCommand = z.infer<typeof CreateBoardCommandSchema>;
+export type CreateAlternateCommand = z.infer<typeof CreateAlternateCommandSchema>;
 export type DeleteBoardCommand = z.infer<typeof DeleteBoardCommandSchema>;
+export type DeleteAlternateCommand = z.infer<typeof DeleteAlternateCommandSchema>;
 export type RestoreBoardCommand = z.infer<typeof RestoreBoardCommandSchema>;
 export type ReorderBoardCommand = z.infer<typeof ReorderBoardCommandSchema>;
 export type RenameBoardCommand = z.infer<typeof RenameBoardCommandSchema>;
 export type SetBoardNoteCommand = z.infer<typeof SetBoardNoteCommandSchema>;
+export type SelectBoardVersionCommand = z.infer<typeof SelectBoardVersionCommandSchema>;
 export type TrashBoardCommand = z.infer<typeof TrashBoardCommandSchema>;
 export type CreateElementCommand = z.infer<typeof CreateElementCommandSchema>;
 export type DeleteElementCommand = z.infer<typeof DeleteElementCommandSchema>;

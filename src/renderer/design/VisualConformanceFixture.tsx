@@ -1005,12 +1005,16 @@ const AlphaNavigatorFixture = () => {
     <WireframeNavigator
       activeBoardId={fixture.boardId}
       document={fixture.document}
+      onCreateAlternate={() => true}
       onDuplicateBoard={() => true}
+      onDuplicateAlternate={() => true}
+      onRenameAlternate={() => true}
       onRenameBoard={() => true}
       onRequestTrashBoard={() => undefined}
       onReorderBoard={() => true}
       onRestoreBoard={() => true}
       onSelectBoard={() => undefined}
+      onSelectVersion={() => true}
       shortcutPlatform="darwin"
       thumbnailStore={thumbnailStore}
     />

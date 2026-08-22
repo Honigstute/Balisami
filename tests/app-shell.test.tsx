@@ -260,6 +260,36 @@ describe('application shell', () => {
     );
   });
 
+  it('uses the selected alternate for canvas-adjacent board state and keeps Official intact', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Alternate' }));
+    const alternateNote = await screen.findByRole('textbox', { name: 'Notes for Alternate 1' });
+    expect(alternateNote).toHaveValue('Fixture board note');
+    expect(
+      screen.getByRole('heading', { name: 'Main wireframe · Alternate 1' }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(alternateNote, { target: { value: 'Alternate-only decision' } });
+    fireEvent.blur(alternateNote);
+    fireEvent.click(screen.getByRole('button', { name: 'Current' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Official' }));
+
+    expect(await screen.findByRole('textbox', { name: 'Notes for Main wireframe' })).toHaveValue(
+      'Fixture board note',
+    );
+    expect(screen.getByRole('button', { name: 'Undo Select board version' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Current' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Alternate 1' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Alternate 1' })).toHaveValue(
+      'Alternate-only decision',
+    );
+  });
+
   it('keeps the project home behind one explicit startup recovery decision', async () => {
     const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
       status: 'cancelled',

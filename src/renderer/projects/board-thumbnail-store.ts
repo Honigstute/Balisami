@@ -1,4 +1,4 @@
-import type { BoardId, ProjectDocument } from '../../domain';
+import { selectBoardPresentationId, type BoardId, type ProjectDocument } from '../../domain';
 import type { ControlTextMeasurementService } from '../controls/control-text-measurement';
 import {
   createBoardThumbnailProjection,
@@ -132,7 +132,11 @@ export class BoardThumbnailStore {
       if (boardId !== undefined) {
         let snapshot: BoardThumbnailSnapshot;
         try {
-          const projection = this.#projector(this.#document, boardId, this.#textMeasurementService);
+          const presentationBoardId = selectBoardPresentationId(this.#document, boardId);
+          const projection =
+            presentationBoardId === undefined
+              ? undefined
+              : this.#projector(this.#document, presentationBoardId, this.#textMeasurementService);
           snapshot =
             projection === undefined
               ? Object.freeze({ status: 'unavailable' })

@@ -5,12 +5,15 @@ import type { CommandApplication } from './application';
 import {
   DOCUMENT_COMMAND_TYPES,
   type BoardCommand,
+  type CreateAlternateCommand,
   type CreateBoardCommand,
+  type DeleteAlternateCommand,
   type DeleteBoardCommand,
   type RestoreBoardCommand,
   type RenameBoardCommand,
   type ReorderBoardCommand,
   type SetBoardNoteCommand,
+  type SelectBoardVersionCommand,
   type TrashBoardCommand,
 } from './schema';
 
@@ -25,6 +28,16 @@ const createBoardRevision = (
 
 const getBoard = (document: ProjectDocument, boardId: BoardId): Board | undefined =>
   document.boardsById[boardId];
+
+const getCanonicalBoard = (document: ProjectDocument, boardId: BoardId): Board | undefined =>
+  document.boardIds.includes(boardId) || document.trashedBoardIds.includes(boardId)
+    ? getBoard(document, boardId)
+    : undefined;
+
+const isValidSelectedAlternate = (
+  alternateIds: readonly BoardId[],
+  selectedAlternateId: BoardId | null,
+): boolean => selectedAlternateId === null || alternateIds.includes(selectedAlternateId);
 
 const applyCreateBoard = (
   document: ProjectDocument,
@@ -131,6 +144,129 @@ const applyDeleteBoard = (
       index,
     },
     label: `Delete board “${board.name}”`,
+  };
+};
+
+const applyCreateAlternate = (
+  document: ProjectDocument,
+  command: CreateAlternateCommand,
+): CommandApplication => {
+  const canonicalBoard = getCanonicalBoard(document, command.canonicalBoardId);
+  if (canonicalBoard === undefined) {
+    return {
+      ok: false,
+      code: 'not-found',
+      message: `Canonical board '${command.canonicalBoardId}' does not exist.`,
+    };
+  }
+  if (Object.hasOwn(document.boardsById, command.alternate.id)) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Board '${command.alternate.id}' already exists.`,
+    };
+  }
+  if (command.index > canonicalBoard.alternateIds.length) {
+    return {
+      ok: false,
+      code: 'out-of-range',
+      message: `Alternate insertion index ${String(command.index)} exceeds ${String(canonicalBoard.alternateIds.length)}.`,
+    };
+  }
+
+  const alternateIds = [...canonicalBoard.alternateIds];
+  alternateIds.splice(command.index, 0, command.alternate.id);
+  if (!isValidSelectedAlternate(alternateIds, command.selectAfterCreate)) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Selected alternate '${String(command.selectAfterCreate)}' is not in the resulting board family.`,
+    };
+  }
+
+  const updatedCanonicalBoard = Object.freeze({
+    ...canonicalBoard,
+    alternateIds: Object.freeze(alternateIds),
+    selectedAlternateId: command.selectAfterCreate,
+  });
+  const boardsById = Object.freeze({
+    ...document.boardsById,
+    [canonicalBoard.id]: updatedCanonicalBoard,
+    [command.alternate.id]: command.alternate,
+  });
+
+  return {
+    ok: true,
+    changed: true,
+    candidate: createBoardRevision(document, { boardsById }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.deleteAlternate,
+      canonicalBoardId: canonicalBoard.id,
+      alternateId: command.alternate.id,
+      selectAfterDelete: canonicalBoard.selectedAlternateId,
+    },
+    label: `Create alternate “${command.alternate.name}”`,
+  };
+};
+
+const applyDeleteAlternate = (
+  document: ProjectDocument,
+  command: DeleteAlternateCommand,
+): CommandApplication => {
+  const canonicalBoard = getCanonicalBoard(document, command.canonicalBoardId);
+  const alternate = getBoard(document, command.alternateId);
+  const index = canonicalBoard?.alternateIds.indexOf(command.alternateId) ?? -1;
+  if (canonicalBoard === undefined || alternate === undefined || index < 0) {
+    return {
+      ok: false,
+      code: 'not-found',
+      message: `Alternate '${command.alternateId}' does not belong to canonical board '${command.canonicalBoardId}'.`,
+    };
+  }
+  if (alternate.childIds.length > 0) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Alternate '${command.alternateId}' must be empty before it can be deleted.`,
+    };
+  }
+
+  const alternateIds = canonicalBoard.alternateIds.filter(
+    (alternateId) => alternateId !== command.alternateId,
+  );
+  if (!isValidSelectedAlternate(alternateIds, command.selectAfterDelete)) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Selected alternate '${String(command.selectAfterDelete)}' is not in the resulting board family.`,
+    };
+  }
+
+  const updatedCanonicalBoard = Object.freeze({
+    ...canonicalBoard,
+    alternateIds: Object.freeze(alternateIds),
+    selectedAlternateId: command.selectAfterDelete,
+  });
+  const mutableBoardsById: Record<string, Board> = {
+    ...document.boardsById,
+    [canonicalBoard.id]: updatedCanonicalBoard,
+  };
+  delete mutableBoardsById[alternate.id];
+
+  return {
+    ok: true,
+    changed: true,
+    candidate: createBoardRevision(document, {
+      boardsById: Object.freeze(mutableBoardsById),
+    }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.createAlternate,
+      canonicalBoardId: canonicalBoard.id,
+      alternate,
+      index,
+      selectAfterCreate: canonicalBoard.selectedAlternateId,
+    },
+    label: `Delete alternate “${alternate.name}”`,
   };
 };
 
@@ -335,6 +471,51 @@ const applySetBoardNote = (
   };
 };
 
+const applySelectBoardVersion = (
+  document: ProjectDocument,
+  command: SelectBoardVersionCommand,
+): CommandApplication => {
+  const canonicalBoard = getCanonicalBoard(document, command.canonicalBoardId);
+  if (canonicalBoard === undefined) {
+    return {
+      ok: false,
+      code: 'not-found',
+      message: `Canonical board '${command.canonicalBoardId}' does not exist.`,
+    };
+  }
+  if (!isValidSelectedAlternate(canonicalBoard.alternateIds, command.alternateId)) {
+    return {
+      ok: false,
+      code: 'not-found',
+      message: `Alternate '${String(command.alternateId)}' does not belong to canonical board '${command.canonicalBoardId}'.`,
+    };
+  }
+  if (canonicalBoard.selectedAlternateId === command.alternateId) {
+    return { ok: true, changed: false, label: 'Select board version' };
+  }
+
+  const updatedCanonicalBoard = Object.freeze({
+    ...canonicalBoard,
+    selectedAlternateId: command.alternateId,
+  });
+  const boardsById = Object.freeze({
+    ...document.boardsById,
+    [canonicalBoard.id]: updatedCanonicalBoard,
+  });
+
+  return {
+    ok: true,
+    changed: true,
+    candidate: createBoardRevision(document, { boardsById }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.selectBoardVersion,
+      canonicalBoardId: canonicalBoard.id,
+      alternateId: canonicalBoard.selectedAlternateId,
+    },
+    label: 'Select board version',
+  };
+};
+
 const assertNever = (command: never): never => {
   throw new Error(`Unhandled document command: ${JSON.stringify(command)}`);
 };
@@ -346,8 +527,12 @@ export const applyBoardCommand = (
   switch (command.type) {
     case DOCUMENT_COMMAND_TYPES.createBoard:
       return applyCreateBoard(document, command);
+    case DOCUMENT_COMMAND_TYPES.createAlternate:
+      return applyCreateAlternate(document, command);
     case DOCUMENT_COMMAND_TYPES.deleteBoard:
       return applyDeleteBoard(document, command);
+    case DOCUMENT_COMMAND_TYPES.deleteAlternate:
+      return applyDeleteAlternate(document, command);
     case DOCUMENT_COMMAND_TYPES.restoreBoard:
       return applyRestoreBoard(document, command);
     case DOCUMENT_COMMAND_TYPES.reorderBoard:
@@ -356,6 +541,8 @@ export const applyBoardCommand = (
       return applyRenameBoard(document, command);
     case DOCUMENT_COMMAND_TYPES.setBoardNote:
       return applySetBoardNote(document, command);
+    case DOCUMENT_COMMAND_TYPES.selectBoardVersion:
+      return applySelectBoardVersion(document, command);
     case DOCUMENT_COMMAND_TYPES.trashBoard:
       return applyTrashBoard(document, command);
     default:

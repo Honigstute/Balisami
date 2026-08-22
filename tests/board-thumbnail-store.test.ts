@@ -134,4 +134,35 @@ describe('board thumbnail store', () => {
     store.generate(trashed.document);
     expect(store.getSnapshot(secondBoardId).status).toBe('loading');
   });
+
+  it('keys the navigator snapshot by canonical board while projecting its selected alternate', () => {
+    const input = createValidProjectDocumentInput();
+    const alternateId = BoardIdSchema.parse('board_thumbnail_alt');
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.alternateIds = [alternateId];
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.selectedAlternateId = alternateId;
+    input.boardsById[alternateId] = {
+      id: alternateId,
+      name: 'Selected alternate',
+      note: { text: '' },
+      childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) {
+      throw new Error('Selected alternate thumbnail fixture is invalid.');
+    }
+    const scheduler = new ManualScheduler();
+    const projector = vi.fn(createBoardThumbnailProjection);
+    const store = new BoardThumbnailStore({ projector, scheduler });
+
+    store.generate(parsed.value);
+    scheduler.flushNext();
+
+    expect(projector).toHaveBeenCalledWith(parsed.value, alternateId, undefined);
+    expect(store.getSnapshot(DOCUMENT_FIXTURE_IDS.board)).toMatchObject({
+      projection: { boardId: alternateId },
+      status: 'ready',
+    });
+  });
 });

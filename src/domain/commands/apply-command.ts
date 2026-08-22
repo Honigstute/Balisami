@@ -14,11 +14,14 @@ export const applyDocumentCommand = (
 ): CommandApplication => {
   switch (command.type) {
     case DOCUMENT_COMMAND_TYPES.createBoard:
+    case DOCUMENT_COMMAND_TYPES.createAlternate:
     case DOCUMENT_COMMAND_TYPES.deleteBoard:
+    case DOCUMENT_COMMAND_TYPES.deleteAlternate:
     case DOCUMENT_COMMAND_TYPES.restoreBoard:
     case DOCUMENT_COMMAND_TYPES.reorderBoard:
     case DOCUMENT_COMMAND_TYPES.renameBoard:
     case DOCUMENT_COMMAND_TYPES.setBoardNote:
+    case DOCUMENT_COMMAND_TYPES.selectBoardVersion:
     case DOCUMENT_COMMAND_TYPES.trashBoard:
       return applyBoardCommand(document, command);
     case DOCUMENT_COMMAND_TYPES.createElement:

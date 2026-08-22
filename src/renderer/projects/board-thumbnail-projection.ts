@@ -61,7 +61,12 @@ export const createBoardThumbnailProjection = (
   boardId: BoardId,
   textMeasurementService?: ControlTextMeasurementService,
 ): BoardThumbnailProjection | undefined => {
-  if (!document.boardIds.includes(boardId)) {
+  const isActivePresentationBoard =
+    document.boardIds.includes(boardId) ||
+    document.boardIds.some(
+      (canonicalBoardId) => document.boardsById[canonicalBoardId]?.selectedAlternateId === boardId,
+    );
+  if (!isActivePresentationBoard || document.boardsById[boardId] === undefined) {
     return undefined;
   }
   const sceneItems = createBoardSceneItems(document, boardId).filter(

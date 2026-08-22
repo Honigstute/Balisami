@@ -3,17 +3,22 @@ import { useRef, useState, type KeyboardEvent } from 'react';
 import type { BoardId, ProjectDocument } from '../../domain';
 import { AppButton } from '../design/AppButton';
 import { BoardThumbnail } from '../projects/BoardThumbnail';
+import { BoardVersionPanel } from '../projects/BoardVersionPanel';
 import type { BoardThumbnailStore } from '../projects/board-thumbnail-store';
 
 interface WireframeNavigatorProps {
   readonly activeBoardId: BoardId | undefined;
   readonly document: ProjectDocument;
+  readonly onCreateAlternate: (boardId: BoardId) => boolean;
   readonly onDuplicateBoard: (boardId: BoardId) => boolean;
+  readonly onDuplicateAlternate: (boardId: BoardId) => boolean;
+  readonly onRenameAlternate: (boardId: BoardId, name: string) => boolean;
   readonly onRenameBoard: (boardId: BoardId, name: string) => boolean;
   readonly onRequestTrashBoard: (boardId: BoardId) => void;
   readonly onReorderBoard: (boardId: BoardId, toIndex: number) => boolean;
   readonly onRestoreBoard: (boardId: BoardId) => boolean;
   readonly onSelectBoard: (boardId: BoardId) => void;
+  readonly onSelectVersion: (boardId: BoardId, alternateId: BoardId | null) => boolean;
   readonly shortcutPlatform: 'darwin' | 'win32';
   readonly thumbnailStore?: BoardThumbnailStore;
 }
@@ -21,12 +26,16 @@ interface WireframeNavigatorProps {
 export const WireframeNavigator = ({
   activeBoardId,
   document,
+  onCreateAlternate,
   onDuplicateBoard,
+  onDuplicateAlternate,
+  onRenameAlternate,
   onRenameBoard,
   onRequestTrashBoard,
   onReorderBoard,
   onRestoreBoard,
   onSelectBoard,
+  onSelectVersion,
   shortcutPlatform,
   thumbnailStore,
 }: WireframeNavigatorProps) => {
@@ -239,6 +248,16 @@ export const WireframeNavigator = ({
           </button>
         );
       })}
+      {activeBoardId === undefined || activeBoard === undefined ? null : (
+        <BoardVersionPanel
+          canonicalBoardId={activeBoardId}
+          document={document}
+          onCreateAlternate={onCreateAlternate}
+          onDuplicateAlternate={onDuplicateAlternate}
+          onRenameAlternate={onRenameAlternate}
+          onSelectVersion={onSelectVersion}
+        />
+      )}
       <div className="wireframe-list__actions">
         <AppButton
           disabled={!canTrashActive}
