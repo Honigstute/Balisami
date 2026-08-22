@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M10 active — boards, notes, links, alternates, and presentation
+Status: M11 active — assets, icons, reusable components, and catalog expansion
 Last reviewed: 2026-08-22
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -502,7 +502,7 @@ Exit gate:
 - A user can find, place, edit, move, resize, snap, undo, save, reopen, and delete every representative control without console errors.
 - Shelf slots and viewport bounds are unchanged by long names, missing previews, active category, selection type, validation, or open overlays.
 
-### [~] M10 — Boards, notes, links, alternates, and presentation
+### [x] M10 — Boards, notes, links, alternates, and presentation
 
 Depends on: M9
 
@@ -537,7 +537,14 @@ Exit gate:
 - Links and alternates survive save/reopen and behave consistently in presentation and export fixtures.
 - Thumbnails update asynchronously without degrading active-canvas performance budget.
 
-### [ ] M11 — Assets, icons, reusable components, and catalog expansion
+Completion evidence (2026-08-22):
+
+- Board CRUD/order/trash, board notes, validated links, alternate families, selected-version routing, and full-screen presentation all use the canonical document/session owners described above. Board and version changes leave the fixed shell mounted; presentation navigation is transient, while every selected alternate and link remains persisted through validated commands and schema-v4 file round trips. The same canonical-ID-to-selected-version selector now drives canvas, thumbnails, presentation, packaged workflow probes, and the uncapped output projection reserved for M12 export fixtures, so those surfaces cannot silently choose different alternate content.
+- The final local source gate for commit `7bc1704` passes formatting, lint, 191-module dependency boundaries, strict TypeScript, 110 test files / 680 tests, and a production dependency audit with zero vulnerabilities. Focused M10 coverage proves exact command undo, schema-v4 migration/codec behavior, save/reopen of selected non-empty alternates and external links, browser-like presentation history, selected-alternate rendering, board/external activation, focus containment, shell identity, trusted IPC sender validation, and bounded URL transport.
+- The rebuilt macOS arm64 package passes fuse readback, smoke, the complete 25-fixture visual matrix plus 1.25×/1.5×/2× default-scale captures, project create/edit/undo/redo/save/close/reopen, forced-crash recovery with the prior 567-byte user file preserved byte-for-byte, and viewport performance at 0.80 ms p95 frame work / 17.5 ms p95 input latency. Original-resolution `presentation` review confirms the complete `Account flow · Client direction` alternate is centered at its true aspect ratio with link geometry, full-screen history chrome, fixed underlying shell, and no clipping or renderer problem. The complete matrix passed after one isolated, immediately non-reproduced `paste` timeout; the isolated performance rerun likewise passed after one timeout under repeated local launches, and no timeout exception was added.
+- Windows x64 cross-packaging and fuse readback pass locally for `7bc1704`. The immediately preceding final lifecycle commit `493140d` passed [push Quality run 32547314241](https://github.com/Honigstute/Balisami/actions/runs/32547314241) and independent [PR Quality run 32547316246](https://github.com/Honigstute/Balisami/actions/runs/32547316246) on native macOS 26 arm64 and Windows 2025 x64, including source, package/fuses/smoke, visual/scale, performance, save/reopen, recovery, and distributable gates. Per the product owner's later instruction, commit `7bc1704` was pushed with GitHub checks skipped and no new GitHub-hosted Windows job was started; this explicit test-location constraint does not change the maintained Windows product target.
+
+### [~] M11 — Assets, icons, reusable components, and catalog expansion
 
 Depends on: M9, M10
 
@@ -620,4 +627,4 @@ Exit gate:
 
 ## Next action
 
-Record the completed M10 exit gate and activate M11, then audit the existing asset/file/registry seams before choosing its smallest coherent image-import slice. Visible icon picking remains M11 work because its persisted `iconId` contract is not present in the current representative schemas. The Arrow draw shortcut remains deferred until its persisted endpoint-direction contract is evidence-backed. M8's other documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.
+Audit the existing asset/file/registry seams, then implement the smallest coherent M11 image-import slice with bounded type/size/decode validation and one canonical content-addressed asset path. Visible icon picking follows only after its persisted `iconId` contract is present in representative schemas. The Arrow draw shortcut remains deferred until its persisted endpoint-direction contract is evidence-backed. M8's other documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.
