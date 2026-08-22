@@ -35,6 +35,7 @@ describe('control library query', () => {
       CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
+      CONTROL_TYPES.searchBox,
     ]);
     expect(queryControlLibrary({ category: 'All' }).map(({ type }) => type)).toEqual([
       CONTROL_TYPES.rectangle,
@@ -73,6 +74,7 @@ describe('control library query', () => {
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
+      CONTROL_TYPES.searchBox,
     ]);
   });
 
@@ -97,6 +99,8 @@ describe('control library query', () => {
       CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
+      CONTROL_TYPES.searchBox,
+      `${CONTROL_TYPES.searchBox}:rectangular-microphone`,
     ]);
     expect(queryControlLibraryEntries({ query: 'underline' })[0]).toMatchObject({
       definition: { type: CONTROL_TYPES.textInput },

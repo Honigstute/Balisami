@@ -97,6 +97,27 @@ export const createControlSceneOutlinePath = (
       start: createWorldPoint(bounds.x, bounds.y + bounds.height),
     });
   }
+  if (
+    definition.scene.kind === 'search-box' &&
+    (properties ?? definition.defaultProperties).shape === 'rounded'
+  ) {
+    const radius = Math.max(0, Math.min(bounds.height / 2, bounds.width / 2));
+    const left = bounds.x;
+    const right = bounds.x + bounds.width;
+    const top = bounds.y;
+    const bottom = bounds.y + bounds.height;
+    return [
+      `M ${String(left + radius)} ${String(top)}`,
+      `L ${String(right - radius)} ${String(top)}`,
+      `Q ${String(right)} ${String(top)} ${String(right)} ${String(top + radius)}`,
+      `L ${String(right)} ${String(bottom - radius)}`,
+      `Q ${String(right)} ${String(bottom)} ${String(right - radius)} ${String(bottom)}`,
+      `L ${String(left + radius)} ${String(bottom)}`,
+      `Q ${String(left)} ${String(bottom)} ${String(left)} ${String(bottom - radius)}`,
+      `L ${String(left)} ${String(top + radius)}`,
+      `Q ${String(left)} ${String(top)} ${String(left + radius)} ${String(top)}`,
+    ].join(' ');
+  }
   if (definition.scene.kind === 'h-rule' || definition.scene.kind === 'v-rule') {
     const horizontal = definition.scene.kind === 'h-rule';
     return createSeededSketchLinePath({
@@ -149,6 +170,51 @@ const createImagePlaceholderMarkPath = (bounds: WorldRect, elementId: string): s
       start: createWorldPoint(bounds.x + bounds.width, bounds.y),
     }),
   ].join(' ');
+
+const createSearchBoxMarkPath = (
+  bounds: WorldRect,
+  elementId: string,
+  properties: ElementProperties,
+): string => {
+  const extent = Math.max(0, Math.min(16, bounds.height - 6, bounds.width / 4));
+  if (extent === 0) return '';
+  const centerY = bounds.y + bounds.height / 2;
+  const paths: string[] = [];
+  if (properties.searchIcon === true) {
+    const radius = extent * 0.32;
+    const center = createWorldPoint(bounds.x + 8 + radius, centerY - radius * 0.12);
+    paths.push(createSeededCirclePath(center, radius, elementId, 'search-box-search'));
+    paths.push(
+      createSeededSketchLinePath({
+        end: createWorldPoint(center.x + radius * 1.55, center.y + radius * 1.55),
+        seed: `${elementId}:search-box-search-handle`,
+        start: createWorldPoint(center.x + radius * 0.72, center.y + radius * 0.72),
+      }),
+    );
+  }
+  if (properties.microphoneIcon === true) {
+    const centerX = bounds.x + bounds.width - 8 - extent * 0.35;
+    const radius = extent * 0.22;
+    const top = centerY - extent * 0.34;
+    const bottom = centerY + extent * 0.12;
+    paths.push(
+      [
+        `M ${String(centerX)} ${String(top)}`,
+        `Q ${String(centerX - radius)} ${String(top)} ${String(centerX - radius)} ${String(top + radius)}`,
+        `L ${String(centerX - radius)} ${String(bottom - radius)}`,
+        `Q ${String(centerX - radius)} ${String(bottom)} ${String(centerX)} ${String(bottom)}`,
+        `Q ${String(centerX + radius)} ${String(bottom)} ${String(centerX + radius)} ${String(bottom - radius)}`,
+        `L ${String(centerX + radius)} ${String(top + radius)}`,
+        `Q ${String(centerX + radius)} ${String(top)} ${String(centerX)} ${String(top)}`,
+        `M ${String(centerX - radius * 1.8)} ${String(centerY)}`,
+        `Q ${String(centerX)} ${String(centerY + extent * 0.44)} ${String(centerX + radius * 1.8)} ${String(centerY)}`,
+        `M ${String(centerX)} ${String(centerY + extent * 0.28)}`,
+        `L ${String(centerX)} ${String(centerY + extent * 0.48)}`,
+      ].join(' '),
+    );
+  }
+  return paths.join(' ');
+};
 
 const createSeededPolylinePath = (
   points: readonly ReturnType<typeof createWorldPoint>[],
@@ -848,6 +914,9 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'scratch-out') {
     return createScratchOutMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'search-box') {
+    return createSearchBoxMarkPath(bounds, elementId, properties);
   }
   if (definition.scene.kind === 'help-button') {
     return createHelpButtonMarkPath(bounds, elementId);

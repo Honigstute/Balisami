@@ -15,6 +15,7 @@ import {
   BOARD_THUMBNAIL_POLICY,
   createBoardThumbnailProjection,
 } from '../src/renderer/projects/board-thumbnail-projection';
+import { createBoardPresentationProjection } from '../src/renderer/projects/board-presentation-projection';
 import {
   createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
@@ -110,6 +111,44 @@ describe('board thumbnail projection', () => {
     expect(
       createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board)?.items[0]?.icon,
     ).toMatchObject({ assetId: DOCUMENT_FIXTURE_IDS.asset, kind: 'asset' });
+  });
+
+  it('keeps Search Box preset geometry identical in navigator and presentation projection', () => {
+    const input = createValidProjectDocumentInput();
+    const searchBox = getControlSpec(CONTROL_TYPES.searchBox);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (searchBox === undefined || child === undefined) {
+      throw new Error('Search Box cross-surface fixture is incomplete.');
+    }
+    child.controlType = searchBox.type;
+    child.controlVersion = searchBox.fileVersion;
+    child.properties = {
+      ...searchBox.defaultProperties,
+      microphoneIcon: true,
+      shape: 'rectangular',
+    };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Search Box cross-surface fixture is invalid.');
+
+    const thumbnail = createBoardThumbnailProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+    const presentation = createBoardPresentationProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+    expect(thumbnail).toMatchObject({ visualKind: 'search-box' });
+    expect(presentation).toMatchObject({
+      accessibleName: 'search',
+      role: 'textbox',
+      visualKind: 'search-box',
+    });
+    expect(presentation?.outlinePath).toBe(thumbnail?.outlinePath);
+    expect(presentation?.markPath).toBe(thumbnail?.markPath);
   });
 
   it('bounds SVG complexity while retaining the topmost canonical controls', () => {

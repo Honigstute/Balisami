@@ -23,6 +23,7 @@ export const VISUAL_FIXTURE_NAMES = Object.freeze([
   'components',
   'presentation',
   'registryControl',
+  'searchBox',
   'controls',
   'feedback',
   'tooltip',

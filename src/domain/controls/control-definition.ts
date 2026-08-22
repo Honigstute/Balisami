@@ -36,6 +36,7 @@ export type ControlVisualKind =
   | 'rectangle'
   | 'red-x'
   | 'scratch-out'
+  | 'search-box'
   | 'squiggly-block'
   | 'street-map'
   | 'text'

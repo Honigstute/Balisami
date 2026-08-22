@@ -23,6 +23,17 @@ describe('control drag transfer', () => {
     expect(parseDraggedControlEntry(CONTROL_TYPES.button)).toEqual({
       controlType: CONTROL_TYPES.button,
     });
+    expect(
+      parseDraggedControlEntry(
+        JSON.stringify({
+          controlType: CONTROL_TYPES.searchBox,
+          presetId: 'rectangular-microphone',
+        }),
+      ),
+    ).toEqual({
+      controlType: CONTROL_TYPES.searchBox,
+      presetId: 'rectangular-microphone',
+    });
   });
 
   it('rejects malformed, mismatched, unknown, and oversized payloads', () => {

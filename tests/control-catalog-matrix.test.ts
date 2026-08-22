@@ -40,6 +40,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.red-x': 'common harness; registry visual fixture; deterministic Markup scene geometry',
   'wireframe.scratch-out':
     'common harness; range inspector; deterministic Scratch-Out scene geometry',
+  'wireframe.search-box':
+    'common harness; base/preset authoring identity, inspector, auto-size, and cross-surface geometry',
   'wireframe.help-button':
     'common harness; shared link inspector; deterministic Help Button geometry',
   'wireframe.modal-screen':

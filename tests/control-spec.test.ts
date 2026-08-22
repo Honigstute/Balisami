@@ -52,6 +52,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
+      CONTROL_TYPES.searchBox,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -97,6 +98,7 @@ describe('control definition registry', () => {
       'Button Bar',
       'Link Bar',
       'Tree Pane',
+      'Search Box',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -650,5 +652,49 @@ describe('control definition registry', () => {
       capabilities: { grouping: 'leaf', resizeAxes: 'both' },
     });
     expect(getControlSpec('foundation.unknown')).toBeUndefined();
+  });
+
+  it('owns the complete Search Box schema and its alternate palette identity', () => {
+    const searchBox = getControlSpec(CONTROL_TYPES.searchBox);
+
+    expect(searchBox).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'textbox' },
+      autoSize: { axis: 'both', basis: 'text' },
+      capabilities: { link: true, state: true },
+      defaultProperties: {
+        microphoneIcon: false,
+        searchIcon: true,
+        shape: 'rounded',
+        state: 'normal',
+        text: 'search',
+      },
+      export: { kind: 'scene' },
+      palette: {
+        category: 'Forms',
+        presets: [
+          {
+            id: 'rectangular-microphone',
+            properties: { microphoneIcon: true, shape: 'rectangular' },
+          },
+        ],
+      },
+      scene: { kind: 'search-box' },
+      thumbnail: { kind: 'scene' },
+    });
+    expect(searchBox?.inspector.flatMap((section) => section.fields)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'choice', property: 'shape' }),
+        expect.objectContaining({ kind: 'boolean', property: 'searchIcon' }),
+        expect.objectContaining({ kind: 'boolean', property: 'microphoneIcon' }),
+        expect.objectContaining({ kind: 'select', property: 'state' }),
+      ]),
+    );
+    expect(searchBox?.propertiesSchema.safeParse(searchBox.defaultProperties).success).toBe(true);
+    expect(
+      searchBox?.propertiesSchema.safeParse({
+        ...searchBox.defaultProperties,
+        shape: 'pill',
+      }).success,
+    ).toBe(false);
   });
 });

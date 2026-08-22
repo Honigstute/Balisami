@@ -90,6 +90,20 @@ describe('Quick Add', () => {
     ).toBeInTheDocument();
   });
 
+  it('finds and inserts the Search Box alternate by its independent preset identity', () => {
+    const onInsert = vi.fn<(controlType: ControlTypeId, presetId?: string) => boolean>(() => true);
+    render(<QuickAddFixture onInsert={onInsert} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Quick add' }));
+    const search = screen.getByRole('combobox', { name: 'Find a control' });
+    fireEvent.change(search, { target: { value: 'microphone' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    expect(onInsert).toHaveBeenCalledWith(CONTROL_TYPES.searchBox, 'rectangular-microphone');
+    expect(loadQuickAddPreferences(window.localStorage).recent).toEqual([
+      `${CONTROL_TYPES.searchBox}:rectangular-microphone`,
+    ]);
+  });
+
   it('promotes bounded favorites and recent controls without duplicating registry results', () => {
     const favorite = toggleQuickAddFavorite(DEFAULT_QUICK_ADD_PREFERENCES, CONTROL_TYPES.checkbox);
     const recent = recordQuickAddRecent(favorite, CONTROL_TYPES.button);

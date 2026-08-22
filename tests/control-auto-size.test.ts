@@ -139,6 +139,25 @@ describe('registry-driven control auto-size', () => {
     });
   });
 
+  it('reserves both evidenced Search Box decoration slots during Auto-Size', () => {
+    const element = createElement(CONTROL_TYPES.searchBox);
+    if (element === undefined) throw new Error('Search Box fixture is missing.');
+    const measure = vi.fn(() => ({
+      baselineOffsets: [10],
+      height: 16,
+      lineCount: 1,
+      lineHeight: 16,
+      lines: ['search'],
+      width: 50,
+    }));
+
+    expect(calculateControlAutoSizeFrame(element, { measure })).toEqual({
+      ...element.frame,
+      height: 24,
+      width: 114,
+    });
+  });
+
   it('preserves the inactive checkbox height and refuses controls without a policy', () => {
     const checkbox = createElement(CONTROL_TYPES.checkbox);
     const rectangle = createElement(CONTROL_TYPES.rectangle);

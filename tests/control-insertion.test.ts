@@ -12,6 +12,7 @@ import {
 } from '../src/domain';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
 import { createWorldPoint, createWorldRect } from '../src/renderer/editor/viewport-transform';
+import { decodeProjectFileEnvelope, encodeProjectFileEnvelope } from '../src/persistence';
 
 describe('registry-backed control insertion', () => {
   it('creates every palette control through the canonical command boundary', () => {
@@ -56,7 +57,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(36);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(37);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -96,6 +97,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
+      CONTROL_TYPES.searchBox,
     ]);
   });
 
@@ -120,6 +122,27 @@ describe('registry-backed control insertion', () => {
       properties: { borderMode: 'underline' },
     });
     expect(createControlInsertionCommand({ ...request, presetId: 'unknown' })).toBeUndefined();
+
+    const searchId = ElementIdSchema.parse('element_searchpreset');
+    const searchCommand = createControlInsertionCommand({
+      ...request,
+      controlType: CONTROL_TYPES.searchBox,
+      elementId: searchId,
+      presetId: 'rectangular-microphone',
+    });
+    expect(searchCommand?.element).toMatchObject({
+      controlType: CONTROL_TYPES.searchBox,
+      properties: { microphoneIcon: true, searchIcon: true, shape: 'rectangular' },
+    });
+    const inserted = dispatchDocumentCommand(created.value, searchCommand);
+    if (!inserted.ok || !inserted.changed) throw new Error('Search Box preset did not insert.');
+    const encoded = encodeProjectFileEnvelope(inserted.document, {});
+    if (!encoded.ok) throw new Error('Search Box preset did not encode.');
+    const reopened = decodeProjectFileEnvelope(encoded.value);
+    if (!reopened.ok) throw new Error('Search Box preset did not reopen.');
+    expect(reopened.value.document.elementsById[searchId]).toEqual(
+      inserted.document.elementsById[searchId],
+    );
   });
 
   it('centers exact drag placement without the click-insertion cascade', () => {

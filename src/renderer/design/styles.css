@@ -1403,7 +1403,9 @@ p {
 }
 
 [data-control-visual='input'] .scene-control__fill,
-[data-control-thumbnail-visual='input'] .scene-control__fill {
+[data-control-thumbnail-visual='input'] .scene-control__fill,
+[data-control-visual='search-box'] .scene-control__fill,
+[data-control-thumbnail-visual='search-box'] .scene-control__fill {
   fill: var(--color-chrome);
 }
 

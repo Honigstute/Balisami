@@ -145,6 +145,7 @@ describe('alpha control authoring UI', () => {
       'Button Bar',
       'Link Bar',
       'Tree Pane',
+      'Search Box',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -185,6 +186,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
+      CONTROL_TYPES.searchBox,
     ]);
   });
 
@@ -241,6 +243,8 @@ describe('alpha control authoring UI', () => {
       'Insert Radio Button Group',
       'Insert Color Picker',
       'Insert ON/OFF Switch',
+      'Insert Search Box',
+      'Insert Search Box (Rectangular + Microphone)',
     ]);
 
     view.rerender(<ControlShelf onInsert={() => true} query="cta" />);
@@ -260,6 +264,83 @@ describe('alpha control authoring UI', () => {
 
     expect(onInsert).toHaveBeenCalledOnce();
     expect(onInsert).toHaveBeenCalledWith(CONTROL_TYPES.textInput, 'underline');
+  });
+
+  it('keeps Search Box base and alternate shelf entries independently insertable and draggable', () => {
+    const onInsert = vi.fn<(controlType: ControlTypeId, presetId?: string) => boolean>(() => true);
+    render(<ControlShelf category="Forms" onInsert={onInsert} />);
+    const base = screen.getByRole('button', { name: 'Insert Search Box' });
+    const alternate = screen.getByRole('button', {
+      name: 'Insert Search Box (Rectangular + Microphone)',
+    });
+
+    fireEvent.click(base);
+    fireEvent.click(alternate);
+    expect(onInsert.mock.calls).toEqual([
+      [CONTROL_TYPES.searchBox, undefined],
+      [CONTROL_TYPES.searchBox, 'rectangular-microphone'],
+    ]);
+
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      effectAllowed: 'none',
+      setData: vi.fn((type: string, value: string) => data.set(type, value)),
+    } as unknown as DataTransfer;
+    fireEvent.dragStart(alternate, { dataTransfer });
+    expect(data.get(CONTROL_DRAG_MIME_TYPE)).toBe(
+      JSON.stringify({
+        controlType: CONTROL_TYPES.searchBox,
+        presetId: 'rectangular-microphone',
+      }),
+    );
+  });
+
+  it('edits every confirmed Search Box inspector field through generic registry controls', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.searchBox);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetLinks={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Search' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Shape' })).getByRole('button', {
+        name: 'Rounded',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Shape' })).getByRole('button', {
+        name: 'Rectangular',
+      }),
+    );
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Microphone Icon' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    );
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { shape: 'rectangular' },
+    });
+    expect(onSetProperties.mock.calls[1]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { microphoneIcon: true },
+    });
+    expect(screen.getByRole('button', { name: 'Link type' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
+    expect(screen.queryByRole('textbox', { name: 'Text' })).not.toBeInTheDocument();
   });
 
   it('uses one roving tab stop and reaches either shelf end with the keyboard', () => {
@@ -330,6 +411,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.breadcrumbs,
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
+      CONTROL_TYPES.treePane,
+      CONTROL_TYPES.searchBox,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);

@@ -69,6 +69,7 @@ export const CONTROL_TYPES = Object.freeze({
   buttonBar: ControlTypeIdSchema.parse('wireframe.button-bar'),
   linkBar: ControlTypeIdSchema.parse('wireframe.link-bar'),
   treePane: ControlTypeIdSchema.parse('wireframe.tree-pane'),
+  searchBox: ControlTypeIdSchema.parse('wireframe.search-box'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -224,6 +225,17 @@ const treePanePropertiesSchema = z
     selectedRowId: ElementRowIdSchema.nullable(),
     showBorder: z.boolean(),
     state: controlStateSchema,
+  })
+  .readonly();
+const searchBoxPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    microphoneIcon: z.boolean(),
+    searchIcon: z.boolean(),
+    shape: z.enum(['rounded', 'rectangular']),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
   })
   .readonly();
 
@@ -2370,6 +2382,109 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['disclosure', 'file', 'folder', 'hierarchy', 'navigation', 'tree'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.treePane,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Search Box', 'textbox', 'text'),
+    aliases: ['find', 'search field'],
+    autoSize: createAutoSize('both', 32, 32, 4, 4),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 13, 32, {
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      microphoneIcon: false,
+      searchIcon: true,
+      shape: 'rounded',
+      state: 'normal',
+      text: 'search',
+      textColor: DESIGN_TOKENS.color.mutedInk,
+    },
+    defaultSize: createSize(120, 25),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Shape',
+            options: Object.freeze([
+              Object.freeze({ label: 'Rounded', value: 'rounded' }),
+              Object.freeze({ label: 'Rectangular', value: 'rectangular' }),
+            ]),
+            property: 'shape',
+          },
+          { kind: 'boolean', label: 'Search Icon', property: 'searchIcon' },
+          { kind: 'boolean', label: 'Microphone Icon', property: 'microphoneIcon' },
+        ]),
+        label: 'Search',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(80, 24),
+    maximumSize: null,
+    palette: createPalette('Search Box', 'Forms', 350, null, [
+      {
+        id: 'rectangular-microphone',
+        label: 'Search Box (Rectangular + Microphone)',
+        order: 351,
+        properties: { microphoneIcon: true, shape: 'rectangular' },
+      },
+    ]),
+    propertiesSchema: searchBoxPropertiesSchema,
+    scene: createScene(
+      'search-box',
+      ['microphoneIcon', 'searchIcon', 'shape', 'state', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: null,
+        state: createDisabledState(),
+      },
+    ),
+    tags: ['find', 'form', 'input', 'search'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.searchBox,
   }),
 ]);
 

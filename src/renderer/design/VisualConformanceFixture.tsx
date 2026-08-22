@@ -80,6 +80,10 @@ import { AppTooltip } from './AppTooltip';
 import { NoticeCenterStore } from './notice-center';
 
 const REGISTRY_IMAGE_ASSET_ID = AssetIdSchema.parse('asset_registryimage');
+const REGISTRY_SEARCH_BOX_ID = ElementIdSchema.parse('element_registrysearchbox');
+const REGISTRY_SEARCH_BOX_ALTERNATE_ID = ElementIdSchema.parse(
+  'element_registrysearchboxalternate',
+);
 const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
 const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
@@ -808,6 +812,43 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 7,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.searchBox,
+        controlVersion: requireControlVersion(CONTROL_TYPES.searchBox),
+        frame: { x: 76, y: 226, width: 120, height: 25 },
+        id: REGISTRY_SEARCH_BOX_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.searchBox),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 8,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.searchBox,
+        controlVersion: requireControlVersion(CONTROL_TYPES.searchBox),
+        frame: { x: 214, y: 226, width: 120, height: 25 },
+        id: REGISTRY_SEARCH_BOX_ALTERNATE_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.searchBox, {
+          microphoneIcon: true,
+          shape: 'rectangular',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 9,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
   ] as const;
   for (const command of commands) {
     const result = dispatchDocumentCommand(document, command);
@@ -818,6 +859,12 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   }
   return Object.freeze({ ...fixture, document, selectedId: treePaneId });
 };
+
+const createSearchBoxFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_SEARCH_BOX_ALTERNATE_ID,
+  });
 
 const createGroupSelectionFixtureDocument = (
   fixture: ReturnType<typeof createSceneFixtureDocument>,
@@ -900,6 +947,7 @@ type SceneFixtureState =
   | 'paste'
   | 'plain'
   | 'registryControl'
+  | 'searchBox'
   | 'resize'
   | 'selection'
   | 'smartGuides'
@@ -915,12 +963,15 @@ const SceneFixture = ({
   // The representative Browser sits beside the alpha controls. A fixed
   // session-only zoom keeps it and both children visible inside the minimum
   // native canvas without changing document geometry or shell tracks.
-  const camera = useViewportCameraStore(state === 'registryControl' ? 0.8 : 1);
+  const isRegistryFixture = state === 'registryControl' || state === 'searchBox';
+  const camera = useViewportCameraStore(isRegistryFixture ? 0.8 : 1);
   const [fixture] = useState(() =>
     state === 'alpha' || state === 'customIcon'
       ? createAlphaFixtureDocument()
-      : state === 'registryControl'
-        ? createRegistryControlFixtureDocument()
+      : isRegistryFixture
+        ? state === 'searchBox'
+          ? createSearchBoxFixtureDocument()
+          : createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
@@ -1032,7 +1083,7 @@ const SceneFixture = ({
       state === 'duplicate' ||
       state === 'paste' ||
       state === 'textEdit' ||
-      state === 'registryControl'
+      isRegistryFixture
     ) {
       selection.selectOnly(selectedId);
     }
@@ -1219,7 +1270,7 @@ const SceneFixture = ({
       state === 'duplicate' ||
       state === 'paste' ||
       state === 'textEdit' ||
-      state === 'registryControl'
+      isRegistryFixture
         ? {
             interactionChildren: (
               <>
@@ -1263,7 +1314,7 @@ const SceneFixture = ({
       worldChildren={
         <DocumentScene
           activeBoardId={fixture.boardId}
-          {...(state === 'registryControl' || state === 'customIcon'
+          {...(isRegistryFixture || state === 'customIcon'
             ? { assetUrls: { [REGISTRY_IMAGE_ASSET_ID]: REGISTRY_IMAGE_DATA_URL } }
             : {})}
           camera={camera}
@@ -1610,6 +1661,25 @@ const RegistryControlInspectorFixture = () => {
   );
 };
 
+const SearchBoxInspectorFixture = () => {
+  const [fixture] = useState(createSearchBoxFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetLinks={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
   const [thumbnailStore] = useState(
@@ -1705,15 +1775,26 @@ export const VisualConformanceFixture = ({
                                             inspector: <RegistryControlInspectorFixture />,
                                             shelf: <ControlShelf onInsert={() => false} />,
                                           }
-                                        : fixture === 'controls'
-                                          ? { inspector: <ControlStates /> }
-                                          : fixture === 'feedback'
-                                            ? { canvas: <StaticRegionFailure /> }
-                                            : fixture === 'tooltip'
-                                              ? { canvas: <TooltipFixture /> }
-                                              : fixture === 'popover'
-                                                ? { canvas: <PopoverFixture /> }
-                                                : undefined;
+                                        : fixture === 'searchBox'
+                                          ? {
+                                              canvas: <SceneFixture state="searchBox" />,
+                                              inspector: <SearchBoxInspectorFixture />,
+                                              shelf: (
+                                                <ControlShelf
+                                                  category="Forms"
+                                                  onInsert={() => false}
+                                                />
+                                              ),
+                                            }
+                                          : fixture === 'controls'
+                                            ? { inspector: <ControlStates /> }
+                                            : fixture === 'feedback'
+                                              ? { canvas: <StaticRegionFailure /> }
+                                              : fixture === 'tooltip'
+                                                ? { canvas: <TooltipFixture /> }
+                                                : fixture === 'popover'
+                                                  ? { canvas: <PopoverFixture /> }
+                                                  : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -1738,7 +1819,9 @@ export const VisualConformanceFixture = ({
       ? CONTROL_TYPES.button
       : fixture === 'registryControl'
         ? CONTROL_TYPES.treePane
-        : undefined;
+        : fixture === 'searchBox'
+          ? CONTROL_TYPES.searchBox
+          : undefined;
   const inspectorTitle =
     fixture === 'components'
       ? 'Reusable Card'

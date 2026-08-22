@@ -2,7 +2,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { CONTROL_TYPES, getControlSpec, listPaletteControlSpecs } from '../src/domain';
+import {
+  CONTROL_TYPES,
+  getControlPaletteEntry,
+  getControlSpec,
+  listPaletteControlSpecs,
+} from '../src/domain';
 import {
   createControlSceneMarkPath,
   createControlSceneOutlinePath,
@@ -508,5 +513,35 @@ describe('control thumbnail projection', () => {
       expect(first).not.toBe('');
       expect(first).toBe(second);
     }
+  });
+
+  it('projects both Search Box palette states from one shared schema', () => {
+    const definition = getControlSpec(CONTROL_TYPES.searchBox);
+    const preset = getControlPaletteEntry(CONTROL_TYPES.searchBox, 'rectangular-microphone');
+    if (definition === undefined || preset === undefined) {
+      throw new Error('Search Box definition or preset is missing.');
+    }
+    const rounded = createControlThumbnailProjection(definition, measurementService);
+    const rectangular = createControlThumbnailProjection(
+      definition,
+      measurementService,
+      preset.properties,
+    );
+
+    expect(rounded).toMatchObject({ disabled: false, textLayout: { color: '#67717A' } });
+    expect(rounded?.outlinePath).toContain('Q');
+    expect(rounded?.markPath).not.toBe('');
+    expect(rectangular?.outlinePath).not.toBe(rounded?.outlinePath);
+    expect(rectangular?.outlinePath).not.toContain('Q');
+    expect(rectangular?.markPath).not.toBe(rounded?.markPath);
+    expect(
+      createControlSceneProjection({
+        bounds: createWorldRect(0, 0, 120, 25),
+        definition,
+        identity: 'search-box-disabled',
+        properties: { ...preset.properties, state: 'disabled' },
+        textMeasurementService: measurementService,
+      }),
+    ).toMatchObject({ disabled: true, opacity: 0.45 });
   });
 });

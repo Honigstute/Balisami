@@ -25,6 +25,7 @@
     "components",
     "presentation",
     "registryControl",
+    "searchBox",
     "controls",
     "feedback",
     "tooltip",

@@ -74,6 +74,7 @@ describe('visual conformance fixture contract', () => {
     );
     expect(getRequestedVisualFixture('?visualFixture=mvpAlpha')).toBe('mvpAlpha');
     expect(getRequestedVisualFixture('?visualFixture=components')).toBe('components');
+    expect(getRequestedVisualFixture('?visualFixture=searchBox')).toBe('searchBox');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -282,6 +283,60 @@ describe('visual conformance fixture contract', () => {
       );
       expect(image?.querySelector('.scene-control__mark')).toHaveAttribute('display', 'none');
     });
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders both Search Box palette identities and the alternate inspector state', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('searchBox');
+
+    expect(screen.getByRole('button', { name: 'Insert Search Box' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Insert Search Box (Rectangular + Microphone)' }),
+    ).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.search-box"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Search Box' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Search' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link type' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rectangular' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(
+      screen.getByRole('group', { name: 'Search Icon' }).querySelector('[aria-pressed="true"]'),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole('group', { name: 'Microphone Icon' }).querySelector('[aria-pressed="true"]'),
+    ).not.toBeNull();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="search-box"]');
+      expect(controls).toHaveLength(2);
+      for (const control of controls) {
+        expect(control.querySelector('.scene-control__mark')).not.toHaveAttribute(
+          'display',
+          'none',
+        );
+      }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
