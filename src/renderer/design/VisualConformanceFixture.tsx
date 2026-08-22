@@ -78,8 +78,9 @@ import { AppTooltip } from './AppTooltip';
 import { NoticeCenterStore } from './notice-center';
 
 const REGISTRY_IMAGE_ASSET_ID = AssetIdSchema.parse('asset_registryimage');
+const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
 const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="#2e9ddf" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="#2e9ddf" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="#2e9ddf" fill-opacity=".9"/></svg>',
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
 )}`;
 
 interface VisualConformanceFixtureProps {

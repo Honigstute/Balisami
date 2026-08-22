@@ -18,7 +18,11 @@ describe('control library query', () => {
       'Components',
       'Containers',
       'Forms',
+      'Layout',
+      'Markup',
+      'Media',
       'Text',
+      'iOS',
     ]);
   });
 
@@ -26,6 +30,8 @@ describe('control library query', () => {
     expect(queryControlLibrary({ category: 'Forms' }).map(({ type }) => type)).toEqual([
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.colorPicker,
+      CONTROL_TYPES.onOffSwitch,
     ]);
     expect(queryControlLibrary({ category: 'All' }).map(({ type }) => type)).toEqual([
       CONTROL_TYPES.rectangle,
@@ -36,6 +42,28 @@ describe('control library query', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.calendar,
+      CONTROL_TYPES.chartBar,
+      CONTROL_TYPES.chartLine,
+      CONTROL_TYPES.chartPie,
+      CONTROL_TYPES.playback,
+      CONTROL_TYPES.videoPlayer,
+      CONTROL_TYPES.volumeSlider,
+      CONTROL_TYPES.webcam,
+      CONTROL_TYPES.iosPicker,
+      CONTROL_TYPES.hSplitter,
+      CONTROL_TYPES.vSplitter,
+      CONTROL_TYPES.redX,
+      CONTROL_TYPES.squigglyBlock,
+      CONTROL_TYPES.streetMap,
+      CONTROL_TYPES.toolbar,
+      CONTROL_TYPES.hRule,
+      CONTROL_TYPES.vRule,
+      CONTROL_TYPES.scratchOut,
+      CONTROL_TYPES.helpButton,
+      CONTROL_TYPES.modalScreen,
+      CONTROL_TYPES.colorPicker,
+      CONTROL_TYPES.onOffSwitch,
     ]);
   });
 

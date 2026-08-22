@@ -78,6 +78,7 @@ const createHitTestFixture = (elementCount: number) => {
         selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById,
     assetsById: {},
   });
