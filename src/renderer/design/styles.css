@@ -1087,6 +1087,12 @@ p {
   border-radius: var(--space-1);
 }
 
+.wireframe-list__thumbnail > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .wireframe-list__name {
   max-width: calc(100% - var(--space-4));
   align-self: center;
@@ -1442,6 +1448,25 @@ p {
 .inspector-section p,
 .notes-placeholder {
   color: var(--color-muted-ink);
+  font-size: var(--font-size-caption);
+}
+
+.board-note-editor {
+  width: 100%;
+  min-height: calc(var(--space-6) * 6);
+  padding: var(--space-3);
+  resize: vertical;
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  border: var(--border-width) solid var(--color-divider-strong);
+  border-radius: var(--radius-compact);
+  line-height: var(--line-height);
+  user-select: text;
+}
+
+.board-note-editor__validation {
+  min-height: var(--space-3);
+  color: var(--color-danger);
   font-size: var(--font-size-caption);
 }
 

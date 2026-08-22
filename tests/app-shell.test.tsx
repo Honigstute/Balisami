@@ -232,6 +232,34 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: 'Undo Restore board “Wireframe 1”' })).toBeEnabled();
   });
 
+  it('stores independent board notes through one command per committed edit', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+
+    const firstNote = screen.getByRole('textbox', { name: 'Notes for Main wireframe' });
+    fireEvent.change(firstNote, { target: { value: 'Primary flow decision' } });
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    fireEvent.blur(firstNote);
+    expect(screen.getByRole('button', { name: 'Undo Edit board note' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add wireframe' }));
+    const secondNote = await screen.findByRole('textbox', { name: 'Notes for Wireframe 1' });
+    expect(secondNote).toHaveValue('');
+    fireEvent.change(secondNote, { target: { value: 'Confirmation flow decision' } });
+    fireEvent.blur(secondNote);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Main wireframe' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Main wireframe' })).toHaveValue(
+      'Primary flow decision',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Wireframe 1' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Wireframe 1' })).toHaveValue(
+      'Confirmation flow decision',
+    );
+  });
+
   it('keeps the project home behind one explicit startup recovery decision', async () => {
     const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
       status: 'cancelled',

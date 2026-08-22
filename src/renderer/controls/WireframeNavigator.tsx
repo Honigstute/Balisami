@@ -2,6 +2,8 @@ import { useRef, useState, type KeyboardEvent } from 'react';
 
 import type { BoardId, ProjectDocument } from '../../domain';
 import { AppButton } from '../design/AppButton';
+import { BoardThumbnail } from '../projects/BoardThumbnail';
+import type { BoardThumbnailStore } from '../projects/board-thumbnail-store';
 
 interface WireframeNavigatorProps {
   readonly activeBoardId: BoardId | undefined;
@@ -13,6 +15,7 @@ interface WireframeNavigatorProps {
   readonly onRestoreBoard: (boardId: BoardId) => boolean;
   readonly onSelectBoard: (boardId: BoardId) => void;
   readonly shortcutPlatform: 'darwin' | 'win32';
+  readonly thumbnailStore?: BoardThumbnailStore;
 }
 
 export const WireframeNavigator = ({
@@ -25,6 +28,7 @@ export const WireframeNavigator = ({
   onRestoreBoard,
   onSelectBoard,
   shortcutPlatform,
+  thumbnailStore,
 }: WireframeNavigatorProps) => {
   const draggedBoardIdRef = useRef<BoardId | undefined>(undefined);
   const rowRefs = useRef(new Map<BoardId, HTMLButtonElement>());
@@ -161,11 +165,10 @@ export const WireframeNavigator = ({
         if (renaming) {
           return (
             <div className="wireframe-list__row" key={boardId}>
-              <span aria-hidden="true" className="wireframe-list__thumbnail">
-                <span />
-                <span />
-                <span />
-              </span>
+              <BoardThumbnail
+                boardId={boardId}
+                {...(thumbnailStore === undefined ? {} : { store: thumbnailStore })}
+              />
               <input
                 aria-label={`Rename ${board.name}`}
                 autoFocus
@@ -228,11 +231,10 @@ export const WireframeNavigator = ({
             tabIndex={active ? 0 : -1}
             type="button"
           >
-            <span aria-hidden="true" className="wireframe-list__thumbnail">
-              <span />
-              <span />
-              <span />
-            </span>
+            <BoardThumbnail
+              boardId={boardId}
+              {...(thumbnailStore === undefined ? {} : { store: thumbnailStore })}
+            />
             <span className="wireframe-list__name">{board.name}</span>
           </button>
         );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   BoardIdSchema,
@@ -55,6 +55,10 @@ import {
   createWorldVector,
 } from '../editor/viewport-transform';
 import { AppShell } from '../shell/AppShell';
+import {
+  BoardThumbnailStore,
+  createBrowserBoardThumbnailScheduler,
+} from '../projects/board-thumbnail-store';
 import { AppButton } from './AppButton';
 import { AppScroller } from './AppEmptyState';
 import { AppInput } from './AppInput';
@@ -986,6 +990,13 @@ const RegistryControlInspectorFixture = () => {
 
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
+  const [thumbnailStore] = useState(
+    () => new BoardThumbnailStore({ scheduler: createBrowserBoardThumbnailScheduler() }),
+  );
+  useEffect(() => {
+    thumbnailStore.generate(fixture.document);
+    return () => thumbnailStore.dispose();
+  }, [fixture.document, thumbnailStore]);
   return (
     <WireframeNavigator
       activeBoardId={fixture.boardId}
@@ -997,6 +1008,7 @@ const AlphaNavigatorFixture = () => {
       onRestoreBoard={() => true}
       onSelectBoard={() => undefined}
       shortcutPlatform="darwin"
+      thumbnailStore={thumbnailStore}
     />
   );
 };

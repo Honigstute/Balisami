@@ -50,7 +50,7 @@ export interface DocumentSceneReconcileResult {
   readonly updatedItemCount: number;
 }
 
-interface DerivedSceneItem {
+export interface BoardSceneItem {
   readonly bounds: WorldRect;
   readonly controlType: ControlTypeId;
   readonly id: ElementId;
@@ -93,7 +93,7 @@ const getOwnerKey = (owner: ElementOwner): string =>
   owner.kind === 'board' ? `board:${owner.boardId}` : `element:${owner.elementId}`;
 
 const createItemRevision = (
-  item: DerivedSceneItem,
+  item: BoardSceneItem,
   resolveControlDefinition: ControlDefinitionResolver = getControlSpec,
 ): string => {
   const spec = resolveControlDefinition(item.controlType);
@@ -110,11 +110,11 @@ const createItemRevision = (
 };
 
 /** Flattens canonical childIds order while accumulating local container origins once. */
-const deriveBoardSceneItems = (
+export const createBoardSceneItems = (
   document: ProjectDocument,
   boardId: BoardId | undefined,
   resolveControlDefinition: ControlDefinitionResolver = getControlSpec,
-): readonly DerivedSceneItem[] => {
+): readonly BoardSceneItem[] => {
   if (boardId === undefined) {
     return Object.freeze([]);
   }
@@ -122,7 +122,7 @@ const deriveBoardSceneItems = (
   if (board === undefined) {
     return Object.freeze([]);
   }
-  const items: DerivedSceneItem[] = [];
+  const items: BoardSceneItem[] = [];
   const visited = new Set<ElementId>();
   const visit = (
     elementId: ElementId,
@@ -187,13 +187,13 @@ export const countRenderableBoardElements = (
   document: ProjectDocument,
   boardId: BoardId | undefined,
 ): number =>
-  deriveBoardSceneItems(document, boardId).filter((item) => item.kind === 'object').length;
+  createBoardSceneItems(document, boardId).filter((item) => item.kind === 'object').length;
 
 export const getRenderableBoardWorldBounds = (
   document: ProjectDocument,
   boardId: BoardId | undefined,
 ): WorldRect | undefined => {
-  const items = deriveBoardSceneItems(document, boardId).filter((item) => item.kind === 'object');
+  const items = createBoardSceneItems(document, boardId).filter((item) => item.kind === 'object');
   const first = items[0];
   if (first === undefined) {
     return undefined;
@@ -261,7 +261,7 @@ export class DocumentSceneModel {
         updatedItemCount: 0,
       });
     }
-    const derivedItems = deriveBoardSceneItems(document, boardId, this.#resolveControlDefinition);
+    const derivedItems = createBoardSceneItems(document, boardId, this.#resolveControlDefinition);
     this.#maximumHitShapePadding = derivedItems.reduce((maximum, item) => {
       const definition = this.#resolveControlDefinition(item.controlType);
       return definition === undefined

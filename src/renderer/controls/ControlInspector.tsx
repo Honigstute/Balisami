@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 
 import {
   getControlSpec,
@@ -33,6 +40,7 @@ export interface ControlInspectorPropertiesUpdate {
 
 interface ControlInspectorProps {
   readonly document: ProjectDocument;
+  readonly emptyContent?: ReactNode;
   readonly onAutoSize: (elementId: ElementId) => Promise<boolean>;
   readonly onSetFrames: (updates: readonly ControlInspectorFrameUpdate[]) => boolean;
   readonly onSetProperties: (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean;
@@ -41,6 +49,7 @@ interface ControlInspectorProps {
 
 interface ControlInspectorTitleProps {
   readonly document: ProjectDocument;
+  readonly emptyTitle?: ReactNode;
   readonly selection: SelectionStore;
 }
 
@@ -298,7 +307,11 @@ const InspectorFooter = () => (
 );
 
 /** Keeps the fixed inspector header descriptive without duplicating identity in its body. */
-export const ControlInspectorTitle = ({ document, selection }: ControlInspectorTitleProps) => {
+export const ControlInspectorTitle = ({
+  document,
+  emptyTitle = 'Inspector',
+  selection,
+}: ControlInspectorTitleProps) => {
   const snapshot = useSyncExternalStore(
     selection.subscribe,
     selection.getSnapshot,
@@ -310,11 +323,12 @@ export const ControlInspectorTitle = ({ document, selection }: ControlInspectorT
   const elementId = snapshot.selectedIds.length === 1 ? snapshot.primaryId : undefined;
   const element = elementId === undefined ? undefined : document.elementsById[elementId];
   const definition = element === undefined ? undefined : getControlSpec(element.controlType);
-  return <>{definition?.palette?.label ?? (element === undefined ? 'Inspector' : 'Group')}</>;
+  return <>{definition?.palette?.label ?? (element === undefined ? emptyTitle : 'Group')}</>;
 };
 
 export const ControlInspector = ({
   document,
+  emptyContent,
   onAutoSize,
   onSetFrames,
   onSetProperties,
@@ -343,10 +357,12 @@ export const ControlInspector = ({
     return (
       <>
         <div className="inspector-scroll">
-          <section className="inspector-section">
-            <h3>Nothing selected</h3>
-            <p>Select a control to edit its position, size, and text.</p>
-          </section>
+          {emptyContent ?? (
+            <section className="inspector-section">
+              <h3>Nothing selected</h3>
+              <p>Select a control to edit its position, size, and text.</p>
+            </section>
+          )}
         </div>
         <InspectorFooter />
       </>

@@ -38,6 +38,7 @@ import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { ProjectHome } from '../projects/ProjectHome';
 import { BoardTrashDialog } from '../projects/BoardTrashDialog';
+import { BoardNoteEditor } from '../projects/BoardNoteEditor';
 import { ActiveBoardStore } from '../projects/active-board-store';
 import { createBoardCreationCommand } from '../projects/board-creation';
 import { planBoardDuplicate } from '../projects/board-duplicate';
@@ -46,6 +47,10 @@ import {
   createBoardTrashCommand,
   selectBoardAfterTrash,
 } from '../projects/board-trash';
+import {
+  BoardThumbnailStore,
+  createBrowserBoardThumbnailScheduler,
+} from '../projects/board-thumbnail-store';
 import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
 import { ControlDrawOverlay } from '../editor/ControlDrawOverlay';
@@ -171,6 +176,9 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     const activeBoard = new ActiveBoardStore();
     const model = new DocumentSceneModel();
     const selection = new SelectionStore();
+    const thumbnails = new BoardThumbnailStore({
+      scheduler: createBrowserBoardThumbnailScheduler(),
+    });
     const commitControlInsertion = (
       controlType: ControlTypeId,
       input: Readonly<{
@@ -573,6 +581,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       selectionInteraction,
       textEdit,
       textEditInteraction,
+      thumbnails,
       pasteSelection,
       ungroupSelection,
       unlockAll,
@@ -601,6 +610,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     activeBoardId === undefined
       ? undefined
       : view.history?.document.boardsById[activeBoardId]?.note.text;
+  const activeBoard =
+    activeBoardId === undefined ? undefined : view.history?.document.boardsById[activeBoardId];
   const selectActiveBoard = useCallback(
     (boardId: NonNullable<typeof activeBoardId>): void => {
       if (!editor.activeBoard.select(boardId)) {
@@ -640,6 +651,17 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         type: DOCUMENT_COMMAND_TYPES.renameBoard,
         boardId,
         name,
+      });
+      return result?.ok === true;
+    },
+    [session],
+  );
+  const setBoardNote = useCallback(
+    (boardId: BoardId, text: string): boolean => {
+      const result = session.dispatch({
+        type: DOCUMENT_COMMAND_TYPES.setBoardNote,
+        boardId,
+        note: { text },
       });
       return result?.ok === true;
     },
@@ -742,6 +764,27 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   useEffect(() => {
     editor.activeBoard.reconcile(document?.boardIds ?? []);
   }, [document, editor]);
+  useEffect(() => {
+    if (document !== undefined) {
+      editor.thumbnails.generate(document);
+    }
+  }, [document, editor]);
+  useEffect(() => {
+    let disposed = false;
+    void getBrowserControlTextMeasurementService()
+      .then((service) => {
+        if (!disposed) {
+          editor.thumbnails.setTextMeasurementService(service);
+        }
+      })
+      .catch(() => {
+        // Renderer readiness owns the actionable font error. Geometry-only previews stay usable.
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [editor]);
+  useEffect(() => () => editor.thumbnails.dispose(), [editor]);
   useEffect(() => {
     if (
       pendingTrashBoardId !== undefined &&
@@ -947,7 +990,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       }}
       inspectorTitle={
         document === undefined ? undefined : (
-          <ControlInspectorTitle document={document} selection={editor.selection} />
+          <ControlInspectorTitle
+            document={document}
+            emptyTitle={activeBoard?.name}
+            selection={editor.selection}
+          />
         )
       }
       navigatorControls={{ onCreateBoard: createBoard }}
@@ -1057,6 +1104,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               inspector: (
                 <ControlInspector
                   document={document}
+                  emptyContent={
+                    activeBoard === undefined ? undefined : (
+                      <BoardNoteEditor board={activeBoard} onCommit={setBoardNote} />
+                    )
+                  }
                   onAutoSize={async (elementId) => {
                     const measurementService = await getBrowserControlTextMeasurementService();
                     const currentDocument = session.getSnapshot().history?.document;
@@ -1121,6 +1173,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   onRestoreBoard={restoreBoard}
                   onSelectBoard={selectActiveBoard}
                   shortcutPlatform={platform}
+                  thumbnailStore={editor.thumbnails}
                 />
               ),
               shelf: (
