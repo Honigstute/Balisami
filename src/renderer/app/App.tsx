@@ -21,6 +21,7 @@ import {
   type WorldRect,
 } from '../../domain';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
+import { isM11PerformanceProbeRequested } from '../../shared/m11-performance';
 import { isViewportPerformanceProbeRequested } from '../../shared/viewport-performance';
 import {
   PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT,
@@ -46,6 +47,7 @@ import { getBrowserControlTextMeasurementService } from '../controls/control-tex
 import { createControlInsertionCommand } from '../controls/control-insertion';
 import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture';
+import { M11PerformanceFixture } from '../editor/M11PerformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { PresentationView } from '../projects/PresentationView';
@@ -1826,6 +1828,12 @@ export const App = () => {
   if (isViewportPerformanceProbeRequested(window.location.search)) {
     return (
       <ViewportPerformanceFixture quickAddShortcut={quickAddShortcut} runtimeLabel={runtimeLabel} />
+    );
+  }
+
+  if (isM11PerformanceProbeRequested(window.location.search)) {
+    return (
+      <M11PerformanceFixture quickAddShortcut={quickAddShortcut} runtimeLabel={runtimeLabel} />
     );
   }
 

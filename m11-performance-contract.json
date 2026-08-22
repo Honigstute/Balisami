@@ -1,0 +1,15 @@
+{
+  "argument": "--balsamic-m11-performance-probe",
+  "maximumOpenMs": 2000,
+  "maximumRenderMs": 1000,
+  "maximumSaveMs": 2000,
+  "expectedAssetRenderedElements": 1000,
+  "expectedComponentRenderedElements": 2500,
+  "minimumAssetArchiveBytes": 5000000,
+  "processTimeoutMs": 30000,
+  "queryKey": "balsamic-m11-performance-probe",
+  "queryValue": "v1",
+  "readyTimeoutMs": 10000,
+  "resultAttribute": "data-m11-performance-result",
+  "resultMarker": "BALSAMIC_M11_PERFORMANCE_RESULT="
+}
