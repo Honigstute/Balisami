@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -29,6 +29,7 @@ import {
   CONTROL_DRAG_MIME_TYPE,
 } from '../src/renderer/controls/control-drag-transfer';
 import { planComponentCreationFromGroup } from '../src/renderer/controls/component-creation';
+import { planComponentDuplicate } from '../src/renderer/controls/component-duplicate';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
 import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
@@ -269,6 +270,75 @@ describe('alpha control authoring UI', () => {
     fireEvent.dragStart(item, { dataTransfer });
     expect(dataTransfer.effectAllowed).toBe('copy');
     expect(transfer.get(COMPONENT_DRAG_MIME_TYPE)).toBe(componentId);
+  });
+
+  it('manages component definitions from a portalled shelf menu without resizing the shelf', () => {
+    const first = createReusableComponentDocument();
+    const secondComponentId = ComponentIdSchema.parse('component_controlui2');
+    const duplicate = planComponentDuplicate(
+      first.document,
+      first.componentId,
+      secondComponentId,
+      (_sourceId, index) => ElementIdSchema.parse(`element_controlcopy_${String(index)}`),
+    );
+    if (duplicate === undefined) throw new Error('Second component fixture could not be planned.');
+    const duplicated = dispatchDocumentCommand(first.document, duplicate);
+    if (!duplicated.ok || !duplicated.changed) {
+      throw new Error('Second component fixture could not be created.');
+    }
+    const components = duplicated.document.componentIds.flatMap((componentId) => {
+      const component = duplicated.document.componentsById[componentId];
+      return component === undefined ? [] : [component];
+    });
+    const onDeleteComponent = vi.fn(() => true);
+    const onDuplicateComponent = vi.fn(() => true);
+    const onRenameComponent = vi.fn(() => true);
+    const onReorderComponent = vi.fn(() => true);
+    render(
+      <ControlShelf
+        category="Components"
+        components={components}
+        onDeleteComponent={onDeleteComponent}
+        onDuplicateComponent={onDuplicateComponent}
+        onInsert={() => true}
+        onInsertComponent={() => true}
+        onRenameComponent={onRenameComponent}
+        onReorderComponent={onReorderComponent}
+        projectDocument={duplicated.document}
+        textMeasurementService={thumbnailTextMeasurementService}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Reusable card' }));
+    let menu = screen.getByRole('dialog', { name: 'Manage Reusable card' });
+    const name = within(menu).getByRole('textbox', { name: 'Component name' });
+    fireEvent.change(name, { target: { value: 'Primary card' } });
+    fireEvent.click(within(menu).getByRole('button', { name: 'Rename' }));
+    expect(onRenameComponent).toHaveBeenCalledWith(first.componentId, 'Primary card');
+    expect(screen.queryByRole('dialog', { name: 'Manage Reusable card' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Reusable card' }));
+    menu = screen.getByRole('dialog', { name: 'Manage Reusable card' });
+    fireEvent.click(within(menu).getByRole('button', { name: 'Move Later' }));
+    expect(onReorderComponent).toHaveBeenCalledWith(first.componentId, 1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Reusable card' }));
+    menu = screen.getByRole('dialog', { name: 'Manage Reusable card' });
+    fireEvent.click(within(menu).getByRole('button', { name: 'Duplicate' }));
+    expect(onDuplicateComponent).toHaveBeenCalledWith(first.componentId);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Reusable card' }));
+    menu = screen.getByRole('dialog', { name: 'Manage Reusable card' });
+    expect(within(menu).getByText(/Used by 1 instance/u)).toBeInTheDocument();
+    expect(within(menu).queryByRole('button', { name: /Delete Definition/u })).toBeNull();
+    fireEvent.keyDown(menu, { key: 'Escape' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Reusable card Copy' }));
+    menu = screen.getByRole('dialog', { name: 'Manage Reusable card Copy' });
+    fireEvent.click(within(menu).getByRole('button', { name: 'Delete Definition…' }));
+    expect(within(menu).getByRole('alert')).toHaveTextContent('restore it with Undo');
+    fireEvent.click(within(menu).getByRole('button', { name: 'Delete Definition' }));
+    expect(onDeleteComponent).toHaveBeenCalledWith(secondComponentId);
   });
 
   it('creates a named component from the selected group through the inspector', () => {

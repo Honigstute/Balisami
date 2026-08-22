@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 
 import {
+  ComponentInstancePropertiesSchema,
   CONTROL_TYPES,
   type ComponentDefinition,
   type ComponentId,
@@ -8,8 +9,8 @@ import {
   type ProjectDocument,
 } from '../../domain';
 import { ControlThumbnail } from './ControlThumbnail';
-import { ComponentThumbnail } from './component-thumbnail';
-import { COMPONENT_DRAG_MIME_TYPE, CONTROL_DRAG_MIME_TYPE } from './control-drag-transfer';
+import { ComponentShelfItem } from './ComponentShelfItem';
+import { CONTROL_DRAG_MIME_TYPE } from './control-drag-transfer';
 import {
   normalizeControlLibrarySearchText,
   queryControlLibrary,
@@ -26,8 +27,12 @@ interface ControlShelfProps {
   readonly components?: readonly ComponentDefinition[];
   readonly projectDocument?: ProjectDocument;
   readonly onImportImage?: (file: File) => void;
+  readonly onDeleteComponent?: (componentId: ComponentId) => boolean;
+  readonly onDuplicateComponent?: (componentId: ComponentId) => boolean;
   readonly onInsert: (controlType: ControlTypeId) => boolean;
   readonly onInsertComponent?: (componentId: ComponentId) => boolean;
+  readonly onRenameComponent?: (componentId: ComponentId, name: string) => boolean;
+  readonly onReorderComponent?: (componentId: ComponentId, toIndex: number) => boolean;
   readonly query?: string;
   /** Tests and non-browser hosts may inject the canonical synchronous service. */
   readonly textMeasurementService?: ControlTextMeasurementService;
@@ -39,9 +44,13 @@ export const ControlShelf = ({
   category = 'All',
   components = [],
   projectDocument,
+  onDeleteComponent,
+  onDuplicateComponent,
   onImportImage,
   onInsert,
   onInsertComponent,
+  onRenameComponent,
+  onReorderComponent,
   query = '',
   textMeasurementService,
 }: ControlShelfProps) => {
@@ -180,35 +189,32 @@ export const ControlShelf = ({
         ? null
         : availableComponents.map((component, componentIndex) => {
             const index = definitions.length + componentIndex;
+            const componentPosition = projectDocument.componentIds.indexOf(component.id);
+            const referenceCount = Object.values(projectDocument.elementsById).filter((element) => {
+              if (element.controlType !== CONTROL_TYPES.componentInstance) return false;
+              const parsed = ComponentInstancePropertiesSchema.safeParse(element.properties);
+              return parsed.success && parsed.data.componentId === component.id;
+            }).length;
             return (
-              <button
-                aria-label={`Insert ${component.name}`}
-                className="control-library__item"
-                data-component-library-id={component.id}
-                data-control-library-key={`component:${component.id}`}
-                draggable
+              <ComponentShelfItem
+                assetUrls={assetUrls}
+                component={component}
+                componentCount={projectDocument.componentIds.length}
+                componentPosition={componentPosition}
+                index={index}
+                isActive={index === activeIndex}
                 key={component.id}
-                onClick={() => onInsertComponent(component.id)}
-                onDragStart={(event: DragEvent<HTMLButtonElement>) => {
-                  event.dataTransfer.effectAllowed = 'copy';
-                  event.dataTransfer.setData(COMPONENT_DRAG_MIME_TYPE, component.id);
-                }}
+                measurementService={measurementService}
+                onDeleteComponent={onDeleteComponent}
+                onDuplicateComponent={onDuplicateComponent}
                 onFocus={() => setFocusedKey(`component:${component.id}`)}
-                onKeyDown={(event) => handleItemKeyDown(event, index)}
-                tabIndex={index === activeIndex ? 0 : -1}
-                title={`Insert ${component.name}`}
-                type="button"
-              >
-                <ComponentThumbnail
-                  assetUrls={assetUrls}
-                  component={component}
-                  document={projectDocument}
-                  {...(measurementService === undefined
-                    ? {}
-                    : { textMeasurementService: measurementService })}
-                />
-                <span className="control-library__label">{component.name}</span>
-              </button>
+                onInsertComponent={onInsertComponent}
+                onItemKeyDown={handleItemKeyDown}
+                onRenameComponent={onRenameComponent}
+                onReorderComponent={onReorderComponent}
+                projectDocument={projectDocument}
+                referenceCount={referenceCount}
+              />
             );
           })}
     </div>

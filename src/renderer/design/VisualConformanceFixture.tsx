@@ -1069,13 +1069,23 @@ const ComponentInspectorFixture = () => {
 const ComponentShelfFixture = () => {
   const [fixture] = useState(createComponentFixtureDocument);
   const component = fixture.document.componentsById[fixture.componentId];
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>('[aria-label="Manage Reusable Card"]')?.click();
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
   if (component === undefined) throw new Error('The component shelf fixture is incomplete.');
   return (
     <ControlShelf
       category="Components"
       components={[component]}
+      onDeleteComponent={() => false}
+      onDuplicateComponent={() => false}
       onInsert={() => false}
       onInsertComponent={() => false}
+      onRenameComponent={() => false}
+      onReorderComponent={() => false}
       projectDocument={fixture.document}
     />
   );

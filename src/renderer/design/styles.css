@@ -893,6 +893,60 @@ p {
   border-color: var(--color-control-border);
 }
 
+.component-library-item {
+  position: relative;
+  width: calc(var(--space-6) * 4);
+  height: 100%;
+  flex: 0 0 auto;
+}
+
+.component-library-item > .control-library__item {
+  width: 100%;
+}
+
+.component-library-item__manage {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--space-5);
+  height: var(--space-5);
+  color: var(--color-muted-ink);
+  background: var(--color-panel);
+  border-color: var(--color-control-border);
+}
+
+.component-library-item__manage:hover,
+.component-library-item__manage:focus-visible,
+.component-library-item__manage[aria-expanded='true'] {
+  color: var(--color-ink);
+  border-color: var(--color-accent-strong);
+}
+
+.component-library-menu {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.component-library-menu p {
+  color: var(--color-muted-ink);
+  font-size: var(--font-size-caption);
+}
+
+.component-library-menu__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.component-library-menu__actions .app-button {
+  min-width: 0;
+}
+
+.component-library-menu__confirmation {
+  display: grid;
+  gap: var(--space-2);
+}
+
 .control-library__preview {
   display: block;
   width: calc(var(--space-6) * 2 + var(--space-2));

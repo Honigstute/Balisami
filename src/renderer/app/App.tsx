@@ -36,6 +36,7 @@ import { planComponentOverrideUpdate } from '../controls/component-override-upda
 import { planComponentCreationFromGroup } from '../controls/component-creation';
 import { planComponentDefinitionUpdateFromInstance } from '../controls/component-definition-update';
 import { planComponentDetachment } from '../controls/component-detachment';
+import { planComponentDuplicate } from '../controls/component-duplicate';
 import { createComponentInstanceInsertionCommand } from '../controls/component-insertion';
 import { ControlShelf } from '../controls/ControlShelf';
 import { QuickAdd } from '../controls/QuickAdd';
@@ -874,6 +875,58 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     editor.textEditInteraction.cancel();
     editor.selection.clear();
   }, [editor]);
+  const renameComponent = useCallback(
+    (componentId: ComponentId, name: string): boolean => {
+      const result = session.dispatch(
+        {
+          type: DOCUMENT_COMMAND_TYPES.renameComponent,
+          componentId,
+          name,
+        },
+        { label: `Rename component “${name}”` },
+      );
+      return result?.ok === true;
+    },
+    [session],
+  );
+  const reorderComponent = useCallback(
+    (componentId: ComponentId, toIndex: number): boolean => {
+      const result = session.dispatch(
+        { type: DOCUMENT_COMMAND_TYPES.reorderComponent, componentId, toIndex },
+        { label: 'Reorder component' },
+      );
+      return result?.ok === true && result.changed;
+    },
+    [session],
+  );
+  const duplicateComponent = useCallback(
+    (componentId: ComponentId): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const newComponentId = allocateEditorComponentId();
+      const command =
+        currentDocument === undefined || newComponentId === undefined
+          ? undefined
+          : planComponentDuplicate(currentDocument, componentId, newComponentId, () =>
+              allocateEditorElementId(),
+            );
+      if (command === undefined) return false;
+      const result = session.dispatch(command, {
+        label: `Duplicate component “${command.component.name}”`,
+      });
+      return result?.ok === true && result.changed;
+    },
+    [session],
+  );
+  const deleteComponent = useCallback(
+    (componentId: ComponentId): boolean => {
+      const result = session.dispatch(
+        { type: DOCUMENT_COMMAND_TYPES.deleteComponent, componentId },
+        { label: 'Delete component definition' },
+      );
+      return result?.ok === true && result.changed;
+    },
+    [session],
+  );
   const selectActiveBoard = useCallback(
     (boardId: NonNullable<typeof activeBoardId>): void => {
       if (!editor.activeBoard.select(boardId)) {
@@ -1647,17 +1700,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     });
                     return result?.ok === true && result.changed;
                   }}
-                  onRenameComponent={(componentId, name) => {
-                    const result = session.dispatch(
-                      {
-                        type: DOCUMENT_COMMAND_TYPES.renameComponent,
-                        componentId,
-                        name,
-                      },
-                      { label: `Rename component “${name}”` },
-                    );
-                    return result?.ok === true;
-                  }}
+                  onRenameComponent={renameComponent}
                   onSetLinks={(updates) => {
                     const result = session.dispatchTransaction(
                       updates.map(({ elementId, link }) => ({
@@ -1731,6 +1774,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     return component === undefined ? [] : [component];
                   })}
                   projectDocument={document}
+                  onDeleteComponent={deleteComponent}
+                  onDuplicateComponent={duplicateComponent}
                   onImportImage={(file) => {
                     const viewport = camera.getViewportSnapshot();
                     const center = viewportPointToWorld(
@@ -1741,6 +1786,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   }}
                   onInsert={(controlType) => editor.insertControl(controlType) !== undefined}
                   onInsertComponent={editor.insertComponent}
+                  onRenameComponent={renameComponent}
+                  onReorderComponent={reorderComponent}
                 />
               ),
             }),
