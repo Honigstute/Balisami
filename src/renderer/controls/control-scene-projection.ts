@@ -4,6 +4,7 @@ import {
   type ElementProperties,
   type ElementRowData,
 } from '../../domain';
+import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { WorldRect } from '../editor/viewport-transform';
 import {
   createControlSceneMarkPath,
@@ -100,7 +101,7 @@ export const createControlSceneProjection = ({
     definition.rows === null ? undefined : parseControlRows(definition.rows, properties);
   const displayText =
     definition.rows?.display === 'labels'
-      ? parsedRows?.map((row) => row.label).join('')
+      ? parsedRows?.map((row) => row.label).join(definition.rows.layout === 'stack' ? '\n' : '')
       : undefined;
   const sourceTextLayout =
     textMeasurementService === undefined
@@ -130,10 +131,16 @@ export const createControlSceneProjection = ({
           ...sourceTextLayout,
           lines: Object.freeze(
             rowProjections.map((row) =>
-              Object.freeze({ baselineY: row.baselineY, text: row.label, x: row.labelX }),
+              Object.freeze({
+                baselineY: row.baselineY,
+                ...(row.disabled ? { opacity: DESIGN_TOKENS.opacity.disabled } : {}),
+                text: row.label,
+                x: row.labelX,
+              }),
             ),
           ),
-          textAnchor: 'middle' as const,
+          textAnchor:
+            definition.rows.layout === 'segments' ? ('middle' as const) : ('start' as const),
         });
   const rowSelection = definition.rows?.selection;
   const selectedValue =

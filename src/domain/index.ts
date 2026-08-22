@@ -151,6 +151,8 @@ export {
   createControlRowsUpdate,
   createElementRowId,
   createInitialControlRowState,
+  formatControlRowSource,
+  parseControlRowSource,
   parseControlRows,
   rekeyControlRowState,
   type ParsedControlRow,

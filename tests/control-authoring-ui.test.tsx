@@ -114,6 +114,8 @@ describe('alpha control authoring UI', () => {
       'Button',
       'Text Input',
       'Checkbox',
+      'Checkbox Group',
+      'Radio Button Group',
       'Image',
       'Browser Window',
       'Arrow',
@@ -151,6 +153,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.checkboxGroup,
+      CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
@@ -231,6 +235,8 @@ describe('alpha control authoring UI', () => {
       'Insert Text Input',
       'Insert Text Input (Underline)',
       'Insert Checkbox',
+      'Insert Checkbox Group',
+      'Insert Radio Button Group',
       'Insert Color Picker',
       'Insert ON/OFF Switch',
     ]);
@@ -292,6 +298,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.checkboxGroup,
+      CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
@@ -595,6 +603,40 @@ describe('alpha control authoring UI', () => {
         ],
       },
     });
+  });
+
+  it('edits marker syntax through the generic stable-row inspector in one atomic update', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.checkboxGroup);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    const labels = screen.getAllByRole<HTMLInputElement>('textbox', { name: 'Label' });
+    expect(labels[0]).toHaveValue('[ ] not selected');
+    expect(labels[3]).toHaveValue('[ ] -disabled-');
+    fireEvent.change(labels[0]!, { target: { value: '[x] -Renamed and disabled-' } });
+    fireEvent.blur(labels[0]!);
+
+    expect(onSetProperties).toHaveBeenCalledOnce();
+    const update = onSetProperties.mock.calls[0]?.[0]?.[0];
+    expect(update).toMatchObject({
+      elementId,
+      rowData: document.elementsById[elementId]?.rowData,
+    });
+    expect(update?.properties.items).toContain('[x] -Renamed and disabled-');
+    expect(screen.getByRole('heading', { name: 'Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
   });
 
   it('edits stable row selection generically and exposes None only when the registry allows it', () => {

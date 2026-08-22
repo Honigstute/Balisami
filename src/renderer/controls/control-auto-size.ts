@@ -70,6 +70,25 @@ export const calculateControlAutoSizeFrame = (
           const first = labels[0];
           if (first === undefined)
             return measurementService.measure({ ...measurementRequest, text: '' });
+          if (definition.rows.layout === 'stack') {
+            const markerWidth =
+              definition.rows.marker === null
+                ? 0
+                : DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1];
+            return Object.freeze({
+              ...first,
+              height:
+                Math.max(
+                  ...labels.map((label) => label.height),
+                  DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1],
+                ) * labels.length,
+              width: Math.max(
+                ...labels.map((label, index) =>
+                  parsedRows[index]?.marker === null ? label.width : label.width + markerWidth,
+                ),
+              ),
+            });
+          }
           return Object.freeze({
             ...first,
             width:

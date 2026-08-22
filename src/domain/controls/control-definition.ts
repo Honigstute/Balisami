@@ -194,9 +194,14 @@ export interface ControlInspectorSection {
 export interface ControlRowsDefinition {
   /** Source paints delimiter syntax; labels paints only parsed labels in their row geometry. */
   readonly display: 'labels' | 'source';
-  /** Inline rows use measured label spans; segments expand those spans into adjacent cells. */
-  readonly layout: 'inline' | 'segments';
+  /** Inline rows use measured spans; segments use cells; stack owns one row per line. */
+  readonly layout: 'inline' | 'segments' | 'stack';
   readonly links: boolean;
+  /** Optional syntax-backed marker grammar for stacked checkbox/radio rows. */
+  readonly marker: Readonly<{
+    readonly defaultState: 'unchecked';
+    readonly kind: 'checkbox' | 'radio';
+  }> | null;
   readonly maximum: number;
   readonly minimum: number;
   readonly property: string;
@@ -389,7 +394,14 @@ export const assertControlDefinitionsConform = (
         rows.maximum > MAX_ELEMENT_ROW_BINDINGS ||
         typeof rows.links !== 'boolean' ||
         !['labels', 'source'].includes(rows.display) ||
-        !['inline', 'segments'].includes(rows.layout) ||
+        !['inline', 'segments', 'stack'].includes(rows.layout) ||
+        (rows.marker !== null &&
+          (rows.layout !== 'stack' ||
+            rows.display !== 'labels' ||
+            rows.separator !== '\n' ||
+            !['checkbox', 'radio'].includes(rows.marker.kind) ||
+            rows.marker.defaultState !== 'unchecked')) ||
+        (rows.layout === 'stack' && rows.marker === null) ||
         (rows.selection !== null &&
           (rows.selection.property.trim().length === 0 ||
             !['fill', 'text'].includes(rows.selection.appearance.kind) ||

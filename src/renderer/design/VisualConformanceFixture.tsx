@@ -501,6 +501,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   const fixture = createAlphaFixtureDocument();
   const breadcrumbsId = ElementIdSchema.parse('element_registrybreadcrumbs');
   const buttonBarId = ElementIdSchema.parse('element_registrybuttonbar');
+  const checkboxGroupId = ElementIdSchema.parse('element_registrycheckboxgroup');
   const checkboxId = ElementIdSchema.parse('element_registrycheckbox');
   const browserId = ElementIdSchema.parse('element_registrybrowser');
   const imageId = ElementIdSchema.parse('element_registryimage');
@@ -531,6 +532,18 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   if (buttonBarInitial === undefined) {
     throw new Error('The deterministic Button Bar row fixture is invalid.');
   }
+  const checkboxGroupDefinition = getControlSpec(CONTROL_TYPES.checkboxGroup);
+  const checkboxGroupInitial =
+    checkboxGroupDefinition === undefined
+      ? undefined
+      : createInitialControlRowState(
+          checkboxGroupDefinition,
+          checkboxGroupId,
+          requireControlProperties(CONTROL_TYPES.checkboxGroup),
+        );
+  if (checkboxGroupInitial === undefined) {
+    throw new Error('The deterministic Checkbox Group row fixture is invalid.');
+  }
   const buttonBarRowData = Object.freeze({
     ...buttonBarInitial.rowData,
     bindings: Object.freeze(
@@ -556,6 +569,23 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
               ? Object.freeze({
                   kind: 'external' as const,
                   url: 'https://example.com/home',
+                })
+              : null,
+        }),
+      ),
+    ),
+  });
+  const checkboxGroupRowData = Object.freeze({
+    ...checkboxGroupInitial.rowData,
+    bindings: Object.freeze(
+      checkboxGroupInitial.rowData.bindings.map((binding, index) =>
+        Object.freeze({
+          ...binding,
+          link:
+            index === 0
+              ? Object.freeze({
+                  kind: 'external' as const,
+                  url: 'https://example.com/not-selected',
                 })
               : null,
         }),
@@ -758,6 +788,23 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 6,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.checkboxGroup,
+        controlVersion: requireControlVersion(CONTROL_TYPES.checkboxGroup),
+        frame: { x: 388, y: 286, width: 165, height: 181 },
+        id: checkboxGroupId,
+        link: null,
+        rowData: checkboxGroupRowData,
+        locked: false,
+        properties: checkboxGroupInitial.properties,
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 7,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
   ] as const;
   for (const command of commands) {
     const result = dispatchDocumentCommand(document, command);
@@ -766,7 +813,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
     }
     document = result.document;
   }
-  return Object.freeze({ ...fixture, document, selectedId: buttonBarId });
+  return Object.freeze({ ...fixture, document, selectedId: checkboxGroupId });
 };
 
 const createGroupSelectionFixtureDocument = (
@@ -1687,7 +1734,7 @@ export const VisualConformanceFixture = ({
     fixture === 'mvpAlpha' || fixture === 'iconPicker'
       ? CONTROL_TYPES.button
       : fixture === 'registryControl'
-        ? CONTROL_TYPES.buttonBar
+        ? CONTROL_TYPES.checkboxGroup
         : undefined;
   const inspectorTitle =
     fixture === 'components'

@@ -3,6 +3,7 @@ import { useSyncExternalStore, type ComponentPropsWithoutRef } from 'react';
 import type { BoardId } from '../../domain';
 import { ControlSceneIcon } from '../controls/CatalogIcon';
 import { ControlSelectedRowFill, ControlSelectedRowText } from '../controls/ControlSelectedRow';
+import { ControlRowMarkers } from '../controls/ControlRowMarkers';
 import { BOARD_THUMBNAIL_LOADING, type BoardThumbnailStore } from './board-thumbnail-store';
 import type { BoardThumbnailItem } from './board-thumbnail-projection';
 import type { WorldRect } from '../editor/viewport-transform';
@@ -85,6 +86,7 @@ export const ThumbnailSceneSvg = ({
               style={item.strokeColor === undefined ? undefined : { stroke: item.strokeColor }}
             />
           ) : null}
+          <ControlRowMarkers rows={item.rows} strokeColor={item.strokeColor} />
           {item.icon === undefined ? null : (
             <ControlSceneIcon assetUrls={assetUrls} projection={item.icon} />
           )}
@@ -100,7 +102,12 @@ export const ThumbnailSceneSvg = ({
               textDecoration={item.textLayout.textDecoration}
             >
               {item.textLayout.lines.map((line, index) => (
-                <tspan key={`${String(index)}:${line.text}`} x={line.x} y={line.baselineY}>
+                <tspan
+                  key={`${String(index)}:${line.text}`}
+                  opacity={line.opacity}
+                  x={line.x}
+                  y={line.baselineY}
+                >
                   {line.text}
                 </tspan>
               ))}

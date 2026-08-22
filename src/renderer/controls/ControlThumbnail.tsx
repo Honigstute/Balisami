@@ -3,6 +3,7 @@ import { controlSceneHasFill } from './control-scene-geometry';
 import type { ControlTextMeasurementService } from './control-text-measurement';
 import { createControlThumbnailProjection } from './control-thumbnail-projection';
 import { ControlSelectedRowFill, ControlSelectedRowText } from './ControlSelectedRow';
+import { ControlRowMarkers } from './ControlRowMarkers';
 
 interface ControlThumbnailProps {
   readonly definition: ControlDefinition;
@@ -74,6 +75,7 @@ export const ControlThumbnail = ({
           }
         />
       )}
+      <ControlRowMarkers rows={projection.rows} strokeColor={projection.strokeColor} />
       {projection.textLayout === undefined ? null : (
         <text
           className="scene-control__text"
@@ -86,7 +88,12 @@ export const ControlThumbnail = ({
           textDecoration={projection.textLayout.textDecoration}
         >
           {projection.textLayout.lines.map((line, index) => (
-            <tspan key={`${String(index)}:${line.text}`} x={line.x} y={line.baselineY}>
+            <tspan
+              key={`${String(index)}:${line.text}`}
+              opacity={line.opacity}
+              x={line.x}
+              y={line.baselineY}
+            >
               {line.text}
             </tspan>
           ))}

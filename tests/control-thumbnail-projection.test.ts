@@ -65,6 +65,30 @@ describe('control thumbnail projection', () => {
     expect(createControlThumbnailProjection(group, measurementService)).toBeUndefined();
   });
 
+  it('projects stacked marker rows through the same shelf scene contract', () => {
+    const checkboxGroup = getControlSpec(CONTROL_TYPES.checkboxGroup);
+    const radioGroup = getControlSpec(CONTROL_TYPES.radioButtonGroup);
+    if (checkboxGroup === undefined || radioGroup === undefined) {
+      throw new Error('Marker group definitions are missing.');
+    }
+    const checkbox = createControlThumbnailProjection(checkboxGroup, measurementService);
+    const radio = createControlThumbnailProjection(radioGroup, measurementService);
+
+    expect(checkbox?.rows).toHaveLength(7);
+    expect(checkbox?.rows.map((row) => row.marker === null)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+    expect(radio?.rows[0]?.marker?.fillPath).not.toBe('');
+    expect(radio?.rows[2]?.marker?.fillPath).toBe('');
+    expect(radio?.rows[2]?.marker?.strokePath).toContain('L');
+  });
+
   it('projects deterministic Image, Browser, and property-driven Arrow geometry', () => {
     const image = getControlSpec(CONTROL_TYPES.imagePlaceholder);
     const browser = getControlSpec(CONTROL_TYPES.browser);

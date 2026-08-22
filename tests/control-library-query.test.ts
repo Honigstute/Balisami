@@ -31,6 +31,8 @@ describe('control library query', () => {
     expect(queryControlLibrary({ category: 'Forms' }).map(({ type }) => type)).toEqual([
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.checkboxGroup,
+      CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
     ]);
@@ -40,6 +42,8 @@ describe('control library query', () => {
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.checkboxGroup,
+      CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
@@ -88,6 +92,8 @@ describe('control library query', () => {
       CONTROL_TYPES.textInput,
       `${CONTROL_TYPES.textInput}:underline`,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.checkboxGroup,
+      CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
     ]);

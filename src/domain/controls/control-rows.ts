@@ -14,14 +14,18 @@ import type { ControlDefinition, ControlRowsDefinition } from './control-definit
 export const MAX_CONTROL_ROW_LABEL_LENGTH = Math.min(2_048, CONTROL_TEXT_POLICY.maximumLength);
 
 export interface ParsedControlRow {
+  readonly disabled: boolean;
   readonly label: string;
+  readonly marker: 'indeterminate' | 'selected' | 'unchecked' | null;
 }
 
 export interface ControlRowEdit {
+  readonly disabled: boolean;
   readonly generation: number;
   readonly id: ElementRowId;
   readonly label: string;
   readonly link: ElementLink | null;
+  readonly marker: ParsedControlRow['marker'];
 }
 
 export interface ControlRowsUpdate {
@@ -38,22 +42,100 @@ const freezeRowData = (bindings: ElementRowData['bindings'], nextId: number): El
     bindings: Object.freeze(bindings),
   });
 
+const parseMarkerToken = (
+  kind: NonNullable<ControlRowsDefinition['marker']>['kind'],
+  token: string,
+): ParsedControlRow['marker'] | undefined => {
+  const normalized = token.trim().toLowerCase();
+  if (normalized.length === 0) return 'unchecked';
+  if (normalized === '-') return 'indeterminate';
+  if (kind === 'checkbox' && normalized === 'x') return 'selected';
+  if (kind === 'radio' && normalized === 'o') return 'selected';
+  return undefined;
+};
+
+/** Parses one row using only the definition-owned marker grammar. */
+export const parseControlRowSource = (
+  rows: ControlRowsDefinition,
+  source: string,
+): ParsedControlRow | undefined => {
+  let remaining = source.trim();
+  let marker: ParsedControlRow['marker'] = null;
+  if (rows.marker !== null) {
+    const expression = rows.marker.kind === 'checkbox' ? /^\[([^\]]*)\]\s*/ : /^\(([^)]*)\)\s*/;
+    const foreignExpression = rows.marker.kind === 'checkbox' ? /^\([^)]*\)\s*/ : /^\[[^\]]*\]\s*/;
+    if (foreignExpression.test(remaining)) return undefined;
+    const match = expression.exec(remaining);
+    if (match !== null) {
+      const parsedMarker = parseMarkerToken(rows.marker.kind, match[1] ?? '');
+      if (parsedMarker === undefined) return undefined;
+      marker = parsedMarker;
+      remaining = remaining.slice(match[0].length).trim();
+    }
+  }
+  const disabled =
+    rows.marker !== null &&
+    remaining.length > 2 &&
+    remaining.startsWith('-') &&
+    remaining.endsWith('-');
+  if (disabled) remaining = remaining.slice(1, -1).trim();
+  // Disabled notation applies to the label after its marker. Rejecting a marker
+  // inside the disabled wrapper keeps logical marker identity unambiguous.
+  if (
+    disabled &&
+    marker === null &&
+    (rows.marker?.kind === 'checkbox' ? /^\[[^\]]*\]\s*/ : /^\([^)]*\)\s*/).test(remaining)
+  ) {
+    return undefined;
+  }
+  if (remaining.length === 0 || remaining.length > MAX_CONTROL_ROW_LABEL_LENGTH) return undefined;
+  return Object.freeze({ disabled, label: remaining, marker });
+};
+
+/** Canonicalizes marker syntax while keeping the visible label free of delimiters. */
+export const formatControlRowSource = (
+  rows: ControlRowsDefinition,
+  row: Pick<ParsedControlRow, 'disabled' | 'label' | 'marker'>,
+): string => {
+  const prefix =
+    rows.marker === null || row.marker === null
+      ? ''
+      : rows.marker.kind === 'checkbox'
+        ? row.marker === 'unchecked'
+          ? '[ ] '
+          : row.marker === 'selected'
+            ? '[x] '
+            : '[-] '
+        : row.marker === 'unchecked'
+          ? '( ) '
+          : row.marker === 'selected'
+            ? '(o) '
+            : '(-) ';
+  const label = row.disabled ? `-${row.label.trim()}-` : row.label.trim();
+  return `${prefix}${label}`;
+};
+
 export const parseControlRows = (
   rows: ControlRowsDefinition,
   properties: ElementProperties,
 ): readonly ParsedControlRow[] | undefined => {
   const source = properties[rows.property];
   if (typeof source !== 'string') return undefined;
-  const labels = source.split(rows.separator).map((part) => part.trim());
+  const sources = source.split(rows.separator).map((part) => part.trim());
   if (
-    labels.length < rows.minimum ||
-    labels.length > rows.maximum ||
-    labels.length > MAX_ELEMENT_ROW_BINDINGS ||
-    labels.some((label) => label.length === 0 || label.length > MAX_CONTROL_ROW_LABEL_LENGTH)
+    sources.length < rows.minimum ||
+    sources.length > rows.maximum ||
+    sources.length > MAX_ELEMENT_ROW_BINDINGS ||
+    sources.some(
+      (rowSource) => rowSource.length === 0 || rowSource.length > MAX_CONTROL_ROW_LABEL_LENGTH,
+    )
   ) {
     return undefined;
   }
-  return Object.freeze(labels.map((label) => Object.freeze({ label })));
+  const parsed = sources.map((rowSource) => parseControlRowSource(rows, rowSource));
+  return parsed.some((row) => row === undefined)
+    ? undefined
+    : Object.freeze(parsed as readonly ParsedControlRow[]);
 };
 
 const hashStableText = (value: string): string => {
@@ -155,7 +237,12 @@ export const createControlRowEdits = (
   return Object.freeze(
     parsed.map((row, index) => {
       const binding = element.rowData.bindings[index]!;
-      return Object.freeze({ ...binding, label: row.label });
+      return Object.freeze({
+        ...binding,
+        disabled: row.disabled,
+        label: row.label,
+        marker: row.marker,
+      });
     }),
   );
 };
@@ -185,7 +272,11 @@ export const createControlRowsUpdate = (
         edit.label.trim().length === 0 ||
         edit.label.length > MAX_CONTROL_ROW_LABEL_LENGTH ||
         edit.generation >= nextId ||
-        edit.id !== createElementRowId(element.id, edit.generation),
+        edit.id !== createElementRowId(element.id, edit.generation) ||
+        (rows.marker === null && (edit.marker !== null || edit.disabled)) ||
+        (rows.marker !== null &&
+          edit.marker !== null &&
+          !['unchecked', 'selected', 'indeterminate'].includes(edit.marker)),
     )
   ) {
     return undefined;
@@ -205,7 +296,9 @@ export const createControlRowsUpdate = (
   }
   let properties: ElementProperties = Object.freeze({
     ...element.properties,
-    [rows.property]: edits.map((edit) => edit.label.trim()).join(` ${rows.separator} `),
+    [rows.property]: edits
+      .map((edit) => formatControlRowSource(rows, edit))
+      .join(rows.separator === '\n' ? '\n' : ` ${rows.separator} `),
   });
   const selection = rows.selection;
   if (selection !== null) {
@@ -269,6 +362,7 @@ export const createControlRowSelectionUpdate = (
 };
 
 export const appendControlRowEdit = (
+  definition: ControlDefinition,
   element: ElementNode,
   edits: readonly ControlRowEdit[],
   label: string,
@@ -279,10 +373,12 @@ export const appendControlRowEdit = (
     edits: Object.freeze([
       ...edits,
       Object.freeze({
+        disabled: false,
         generation,
         id: createElementRowId(element.id, generation),
         label,
         link: null,
+        marker: definition.rows?.marker?.defaultState ?? null,
       }),
     ]),
     nextId: generation + 1,

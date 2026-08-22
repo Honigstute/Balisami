@@ -10,6 +10,8 @@ import {
 export interface ControlSceneTextLine {
   /** Canonical alphabetic baseline in world coordinates. */
   readonly baselineY: number;
+  /** Per-row disabled styling; undefined inherits the control opacity. */
+  readonly opacity?: number;
   readonly text: string;
   readonly x: number;
 }

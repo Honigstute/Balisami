@@ -17,6 +17,8 @@ import {
   dispatchHistoryCommand,
   getControlSpec,
   listElementLinkReferences,
+  formatControlRowSource,
+  parseControlRowSource,
   parseProjectDocument,
   rekeyControlRowState,
   redoDocumentHistory,
@@ -90,6 +92,95 @@ const createSelectionFixture = (controlType: ControlTypeId) => {
 };
 
 describe('registry parsed-row identity contract', () => {
+  it('parses only the documented marker grammar and keeps disabled notation on the label', () => {
+    const checkbox = getControlSpec(CONTROL_TYPES.checkboxGroup);
+    const radio = getControlSpec(CONTROL_TYPES.radioButtonGroup);
+    if (checkbox?.rows === null || checkbox?.rows === undefined) {
+      throw new Error('Checkbox Group rows are missing.');
+    }
+    if (radio?.rows === null || radio?.rows === undefined) {
+      throw new Error('Radio Button Group rows are missing.');
+    }
+
+    expect(parseControlRowSource(checkbox.rows, '[x] -disabled selected-')).toEqual({
+      disabled: true,
+      label: 'disabled selected',
+      marker: 'selected',
+    });
+    expect(parseControlRowSource(radio.rows, '(o) -option 5-')).toEqual({
+      disabled: true,
+      label: 'option 5',
+      marker: 'selected',
+    });
+    expect(parseControlRowSource(checkbox.rows, 'Plain text row')).toEqual({
+      disabled: false,
+      label: 'Plain text row',
+      marker: null,
+    });
+    expect(parseControlRowSource(checkbox.rows, '(o) wrong group')).toBeUndefined();
+    expect(parseControlRowSource(checkbox.rows, '[o] wrong token')).toBeUndefined();
+    expect(parseControlRowSource(radio.rows, '[x] wrong group')).toBeUndefined();
+    expect(parseControlRowSource(radio.rows, '(x) wrong token')).toBeUndefined();
+    expect(parseControlRowSource(checkbox.rows, '-[x] wrong disabled location-')).toBeUndefined();
+    expect(
+      formatControlRowSource(checkbox.rows, {
+        disabled: true,
+        label: 'disabled selected',
+        marker: 'selected',
+      }),
+    ).toBe('[x] -disabled selected-');
+  });
+
+  it('preserves marker and disabled state through atomic edits, reorder, append, undo, and redo', () => {
+    const { definition, document, element } = createSelectionFixture(CONTROL_TYPES.checkboxGroup);
+    const edits = createControlRowEdits(definition, element);
+    if (edits === undefined) throw new Error('Checkbox Group rows did not parse.');
+    expect(edits.map(({ disabled, marker }) => [marker, disabled])).toEqual([
+      ['unchecked', false],
+      ['selected', false],
+      ['indeterminate', false],
+      ['unchecked', true],
+      ['selected', true],
+      ['indeterminate', true],
+      [null, false],
+    ]);
+
+    const appended = appendControlRowEdit(definition, element, edits, 'New row');
+    expect(appended?.edits.at(-1)?.marker).toBe('unchecked');
+    if (appended === undefined) throw new Error('Checkbox Group append is invalid.');
+    const update = createControlRowsUpdate(
+      definition,
+      element,
+      [
+        Object.freeze({ ...edits[1]!, label: 'Selected edited' }),
+        edits[0]!,
+        ...edits.slice(2),
+        appended.edits.at(-1)!,
+      ],
+      appended.nextId,
+    );
+    if (update === undefined) throw new Error('Checkbox Group update is invalid.');
+    expect(update.rowData.bindings.slice(0, 2).map(({ id }) => id)).toEqual([
+      edits[1]!.id,
+      edits[0]!.id,
+    ]);
+    expect(update.properties.items).toContain('[x] Selected edited');
+    expect(update.properties.items).toContain('[ ] New row');
+
+    const committed = dispatchHistoryCommand(createDocumentHistory(document), {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: ELEMENT_ID,
+      ...update,
+    });
+    if (!committed.ok || !committed.changed) throw new Error('Checkbox Group edit did not commit.');
+    const undone = undoDocumentHistory(committed.history);
+    if (!undone.ok || !undone.changed) throw new Error('Checkbox Group edit did not undo.');
+    expect(undone.history.document).toEqual(document);
+    const redone = redoDocumentHistory(undone.history);
+    if (!redone.ok || !redone.changed) throw new Error('Checkbox Group edit did not redo.');
+    expect(redone.history.document).toEqual(committed.history.document);
+  });
+
   it('materializes required and optional selection defaults and validates allow-none', () => {
     const buttonBar = createSelectionFixture(CONTROL_TYPES.buttonBar);
     const linkBar = createSelectionFixture(CONTROL_TYPES.linkBar);
@@ -369,7 +460,7 @@ describe('registry parsed-row identity contract', () => {
     const afterDelete = removedResult.document.elementsById[ELEMENT_ID]!;
     const afterDeleteEdits = createControlRowEdits(definition, afterDelete);
     if (afterDeleteEdits === undefined) throw new Error('Rows after delete did not parse.');
-    const appended = appendControlRowEdit(afterDelete, afterDeleteEdits, 'New row');
+    const appended = appendControlRowEdit(definition, afterDelete, afterDeleteEdits, 'New row');
     expect(appended?.edits.at(-1)).toMatchObject({
       generation: 4,
       id: createElementRowId(ELEMENT_ID, 4),

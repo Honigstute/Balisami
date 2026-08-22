@@ -215,4 +215,42 @@ describe('board thumbnail projection', () => {
       })?.items[0]?.selectedRow,
     ).toMatchObject({ id: initial.rowData.bindings[0]?.id, appearance: 'fill' });
   });
+
+  it('carries stacked marker and disabled-row geometry through navigator thumbnails', () => {
+    const input = createValidProjectDocumentInput();
+    const group = getControlSpec(CONTROL_TYPES.checkboxGroup);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (group === undefined || child === undefined)
+      throw new Error('Marker fixture is incomplete.');
+    const initial = createInitialControlRowState(
+      group,
+      DOCUMENT_FIXTURE_IDS.child,
+      group.defaultProperties,
+    );
+    if (initial === undefined) throw new Error('Checkbox Group row state is invalid.');
+    child.controlType = group.type;
+    child.controlVersion = group.fileVersion;
+    child.frame = { x: 0, y: 0, width: 155, height: 149 };
+    child.properties = structuredClone(initial.properties) as typeof child.properties;
+    child.rowData = structuredClone(initial.rowData) as unknown as typeof child.rowData;
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Marker thumbnail fixture is invalid.');
+    const item = createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board, {
+      measure: ({ fontSize, text }) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      }),
+    })?.items[0];
+
+    expect(item?.rows).toHaveLength(7);
+    expect(item?.rows[1]?.marker?.strokePath).toContain('L');
+    expect(item?.rows[3]?.disabled).toBe(true);
+    expect(item?.textLayout?.lines[3]?.opacity).toBe(0.48);
+  });
 });

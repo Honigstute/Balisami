@@ -199,7 +199,7 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
-  it('renders the registry-backed segmented row editor and linked-row scene hints', async () => {
+  it('renders the registry-backed marker row editor and linked-row scene hints', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,
       height: 600,
@@ -223,12 +223,13 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Insert Webcam' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Breadcrumbs' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Button Bar' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Button Bar' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Selection' })).toHaveTextContent('One');
+    expect(screen.getByRole('heading', { name: 'Checkbox Group' })).toBeInTheDocument();
     const rowEditor = view.container.querySelector('[data-control-rows-inspector="true"]');
     expect(rowEditor).not.toBeNull();
-    expect(rowEditor?.querySelector('input[value="One"]')).not.toBeNull();
-    expect(rowEditor?.querySelector('input[value="https://example.com/one"]')).not.toBeNull();
+    expect(rowEditor?.querySelector('input[value="[ ] not selected"]')).not.toBeNull();
+    expect(
+      rowEditor?.querySelector('input[value="https://example.com/not-selected"]'),
+    ).not.toBeNull();
     await waitFor(() => {
       const checkbox = view.container.querySelector('[data-control-visual="checkbox"]');
       const image = view.container.querySelector('[data-control-visual="image"]');
@@ -239,9 +240,12 @@ describe('visual conformance fixture contract', () => {
       const volumeSlider = view.container.querySelector('[data-control-visual="volume-slider"]');
       const webcam = view.container.querySelector('[data-control-visual="webcam"]');
       const linkedRowHint = view.container.querySelector(
-        '.scene-control__row-link-hint[data-link-target="https://example.com/one"]',
+        '.scene-control__row-link-hint[data-link-target="https://example.com/not-selected"]',
       );
       const buttonBar = view.container.querySelector('[data-control-type="wireframe.button-bar"]');
+      const checkboxGroup = view.container.querySelector(
+        '[data-scene-element-id="element_registrycheckboxgroup"]',
+      );
       expect(checkbox).not.toBeNull();
       expect(image).not.toBeNull();
       expect(browser).not.toBeNull();
@@ -251,6 +255,7 @@ describe('visual conformance fixture contract', () => {
       expect(volumeSlider).not.toBeNull();
       expect(webcam).not.toBeNull();
       if (document.fonts !== undefined) {
+        expect(checkboxGroup?.querySelectorAll('[data-control-row-marker]')).toHaveLength(6);
         expect(linkedRowHint).not.toBeNull();
         expect(Number(linkedRowHint?.getAttribute('width'))).toBeGreaterThan(0);
       }

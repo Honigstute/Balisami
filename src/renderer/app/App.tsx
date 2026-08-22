@@ -1313,6 +1313,10 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     ) {
       throw new Error('The packaged alpha probe could not insert all representative controls.');
     }
+    const alphaButton = session.getSnapshot().history?.document.elementsById[buttonId];
+    if (alphaButton === undefined) {
+      throw new Error('The packaged alpha probe could not read its inserted button.');
+    }
     const edited = session.dispatchTransaction(
       [
         {
@@ -1338,7 +1342,13 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         {
           type: DOCUMENT_COMMAND_TYPES.setElementProperties,
           elementId: buttonId,
-          properties: { iconId: null, text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
+          // Property commands replace the complete strict control payload.
+          // Keep this native acceptance probe schema-agnostic as controls evolve.
+          properties: {
+            ...alphaButton.properties,
+            iconId: null,
+            text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT,
+          },
         },
       ],
       { label: 'Edit alpha button' },

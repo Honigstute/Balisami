@@ -1319,7 +1319,8 @@ p {
 }
 
 .scene-control__outline,
-.scene-control__mark {
+.scene-control__mark,
+.scene-control__row-marker-stroke {
   fill: none;
   stroke: var(--color-ink);
   stroke-linecap: round;
@@ -1339,6 +1340,16 @@ p {
 
 .scene-control__mark {
   fill: none;
+  pointer-events: none;
+}
+
+.scene-control__row-marker-stroke {
+  fill: none;
+  pointer-events: none;
+}
+
+.scene-control__row-marker-fill {
+  fill: var(--color-ink);
   pointer-events: none;
 }
 

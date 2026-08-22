@@ -127,7 +127,7 @@ export const createBoardPresentationProjection = (
       textMeasurementService,
     });
     const rowLinks = projection.rows.flatMap((row) =>
-      row.link === null
+      row.link === null || row.disabled
         ? []
         : [
             Object.freeze({

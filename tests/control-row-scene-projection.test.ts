@@ -13,7 +13,10 @@ import {
 import { createControlRowSceneProjections } from '../src/renderer/controls/control-row-scene-projection';
 import { createControlSceneProjection } from '../src/renderer/controls/control-scene-projection';
 import type { ControlSceneTextLayout } from '../src/renderer/controls/control-scene-text-layout';
-import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
+import {
+  createControlTextMeasurementService,
+  type ControlTextMeasurementService,
+} from '../src/renderer/controls/control-text-measurement';
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
 
 const ELEMENT_ID = ElementIdSchema.parse('element_rowscene01');
@@ -31,6 +34,17 @@ const createMeasurementService = () => {
   }));
   return Object.freeze({ measure, width });
 };
+
+const createRealMeasurementService = () =>
+  createControlTextMeasurementService({
+    font: '',
+    measureText: (text) => ({
+      actualBoundingBoxAscent: 9,
+      actualBoundingBoxDescent: 3,
+      width: [...text].reduce((width, character) => width + (character === 'W' ? 11 : 5), 0),
+    }),
+    textBaseline: 'top',
+  });
 
 const createLayout = (
   source: string,
@@ -149,5 +163,88 @@ describe('canonical parsed-row scene projection', () => {
     expect(projection.textLayout?.lines.map((line) => line.text)).toEqual(['One', 'Two', 'Three']);
     expect(service.measure.mock.calls.flatMap(([request]) => request.text)).not.toContain('|');
     expect(Object.isFrozen(projection.rows)).toBe(true);
+  });
+
+  it('projects stacked markers and derives every baseline from its resized row cell', () => {
+    const definition = getControlSpec(CONTROL_TYPES.checkboxGroup);
+    if (definition === undefined) throw new Error('Checkbox Group definition is missing.');
+    const initial = createInitialControlRowState(
+      definition,
+      ELEMENT_ID,
+      definition.defaultProperties,
+    );
+    if (initial === undefined) throw new Error('Checkbox Group row state is invalid.');
+    const bounds = createWorldRect(10, 20, 240, 350);
+    const projection = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: ELEMENT_ID,
+      properties: initial.properties,
+      rowData: initial.rowData,
+      textMeasurementService: createRealMeasurementService(),
+    });
+
+    expect(projection.rows).toHaveLength(7);
+    expect(projection.rows.map((row) => row.marker === null)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+    expect(projection.rows.map(({ disabled }) => disabled)).toEqual([
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+    ]);
+    for (const [index, row] of projection.rows.entries()) {
+      expect(row.baselineY).toBeGreaterThan(row.bounds.y);
+      expect(row.baselineY).toBeLessThan(row.bounds.y + row.bounds.height);
+      expect(projection.textLayout?.lines[index]?.baselineY).toBe(row.baselineY);
+    }
+    expect(
+      projection.rows
+        .slice(1)
+        .map((row, index) => row.baselineY - projection.rows[index]!.baselineY),
+    ).toEqual([50, 50, 50, 50, 50, 50]);
+    expect(projection.textLayout?.lines.map(({ opacity }) => opacity ?? 1)).toEqual([
+      1, 1, 1, 0.48, 0.48, 0.48, 1,
+    ]);
+  });
+
+  it('keeps dense maximum-row marker geometry finite at the minimum frame height', () => {
+    const definition = getControlSpec(CONTROL_TYPES.radioButtonGroup);
+    if (definition === undefined) throw new Error('Radio Button Group definition is missing.');
+    if (definition.rows === null) throw new Error('Radio Button Group rows are missing.');
+    const items = Array.from(
+      { length: definition.rows.maximum },
+      (_, index) => `( ) Row ${String(index + 1)}`,
+    ).join('\n');
+    const properties = Object.freeze({ ...definition.defaultProperties, items });
+    const initial = createInitialControlRowState(definition, ELEMENT_ID, properties);
+    if (initial === undefined) throw new Error('Dense Radio Button Group row state is invalid.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, definition.minimumSize.width, definition.minimumSize.height),
+      definition,
+      identity: ELEMENT_ID,
+      properties: initial.properties,
+      rowData: initial.rowData,
+      textMeasurementService: createRealMeasurementService(),
+    });
+
+    expect(projection.rows).toHaveLength(definition.rows.maximum);
+    for (const row of projection.rows) {
+      expect(row.bounds.height).toBeGreaterThanOrEqual(0);
+      expect(row.marker?.strokePath).not.toMatch(/NaN|Infinity|A -/u);
+      for (const value of row.marker?.strokePath.match(/-?\d+(?:\.\d+)?/gu) ?? []) {
+        expect(Number.isFinite(Number(value))).toBe(true);
+      }
+    }
   });
 });

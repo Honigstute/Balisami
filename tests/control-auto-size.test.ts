@@ -64,6 +64,27 @@ describe('registry-driven control auto-size', () => {
     expect(measure.mock.calls.map(([request]) => request.text)).toEqual(['Widest', 'i']);
   });
 
+  it('sizes stacked marker rows from visible labels, marker space, and every row line', () => {
+    const element = createElement(CONTROL_TYPES.checkboxGroup);
+    if (element === undefined) throw new Error('Checkbox Group fixture is missing.');
+    const measure = vi.fn((request: { text: string }) => ({
+      baselineOffsets: [10],
+      height: 16,
+      lineCount: 1,
+      lineHeight: 16,
+      lines: [request.text],
+      width: request.text === 'A row without a checkbox' ? 100 : 80,
+    }));
+
+    expect(calculateControlAutoSizeFrame(element, { measure })).toEqual({
+      ...element.frame,
+      height: 148,
+      width: 108,
+    });
+    expect(measure.mock.calls.map(([request]) => request.text)).not.toContain('[x] selected');
+    expect(measure).toHaveBeenCalledTimes(7);
+  });
+
   it('measures registered text and projects the frame without changing its origin', () => {
     const element = createElement();
     if (element === undefined) {

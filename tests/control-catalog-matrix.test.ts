@@ -25,6 +25,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry visual fixture; deterministic Chart scene geometry',
   'wireframe.checkbox':
     'common harness; registry visual fixture; hit-shape, accessibility, and auto-size',
+  'wireframe.checkbox-group':
+    'common harness; exact marker grammar, stable row identity, inspector, and stacked scene geometry',
   'wireframe.image-placeholder':
     'common harness; registry visual fixture; image and thumbnail projection',
   'wireframe.h-splitter':
@@ -46,6 +48,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry color target; deterministic Color Picker geometry',
   'wireframe.on-off-switch':
     'common harness; shared link and state inspector; deterministic Switch geometry',
+  'wireframe.radio-button-group':
+    'common harness; exact marker grammar, stable row identity, inspector, and stacked scene geometry',
   'wireframe.squiggly-block-of-text':
     'common harness; registry visual fixture; deterministic Markup scene geometry',
   'wireframe.street-map':

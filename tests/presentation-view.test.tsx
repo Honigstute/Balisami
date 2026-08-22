@@ -237,6 +237,58 @@ const createSelectedRowPresentationDocument = (): ProjectDocument => {
   return parsed.value;
 };
 
+const createMarkerRowPresentationDocument = (): ProjectDocument => {
+  const group = getControlSpec(CONTROL_TYPES.radioButtonGroup);
+  if (group === undefined) throw new Error('Radio Button Group definition is missing.');
+  const initial = createInitialControlRowState(group, ROW_LINK_ID, group.defaultProperties);
+  if (initial === undefined) throw new Error('Radio Button Group rows could not be created.');
+  const parsed = parseProjectDocument({
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
+    id: ProjectIdSchema.parse('project_markerrowpresentation'),
+    name: 'Marker row presentation fixture',
+    boardIds: [HOME_ID],
+    componentIds: [],
+    trashedBoardIds: [],
+    boardsById: {
+      [HOME_ID]: {
+        id: HOME_ID,
+        name: 'Home',
+        note: { text: '' },
+        childIds: [ROW_LINK_ID],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+    },
+    componentsById: {},
+    elementsById: {
+      [ROW_LINK_ID]: {
+        id: ROW_LINK_ID,
+        controlType: group.type,
+        controlVersion: group.fileVersion,
+        frame: { x: 30, y: 30, width: 165, height: 181 },
+        locked: false,
+        properties: initial.properties,
+        childIds: [],
+        assetIds: [],
+        link: null,
+        rowData: {
+          ...initial.rowData,
+          bindings: initial.rowData.bindings.map((binding) => ({
+            ...binding,
+            link: {
+              kind: 'external' as const,
+              url: `https://example.com/row-${String(binding.generation)}`,
+            },
+          })),
+        },
+      },
+    },
+    assetsById: {},
+  });
+  if (!parsed.ok) throw new Error('Marker row presentation fixture is invalid.');
+  return parsed.value;
+};
+
 const rowTextMeasurementService: ControlTextMeasurementService = {
   measure: ({ fontSize, text }) => ({
     baselineOffsets: [fontSize],
@@ -262,6 +314,23 @@ describe('board presentation', () => {
       kind: 'catalog',
     });
     expect(projection?.items[0]).toMatchObject({ fillColor: '#445566', strokeColor: undefined });
+  });
+
+  it('shares marker geometry and suppresses disabled row activation without dropping links', () => {
+    const document = createMarkerRowPresentationDocument();
+    const projection = createBoardPresentationProjection(
+      document,
+      HOME_ID,
+      rowTextMeasurementService,
+    );
+    const item = projection?.items[0];
+    expect(item?.rows).toHaveLength(7);
+    expect(item?.rows[0]?.marker?.fillPath).not.toBe('');
+    expect(item?.rows[3]?.disabled).toBe(true);
+    expect(item?.rowLinks.map(({ rowId }) => rowId)).toEqual(
+      item?.rows.filter(({ disabled }) => !disabled).map(({ id }) => id),
+    );
+    expect(document.elementsById[ROW_LINK_ID]?.rowData.bindings[3]?.link).not.toBeNull();
   });
 
   it('navigates linked boards, supports back/forward, opens external links, and exits', () => {

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } 
 import type { BoardId, ElementLink, ProjectDocument } from '../../domain';
 import { ControlSceneIcon } from '../controls/CatalogIcon';
 import { ControlSelectedRowFill, ControlSelectedRowText } from '../controls/ControlSelectedRow';
+import { ControlRowMarkers } from '../controls/ControlRowMarkers';
 import { getBrowserControlTextMeasurementService } from '../controls/control-text-measurement';
 import { Icon } from '../shell/Icon';
 import { createBoardPresentationProjection } from './board-presentation-projection';
@@ -297,6 +298,7 @@ export const PresentationView = ({
                       vectorEffect="non-scaling-stroke"
                     />
                   ) : null}
+                  <ControlRowMarkers rows={item.rows} strokeColor={item.strokeColor} />
                   {item.icon === undefined ? null : (
                     <ControlSceneIcon assetUrls={assetUrls} projection={item.icon} />
                   )}
@@ -312,7 +314,12 @@ export const PresentationView = ({
                       textDecoration={item.textLayout.textDecoration}
                     >
                       {item.textLayout.lines.map((line, index) => (
-                        <tspan key={`${String(index)}:${line.text}`} x={line.x} y={line.baselineY}>
+                        <tspan
+                          key={`${String(index)}:${line.text}`}
+                          opacity={line.opacity}
+                          x={line.x}
+                          y={line.baselineY}
+                        >
                           {line.text}
                         </tspan>
                       ))}

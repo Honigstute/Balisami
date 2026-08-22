@@ -5,6 +5,8 @@ import {
   createControlRowEdits,
   createControlRowSelectionUpdate,
   createControlRowsUpdate,
+  formatControlRowSource,
+  parseControlRowSource,
   type ControlDefinition,
   type ControlRowEdit,
   type ElementNode,
@@ -89,14 +91,20 @@ export const ControlRowsInspector = ({
       {edits.map((edit, index) => (
         <div className="control-row-editor" key={edit.id}>
           <RowLabelInput
-            label={edit.label}
-            onCommit={(label) =>
-              apply(
-                edits.map((candidate) =>
-                  candidate.id === edit.id ? Object.freeze({ ...candidate, label }) : candidate,
-                ),
-              )
-            }
+            label={formatControlRowSource(rows, edit)}
+            onCommit={(source) => {
+              const parsed = parseControlRowSource(rows, source);
+              return (
+                parsed !== undefined &&
+                apply(
+                  edits.map((candidate) =>
+                    candidate.id === edit.id
+                      ? Object.freeze({ ...candidate, ...parsed })
+                      : candidate,
+                  ),
+                )
+              );
+            }}
           />
           <div className="control-row-editor__actions">
             <AppButton
@@ -146,7 +154,12 @@ export const ControlRowsInspector = ({
       <AppButton
         disabled={edits.length >= rows.maximum}
         onClick={() => {
-          const appended = appendControlRowEdit(element, edits, `Item ${String(edits.length + 1)}`);
+          const appended = appendControlRowEdit(
+            definition,
+            element,
+            edits,
+            `Item ${String(edits.length + 1)}`,
+          );
           if (appended !== undefined) apply(appended.edits, appended.nextId);
         }}
       >
