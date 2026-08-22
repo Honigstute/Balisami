@@ -87,6 +87,44 @@ describe('project file codec', () => {
     expect(Object.isFrozen(decoded.value.assetsById)).toBe(true);
   });
 
+  it('round-trips complete trashed boards without dropping their owned content or links', () => {
+    const input = createValidProjectDocumentInput();
+    const activeBoardId = 'board_activeaftertrash';
+    input.boardIds = [activeBoardId];
+    input.trashedBoardIds = [DOCUMENT_FIXTURE_IDS.board];
+    input.boardsById[activeBoardId] = {
+      id: activeBoardId,
+      name: 'Active board',
+      note: { text: '' },
+      childIds: [],
+    };
+    const asset = input.assetsById[DOCUMENT_FIXTURE_IDS.asset];
+    if (asset === undefined) {
+      throw new Error('Trashed board fixture asset is missing.');
+    }
+    asset.sha256 = PROJECT_FILE_FIXTURE_ASSET_SHA_256;
+    asset.byteLength = PROJECT_FILE_FIXTURE_ASSET_BYTES.byteLength;
+    const document = parseProjectFileFixture(input);
+    const encoded = encodeFixture(document, {
+      [DOCUMENT_FIXTURE_IDS.asset]: PROJECT_FILE_FIXTURE_ASSET_BYTES,
+    });
+    const decoded = decodeProjectFileEnvelope(encoded);
+
+    expect(decoded).toMatchObject({ ok: true });
+    if (!decoded.ok) {
+      throw new Error('Expected trashed board round-trip to succeed.');
+    }
+    expect(decoded.value.document).toEqual(document);
+    expect(decoded.value.document.trashedBoardIds).toEqual([DOCUMENT_FIXTURE_IDS.board]);
+    expect(decoded.value.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.childIds).toEqual([
+      DOCUMENT_FIXTURE_IDS.group,
+    ]);
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.link).toEqual({
+      kind: 'board',
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+    });
+  });
+
   it('stores referenced asset bytes by digest and verifies them on round-trip', () => {
     const document = createProjectDocumentWithAsset();
     const encoded = encodeFixture(document, {

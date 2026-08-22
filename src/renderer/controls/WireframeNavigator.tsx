@@ -1,13 +1,16 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 
 import type { BoardId, ProjectDocument } from '../../domain';
+import { AppButton } from '../design/AppButton';
 
 interface WireframeNavigatorProps {
   readonly activeBoardId: BoardId | undefined;
   readonly document: ProjectDocument;
   readonly onDuplicateBoard: (boardId: BoardId) => boolean;
   readonly onRenameBoard: (boardId: BoardId, name: string) => boolean;
+  readonly onRequestTrashBoard: (boardId: BoardId) => void;
   readonly onReorderBoard: (boardId: BoardId, toIndex: number) => boolean;
+  readonly onRestoreBoard: (boardId: BoardId) => boolean;
   readonly onSelectBoard: (boardId: BoardId) => void;
   readonly shortcutPlatform: 'darwin' | 'win32';
 }
@@ -17,7 +20,9 @@ export const WireframeNavigator = ({
   document,
   onDuplicateBoard,
   onRenameBoard,
+  onRequestTrashBoard,
   onReorderBoard,
+  onRestoreBoard,
   onSelectBoard,
   shortcutPlatform,
 }: WireframeNavigatorProps) => {
@@ -82,6 +87,21 @@ export const WireframeNavigator = ({
       }
       return;
     }
+    if (
+      (event.key === 'Delete' || event.key === 'Backspace') &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey &&
+      !event.repeat
+    ) {
+      event.preventDefault();
+      const boardId = document.boardIds[index];
+      if (boardId !== undefined && document.boardIds.length > 1) {
+        onRequestTrashBoard(boardId);
+      }
+      return;
+    }
     const exactPrimary =
       shortcutPlatform === 'darwin'
         ? event.metaKey && !event.ctrlKey
@@ -122,6 +142,12 @@ export const WireframeNavigator = ({
     event.preventDefault();
     selectAt(targetIndex);
   };
+  const activeBoard = activeBoardId === undefined ? undefined : document.boardsById[activeBoardId];
+  const canTrashActive =
+    activeBoardId !== undefined &&
+    activeBoard !== undefined &&
+    document.boardIds.includes(activeBoardId) &&
+    document.boardIds.length > 1;
 
   return (
     <div aria-label="Project wireframes" className="wireframe-list">
@@ -211,6 +237,35 @@ export const WireframeNavigator = ({
           </button>
         );
       })}
+      <div className="wireframe-list__actions">
+        <AppButton
+          disabled={!canTrashActive}
+          onClick={() => {
+            if (canTrashActive) {
+              onRequestTrashBoard(activeBoardId);
+            }
+          }}
+          tone="danger"
+        >
+          {activeBoard === undefined
+            ? 'Move Board to Trash'
+            : `Move “${activeBoard.name}” to Trash`}
+        </AppButton>
+      </div>
+      {document.trashedBoardIds.length === 0 ? null : (
+        <section aria-label="Trashed wireframes" className="wireframe-list__trash">
+          <h3>Trash ({document.trashedBoardIds.length})</h3>
+          {document.trashedBoardIds.map((boardId) => {
+            const board = document.boardsById[boardId];
+            return board === undefined ? null : (
+              <div className="wireframe-list__trash-row" key={boardId}>
+                <span title={board.name}>{board.name}</span>
+                <AppButton onClick={() => onRestoreBoard(boardId)}>Restore</AppButton>
+              </div>
+            );
+          })}
+        </section>
+      )}
     </div>
   );
 };

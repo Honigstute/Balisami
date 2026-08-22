@@ -11,6 +11,7 @@ import {
   getControlAccessibleName,
   selectRedoLabel,
   selectUndoLabel,
+  type BoardId,
   type ControlTypeId,
   type WorldRect,
 } from '../../domain';
@@ -36,9 +37,15 @@ import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { ProjectHome } from '../projects/ProjectHome';
+import { BoardTrashDialog } from '../projects/BoardTrashDialog';
 import { ActiveBoardStore } from '../projects/active-board-store';
 import { createBoardCreationCommand } from '../projects/board-creation';
 import { planBoardDuplicate } from '../projects/board-duplicate';
+import {
+  createBoardRestoreCommand,
+  createBoardTrashCommand,
+  selectBoardAfterTrash,
+} from '../projects/board-trash';
 import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
 import { ControlDrawOverlay } from '../editor/ControlDrawOverlay';
@@ -156,6 +163,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     ...(packagedRecoveryRestore ? { packagedRecoveryRestore: true } : {}),
   });
   const { session, view } = project;
+  const [pendingTrashBoardId, setPendingTrashBoardId] = useState<BoardId>();
   const packagedProbeStarted = useRef(false);
   const packagedProbeProjectStarted = useRef(false);
   const [editor] = useState(() => {
@@ -674,9 +682,74 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     },
     [selectActiveBoard, session],
   );
+  const requestTrashBoard = useCallback(
+    (boardId: BoardId): void => {
+      const currentDocument = session.getSnapshot().history?.document;
+      if (
+        currentDocument !== undefined &&
+        createBoardTrashCommand(currentDocument, boardId) !== undefined
+      ) {
+        setPendingTrashBoardId(boardId);
+      }
+    },
+    [session],
+  );
+  const confirmTrashBoard = useCallback((): boolean => {
+    if (pendingTrashBoardId === undefined) {
+      return false;
+    }
+    const currentDocument = session.getSnapshot().history?.document;
+    if (currentDocument === undefined) {
+      setPendingTrashBoardId(undefined);
+      return false;
+    }
+    const command = createBoardTrashCommand(currentDocument, pendingTrashBoardId);
+    const replacementBoardId = selectBoardAfterTrash(currentDocument, pendingTrashBoardId);
+    if (command === undefined || replacementBoardId === undefined) {
+      setPendingTrashBoardId(undefined);
+      return false;
+    }
+    const wasActive = editor.activeBoard.getSnapshot() === pendingTrashBoardId;
+    const result = session.dispatch(command);
+    if (result?.ok !== true || !result.changed) {
+      return false;
+    }
+    setPendingTrashBoardId(undefined);
+    if (wasActive) {
+      selectActiveBoard(replacementBoardId);
+    }
+    return true;
+  }, [editor, pendingTrashBoardId, selectActiveBoard, session]);
+  const restoreBoard = useCallback(
+    (boardId: BoardId): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      if (currentDocument === undefined) {
+        return false;
+      }
+      const command = createBoardRestoreCommand(currentDocument, boardId);
+      if (command === undefined) {
+        return false;
+      }
+      const result = session.dispatch(command);
+      if (result?.ok !== true || !result.changed) {
+        return false;
+      }
+      selectActiveBoard(boardId);
+      return true;
+    },
+    [selectActiveBoard, session],
+  );
   useEffect(() => {
     editor.activeBoard.reconcile(document?.boardIds ?? []);
   }, [document, editor]);
+  useEffect(() => {
+    if (
+      pendingTrashBoardId !== undefined &&
+      (view.dialog !== undefined || !document?.boardIds.includes(pendingTrashBoardId))
+    ) {
+      setPendingTrashBoardId(undefined);
+    }
+  }, [document, pendingTrashBoardId, view.dialog]);
   useEffect(() => {
     if (
       packagedProbeProjectStarted.current ||
@@ -820,6 +893,18 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           : { problem: view.startup.problem })}
       />
     );
+  const pendingTrashBoard =
+    pendingTrashBoardId === undefined ? undefined : document?.boardsById[pendingTrashBoardId];
+  const boardTrashOverlay =
+    pendingTrashBoard === undefined ? undefined : (
+      <BoardTrashDialog
+        board={pendingTrashBoard}
+        onCancel={() => setPendingTrashBoardId(undefined)}
+        onConfirm={() => {
+          confirmTrashBoard();
+        }}
+      />
+    );
 
   if (document === undefined) {
     return (
@@ -867,7 +952,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       }
       navigatorControls={{ onCreateBoard: createBoard }}
       projectName={view.displayName}
-      projectOverlay={projectDecisionOverlay}
+      projectOverlay={projectDecisionOverlay ?? boardTrashOverlay}
       {...(packagedRecoveryRestore
         ? {
             projectProbeState: {
@@ -1031,7 +1116,9 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   document={document}
                   onDuplicateBoard={duplicateBoard}
                   onRenameBoard={renameBoard}
+                  onRequestTrashBoard={requestTrashBoard}
                   onReorderBoard={reorderBoard}
+                  onRestoreBoard={restoreBoard}
                   onSelectBoard={selectActiveBoard}
                   shortcutPlatform={platform}
                 />

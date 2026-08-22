@@ -47,7 +47,9 @@ describe('wireframe navigator', () => {
         document={createTwoBoardDocument()}
         onDuplicateBoard={() => true}
         onRenameBoard={() => true}
+        onRequestTrashBoard={() => undefined}
         onReorderBoard={() => true}
+        onRestoreBoard={() => true}
         onSelectBoard={onSelectBoard}
         shortcutPlatform="darwin"
       />,
@@ -76,7 +78,9 @@ describe('wireframe navigator', () => {
         document={createTwoBoardDocument()}
         onDuplicateBoard={() => true}
         onRenameBoard={onRenameBoard}
+        onRequestTrashBoard={() => undefined}
         onReorderBoard={() => true}
+        onRestoreBoard={() => true}
         onSelectBoard={() => undefined}
         shortcutPlatform="darwin"
       />,
@@ -118,7 +122,9 @@ describe('wireframe navigator', () => {
         document={createTwoBoardDocument()}
         onDuplicateBoard={onDuplicateBoard}
         onRenameBoard={() => true}
+        onRequestTrashBoard={() => undefined}
         onReorderBoard={onReorderBoard}
+        onRestoreBoard={() => true}
         onSelectBoard={() => undefined}
         shortcutPlatform="darwin"
       />,
@@ -142,5 +148,58 @@ describe('wireframe navigator', () => {
     expect(dataTransfer.dropEffect).toBe('move');
     fireEvent.drop(first, { dataTransfer });
     expect(onReorderBoard).toHaveBeenLastCalledWith(SECOND_BOARD_ID, 0);
+  });
+
+  it('requests recoverable deletion and restores persisted trash from the navigator', () => {
+    const onRequestTrashBoard = vi.fn();
+    const onRestoreBoard = vi.fn(() => true);
+    const source = createTwoBoardDocument();
+    const trashed = dispatchDocumentCommand(source, {
+      type: DOCUMENT_COMMAND_TYPES.trashBoard,
+      boardId: SECOND_BOARD_ID,
+      toIndex: 0,
+    });
+    if (!trashed.ok || !trashed.changed) {
+      throw new Error('Navigator fixture could not trash its second board.');
+    }
+    const { rerender } = render(
+      <WireframeNavigator
+        activeBoardId={FIRST_BOARD_ID}
+        document={source}
+        onDuplicateBoard={() => true}
+        onRenameBoard={() => true}
+        onRequestTrashBoard={onRequestTrashBoard}
+        onReorderBoard={() => true}
+        onRestoreBoard={onRestoreBoard}
+        onSelectBoard={() => undefined}
+        shortcutPlatform="darwin"
+      />,
+    );
+
+    const first = screen.getByRole('button', { name: 'Wireframe 1' });
+    fireEvent.keyDown(first, { key: 'Delete' });
+    expect(onRequestTrashBoard).toHaveBeenCalledWith(FIRST_BOARD_ID);
+    fireEvent.click(screen.getByRole('button', { name: 'Move “Wireframe 1” to Trash' }));
+    expect(onRequestTrashBoard).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <WireframeNavigator
+        activeBoardId={FIRST_BOARD_ID}
+        document={trashed.document}
+        onDuplicateBoard={() => true}
+        onRenameBoard={() => true}
+        onRequestTrashBoard={onRequestTrashBoard}
+        onReorderBoard={() => true}
+        onRestoreBoard={onRestoreBoard}
+        onSelectBoard={() => undefined}
+        shortcutPlatform="darwin"
+      />,
+    );
+    expect(screen.getByRole('region', { name: 'Trashed wireframes' })).toHaveTextContent(
+      'Second board',
+    );
+    expect(screen.getByRole('button', { name: 'Move “Wireframe 1” to Trash' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    expect(onRestoreBoard).toHaveBeenCalledWith(SECOND_BOARD_ID);
   });
 });

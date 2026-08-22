@@ -992,7 +992,9 @@ const AlphaNavigatorFixture = () => {
       document={fixture.document}
       onDuplicateBoard={() => true}
       onRenameBoard={() => true}
+      onRequestTrashBoard={() => undefined}
       onReorderBoard={() => true}
+      onRestoreBoard={() => true}
       onSelectBoard={() => undefined}
       shortcutPlatform="darwin"
     />

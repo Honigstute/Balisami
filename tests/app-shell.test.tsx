@@ -196,6 +196,42 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: 'Redo Draw Rectangle' })).toBeEnabled();
   });
 
+  it('confirms board deletion, keeps it in navigator trash, and restores it', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add wireframe' }));
+    expect(await screen.findByRole('button', { name: 'Wireframe 1' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Move “Wireframe 1” to Trash' }));
+    const confirmation = screen.getByRole('alertdialog', {
+      name: 'Move “Wireframe 1” to Trash?',
+    });
+    expect(confirmation).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Wireframe 1' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Trashed wireframes' })).toHaveTextContent(
+      'Wireframe 1',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Undo Move board “Wireframe 1” to trash' }),
+    ).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    expect(await screen.findByRole('button', { name: 'Wireframe 1' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.queryByRole('region', { name: 'Trashed wireframes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Undo Restore board “Wireframe 1”' })).toBeEnabled();
+  });
+
   it('keeps the project home behind one explicit startup recovery decision', async () => {
     const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
       status: 'cancelled',

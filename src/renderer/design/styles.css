@@ -1104,6 +1104,47 @@ p {
   text-align: center;
 }
 
+.wireframe-list__actions {
+  display: grid;
+  padding: var(--space-2) var(--space-3);
+  border-top: var(--border-width) solid var(--color-divider);
+}
+
+.wireframe-list__actions .app-button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wireframe-list__trash {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: var(--border-width) solid var(--color-divider);
+}
+
+.wireframe-list__trash h3 {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.wireframe-list__trash-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wireframe-list__trash-row > span {
+  overflow: hidden;
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .canvas-viewport {
   position: relative;
   grid-area: canvas;
