@@ -107,7 +107,79 @@ const parseTextSceneFixture = (): ProjectDocument => {
   return result.value;
 };
 
+const parseImageSceneFixture = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+  child.controlType = CONTROL_TYPES.imagePlaceholder;
+  child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.imagePlaceholder);
+  child.properties = { showBorder: false };
+  child.assetIds = [DOCUMENT_FIXTURE_IDS.asset];
+  const result = parseProjectDocument(input);
+  if (!result.ok) {
+    throw new Error('Image scene fixture is invalid.');
+  }
+  return result.value;
+};
+
 describe('document SVG scene', () => {
+  it('renders an authenticated image URL without placeholder marks or an implicit border', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const document = parseImageSceneFixture();
+    const model = new DocumentSceneModel();
+    const renderScene = (assetUrls: Readonly<Record<string, string>>) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            assetUrls={assetUrls}
+            camera={camera}
+            document={document}
+            model={model}
+          />
+        }
+      />
+    );
+    const view = render(
+      renderScene({ [DOCUMENT_FIXTURE_IDS.asset]: 'blob:balsamic-authenticated-image' }),
+    );
+    scheduler.flushNext();
+    const element = view.container.querySelector(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const image = element?.querySelector('.scene-control__image');
+    const mark = element?.querySelector('.scene-control__mark');
+    const outline = element?.querySelector('.scene-control__outline');
+    expect(image).toHaveAttribute('href', 'blob:balsamic-authenticated-image');
+    expect(image).toHaveAttribute('preserveAspectRatio', 'xMidYMid meet');
+    expect(image).toHaveAttribute('display', 'inline');
+    expect(mark).toHaveAttribute('display', 'none');
+    expect(outline).toHaveAttribute('display', 'none');
+
+    view.rerender(renderScene({}));
+    expect(image).not.toHaveAttribute('href');
+    expect(image).toHaveAttribute('display', 'none');
+    expect(mark).toHaveAttribute('display', 'inline');
+    camera.dispose();
+  });
+
   it('projects linked-element hints at constant screen size and updates keyed nodes', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,

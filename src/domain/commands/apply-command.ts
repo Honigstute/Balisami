@@ -1,5 +1,6 @@
 import type { ProjectDocument } from '../document/validation';
 import type { CommandApplication } from './application';
+import { applyAssetCommand } from './asset-commands';
 import { applyBoardCommand } from './board-commands';
 import { applyElementCommand } from './element-commands';
 import { DOCUMENT_COMMAND_TYPES, type DocumentCommand } from './schema';
@@ -13,6 +14,9 @@ export const applyDocumentCommand = (
   command: DocumentCommand,
 ): CommandApplication => {
   switch (command.type) {
+    case DOCUMENT_COMMAND_TYPES.createAsset:
+    case DOCUMENT_COMMAND_TYPES.deleteAsset:
+      return applyAssetCommand(document, command);
     case DOCUMENT_COMMAND_TYPES.createBoard:
     case DOCUMENT_COMMAND_TYPES.createAlternate:
     case DOCUMENT_COMMAND_TYPES.deleteBoard:
@@ -30,6 +34,7 @@ export const applyDocumentCommand = (
     case DOCUMENT_COMMAND_TYPES.reorderElement:
     case DOCUMENT_COMMAND_TYPES.reorderElementSiblings:
     case DOCUMENT_COMMAND_TYPES.setElementFrame:
+    case DOCUMENT_COMMAND_TYPES.setElementAssets:
     case DOCUMENT_COMMAND_TYPES.setElementLink:
     case DOCUMENT_COMMAND_TYPES.setElementLocked:
     case DOCUMENT_COMMAND_TYPES.setElementProperties:

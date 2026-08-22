@@ -109,6 +109,25 @@ describe('alpha control authoring UI', () => {
     }
   });
 
+  it('opens the image file route when import is available and permits choosing the same file again', () => {
+    const onImportImage = vi.fn();
+    const onInsert = vi.fn(() => true);
+    render(<ControlShelf onImportImage={onImportImage} onInsert={onInsert} />);
+    const input = screen.getByLabelText('Choose image file');
+    const clickInput = vi.spyOn(input, 'click');
+    const file = new File([Uint8Array.from([1, 2, 3])], 'picked.png', { type: 'image/png' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert Image' }));
+    expect(clickInput).toHaveBeenCalledOnce();
+    expect(onInsert).not.toHaveBeenCalledWith(CONTROL_TYPES.imagePlaceholder);
+
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(onImportImage).toHaveBeenCalledWith(file);
+    expect(input).toHaveValue('');
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(onImportImage).toHaveBeenCalledTimes(2);
+  });
+
   it('filters the shelf by registry category and the shared alias search path', () => {
     const view = render(<ControlShelf category="Forms" onInsert={() => true} />);
 

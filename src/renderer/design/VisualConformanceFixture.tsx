@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import {
+  AssetIdSchema,
   BoardIdSchema,
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
@@ -72,6 +73,11 @@ import { AppSlider } from './AppSlider';
 import { AppSwatch } from './AppSwatch';
 import { AppTooltip } from './AppTooltip';
 import { NoticeCenterStore } from './notice-center';
+
+const REGISTRY_IMAGE_ASSET_ID = AssetIdSchema.parse('asset_registryimage');
+const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="#2e9ddf" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="#2e9ddf" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="#2e9ddf" fill-opacity=".9"/></svg>',
+)}`;
 
 interface VisualConformanceFixtureProps {
   readonly fixture: VisualFixtureName;
@@ -348,6 +354,16 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   let document = fixture.document;
   const commands = [
     {
+      type: DOCUMENT_COMMAND_TYPES.createAsset,
+      asset: {
+        id: REGISTRY_IMAGE_ASSET_ID,
+        sha256: 'c'.repeat(64),
+        mediaType: 'image/svg+xml',
+        byteLength: 1,
+        originalName: 'registry-image.svg',
+      },
+    },
+    {
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: {
         assetIds: [],
@@ -366,7 +382,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
     {
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: {
-        assetIds: [],
+        assetIds: [REGISTRY_IMAGE_ASSET_ID],
         childIds: [],
         controlType: CONTROL_TYPES.imagePlaceholder,
         controlVersion: requireControlVersion(CONTROL_TYPES.imagePlaceholder),
@@ -833,6 +849,9 @@ const SceneFixture = ({
       worldChildren={
         <DocumentScene
           activeBoardId={fixture.boardId}
+          {...(state === 'registryControl'
+            ? { assetUrls: { [REGISTRY_IMAGE_ASSET_ID]: REGISTRY_IMAGE_DATA_URL } }
+            : {})}
           camera={camera}
           document={document}
           {...(state === 'nudge'

@@ -1,6 +1,7 @@
 import {
   DOCUMENT_COMMAND_TYPES,
   getControlSpec,
+  type AssetId,
   type BoardId,
   type ControlTypeId,
   type CreateElementCommand,
@@ -11,6 +12,7 @@ import {
 import type { WorldPoint } from '../editor/viewport-transform';
 
 export interface ControlInsertionRequest {
+  readonly assetIds?: readonly AssetId[];
   readonly boardId: BoardId;
   readonly center: WorldPoint;
   readonly controlType: ControlTypeId;
@@ -57,7 +59,7 @@ export const createControlInsertionCommand = (
   return Object.freeze({
     type: DOCUMENT_COMMAND_TYPES.createElement,
     element: Object.freeze({
-      assetIds: Object.freeze([]),
+      assetIds: Object.freeze([...(request.assetIds ?? [])]),
       childIds: Object.freeze([]),
       controlType: spec.type,
       controlVersion: spec.fileVersion,

@@ -3,6 +3,7 @@ import {
   getControlSpec,
   selectBoardPresentationId,
   type BoardId,
+  type AssetId,
   type ControlTypeId,
   type ControlVisualKind,
   type ElementId,
@@ -22,6 +23,7 @@ export const BOARD_PRESENTATION_PADDING_RATIO = 0.08;
 
 export interface BoardPresentationItem extends ControlSceneProjection {
   readonly accessibleName: string;
+  readonly assetIds: readonly AssetId[];
   readonly checked: boolean | undefined;
   readonly color: string | undefined;
   readonly controlType: ControlTypeId;
@@ -119,11 +121,16 @@ export const createBoardPresentationProjection = (
         textMeasurementService,
       }),
       accessibleName: getControlAccessibleName(definition, item.properties),
+      assetIds: item.assetIds,
       checked: checkedProperty === null ? undefined : item.properties[checkedProperty] === true,
       color: typeof color === 'string' && color !== 'default' ? color : undefined,
       controlType: item.controlType,
-      hasFill: controlSceneHasFill(definition),
-      hasOutline: controlSceneHasOutline(definition),
+      hasFill:
+        controlSceneHasFill(definition) &&
+        !(definition.scene.kind === 'image' && item.assetIds.length > 0),
+      hasOutline:
+        controlSceneHasOutline(definition) &&
+        (definition.scene.kind !== 'image' || item.properties.showBorder === true),
       id: item.id,
       link: item.link,
       opacity: typeof opacity === 'number' ? opacity : undefined,

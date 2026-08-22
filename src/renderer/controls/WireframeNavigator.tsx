@@ -8,6 +8,7 @@ import type { BoardThumbnailStore } from '../projects/board-thumbnail-store';
 
 interface WireframeNavigatorProps {
   readonly activeBoardId: BoardId | undefined;
+  readonly assetUrls?: Readonly<Record<string, string>>;
   readonly document: ProjectDocument;
   readonly onCreateAlternate: (boardId: BoardId) => boolean;
   readonly onDuplicateBoard: (boardId: BoardId) => boolean;
@@ -28,6 +29,7 @@ interface WireframeNavigatorProps {
 
 export const WireframeNavigator = ({
   activeBoardId,
+  assetUrls,
   document,
   onCreateAlternate,
   onDuplicateBoard,
@@ -181,6 +183,7 @@ export const WireframeNavigator = ({
           return (
             <div className="wireframe-list__row" key={boardId}>
               <BoardThumbnail
+                {...(assetUrls === undefined ? {} : { assetUrls })}
                 boardId={boardId}
                 {...(thumbnailStore === undefined ? {} : { store: thumbnailStore })}
               />
@@ -247,6 +250,7 @@ export const WireframeNavigator = ({
             type="button"
           >
             <BoardThumbnail
+              {...(assetUrls === undefined ? {} : { assetUrls })}
               boardId={boardId}
               {...(thumbnailStore === undefined ? {} : { store: thumbnailStore })}
             />

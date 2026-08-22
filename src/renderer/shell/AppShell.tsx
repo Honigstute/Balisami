@@ -44,6 +44,7 @@ interface AppShellProps {
   readonly navigatorControls?: {
     readonly onCreateBoard: () => void;
   };
+  readonly noticeStore?: NoticeCenterStore;
   readonly projectName?: string;
   readonly projectOverlay?: ReactNode;
   readonly presentationControls?: {
@@ -123,6 +124,7 @@ export const AppShell = ({
   historyControls,
   inspectorTitle = 'Inspector',
   navigatorControls,
+  noticeStore: providedNoticeStore,
   projectName = 'Untitled project',
   projectOverlay,
   presentationControls,
@@ -136,7 +138,8 @@ export const AppShell = ({
   usePersistedLayout = true,
   viewportControls,
 }: AppShellProps) => {
-  const [noticeStore] = useState(() => new NoticeCenterStore());
+  const [defaultNoticeStore] = useState(() => new NoticeCenterStore());
+  const noticeStore = providedNoticeStore ?? defaultNoticeStore;
   const shell = useShellPreferences(usePersistedLayout);
   const navigatorTrackWidth = shell.preferences.navigator.collapsed
     ? DESIGN_TOKENS.shell.collapsedPaneWidth

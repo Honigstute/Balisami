@@ -16,6 +16,7 @@ const FOCUSABLE_SELECTOR = [
 ].join(',');
 
 interface PresentationViewProps {
+  readonly assetUrls?: Readonly<Record<string, string>>;
   readonly document: ProjectDocument;
   readonly initialBoardId: BoardId;
   readonly onExit: () => void;
@@ -26,6 +27,7 @@ const isActivationKey = (event: KeyboardEvent<SVGGElement>): boolean =>
   event.key === 'Enter' || event.key === ' ';
 
 export const PresentationView = ({
+  assetUrls = {},
   document,
   initialBoardId,
   onExit,
@@ -202,6 +204,8 @@ export const PresentationView = ({
           >
             {projection.items.map((item) => {
               const isLinked = item.link !== null;
+              const assetId = item.visualKind === 'image' ? item.assetIds[0] : undefined;
+              const imageUrl = assetId === undefined ? undefined : assetUrls[assetId];
               const strokeColor = item.visualKind === 'browser' ? undefined : item.color;
               const fillColor = item.visualKind === 'browser' ? item.color : undefined;
               return (
@@ -247,6 +251,17 @@ export const PresentationView = ({
                       y={item.primitiveBounds.y}
                     />
                   ) : null}
+                  {imageUrl === undefined ? null : (
+                    <image
+                      className="scene-control__image"
+                      height={item.bounds.height}
+                      href={imageUrl}
+                      preserveAspectRatio="xMidYMid meet"
+                      width={item.bounds.width}
+                      x={item.bounds.x}
+                      y={item.bounds.y}
+                    />
+                  )}
                   {item.hasOutline && item.outlinePath.length > 0 ? (
                     <path
                       className="scene-control__outline"
@@ -255,7 +270,7 @@ export const PresentationView = ({
                       vectorEffect="non-scaling-stroke"
                     />
                   ) : null}
-                  {item.markPath.length > 0 ? (
+                  {imageUrl === undefined && item.markPath.length > 0 ? (
                     <path
                       className="scene-control__mark"
                       d={item.markPath}

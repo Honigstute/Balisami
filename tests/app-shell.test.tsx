@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/renderer/app/App';
@@ -214,6 +214,91 @@ describe('application shell', () => {
     fireEvent.click(undo);
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Redo Draw Rectangle' })).toBeEnabled();
+  });
+
+  it('drops, decodes, renders, and undoes one authenticated image transaction', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const close = vi.fn();
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(() => Promise.resolve({ close, height: 320, width: 640 })),
+    );
+    const createObjectUrl = vi.fn(() => 'blob:balsamic-imported-image');
+    const previousCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    const previousRevokeObjectUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: createObjectUrl },
+      revokeObjectURL: { configurable: true, value: vi.fn() },
+    });
+    try {
+      render(<App />);
+      await screen.findByText('No recent projects yet');
+      fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+      const canvas = await screen.findByRole('main', { name: 'Canvas viewport' });
+      const viewport = canvas.querySelector<HTMLElement>('.editor-viewport');
+      if (viewport === null) {
+        throw new Error('Editor viewport did not mount.');
+      }
+      const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+      const file = {
+        name: 'dropped-transparent.png',
+        size: bytes.byteLength,
+        type: 'image/png',
+        arrayBuffer: () => Promise.resolve(Uint8Array.from(bytes).buffer),
+      } as File;
+      const dataTransfer = {
+        dropEffect: 'none',
+        files: { item: (index: number) => (index === 0 ? file : null), length: 1 },
+        getData: () => '',
+        types: ['Files'],
+      } as unknown as DataTransfer;
+
+      expect(fireEvent.dragOver(viewport, { dataTransfer })).toBe(false);
+      const drop = createEvent.drop(viewport, { dataTransfer });
+      Object.defineProperties(drop, {
+        clientX: { value: 400 },
+        clientY: { value: 300 },
+      });
+      expect(fireEvent(viewport, drop)).toBe(false);
+
+      const undo = await screen.findByRole('button', { name: 'Undo Import image' });
+      expect(screen.getByRole('heading', { name: 'Image' })).toBeInTheDocument();
+      await waitFor(() => {
+        expect(
+          document.querySelector(
+            '[data-control-type="wireframe.image-placeholder"] .scene-control__image',
+          ),
+        ).toHaveAttribute('href', 'blob:balsamic-imported-image');
+      });
+      expect(createObjectUrl).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+
+      fireEvent.click(undo);
+      expect(screen.getByRole('button', { name: 'Redo Import image' })).toBeEnabled();
+      expect(screen.queryByRole('heading', { name: 'Image' })).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousCreateObjectUrl === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL');
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', previousCreateObjectUrl);
+      }
+      if (previousRevokeObjectUrl === undefined) {
+        Reflect.deleteProperty(URL, 'revokeObjectURL');
+      } else {
+        Object.defineProperty(URL, 'revokeObjectURL', previousRevokeObjectUrl);
+      }
+    }
   });
 
   it('confirms board deletion, keeps it in navigator trash, and restores it', async () => {

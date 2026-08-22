@@ -18,6 +18,7 @@ import {
   type ReorderElementCommand,
   type ReorderElementSiblingsCommand,
   type SetElementFrameCommand,
+  type SetElementAssetsCommand,
   type SetElementLinkCommand,
   type SetElementLockedCommand,
   type SetElementPropertiesCommand,
@@ -43,8 +44,10 @@ const getOwnerId = (owner: ElementOwner): string =>
 const areOwnersEqual = (left: ElementOwner, right: ElementOwner): boolean =>
   left.kind === right.kind && getOwnerId(left) === getOwnerId(right);
 
-const areElementIdListsEqual = (left: readonly ElementId[], right: readonly ElementId[]): boolean =>
-  left.length === right.length && left.every((id, index) => id === right[index]);
+const areStableIdListsEqual = <Id extends string>(
+  left: readonly Id[],
+  right: readonly Id[],
+): boolean => left.length === right.length && left.every((id, index) => id === right[index]);
 
 const areNumbersNearlyEqual = (left: number, right: number): boolean =>
   Math.abs(left - right) <= Number.EPSILON * Math.max(1, Math.abs(left), Math.abs(right)) * 8;
@@ -300,7 +303,7 @@ const applyGroupElements = (
 
   const childSet = new Set(command.group.childIds);
   const canonicalChildIds = ownerChildIds.filter((elementId) => childSet.has(elementId));
-  if (!areElementIdListsEqual(canonicalChildIds, command.group.childIds)) {
+  if (!areStableIdListsEqual(canonicalChildIds, command.group.childIds)) {
     return {
       ok: false,
       code: 'conflict',
@@ -457,8 +460,8 @@ const applyUngroupElement = (
   const requestedGroupChildren = command.ownerChildIds.filter((id) => groupChildSet.has(id));
   const requestedUnaffectedIds = command.ownerChildIds.filter((id) => !groupChildSet.has(id));
   if (
-    !areElementIdListsEqual(requestedGroupChildren, group.childIds) ||
-    !areElementIdListsEqual(requestedUnaffectedIds, unaffectedIds) ||
+    !areStableIdListsEqual(requestedGroupChildren, group.childIds) ||
+    !areStableIdListsEqual(requestedUnaffectedIds, unaffectedIds) ||
     command.ownerChildIds.includes(command.groupId)
   ) {
     return {
@@ -592,7 +595,7 @@ const applyReorderElementSiblings = (
       message: "Sibling reordering must preserve the owner's complete child set.",
     };
   }
-  if (areElementIdListsEqual(command.childIds, ownerChildIds)) {
+  if (areStableIdListsEqual(command.childIds, ownerChildIds)) {
     return { ok: true, changed: false, label: 'Reorder elements' };
   }
 
@@ -647,6 +650,46 @@ const applySetElementFrame = (
       frame: previousFrame,
     },
     label: 'Change element geometry',
+  };
+};
+
+const applySetElementAssets = (
+  document: ProjectDocument,
+  command: SetElementAssetsCommand,
+): CommandApplication => {
+  const element = document.elementsById[command.elementId];
+  if (element === undefined) {
+    return notFound('Element', command.elementId);
+  }
+  const missingAssetId = command.assetIds.find(
+    (assetId) => document.assetsById[assetId] === undefined,
+  );
+  if (missingAssetId !== undefined) {
+    return {
+      ok: false,
+      code: 'not-found',
+      message: `Asset '${missingAssetId}' does not exist.`,
+    };
+  }
+  if (areStableIdListsEqual(element.assetIds, command.assetIds)) {
+    return { ok: true, changed: false, label: 'Change element assets' };
+  }
+  const updatedElement = Object.freeze({ ...element, assetIds: command.assetIds });
+  return {
+    ok: true,
+    changed: true,
+    candidate: createElementRevision(document, {
+      elementsById: Object.freeze({
+        ...document.elementsById,
+        [element.id]: updatedElement,
+      }),
+    }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.setElementAssets,
+      elementId: element.id,
+      assetIds: element.assetIds,
+    },
+    label: 'Change element assets',
   };
 };
 
@@ -775,6 +818,8 @@ export const applyElementCommand = (
       return applyReorderElementSiblings(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementFrame:
       return applySetElementFrame(document, command);
+    case DOCUMENT_COMMAND_TYPES.setElementAssets:
+      return applySetElementAssets(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementLink:
       return applySetElementLink(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementLocked:

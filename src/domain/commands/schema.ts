@@ -1,11 +1,12 @@
 import { z } from 'zod';
 
 import { FOUNDATION_CONTROL_TYPES } from '../controls/control-spec';
-import { BoardIdSchema, ElementIdSchema } from '../document/ids';
+import { AssetIdSchema, BoardIdSchema, ElementIdSchema } from '../document/ids';
 import { ElementOwnerSchema } from '../document/owner';
 import {
   BoardNoteSchema,
   BoardSchema,
+  AssetReferenceSchema,
   DocumentTitleSchema,
   ElementLinkSchema,
   ElementNodeSchema,
@@ -14,6 +15,8 @@ import {
 } from '../document/schema';
 
 export const DOCUMENT_COMMAND_TYPES = Object.freeze({
+  createAsset: 'asset.create',
+  deleteAsset: 'asset.delete',
   createBoard: 'board.create',
   createAlternate: 'board.create-alternate',
   deleteBoard: 'board.delete',
@@ -30,6 +33,7 @@ export const DOCUMENT_COMMAND_TYPES = Object.freeze({
   reorderElement: 'element.reorder',
   reorderElementSiblings: 'element.reorder-siblings',
   setElementFrame: 'element.set-frame',
+  setElementAssets: 'element.set-assets',
   setElementLink: 'element.set-link',
   setElementLocked: 'element.set-locked',
   setElementProperties: 'element.set-properties',
@@ -77,6 +81,27 @@ const UniqueElementIdsSchema = z
   .array(ElementIdSchema)
   .refine((elementIds) => new Set(elementIds).size === elementIds.length, {
     message: 'Element IDs must be unique.',
+  })
+  .readonly();
+
+const UniqueAssetIdsSchema = z
+  .array(AssetIdSchema)
+  .refine((assetIds) => new Set(assetIds).size === assetIds.length, {
+    message: 'Asset IDs must be unique.',
+  })
+  .readonly();
+
+export const CreateAssetCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.createAsset),
+    asset: AssetReferenceSchema,
+  })
+  .readonly();
+
+export const DeleteAssetCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.deleteAsset),
+    assetId: AssetIdSchema,
   })
   .readonly();
 
@@ -238,6 +263,14 @@ export const SetElementFrameCommandSchema = z
   })
   .readonly();
 
+export const SetElementAssetsCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.setElementAssets),
+    elementId: ElementIdSchema,
+    assetIds: UniqueAssetIdsSchema,
+  })
+  .readonly();
+
 export const SetElementLinkCommandSchema = z
   .strictObject({
     type: z.literal(DOCUMENT_COMMAND_TYPES.setElementLink),
@@ -284,12 +317,15 @@ const BOARD_COMMAND_SCHEMAS = [
   TrashBoardCommandSchema,
 ] as const;
 
+const ASSET_COMMAND_SCHEMAS = [CreateAssetCommandSchema, DeleteAssetCommandSchema] as const;
+
 const ELEMENT_COMMAND_SCHEMAS = [
   CreateElementCommandSchema,
   DeleteElementCommandSchema,
   GroupElementsCommandSchema,
   ReorderElementCommandSchema,
   ReorderElementSiblingsCommandSchema,
+  SetElementAssetsCommandSchema,
   SetElementFrameCommandSchema,
   SetElementLinkCommandSchema,
   SetElementLockedCommandSchema,
@@ -299,12 +335,18 @@ const ELEMENT_COMMAND_SCHEMAS = [
 
 export const BoardCommandSchema = z.discriminatedUnion('type', BOARD_COMMAND_SCHEMAS);
 
+export const AssetCommandSchema = z.discriminatedUnion('type', ASSET_COMMAND_SCHEMAS);
+
 export const ElementCommandSchema = z.discriminatedUnion('type', ELEMENT_COMMAND_SCHEMAS);
 
 export const DocumentCommandSchema = z.discriminatedUnion('type', [
+  ...ASSET_COMMAND_SCHEMAS,
   ...BOARD_COMMAND_SCHEMAS,
   ...ELEMENT_COMMAND_SCHEMAS,
 ]);
+
+export type CreateAssetCommand = z.infer<typeof CreateAssetCommandSchema>;
+export type DeleteAssetCommand = z.infer<typeof DeleteAssetCommandSchema>;
 
 export type CreateBoardCommand = z.infer<typeof CreateBoardCommandSchema>;
 export type CreateAlternateCommand = z.infer<typeof CreateAlternateCommandSchema>;
@@ -322,10 +364,12 @@ export type GroupElementsCommand = z.infer<typeof GroupElementsCommandSchema>;
 export type ReorderElementCommand = z.infer<typeof ReorderElementCommandSchema>;
 export type ReorderElementSiblingsCommand = z.infer<typeof ReorderElementSiblingsCommandSchema>;
 export type SetElementFrameCommand = z.infer<typeof SetElementFrameCommandSchema>;
+export type SetElementAssetsCommand = z.infer<typeof SetElementAssetsCommandSchema>;
 export type SetElementLinkCommand = z.infer<typeof SetElementLinkCommandSchema>;
 export type SetElementLockedCommand = z.infer<typeof SetElementLockedCommandSchema>;
 export type SetElementPropertiesCommand = z.infer<typeof SetElementPropertiesCommandSchema>;
 export type UngroupElementCommand = z.infer<typeof UngroupElementCommandSchema>;
 export type BoardCommand = z.infer<typeof BoardCommandSchema>;
+export type AssetCommand = z.infer<typeof AssetCommandSchema>;
 export type ElementCommand = z.infer<typeof ElementCommandSchema>;
 export type DocumentCommand = z.infer<typeof DocumentCommandSchema>;

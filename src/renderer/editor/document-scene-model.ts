@@ -3,6 +3,7 @@ import {
   getControlHitShapePadding,
   getControlSpec,
   type BoardId,
+  type AssetId,
   type ControlDefinition,
   type ControlTypeId,
   type ControlVisualKind,
@@ -24,6 +25,7 @@ import {
 } from './viewport-transform';
 
 export interface DocumentSceneItem {
+  readonly assetIds: readonly AssetId[];
   readonly bounds: WorldRect;
   readonly controlType: ControlTypeId;
   readonly id: ElementId;
@@ -53,6 +55,7 @@ export interface DocumentSceneReconcileResult {
 }
 
 export interface BoardSceneItem {
+  readonly assetIds: readonly AssetId[];
   readonly bounds: WorldRect;
   readonly controlType: ControlTypeId;
   readonly id: ElementId;
@@ -109,7 +112,7 @@ const createItemRevision = (
     ...(spec.accessibility.checkedProperty === null ? [] : [spec.accessibility.checkedProperty]),
   ]);
   const renderProperties = [...presentationPropertyKeys].map((key) => item.properties[key]);
-  return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}|${JSON.stringify(item.link)}`;
+  return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}|${JSON.stringify(item.assetIds)}|${JSON.stringify(item.link)}`;
 };
 
 /** Flattens canonical childIds order while accumulating local container origins once. */
@@ -159,6 +162,7 @@ export const createBoardSceneItems = (
     // inventing visible chrome. Every visible control uses registry metadata.
     items.push(
       Object.freeze({
+        assetIds: element.assetIds,
         bounds,
         controlType: element.controlType,
         id: element.id,
@@ -301,6 +305,7 @@ export class DocumentSceneModel {
         continue;
       }
       const item = Object.freeze({
+        assetIds: derivedItem.assetIds,
         bounds: derivedItem.bounds,
         controlType: derivedItem.controlType,
         id: derivedItem.id,

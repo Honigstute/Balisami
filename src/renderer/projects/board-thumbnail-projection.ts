@@ -1,5 +1,6 @@
 import {
   getControlSpec,
+  type AssetId,
   type BoardId,
   type ControlTypeId,
   type ControlVisualKind,
@@ -22,6 +23,7 @@ export const BOARD_THUMBNAIL_POLICY = Object.freeze({
 });
 
 export interface BoardThumbnailItem extends ControlSceneProjection {
+  readonly assetIds: readonly AssetId[];
   readonly controlType: ControlTypeId;
   readonly hasFill: boolean;
   readonly hasOutline: boolean;
@@ -103,9 +105,14 @@ export const createBoardThumbnailProjection = (
     const strokeStyle = item.properties.strokeStyle;
     return Object.freeze({
       ...projection,
+      assetIds: item.assetIds,
       controlType: item.controlType,
-      hasFill: controlSceneHasFill(definition),
-      hasOutline: controlSceneHasOutline(definition),
+      hasFill:
+        controlSceneHasFill(definition) &&
+        !(definition.scene.kind === 'image' && item.assetIds.length > 0),
+      hasOutline:
+        controlSceneHasOutline(definition) &&
+        (definition.scene.kind !== 'image' || item.properties.showBorder === true),
       id: item.id,
       strokeStyle: typeof strokeStyle === 'string' ? strokeStyle : undefined,
       visualKind: item.visualKind,

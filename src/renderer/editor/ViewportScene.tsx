@@ -34,6 +34,7 @@ interface ViewportSceneProps {
   readonly onDeleteSelection?: () => boolean;
   readonly onDuplicateSelection?: () => boolean;
   readonly onGroupSelection?: () => boolean;
+  readonly onImportImageAt?: (file: File, point: WorldPoint) => void;
   readonly onInsertControlAt?: (controlType: ControlTypeId, point: WorldPoint) => boolean;
   readonly onLockSelection?: () => boolean;
   readonly onPasteSelection?: () => boolean;
@@ -91,6 +92,7 @@ export const ViewportScene = ({
   onDeleteSelection,
   onDuplicateSelection,
   onGroupSelection,
+  onImportImageAt,
   onInsertControlAt,
   onLockSelection,
   onPasteSelection,
@@ -217,10 +219,11 @@ export const ViewportScene = ({
   ]);
 
   const handleControlDragOver = (event: DragEvent<HTMLDivElement>): void => {
-    if (
-      onInsertControlAt === undefined ||
-      !Array.from(event.dataTransfer.types).includes(CONTROL_DRAG_MIME_TYPE)
-    ) {
+    const transferTypes = Array.from(event.dataTransfer.types);
+    const hasControl =
+      onInsertControlAt !== undefined && transferTypes.includes(CONTROL_DRAG_MIME_TYPE);
+    const hasFiles = onImportImageAt !== undefined && transferTypes.includes('Files');
+    if (!hasControl && !hasFiles) {
       return;
     }
     event.preventDefault();
@@ -230,7 +233,13 @@ export const ViewportScene = ({
   const handleControlDrop = (event: DragEvent<HTMLDivElement>): void => {
     const root = rootRef.current;
     const controlType = parseDraggedControlType(event.dataTransfer.getData(CONTROL_DRAG_MIME_TYPE));
-    if (root === null || controlType === undefined || onInsertControlAt === undefined) {
+    const file = event.dataTransfer.files?.item(0) ?? undefined;
+    if (
+      root === null ||
+      (controlType === undefined && file === undefined) ||
+      (controlType !== undefined && onInsertControlAt === undefined) ||
+      (controlType === undefined && onImportImageAt === undefined)
+    ) {
       return;
     }
     if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
@@ -245,10 +254,12 @@ export const ViewportScene = ({
       event.clientY - bounds.top,
     );
     event.preventDefault();
-    onInsertControlAt(
-      controlType,
-      viewportPointToWorld(viewportPoint, camera.getTransformSnapshot()),
-    );
+    const worldPoint = viewportPointToWorld(viewportPoint, camera.getTransformSnapshot());
+    if (controlType !== undefined) {
+      onInsertControlAt?.(controlType, worldPoint);
+    } else if (file !== undefined) {
+      onImportImageAt?.(file, worldPoint);
+    }
   };
 
   return (

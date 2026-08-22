@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
 import {
+  AssetIdSchema,
   BoardIdSchema,
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
@@ -23,6 +24,7 @@ import {
   PROJECT_WORKFLOW_ALPHA_LAYOUT,
 } from '../../shared/project-workflow-alpha';
 import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
+import { NoticeCenterStore } from '../design/notice-center';
 import { ControlInspector, ControlInspectorTitle } from '../controls/ControlInspector';
 import { calculateControlAutoSizeFrame } from '../controls/control-auto-size';
 import { ControlShelf } from '../controls/ControlShelf';
@@ -39,6 +41,12 @@ import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { PresentationView } from '../projects/PresentationView';
 import { ProjectHome } from '../projects/ProjectHome';
+import { useProjectAssetUrls } from '../projects/project-asset-urls';
+import {
+  calculateImportedImageFrame,
+  createBrowserImageDecodeService,
+  prepareImageImport,
+} from '../projects/image-import';
 import { BoardTrashDialog } from '../projects/BoardTrashDialog';
 import { BoardAlternateDiscardDialog } from '../projects/BoardAlternateDiscardDialog';
 import { BoardNoteEditor } from '../projects/BoardNoteEditor';
@@ -142,6 +150,13 @@ const allocateEditorElementId = () => {
   return result.success ? result.data : undefined;
 };
 
+const allocateEditorAssetId = () => {
+  const result = AssetIdSchema.safeParse(
+    `asset_${globalThis.crypto.randomUUID().replaceAll('-', '').toLowerCase()}`,
+  );
+  return result.success ? result.data : undefined;
+};
+
 const allocateEditorBoardId = () => {
   const result = BoardIdSchema.safeParse(
     `board_${globalThis.crypto.randomUUID().replaceAll('-', '').toLowerCase()}`,
@@ -182,6 +197,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   >();
   const [pendingTrashBoardId, setPendingTrashBoardId] = useState<BoardId>();
   const [presentingBoardId, setPresentingBoardId] = useState<BoardId>();
+  const [noticeStore] = useState(() => new NoticeCenterStore());
   const packagedProbeStarted = useRef(false);
   const packagedProbeProjectStarted = useRef(false);
   const [editor] = useState(() => {
@@ -192,6 +208,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     const thumbnails = new BoardThumbnailStore({
       scheduler: createBrowserBoardThumbnailScheduler(),
     });
+    const imageDecoder = createBrowserImageDecodeService();
     const commitControlInsertion = (
       controlType: ControlTypeId,
       input: Readonly<{
@@ -256,6 +273,82 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         ...(requestedCenter === undefined ? {} : { placement: 'exact' }),
         verb: 'Insert',
       });
+    };
+    const importImage = async (file: File, center: WorldPoint): Promise<void> => {
+      const assetId = allocateEditorAssetId();
+      if (assetId === undefined) {
+        noticeStore.report({
+          key: 'image-import:id',
+          message: 'Retry the import. No project data changed.',
+          title: 'The image could not be identified',
+          tone: 'danger',
+        });
+        return;
+      }
+      const prepared = await prepareImageImport(file, assetId, imageDecoder);
+      if (!prepared.ok) {
+        noticeStore.report({
+          key: `image-import:${prepared.code}`,
+          message: prepared.message,
+          title: 'The image was not imported',
+          tone: 'danger',
+        });
+        return;
+      }
+      const currentDocument = session.getSnapshot().history?.document;
+      const canonicalBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
+      const boardId =
+        currentDocument === undefined || canonicalBoardId === undefined
+          ? undefined
+          : selectBoardPresentationId(currentDocument, canonicalBoardId);
+      const elementId = allocateEditorElementId();
+      if (currentDocument === undefined || boardId === undefined || elementId === undefined) {
+        noticeStore.report({
+          key: 'image-import:project',
+          message: 'Open a writable board and retry the import.',
+          title: 'The image was not imported',
+          tone: 'danger',
+        });
+        return;
+      }
+      const insertion = createControlInsertionCommand({
+        assetIds: [assetId],
+        boardId,
+        center,
+        controlType: CONTROL_TYPES.imagePlaceholder,
+        document: currentDocument,
+        elementId,
+        frame: calculateImportedImageFrame(center, prepared.value.dimensions),
+        placement: 'exact',
+      });
+      if (insertion === undefined) {
+        noticeStore.report({
+          key: 'image-import:placement',
+          message: 'Retry the import at another canvas position.',
+          title: 'The image could not be placed',
+          tone: 'danger',
+        });
+        return;
+      }
+      const committed = await session.dispatchTransactionWithAssets(
+        [{ type: DOCUMENT_COMMAND_TYPES.createAsset, asset: prepared.value.asset }, insertion],
+        { [assetId]: prepared.value.bytes },
+        { label: 'Import image' },
+      );
+      if (committed?.ok !== true || !committed.changed) {
+        const message =
+          committed !== undefined && !committed.ok
+            ? committed.error.message
+            : 'The project changed. Retry the import.';
+        noticeStore.report({
+          key: 'image-import:commit',
+          message,
+          title: 'The image was not imported',
+          tone: 'danger',
+        });
+        return;
+      }
+      selection.selectOnly(elementId);
     };
     const drawInteraction = new ControlDrawInteraction({
       commit: (controlType, frame) => insertControlAtFrame(controlType, frame) !== undefined,
@@ -590,6 +683,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       drawInteraction,
       duplicateSelection,
       groupSelection,
+      importImage,
       insertControl,
       keyboardNudgeInteraction,
       lockSelection,
@@ -609,6 +703,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     });
   });
   const document = view.history?.document;
+  const assetUrls = useProjectAssetUrls(session, document);
   const selectedBoardId = useSyncExternalStore(
     editor.activeBoard.subscribe,
     editor.activeBoard.getSnapshot,
@@ -1175,6 +1270,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   const presentationOverlay =
     presentingBoardId === undefined || document === undefined ? undefined : (
       <PresentationView
+        assetUrls={assetUrls}
         document={document}
         initialBoardId={presentingBoardId}
         onExit={() => setPresentingBoardId(undefined)}
@@ -1238,6 +1334,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         )
       }
       navigatorControls={{ onCreateBoard: createBoard }}
+      noticeStore={noticeStore}
       presentationControls={{ onPresent: startPresentation }}
       projectName={view.displayName}
       projectOverlay={
@@ -1302,6 +1399,9 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   onDeleteSelection: editor.deleteSelection,
                   onDuplicateSelection: editor.duplicateSelection,
                   onGroupSelection: editor.groupSelection,
+                  onImportImageAt: (file: File, point: WorldPoint) => {
+                    void editor.importImage(file, point);
+                  },
                   onInsertControlAt: (controlType: ControlTypeId, point: WorldPoint) =>
                     editor.insertControl(controlType, point) !== undefined,
                   onLockSelection: editor.lockSelection,
@@ -1332,6 +1432,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   worldChildren: (
                     <DocumentScene
                       activeBoardId={presentationBoardId}
+                      assetUrls={assetUrls}
                       camera={camera}
                       document={document}
                       keyboardNudgeInteraction={editor.keyboardNudgeInteraction}
@@ -1424,6 +1525,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               navigator: (
                 <WireframeNavigator
                   activeBoardId={activeBoardId}
+                  assetUrls={assetUrls}
                   document={document}
                   onCreateAlternate={(boardId) => cloneBoardAlternate(boardId, 'create')}
                   onDuplicateBoard={duplicateBoard}
@@ -1445,6 +1547,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               shelf: (
                 <ControlShelf
                   category={activeControlCategory}
+                  onImportImage={(file) => {
+                    const viewport = camera.getViewportSnapshot();
+                    const center = viewportPointToWorld(
+                      createViewportPoint(viewport.width / 2, viewport.height / 2),
+                      camera.getTransformSnapshot(),
+                    );
+                    void editor.importImage(file, center);
+                  }}
                   onInsert={(controlType) => editor.insertControl(controlType) !== undefined}
                 />
               ),

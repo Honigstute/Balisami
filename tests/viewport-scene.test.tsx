@@ -697,6 +697,39 @@ describe('viewport scene layers', () => {
     store.dispose();
   });
 
+  it('routes one dropped file through the same canonical world conversion', () => {
+    mockViewportBounds();
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const onImportImageAt = vi.fn();
+    const view = render(<ViewportScene camera={store} onImportImageAt={onImportImageAt} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    scheduler.flushNext();
+    store.scheduleTransform(createViewportTransform({ panX: 30, panY: 20, zoom: 2 }));
+    scheduler.flushNext();
+    const file = new File([Uint8Array.from([1, 2, 3])], 'image.png', { type: 'image/png' });
+    const dataTransfer = {
+      dropEffect: 'none',
+      files: { item: (index: number) => (index === 0 ? file : null), length: 1 },
+      getData: () => '',
+      types: ['Files'],
+    } as unknown as DataTransfer;
+
+    expect(fireEvent.dragOver(root, { dataTransfer })).toBe(false);
+    expect(dataTransfer.dropEffect).toBe('copy');
+    const dropEvent = createEvent.drop(root, { dataTransfer });
+    Object.defineProperties(dropEvent, {
+      clientX: { value: 230 },
+      clientY: { value: 120 },
+    });
+    expect(fireEvent(root, dropEvent)).toBe(false);
+    expect(onImportImageAt).toHaveBeenCalledWith(file, expect.objectContaining({ x: 100, y: 50 }));
+    store.dispose();
+  });
+
   it('cancels selection presses across pointer loss, window blur, and teardown paths', () => {
     mockViewportBounds();
     const scheduler = new TestAnimationFrameScheduler();

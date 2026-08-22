@@ -170,6 +170,11 @@ describe('visual conformance fixture contract', () => {
         'display',
         'none',
       );
+      expect(image?.querySelector('.scene-control__image')).toHaveAttribute(
+        'href',
+        expect.stringContaining('data:image/svg+xml'),
+      );
+      expect(image?.querySelector('.scene-control__mark')).toHaveAttribute('display', 'none');
     });
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });

@@ -1257,6 +1257,10 @@ p {
   fill: var(--color-canvas);
 }
 
+.scene-control__image {
+  pointer-events: none;
+}
+
 .scene-control__outline,
 .scene-control__mark {
   fill: none;

@@ -20,6 +20,7 @@ import {
   getBrowserControlTextMeasurementService,
   type ControlTextMeasurementService,
 } from '../controls/control-text-measurement';
+import type { ProjectAssetUrls } from '../projects/project-asset-urls';
 import type { DocumentSceneItem, DocumentSceneModel } from './document-scene-model';
 import type {
   KeyboardNudgeInteraction,
@@ -31,6 +32,7 @@ import type { ViewportCameraStore } from './viewport-camera-store';
 
 interface DocumentSceneProps {
   readonly activeBoardId: BoardId | undefined;
+  readonly assetUrls?: ProjectAssetUrls;
   readonly camera: ViewportCameraStore;
   readonly document: ProjectDocument;
   readonly keyboardNudgeInteraction?: KeyboardNudgeInteraction;
@@ -42,6 +44,7 @@ interface DocumentSceneProps {
 }
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+const EMPTY_ASSET_URLS: ProjectAssetUrls = Object.freeze({});
 
 type TranslationPreviewSnapshot =
   | Extract<KeyboardNudgeInteractionSnapshot, { readonly kind: 'nudging' }>
@@ -51,6 +54,7 @@ class DocumentScenePresenter {
   readonly #canonicalItemsById = new Map<ElementId, DocumentSceneItem>();
   readonly #elementsById = new Map<ElementId, SVGGElement>();
   readonly #root: SVGGElement;
+  #assetUrls: ProjectAssetUrls = EMPTY_ASSET_URLS;
   #cameraZoom = 1;
   #keyboardNudgeSnapshot: KeyboardNudgeInteractionSnapshot | undefined;
   #moveSnapshot: MoveInteractionSnapshot | undefined;
@@ -115,7 +119,7 @@ class DocumentScenePresenter {
     this.#cameraZoom = zoom;
     for (const [id, item] of this.#canonicalItemsById) {
       const element = this.#elementsById.get(id);
-      const hint = element?.children[4];
+      const hint = element?.children[5];
       if (hint?.localName === 'g') {
         this.#updateElementLinkHint(hint as SVGGElement, item.bounds, item);
       }
@@ -141,12 +145,25 @@ class DocumentScenePresenter {
     this.#textMeasurementService = service;
     for (const [id, item] of this.#canonicalItemsById) {
       const element = this.#elementsById.get(id);
-      const text = element?.children[3];
+      const text = element?.children[4];
       if (text?.localName === 'text') {
         this.#updateElementText(text as SVGTextElement, item.bounds, item);
       }
     }
     this.#applyResizePreview();
+  }
+
+  setAssetUrls(assetUrls: ProjectAssetUrls): void {
+    if (this.#assetUrls === assetUrls) {
+      return;
+    }
+    this.#assetUrls = assetUrls;
+    for (const [id, item] of this.#canonicalItemsById) {
+      const element = this.#elementsById.get(id);
+      if (element !== undefined) {
+        this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
+      }
+    }
   }
 
   setMovePreview(snapshot: MoveInteractionSnapshot | undefined): void {
@@ -221,6 +238,7 @@ class DocumentScenePresenter {
   #createElement(id: ElementId): SVGGElement {
     const element = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const fill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
+    const image = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'image');
     const outline = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const mark = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const text = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'text');
@@ -229,6 +247,7 @@ class DocumentScenePresenter {
     const linkHintGlyph = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     element.dataset.sceneElementId = id;
     fill.setAttribute('class', 'scene-control__fill');
+    image.setAttribute('class', 'scene-control__image');
     outline.setAttribute('class', 'scene-control__outline');
     mark.setAttribute('class', 'scene-control__mark');
     text.setAttribute('class', 'scene-control__text');
@@ -236,7 +255,7 @@ class DocumentScenePresenter {
     linkHintBackground.setAttribute('class', 'scene-control__link-hint-background');
     linkHintGlyph.setAttribute('class', 'scene-control__link-hint-glyph');
     linkHint.append(linkHintBackground, linkHintGlyph);
-    element.append(fill, outline, mark, text, linkHint);
+    element.append(fill, image, outline, mark, text, linkHint);
     this.#elementsById.set(id, element);
     return element;
   }
@@ -268,12 +287,14 @@ class DocumentScenePresenter {
     item: DocumentSceneItem,
   ): void {
     const fill = element.children[0];
-    const outline = element.children[1];
-    const mark = element.children[2];
-    const text = element.children[3];
-    const linkHint = element.children[4];
+    const image = element.children[1];
+    const outline = element.children[2];
+    const mark = element.children[3];
+    const text = element.children[4];
+    const linkHint = element.children[5];
     if (
       fill?.localName !== 'rect' ||
+      image?.localName !== 'image' ||
       outline?.localName !== 'path' ||
       mark?.localName !== 'path' ||
       text?.localName !== 'text' ||
@@ -282,6 +303,7 @@ class DocumentScenePresenter {
       throw new Error('Document scene element structure was changed unexpectedly.');
     }
     const fillElement = fill as SVGRectElement;
+    const imageElement = image as SVGImageElement;
     const outlineElement = outline as SVGPathElement;
     const markElement = mark as SVGPathElement;
     const textElement = text as SVGTextElement;
@@ -292,7 +314,10 @@ class DocumentScenePresenter {
     fillElement.setAttribute('width', String(primitiveBounds.width));
     fillElement.setAttribute('height', String(primitiveBounds.height));
     outlineElement.setAttribute('d', path);
-    const markPath = createControlSceneMarkPath(item.controlType, bounds, item.id, properties);
+    const hasImage = this.#updateElementImage(imageElement, bounds, item);
+    const markPath = hasImage
+      ? ''
+      : createControlSceneMarkPath(item.controlType, bounds, item.id, properties);
     markElement.setAttribute('d', markPath);
     markElement.setAttribute('display', markPath.length === 0 ? 'none' : 'inline');
 
@@ -300,8 +325,17 @@ class DocumentScenePresenter {
     if (spec === undefined) {
       throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
     }
-    fillElement.setAttribute('display', controlSceneHasFill(spec) ? 'inline' : 'none');
-    outlineElement.setAttribute('display', controlSceneHasOutline(spec) ? 'inline' : 'none');
+    fillElement.setAttribute(
+      'display',
+      controlSceneHasFill(spec) && !(spec.scene.kind === 'image' && hasImage) ? 'inline' : 'none',
+    );
+    outlineElement.setAttribute(
+      'display',
+      controlSceneHasOutline(spec) &&
+        (spec.scene.kind !== 'image' || properties.showBorder === true)
+        ? 'inline'
+        : 'none',
+    );
 
     const color = properties.color;
     fillElement.style.removeProperty('fill');
@@ -336,6 +370,28 @@ class DocumentScenePresenter {
 
     this.#updateElementText(textElement, bounds, item);
     this.#updateElementLinkHint(linkHintElement, bounds, item);
+  }
+
+  #updateElementImage(
+    image: SVGImageElement,
+    bounds: DocumentSceneItem['bounds'],
+    item: DocumentSceneItem,
+  ): boolean {
+    const assetId = item.visualKind === 'image' ? item.assetIds[0] : undefined;
+    const url = assetId === undefined ? undefined : this.#assetUrls[assetId];
+    image.setAttribute('x', String(bounds.x));
+    image.setAttribute('y', String(bounds.y));
+    image.setAttribute('width', String(bounds.width));
+    image.setAttribute('height', String(bounds.height));
+    image.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    if (url === undefined) {
+      image.removeAttribute('href');
+      image.setAttribute('display', 'none');
+      return false;
+    }
+    image.setAttribute('href', url);
+    image.setAttribute('display', 'inline');
+    return true;
   }
 
   #updateElementLinkHint(
@@ -430,6 +486,7 @@ class DocumentScenePresenter {
 /** Imperative keyed scene updates keep camera motion outside React's render path. */
 export const DocumentScene = ({
   activeBoardId,
+  assetUrls = EMPTY_ASSET_URLS,
   camera,
   document,
   keyboardNudgeInteraction,
@@ -499,6 +556,10 @@ export const DocumentScene = ({
     syncVisibleItems();
     return camera.subscribe(syncVisibleItems);
   }, [camera, syncVisibleItems]);
+
+  useLayoutEffect(() => {
+    presenterRef.current?.setAssetUrls(assetUrls);
+  }, [assetUrls]);
 
   useLayoutEffect(() => {
     const apply = (): void =>

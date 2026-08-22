@@ -550,6 +550,13 @@ Depends on: M9, M10
 
 Objective: expand capability without weakening registry, file safety, or performance.
 
+Current progress (2026-08-22):
+
+- Completed the first image-asset vertical slice: PNG/JPEG/GIF picker and canvas drop use magic-signature, bounded byte/decode/dimension/pixel validation; honor decoded orientation and transparency; fit oversized images into a stable initial frame; and report bounded, deduplicated errors without mutating the document.
+- Added validated `asset.create`, `asset.delete`, and `element.set-assets` commands plus renderer-owned authenticated byte staging. Import creates metadata, bytes, and the image element as one history transaction; undo/redo, recovery, save, close, and reopen project the exact live asset set while retaining unreachable bytes only in the transient undo-capable pool.
+- Image assets render from revocable transient object URLs on the active canvas, navigator thumbnails, full-screen presentation, and the registry visual fixture. The persisted document stores only stable asset references, and the archive continues to deduplicate binaries by SHA-256 content path.
+- Focused evidence: 12 files / 132 tests; Prettier, ESLint, module boundaries across 196 source modules, and strict TypeScript passed. A local macOS arm64 package passed fuse verification, packaged smoke, packaged create/edit/undo/redo/save/close/reopen acceptance, and a reviewed original-resolution registry-control capture with a real transparent-capable image surface. No GitHub-hosted Windows validation was requested or run for this slice.
+
 Deliverables:
 
 - Image import/drop with type, size, decode, scaling, orientation, transparency, and corruption handling.
@@ -627,4 +634,4 @@ Exit gate:
 
 ## Next action
 
-Audit the existing asset/file/registry seams, then implement the smallest coherent M11 image-import slice with bounded type/size/decode validation and one canonical content-addressed asset path. Visible icon picking follows only after its persisted `iconId` contract is present in representative schemas. The Arrow draw shortcut remains deferred until its persisted endpoint-direction contract is evidence-backed. M8's other documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.
+Add deterministic unused-asset cleanup to element deletion and replacement workflows without weakening exact undo/redo, then implement safe custom-icon conversion and the representative persisted `iconId` contract before exposing the searchable bundled icon picker. The Arrow draw shortcut remains deferred until its persisted endpoint-direction contract is evidence-backed. M8's other documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.

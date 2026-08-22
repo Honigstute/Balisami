@@ -5,6 +5,20 @@ import {
   type DocumentValidationIssue,
   type ProjectDocument,
 } from '../../domain';
+export {
+  MAX_PROJECT_ASSET_BYTES,
+  MAX_PROJECT_DOCUMENT_BYTES,
+  MAX_PROJECT_FILE_ENTRY_COUNT,
+  MAX_PROJECT_FILE_TOTAL_BYTES,
+  MAX_PROJECT_MANIFEST_BYTES,
+} from '../../shared/project-file-limits';
+import {
+  MAX_PROJECT_ASSET_BYTES,
+  MAX_PROJECT_DOCUMENT_BYTES,
+  MAX_PROJECT_FILE_ENTRY_COUNT,
+  MAX_PROJECT_FILE_TOTAL_BYTES,
+  MAX_PROJECT_MANIFEST_BYTES,
+} from '../../shared/project-file-limits';
 import { copyBytes, isUint8Array } from './binary';
 import { sha256Bytes } from './digest';
 import {
@@ -25,12 +39,6 @@ import {
   ProjectFileManifestV4Schema,
 } from './manifest';
 import { routeProjectFileVersion, type ProjectFileVersionRouteResult } from './version-routing';
-
-export const MAX_PROJECT_FILE_ENTRY_COUNT = 10_002;
-export const MAX_PROJECT_MANIFEST_BYTES = 64 * 1_024;
-export const MAX_PROJECT_DOCUMENT_BYTES = 32 * 1_024 * 1_024;
-export const MAX_PROJECT_ASSET_BYTES = 64 * 1_024 * 1_024;
-export const MAX_PROJECT_FILE_TOTAL_BYTES = 256 * 1_024 * 1_024;
 
 export interface ProjectFileEntry {
   readonly path: string;

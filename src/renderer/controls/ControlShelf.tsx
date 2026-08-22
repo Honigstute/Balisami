@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 
-import type { ControlTypeId } from '../../domain';
+import { CONTROL_TYPES, type ControlTypeId } from '../../domain';
 import { ControlThumbnail } from './ControlThumbnail';
 import { CONTROL_DRAG_MIME_TYPE } from './control-drag-transfer';
 import { queryControlLibrary, type ControlLibraryCategory } from './control-library-query';
@@ -11,6 +11,7 @@ import {
 
 interface ControlShelfProps {
   readonly category?: ControlLibraryCategory;
+  readonly onImportImage?: (file: File) => void;
   readonly onInsert: (controlType: ControlTypeId) => boolean;
   readonly query?: string;
   /** Tests and non-browser hosts may inject the canonical synchronous service. */
@@ -20,6 +21,7 @@ interface ControlShelfProps {
 /** Fixed slots prevent labels and preview geometry from resizing the shelf. */
 export const ControlShelf = ({
   category = 'All',
+  onImportImage,
   onInsert,
   query = '',
   textMeasurementService,
@@ -28,6 +30,7 @@ export const ControlShelf = ({
     ControlTextMeasurementService | undefined
   >();
   const [focusedType, setFocusedType] = useState<ControlTypeId | undefined>();
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -85,6 +88,22 @@ export const ControlShelf = ({
   };
   return (
     <div aria-label="Available controls" className="control-library" ref={rootRef} role="toolbar">
+      {onImportImage === undefined ? null : (
+        <input
+          accept=".gif,.jpeg,.jpg,.png,image/gif,image/jpeg,image/png"
+          aria-label="Choose image file"
+          hidden
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (file !== null && file !== undefined) {
+              onImportImage(file);
+            }
+          }}
+          ref={imageInputRef}
+          type="file"
+        />
+      )}
       {definitions.length === 0 ? (
         <div className="control-library__empty" role="status">
           No matching controls
@@ -108,7 +127,13 @@ export const ControlShelf = ({
             }}
             onFocus={() => setFocusedType(spec.type)}
             onKeyDown={(event) => handleItemKeyDown(event, index)}
-            onClick={() => onInsert(spec.type)}
+            onClick={() => {
+              if (spec.type === CONTROL_TYPES.imagePlaceholder && onImportImage !== undefined) {
+                imageInputRef.current?.click();
+              } else {
+                onInsert(spec.type);
+              }
+            }}
             tabIndex={index === activeIndex ? 0 : -1}
             title={`Insert ${palette.label}`}
             type="button"

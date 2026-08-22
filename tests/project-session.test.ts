@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  AssetIdSchema,
   BoardIdSchema,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
@@ -39,6 +40,7 @@ import type {
   ProjectCommand,
   ProjectHistorySnapshotRequest,
   ProjectOpenedResult,
+  ProjectRecoverySnapshotRequest,
   ProjectRecoveryDiscardedResult,
   ProjectSavedResult,
   ProjectStartupOptionsResult,
@@ -79,7 +81,7 @@ class FakeDesktopApi implements DesktopApi {
   readonly closeRequests = new Set<(request: ProjectCloseRequest) => void>();
   readonly closeResponses: ProjectCloseResponse[] = [];
   readonly commands = new Set<(command: ProjectCommand) => void>();
-  readonly recoveryRequests: unknown[] = [];
+  readonly recoveryRequests: ProjectRecoverySnapshotRequest[] = [];
   readonly saveRequests: ProjectHistorySnapshotRequest[] = [];
   readonly openRequests: unknown[] = [];
   readonly recentOpenRequests: unknown[] = [];
@@ -200,6 +202,13 @@ const startNewSession = async (session: ProjectSession): Promise<void> => {
   await session.startNewProject();
 };
 
+const sha256 = async (bytes: Uint8Array): Promise<string> => {
+  const digest = new Uint8Array(
+    await globalThis.crypto.subtle.digest('SHA-256', Uint8Array.from(bytes)),
+  );
+  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
 describe('renderer project session', () => {
   it('does not report a project ready until its transition accepts renderer commands', async () => {
     const document = createAssetFreeProjectDocument();
@@ -298,6 +307,90 @@ describe('renderer project session', () => {
       session.getSnapshot().history?.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.note.text,
     ).toBe('Alpha history');
     expect(desktop.recoveryRequests).toHaveLength(initialRecoveryCount + 3);
+  });
+
+  it('commits authenticated asset bytes atomically and projects the exact live set', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await startNewSession(session);
+    const assetId = AssetIdSchema.parse('asset_sessionimage01');
+    const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const asset = Object.freeze({
+      id: assetId,
+      sha256: await sha256(bytes),
+      mediaType: 'image/png' as const,
+      byteLength: bytes.byteLength,
+      originalName: 'session-image.png',
+    });
+
+    const imported = await session.dispatchTransactionWithAssets(
+      [
+        { type: DOCUMENT_COMMAND_TYPES.createAsset, asset },
+        {
+          type: DOCUMENT_COMMAND_TYPES.setElementAssets,
+          elementId: DOCUMENT_FIXTURE_IDS.child,
+          assetIds: [assetId],
+        },
+      ],
+      { [assetId]: bytes },
+      { label: 'Import image' },
+    );
+
+    expect(imported).toMatchObject({ changed: true, ok: true });
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(1);
+    expect(desktop.recoveryRequests.at(-1)?.assetsById[assetId]).toEqual(bytes);
+
+    expect(session.undo()).toBe(true);
+    expect(desktop.recoveryRequests.at(-1)?.assetsById).toEqual({});
+    expect(session.redo()).toBe(true);
+    expect(desktop.recoveryRequests.at(-1)?.assetsById[assetId]).toEqual(bytes);
+
+    desktop.saveProject = (request) => {
+      desktop.saveRequests.push(request);
+      return Promise.resolve({
+        status: 'completed',
+        value: {
+          displayName: 'Asset Project',
+          stateId: request.stateId,
+          tokenId: request.tokenId,
+        },
+        warnings: [],
+      });
+    };
+    await session.save();
+    expect(desktop.saveRequests.at(-1)?.assetsById[assetId]).toEqual(bytes);
+  });
+
+  it('rejects missing or unauthenticated asset bytes before history changes', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await startNewSession(session);
+    const recoveryCount = desktop.recoveryRequests.length;
+    const before = session.getSnapshot().history?.document;
+    const assetId = AssetIdSchema.parse('asset_sessioninvalid1');
+    const asset = Object.freeze({
+      id: assetId,
+      sha256: 'f'.repeat(64),
+      mediaType: 'image/png' as const,
+      byteLength: 4,
+    });
+
+    expect(session.dispatch({ type: DOCUMENT_COMMAND_TYPES.createAsset, asset })).toMatchObject({
+      error: { code: 'invalid-transaction' },
+      history: { document },
+      ok: false,
+    });
+    expect(
+      await session.dispatchTransactionWithAssets(
+        [{ type: DOCUMENT_COMMAND_TYPES.createAsset, asset }],
+        { [assetId]: Uint8Array.from([1, 2, 3, 4]) },
+      ),
+    ).toMatchObject({ error: { code: 'invalid-transaction' }, history: { document }, ok: false });
+    expect(session.getSnapshot().history?.document).toBe(before);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
+    expect(desktop.recoveryRequests).toHaveLength(recoveryCount);
   });
 
   it('commits multi-element alignment as one history entry and one recovery schedule', async () => {
