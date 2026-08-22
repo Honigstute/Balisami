@@ -41,6 +41,8 @@ describe('control library query', () => {
     expect(queryControlLibrary({ category: 'All' }).map(({ type }) => type)).toEqual([
       CONTROL_TYPES.rectangle,
       CONTROL_TYPES.textLabel,
+      CONTROL_TYPES.textSubtitle,
+      CONTROL_TYPES.textTitle,
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
@@ -83,6 +85,8 @@ describe('control library query', () => {
   it('ranks labels, aliases, and tags through one normalized search path', () => {
     expect(queryControlLibrary({ query: 'button' })[0]?.type).toBe(CONTROL_TYPES.button);
     expect(queryControlLibrary({ query: 'cta' })[0]?.type).toBe(CONTROL_TYPES.button);
+    expect(queryControlLibrary({ query: 'subheading' })[0]?.type).toBe(CONTROL_TYPES.textSubtitle);
+    expect(queryControlLibrary({ query: 'big title' })[0]?.type).toBe(CONTROL_TYPES.textTitle);
     expect(queryControlLibrary({ query: 'photo' })[0]?.type).toBe(CONTROL_TYPES.imagePlaceholder);
     expect(queryControlLibrary({ query: 'website' })[0]?.type).toBe(CONTROL_TYPES.browser);
     expect(queryControlLibrary({ query: '  BROWSER-window ' })[0]?.type).toBe(

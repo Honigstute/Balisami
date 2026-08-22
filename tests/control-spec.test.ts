@@ -18,6 +18,8 @@ describe('control definition registry', () => {
       FOUNDATION_CONTROL_TYPES.group,
       FOUNDATION_CONTROL_TYPES.rectangle,
       CONTROL_TYPES.textLabel,
+      CONTROL_TYPES.textSubtitle,
+      CONTROL_TYPES.textTitle,
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
@@ -65,6 +67,8 @@ describe('control definition registry', () => {
     expect(listPaletteControlSpecs().map((definition) => definition.palette?.label)).toEqual([
       'Rectangle',
       'Text Label',
+      'Text Subtitle',
+      'Text Title',
       'Button',
       'Text Input',
       'Checkbox',
@@ -750,5 +754,73 @@ describe('control definition registry', () => {
         borderMode: 'full',
       }).success,
     ).toBe(false);
+  });
+
+  it('keeps Subtitle and Title as separate screenshot-backed schemas instead of incompatible Text Label presets', () => {
+    const textLabel = getControlSpec(CONTROL_TYPES.textLabel);
+    const subtitle = getControlSpec(CONTROL_TYPES.textSubtitle);
+    const title = getControlSpec(CONTROL_TYPES.textTitle);
+
+    expect(textLabel?.palette?.presets).toEqual([]);
+    expect(subtitle).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'img' },
+      autoSize: { axis: 'both', basis: 'text' },
+      capabilities: { link: true, state: false },
+      defaultProperties: {
+        bold: false,
+        fontSize: 24,
+        italic: false,
+        text: 'A Subtitle',
+        textAlignment: 'start',
+        textColor: 'default',
+        underline: false,
+      },
+      defaultSize: { height: 28, width: 102 },
+      scene: { kind: 'text' },
+    });
+    expect(title).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'img' },
+      autoSize: { axis: 'both', basis: 'text' },
+      capabilities: { link: true, state: false },
+      defaultProperties: {
+        bold: false,
+        fontSize: 40,
+        italic: false,
+        text: 'A Big Title',
+        textAlignment: 'start',
+        textColor: 'default',
+        underline: false,
+      },
+      defaultSize: { height: 44, width: 182 },
+      scene: { kind: 'text' },
+    });
+    for (const definition of [subtitle, title]) {
+      const fields = definition?.inspector.flatMap((section) => section.fields) ?? [];
+      expect(fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: 'color', property: 'textColor' }),
+          expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+          expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+          expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+          expect.objectContaining({ kind: 'choice', property: 'textAlignment' }),
+          expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+        ]),
+      );
+      expect(fields).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ property: 'orientation' }),
+          expect.objectContaining({ property: 'state' }),
+        ]),
+      );
+      expect(definition?.propertiesSchema.safeParse(definition.defaultProperties).success).toBe(
+        true,
+      );
+      expect(
+        definition?.propertiesSchema.safeParse({
+          ...definition.defaultProperties,
+          orientation: 'horizontal',
+        }).success,
+      ).toBe(false);
+    }
   });
 });

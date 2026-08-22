@@ -60,6 +60,10 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.text-area':
     'common harness; exact inspector, multiline, persistence, and cross-surface geometry',
   'wireframe.text-label': 'common harness; registry visual fixture; control auto-size',
+  'wireframe.text-subtitle':
+    'common harness; exact defaults, inspector isolation, auto-size, persistence, and cross-surface geometry',
+  'wireframe.text-title':
+    'common harness; exact defaults, inspector isolation, auto-size, persistence, and cross-surface geometry',
   'wireframe.toolbar':
     'common harness; registry visual fixture; deterministic Toolbar scene geometry',
   'wireframe.tree-pane':

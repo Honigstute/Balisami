@@ -111,6 +111,8 @@ describe('alpha control authoring UI', () => {
     for (const label of [
       'Rectangle',
       'Text Label',
+      'Text Subtitle',
+      'Text Title',
       'Button',
       'Text Input',
       'Checkbox',
@@ -153,6 +155,8 @@ describe('alpha control authoring UI', () => {
     expect(onInsert.mock.calls.map(([type]) => type)).toEqual([
       CONTROL_TYPES.rectangle,
       CONTROL_TYPES.textLabel,
+      CONTROL_TYPES.textSubtitle,
+      CONTROL_TYPES.textTitle,
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
@@ -391,6 +395,39 @@ describe('alpha control authoring UI', () => {
       properties: { state: 'disabled' },
     });
   });
+
+  it.each([
+    ['Text Subtitle', CONTROL_TYPES.textSubtitle],
+    ['Text Title', CONTROL_TYPES.textTitle],
+  ] as const)(
+    'keeps the %s inspector isolated from unresolved Text Label orientation and state',
+    (_label, controlType) => {
+      const { document, elementId } = createControlDocument(controlType);
+      const selection = new SelectionStore();
+      selection.selectOnly(elementId);
+      const view = render(
+        <ControlInspector
+          document={document}
+          onAutoSize={() => Promise.resolve(true)}
+          onSetFrames={() => true}
+          onSetLinks={() => true}
+          onSetProperties={() => true}
+          selection={selection}
+        />,
+      );
+
+      expect(
+        view.container.querySelector(`[data-inspector-control="${controlType}"]`),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Link type' })).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: 'Alignment' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: 'Orientation' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Text' })).not.toBeInTheDocument();
+    },
+  );
 
   it('uses one roving tab stop and reaches either shelf end with the keyboard', () => {
     const scrollIntoView = vi.fn();

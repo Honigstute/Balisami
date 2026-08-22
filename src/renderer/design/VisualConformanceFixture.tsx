@@ -85,6 +85,8 @@ const REGISTRY_SEARCH_BOX_ALTERNATE_ID = ElementIdSchema.parse(
   'element_registrysearchboxalternate',
 );
 const REGISTRY_TEXT_AREA_ID = ElementIdSchema.parse('element_registrytextarea');
+const REGISTRY_TEXT_SUBTITLE_ID = ElementIdSchema.parse('element_registrytextsubtitle');
+const REGISTRY_TEXT_TITLE_ID = ElementIdSchema.parse('element_registrytexttitle');
 const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
 const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
@@ -872,6 +874,42 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 10,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.textSubtitle,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textSubtitle),
+        frame: { x: 590, y: 384, width: 102, height: 28 },
+        id: REGISTRY_TEXT_SUBTITLE_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.textSubtitle),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 11,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.textTitle,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textTitle),
+        frame: { x: 590, y: 424, width: 182, height: 44 },
+        id: REGISTRY_TEXT_TITLE_ID,
+        link: { kind: 'external', url: 'https://example.com/title' },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.textTitle, {
+          textColor: DESIGN_TOKENS.color.accent,
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 12,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
   ] as const;
   for (const command of commands) {
     const result = dispatchDocumentCommand(document, command);
@@ -893,6 +931,12 @@ const createTextAreaFixtureDocument = (): ReturnType<typeof createSceneFixtureDo
   Object.freeze({
     ...createRegistryControlFixtureDocument(),
     selectedId: REGISTRY_TEXT_AREA_ID,
+  });
+
+const createTextHeadingsFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_TEXT_TITLE_ID,
   });
 
 const createGroupSelectionFixtureDocument = (
@@ -978,6 +1022,7 @@ type SceneFixtureState =
   | 'registryControl'
   | 'searchBox'
   | 'textArea'
+  | 'textHeadings'
   | 'resize'
   | 'selection'
   | 'smartGuides'
@@ -994,7 +1039,10 @@ const SceneFixture = ({
   // session-only zoom keeps it and both children visible inside the minimum
   // native canvas without changing document geometry or shell tracks.
   const isRegistryFixture =
-    state === 'registryControl' || state === 'searchBox' || state === 'textArea';
+    state === 'registryControl' ||
+    state === 'searchBox' ||
+    state === 'textArea' ||
+    state === 'textHeadings';
   const camera = useViewportCameraStore(isRegistryFixture ? 0.8 : 1);
   const [fixture] = useState(() =>
     state === 'alpha' || state === 'customIcon'
@@ -1004,7 +1052,9 @@ const SceneFixture = ({
           ? createSearchBoxFixtureDocument()
           : state === 'textArea'
             ? createTextAreaFixtureDocument()
-            : createRegistryControlFixtureDocument()
+            : state === 'textHeadings'
+              ? createTextHeadingsFixtureDocument()
+              : createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
@@ -1732,6 +1782,25 @@ const TextAreaInspectorFixture = () => {
   );
 };
 
+const TextHeadingsInspectorFixture = () => {
+  const [fixture] = useState(createTextHeadingsFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetLinks={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
   const [thumbnailStore] = useState(
@@ -1849,15 +1918,26 @@ export const VisualConformanceFixture = ({
                                                   />
                                                 ),
                                               }
-                                            : fixture === 'controls'
-                                              ? { inspector: <ControlStates /> }
-                                              : fixture === 'feedback'
-                                                ? { canvas: <StaticRegionFailure /> }
-                                                : fixture === 'tooltip'
-                                                  ? { canvas: <TooltipFixture /> }
-                                                  : fixture === 'popover'
-                                                    ? { canvas: <PopoverFixture /> }
-                                                    : undefined;
+                                            : fixture === 'textHeadings'
+                                              ? {
+                                                  canvas: <SceneFixture state="textHeadings" />,
+                                                  inspector: <TextHeadingsInspectorFixture />,
+                                                  shelf: (
+                                                    <ControlShelf
+                                                      category="Text"
+                                                      onInsert={() => false}
+                                                    />
+                                                  ),
+                                                }
+                                              : fixture === 'controls'
+                                                ? { inspector: <ControlStates /> }
+                                                : fixture === 'feedback'
+                                                  ? { canvas: <StaticRegionFailure /> }
+                                                  : fixture === 'tooltip'
+                                                    ? { canvas: <TooltipFixture /> }
+                                                    : fixture === 'popover'
+                                                      ? { canvas: <PopoverFixture /> }
+                                                      : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -1886,7 +1966,9 @@ export const VisualConformanceFixture = ({
           ? CONTROL_TYPES.searchBox
           : fixture === 'textArea'
             ? CONTROL_TYPES.textArea
-            : undefined;
+            : fixture === 'textHeadings'
+              ? CONTROL_TYPES.textTitle
+              : undefined;
   const inspectorTitle =
     fixture === 'components'
       ? 'Reusable Card'

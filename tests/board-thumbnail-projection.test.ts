@@ -215,6 +215,62 @@ describe('board thumbnail projection', () => {
     });
   });
 
+  it.each([
+    ['Subtitle', CONTROL_TYPES.textSubtitle],
+    ['Title', CONTROL_TYPES.textTitle],
+  ] as const)(
+    'keeps styled Text %s geometry identical across thumbnail and presentation',
+    (_, type) => {
+      const input = createValidProjectDocumentInput();
+      const definition = getControlSpec(type);
+      const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+      if (definition === undefined || child === undefined) {
+        throw new Error('Heading cross-surface fixture is incomplete.');
+      }
+      child.controlType = definition.type;
+      child.controlVersion = definition.fileVersion;
+      child.frame = { x: 16, y: 24, ...definition.defaultSize };
+      child.link = { kind: 'external', url: 'https://example.com/heading' };
+      child.properties = {
+        ...definition.defaultProperties,
+        bold: true,
+        italic: true,
+        text: `Styled ${definition.palette?.label ?? 'heading'}`,
+        textAlignment: 'end',
+        textColor: '#336699',
+        underline: true,
+      };
+      child.assetIds = [];
+      input.assetsById = {};
+      const parsed = parseProjectDocument(input);
+      if (!parsed.ok) throw new Error('Heading cross-surface fixture is invalid.');
+
+      const thumbnail = createBoardThumbnailProjection(
+        parsed.value,
+        DOCUMENT_FIXTURE_IDS.board,
+      )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+      const presentation = createBoardPresentationProjection(
+        parsed.value,
+        DOCUMENT_FIXTURE_IDS.board,
+      )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+      expect(thumbnail).toMatchObject({
+        fillColor: undefined,
+        visualKind: 'text',
+      });
+      expect(presentation).toMatchObject({
+        accessibleName: child.properties.text,
+        fillColor: thumbnail?.fillColor,
+        outlinePath: thumbnail?.outlinePath,
+        role: 'img',
+        strokeColor: thumbnail?.strokeColor,
+        textLayout: thumbnail?.textLayout,
+        visualKind: 'text',
+      });
+      expect(presentation?.link).toEqual(child.link);
+    },
+  );
+
   it('bounds SVG complexity while retaining the topmost canonical controls', () => {
     const input = createValidProjectDocumentInput();
     const definition = getControlSpec(FOUNDATION_CONTROL_TYPES.rectangle);

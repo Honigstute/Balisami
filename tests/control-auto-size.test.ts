@@ -139,6 +139,40 @@ describe('registry-driven control auto-size', () => {
     });
   });
 
+  it.each([
+    [CONTROL_TYPES.textSubtitle, 24],
+    [CONTROL_TYPES.textTitle, 40],
+  ] as const)(
+    'uses the registered styled font defaults for %s Auto-Size',
+    (controlType, fontSize) => {
+      const element = createElement(controlType);
+      if (element === undefined) throw new Error('Heading Auto-Size fixture is missing.');
+      const text = element.properties.text;
+      if (typeof text !== 'string') throw new Error('Heading text fixture is invalid.');
+      const measure = vi.fn(() => ({
+        baselineOffsets: [fontSize],
+        height: fontSize + 2,
+        lineCount: 1,
+        lineHeight: fontSize + 2,
+        lines: [text],
+        width: 91,
+      }));
+
+      expect(calculateControlAutoSizeFrame(element, { measure })).toEqual({
+        ...element.frame,
+        height: Math.max(24, fontSize + 2),
+        width: 91,
+      });
+      expect(measure).toHaveBeenCalledWith({
+        fontSize,
+        fontStyle: 'normal',
+        fontWeight: 'normal',
+        mode: 'single-line',
+        text: element.properties.text,
+      });
+    },
+  );
+
   it('reserves both evidenced Search Box decoration slots during Auto-Size', () => {
     const element = createElement(CONTROL_TYPES.searchBox);
     if (element === undefined) throw new Error('Search Box fixture is missing.');

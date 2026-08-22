@@ -59,12 +59,14 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(38);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(40);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
       CONTROL_TYPES.rectangle,
       CONTROL_TYPES.textLabel,
+      CONTROL_TYPES.textSubtitle,
+      CONTROL_TYPES.textTitle,
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
@@ -205,6 +207,65 @@ describe('registry-backed control insertion', () => {
       linked.document.elementsById[elementId],
     );
   });
+
+  it.each([
+    ['subtitle', CONTROL_TYPES.textSubtitle],
+    ['title', CONTROL_TYPES.textTitle],
+  ] as const)(
+    'round-trips an edited linked Text %s through the current project format',
+    (name, controlType) => {
+      const boardId = BoardIdSchema.parse(`board_text${name}_codec`);
+      const elementId = ElementIdSchema.parse(`element_text${name}_codec`);
+      const created = createEmptyProjectDocument({
+        boardId,
+        projectId: ProjectIdSchema.parse(`project_text${name}_codec`),
+      });
+      const definition = getControlSpec(controlType);
+      if (!created.ok || definition === undefined) {
+        throw new Error(`Text ${name} codec fixture is incomplete.`);
+      }
+      const inserted = dispatchDocumentCommand(
+        created.value,
+        createControlInsertionCommand({
+          boardId,
+          center: createWorldPoint(300, 240),
+          controlType,
+          document: created.value,
+          elementId,
+        }),
+      );
+      if (!inserted.ok || !inserted.changed) throw new Error(`Text ${name} did not insert.`);
+      const styled = dispatchDocumentCommand(inserted.document, {
+        type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+        elementId,
+        properties: {
+          ...definition.defaultProperties,
+          bold: true,
+          fontSize: name === 'title' ? 44 : 26,
+          italic: true,
+          text: `Edited ${name}`,
+          textAlignment: 'end',
+          textColor: '#336699',
+          underline: true,
+        },
+      });
+      if (!styled.ok || !styled.changed) throw new Error(`Text ${name} style did not commit.`);
+      const linked = dispatchDocumentCommand(styled.document, {
+        type: DOCUMENT_COMMAND_TYPES.setElementLink,
+        elementId,
+        link: { kind: 'external', url: `https://example.com/${name}` },
+      });
+      if (!linked.ok || !linked.changed) throw new Error(`Text ${name} link did not commit.`);
+
+      const encoded = encodeProjectFileEnvelope(linked.document, {});
+      if (!encoded.ok) throw new Error(`Text ${name} project did not encode.`);
+      const reopened = decodeProjectFileEnvelope(encoded.value);
+      if (!reopened.ok) throw new Error(`Text ${name} project did not reopen.`);
+      expect(reopened.value.document.elementsById[elementId]).toEqual(
+        linked.document.elementsById[elementId],
+      );
+    },
+  );
 
   it('centers exact drag placement without the click-insertion cascade', () => {
     const boardId = BoardIdSchema.parse('board_controldrag');

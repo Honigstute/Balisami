@@ -35,6 +35,8 @@ export const CONTROL_TYPES = Object.freeze({
   group: ControlTypeIdSchema.parse('foundation.group'),
   rectangle: ControlTypeIdSchema.parse('foundation.rectangle'),
   textLabel: ControlTypeIdSchema.parse('wireframe.text-label'),
+  textSubtitle: ControlTypeIdSchema.parse('wireframe.text-subtitle'),
+  textTitle: ControlTypeIdSchema.parse('wireframe.text-title'),
   button: ControlTypeIdSchema.parse('wireframe.button'),
   textInput: ControlTypeIdSchema.parse('wireframe.text-input'),
   checkbox: ControlTypeIdSchema.parse('wireframe.checkbox'),
@@ -103,6 +105,13 @@ const centeredTextStyleSchemaShape = {
   ...textStyleSchemaShape,
   textAlignment: textAlignmentSchema,
 } as const;
+const headingTextPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
 const rectanglePropertiesSchema = z
   .strictObject({
     borderColor: sceneColorSchema,
@@ -718,6 +727,102 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['typography'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.textLabel,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Text Subtitle', 'img', 'text'),
+    aliases: ['subtitle', 'subheading'],
+    autoSize: createAutoSize('both', 0, 0, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('start', 24, 0, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(24, 'start'),
+      text: 'A Subtitle',
+      textColor: 'default',
+    },
+    defaultSize: createSize(102, 28),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(32, 24),
+    palette: createPalette('Text Subtitle', 'Text', 21),
+    propertiesSchema: headingTextPropertiesSchema,
+    scene: createScene('text', ['text']),
+    tags: ['copy', 'subtitle', 'text', 'typography'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.textSubtitle,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Text Title', 'img', 'text'),
+    aliases: ['big title', 'heading', 'title'],
+    autoSize: createAutoSize('both', 0, 0, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('start', 40, 0, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(40, 'start'),
+      text: 'A Big Title',
+      textColor: 'default',
+    },
+    defaultSize: createSize(182, 44),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(32, 24),
+    palette: createPalette('Text Title', 'Text', 22),
+    propertiesSchema: headingTextPropertiesSchema,
+    scene: createScene('text', ['text']),
+    tags: ['big', 'heading', 'text', 'title', 'typography'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.textTitle,
   }),
   createDefinition({
     accessibility: createAccessibility('Button', 'button', 'text'),

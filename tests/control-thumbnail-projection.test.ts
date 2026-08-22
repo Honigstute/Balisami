@@ -201,6 +201,37 @@ describe('control thumbnail projection', () => {
     expect(projection.markPath).not.toBe('');
   });
 
+  it.each([
+    ['Subtitle', CONTROL_TYPES.textSubtitle],
+    ['Title', CONTROL_TYPES.textTitle],
+  ] as const)('projects Text %s style from the shared text contract', (_, type) => {
+    const definition = getControlSpec(type);
+    if (definition === undefined) throw new Error('Heading definition is missing.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, definition.defaultSize.width, definition.defaultSize.height),
+      definition,
+      identity: `heading:${type}`,
+      properties: {
+        ...definition.defaultProperties,
+        bold: true,
+        italic: true,
+        textAlignment: 'end',
+        textColor: '#336699',
+        underline: true,
+      },
+      textMeasurementService: measurementService,
+    });
+
+    expect(projection.textLayout).toMatchObject({
+      color: '#336699',
+      fontSize: definition.defaultProperties.fontSize,
+      fontStyle: 'italic',
+      fontWeight: 'bold',
+      textAnchor: 'end',
+      textDecoration: 'underline',
+    });
+  });
+
   it('projects each static Media control with deterministic definition-owned marks', () => {
     for (const type of [
       CONTROL_TYPES.playback,

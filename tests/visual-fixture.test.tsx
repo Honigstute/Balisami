@@ -76,6 +76,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=components')).toBe('components');
     expect(getRequestedVisualFixture('?visualFixture=searchBox')).toBe('searchBox');
     expect(getRequestedVisualFixture('?visualFixture=textArea')).toBe('textArea');
+    expect(getRequestedVisualFixture('?visualFixture=textHeadings')).toBe('textHeadings');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -396,6 +397,53 @@ describe('visual conformance fixture contract', () => {
       '1',
     );
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders distinct Text Subtitle and Text Title controls with the isolated Title inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('textHeadings');
+
+    expect(screen.getByRole('button', { name: 'Insert Text Subtitle' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Text Title' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.text-title"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Text Title' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link type' })).toHaveTextContent('Web address');
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Orientation' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const subtitle = view.container.querySelector(
+        '[data-scene-element-id="element_registrytextsubtitle"]',
+      );
+      const title = view.container.querySelector(
+        '[data-scene-element-id="element_registrytexttitle"]',
+      );
+      expect(subtitle).toHaveAttribute('aria-label', 'A Subtitle');
+      expect(title).toHaveAttribute('aria-label', 'A Big Title');
+      expect(
+        title?.querySelector(
+          '.scene-control__link-hint[data-link-target="https://example.com/title"]',
+        ),
+      ).not.toBeNull();
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
   });
 
   it('renders fixed-screen selection geometry without replacing the scene or shell', () => {
