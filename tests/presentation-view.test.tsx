@@ -9,7 +9,7 @@ import {
   PROJECT_DOCUMENT_SCHEMA_VERSION,
   ProjectIdSchema,
   createElementRowId,
-  createInitialElementRowData,
+  createInitialControlRowState,
   getControlSpec,
   parseProjectDocument,
   type ProjectDocument,
@@ -126,7 +126,7 @@ const createRowPresentationDocument = (): ProjectDocument => {
   const breadcrumbs = getControlSpec(CONTROL_TYPES.breadcrumbs);
   if (breadcrumbs === undefined) throw new Error('Breadcrumbs definition is missing.');
   const properties = { ...breadcrumbs.defaultProperties, items: 'Home › Products › Details' };
-  const initialRows = createInitialElementRowData(breadcrumbs, ROW_LINK_ID, properties);
+  const initialRows = createInitialControlRowState(breadcrumbs, ROW_LINK_ID, properties)?.rowData;
   if (initialRows === undefined) throw new Error('Breadcrumb rows could not be created.');
   const parsed = parseProjectDocument({
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
@@ -182,6 +182,58 @@ const createRowPresentationDocument = (): ProjectDocument => {
     assetsById: {},
   });
   if (!parsed.ok) throw new Error(`Row presentation fixture is invalid.`);
+  return parsed.value;
+};
+
+const createSelectedRowPresentationDocument = (): ProjectDocument => {
+  const buttonBar = getControlSpec(CONTROL_TYPES.buttonBar);
+  if (buttonBar === undefined) throw new Error('Button Bar definition is missing.');
+  const initial = createInitialControlRowState(buttonBar, ROW_LINK_ID, buttonBar.defaultProperties);
+  if (initial === undefined) throw new Error('Button Bar rows could not be created.');
+  const selectedId = initial.rowData.bindings[0]!.id;
+  const input = {
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
+    id: ProjectIdSchema.parse('project_selectedrowpresentation'),
+    name: 'Selected row presentation fixture',
+    boardIds: [HOME_ID],
+    componentIds: [],
+    trashedBoardIds: [],
+    boardsById: {
+      [HOME_ID]: {
+        id: HOME_ID,
+        name: 'Home',
+        note: { text: '' },
+        childIds: [ROW_LINK_ID],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+    },
+    componentsById: {},
+    elementsById: {
+      [ROW_LINK_ID]: {
+        id: ROW_LINK_ID,
+        controlType: buttonBar.type,
+        controlVersion: buttonBar.fileVersion,
+        frame: { x: 30, y: 30, width: 180, height: 28 },
+        locked: false,
+        properties: initial.properties,
+        childIds: [],
+        assetIds: [],
+        link: null,
+        rowData: {
+          ...initial.rowData,
+          bindings: initial.rowData.bindings.map((binding) => ({
+            ...binding,
+            link: { kind: 'external' as const, url: `https://example.com/${binding.generation}` },
+          })),
+        },
+      },
+    },
+    assetsById: {},
+  };
+  const parsed = parseProjectDocument(input);
+  if (!parsed.ok) throw new Error('Selected row presentation fixture is invalid.');
+  expect(parsed.value.elementsById[ROW_LINK_ID]?.properties.selectedRowId).toBe(selectedId);
   return parsed.value;
 };
 
@@ -322,5 +374,20 @@ describe('board presentation', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Home' }));
     expect(screen.getByText('Details')).toBeInTheDocument();
+  });
+
+  it('exposes the stable selected row as the current linked segment', () => {
+    render(
+      <PresentationView
+        document={createSelectedRowPresentationDocument()}
+        initialBoardId={HOME_ID}
+        onExit={vi.fn()}
+        onOpenExternal={vi.fn().mockResolvedValue(true)}
+        textMeasurementService={rowTextMeasurementService}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'One' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Two' })).not.toHaveAttribute('aria-current');
   });
 });

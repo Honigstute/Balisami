@@ -6,10 +6,12 @@ import {
   CONTROL_TYPES,
   ElementIdSchema,
   createElementRowId,
+  createInitialControlRowState,
   getControlSpec,
   type ElementProperties,
 } from '../src/domain';
 import { createControlRowSceneProjections } from '../src/renderer/controls/control-row-scene-projection';
+import { createControlSceneProjection } from '../src/renderer/controls/control-scene-projection';
 import type { ControlSceneTextLayout } from '../src/renderer/controls/control-scene-text-layout';
 import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
@@ -111,5 +113,41 @@ describe('canonical parsed-row scene projection', () => {
         createWorldRect(0, 0, 200, 28),
       ),
     ).toEqual([]);
+  });
+
+  it('projects selected segments and dividers from one canonical measured row collection', () => {
+    const definition = getControlSpec(CONTROL_TYPES.buttonBar);
+    if (definition === undefined) throw new Error('Button Bar definition is missing.');
+    const initial = createInitialControlRowState(
+      definition,
+      ELEMENT_ID,
+      definition.defaultProperties,
+    );
+    if (initial === undefined) throw new Error('Button Bar row state is invalid.');
+    const service = createMeasurementService();
+    const bounds = createWorldRect(10, 20, 180, 28);
+    const projection = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: ELEMENT_ID,
+      properties: initial.properties,
+      rowData: initial.rowData,
+      textMeasurementService: service,
+    });
+
+    expect(projection.rows).toHaveLength(3);
+    expect(projection.selectedRow).toMatchObject({
+      appearance: 'fill',
+      bounds: projection.rows[0]?.bounds,
+      id: initial.properties.selectedRowId,
+    });
+    expect(projection.rows[0]?.bounds.x).toBe(bounds.x);
+    const lastRow = projection.rows.at(-1);
+    expect(lastRow).toBeDefined();
+    expect((lastRow?.bounds.x ?? 0) + (lastRow?.bounds.width ?? 0)).toBe(bounds.x + bounds.width);
+    expect(projection.rowSeparatorPath.split('M ')).toHaveLength(3);
+    expect(projection.textLayout?.lines.map((line) => line.text)).toEqual(['One', 'Two', 'Three']);
+    expect(service.measure.mock.calls.flatMap(([request]) => request.text)).not.toContain('|');
+    expect(Object.isFrozen(projection.rows)).toBe(true);
   });
 });

@@ -8,7 +8,7 @@ import {
   CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
   createElementRowId,
-  createInitialElementRowData,
+  createInitialControlRowState,
   dispatchDocumentCommand,
   getControlSpec,
   parseProjectDocument,
@@ -178,11 +178,11 @@ const parseBreadcrumbSceneFixture = (): ProjectDocument => {
   child.frame = { x: 16, y: 24, width: 220, height: 28 };
   child.properties = getFixtureControlProperties(CONTROL_TYPES.breadcrumbs);
   child.assetIds = [];
-  const rowData = createInitialElementRowData(
+  const rowData = createInitialControlRowState(
     definition,
     DOCUMENT_FIXTURE_IDS.child,
     definition.defaultProperties,
-  );
+  )?.rowData;
   if (rowData === undefined) throw new Error('Breadcrumb rows could not be initialized.');
   child.rowData = {
     version: 1,
@@ -196,6 +196,29 @@ const parseBreadcrumbSceneFixture = (): ProjectDocument => {
   input.assetsById = {};
   const result = parseProjectDocument(input);
   if (!result.ok) throw new Error('Breadcrumb scene fixture is invalid.');
+  return result.value;
+};
+
+const parseButtonBarSceneFixture = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+  const definition = getControlSpec(CONTROL_TYPES.buttonBar);
+  if (definition === undefined) throw new Error('Button Bar definition is missing.');
+  const initial = createInitialControlRowState(
+    definition,
+    DOCUMENT_FIXTURE_IDS.child,
+    definition.defaultProperties,
+  );
+  if (initial === undefined) throw new Error('Button Bar rows could not be initialized.');
+  child.controlType = definition.type;
+  child.controlVersion = definition.fileVersion;
+  child.frame = { x: 16, y: 24, width: 180, height: 28 };
+  child.properties = structuredClone(initial.properties) as typeof child.properties;
+  child.rowData = structuredClone(initial.rowData) as unknown as typeof child.rowData;
+  child.assetIds = [];
+  input.assetsById = {};
+  const result = parseProjectDocument(input);
+  if (!result.ok) throw new Error('Button Bar scene fixture is invalid.');
   return result.value;
 };
 
@@ -379,6 +402,74 @@ describe('document SVG scene', () => {
     scheduler.flushNext();
     expect(view.container.querySelector(`[data-row-id="${rowId}"]`)).toBe(hint);
     expect(measure).toHaveBeenCalledTimes(measurementCount);
+    camera.dispose();
+  });
+
+  it('updates selected segment geometry on one keyed live scene node', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const service: ControlTextMeasurementService = {
+      measure: ({ fontSize, text }) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      }),
+    };
+    const initial = parseButtonBarSceneFixture();
+    const model = new DocumentSceneModel();
+    const renderScene = (document: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+            textMeasurementService={service}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(initial));
+    scheduler.flushNext();
+    const element = view.container.querySelector(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const selection = element?.querySelector<SVGRectElement>('.scene-control__row-selection');
+    expect(selection).toHaveAttribute('display', 'inline');
+    const firstX = selection?.getAttribute('x');
+
+    const source = initial.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+    const changed = dispatchDocumentCommand(initial, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: source.id,
+      properties: { ...source.properties, selectedRowId: source.rowData.bindings[1]!.id },
+      rowData: source.rowData,
+    });
+    if (!changed.ok || !changed.changed) throw new Error('Button Bar selection did not change.');
+    view.rerender(renderScene(changed.document));
+    expect(view.container.querySelector(`[data-scene-element-id="${source.id}"]`)).toBe(element);
+    expect(selection?.getAttribute('x')).not.toBe(firstX);
     camera.dispose();
   });
 

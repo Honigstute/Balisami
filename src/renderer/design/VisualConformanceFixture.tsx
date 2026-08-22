@@ -11,7 +11,7 @@ import {
   FOUNDATION_CONTROL_TYPES,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
   createCustomIconReference,
-  createInitialElementRowData,
+  createInitialControlRowState,
   dispatchDocumentCommand,
   getControlSpec,
   parseProjectDocument,
@@ -500,6 +500,7 @@ const createPresentationFixtureDocument = (): Readonly<{
 const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
   const fixture = createAlphaFixtureDocument();
   const breadcrumbsId = ElementIdSchema.parse('element_registrybreadcrumbs');
+  const buttonBarId = ElementIdSchema.parse('element_registrybuttonbar');
   const checkboxId = ElementIdSchema.parse('element_registrycheckbox');
   const browserId = ElementIdSchema.parse('element_registrybrowser');
   const imageId = ElementIdSchema.parse('element_registryimage');
@@ -513,10 +514,37 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   const initialBreadcrumbRows =
     breadcrumbsDefinition === undefined
       ? undefined
-      : createInitialElementRowData(breadcrumbsDefinition, breadcrumbsId, breadcrumbsProperties);
+      : createInitialControlRowState(breadcrumbsDefinition, breadcrumbsId, breadcrumbsProperties)
+          ?.rowData;
   if (initialBreadcrumbRows === undefined) {
     throw new Error('The deterministic Breadcrumbs row fixture is invalid.');
   }
+  const buttonBarDefinition = getControlSpec(CONTROL_TYPES.buttonBar);
+  const buttonBarInitial =
+    buttonBarDefinition === undefined
+      ? undefined
+      : createInitialControlRowState(
+          buttonBarDefinition,
+          buttonBarId,
+          requireControlProperties(CONTROL_TYPES.buttonBar),
+        );
+  if (buttonBarInitial === undefined) {
+    throw new Error('The deterministic Button Bar row fixture is invalid.');
+  }
+  const buttonBarRowData = Object.freeze({
+    ...buttonBarInitial.rowData,
+    bindings: Object.freeze(
+      buttonBarInitial.rowData.bindings.map((binding, index) =>
+        Object.freeze({
+          ...binding,
+          link:
+            index === 0
+              ? Object.freeze({ kind: 'external' as const, url: 'https://example.com/one' })
+              : null,
+        }),
+      ),
+    ),
+  });
   const breadcrumbsRowData = Object.freeze({
     ...initialBreadcrumbRows,
     bindings: Object.freeze(
@@ -561,6 +589,23 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         properties: { borderMode: 'visual-1', color: 'default', scrollbar: true },
       },
       index: fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.buttonBar,
+        controlVersion: requireControlVersion(CONTROL_TYPES.buttonBar),
+        frame: { x: 76, y: 268, width: 240, height: 32 },
+        id: buttonBarId,
+        link: null,
+        rowData: buttonBarRowData,
+        locked: false,
+        properties: buttonBarInitial.properties,
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
     {
@@ -622,7 +667,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         locked: false,
         properties: breadcrumbsProperties,
       },
-      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 2,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
     {
@@ -721,7 +766,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
     }
     document = result.document;
   }
-  return Object.freeze({ ...fixture, document, selectedId: breadcrumbsId });
+  return Object.freeze({ ...fixture, document, selectedId: buttonBarId });
 };
 
 const createGroupSelectionFixtureDocument = (
@@ -1642,7 +1687,7 @@ export const VisualConformanceFixture = ({
     fixture === 'mvpAlpha' || fixture === 'iconPicker'
       ? CONTROL_TYPES.button
       : fixture === 'registryControl'
-        ? CONTROL_TYPES.breadcrumbs
+        ? CONTROL_TYPES.buttonBar
         : undefined;
   const inspectorTitle =
     fixture === 'components'

@@ -12,7 +12,7 @@ import {
   selectElementLockState,
   getControlSpec,
   listElementLinkReferences,
-  rekeyElementRowData,
+  rekeyControlRowState,
   selectOwnerChildIds,
   type CreateElementCommand,
   type ElementId,
@@ -329,12 +329,24 @@ export const planSelectionPaste = (
     ) {
       return undefined;
     }
+    const definition = getControlSpec(entry.element.controlType);
+    const rowState =
+      definition === undefined
+        ? undefined
+        : rekeyControlRowState(
+            definition,
+            entry.element.properties,
+            entry.element.rowData,
+            cloneId,
+          );
+    if (rowState === undefined) return undefined;
     const command = CreateElementCommandSchema.safeParse({
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: {
         ...entry.element,
         id: cloneId,
-        rowData: rekeyElementRowData(entry.element.rowData, cloneId),
+        properties: rowState.properties,
+        rowData: rowState.rowData,
         frame: { ...entry.element.frame, x: cloneX, y: cloneY },
         childIds: [],
       },

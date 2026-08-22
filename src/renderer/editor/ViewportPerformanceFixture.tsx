@@ -35,12 +35,15 @@ interface PerformanceFixtureDocument {
   readonly document: ProjectDocument;
 }
 
-const RECTANGLE_CONTROL_VERSION = (() => {
+const RECTANGLE_CONTROL_CONTRACT = (() => {
   const definition = getControlSpec(FOUNDATION_CONTROL_TYPES.rectangle);
   if (definition === undefined) {
     throw new Error('Viewport performance fixture Rectangle is not registered.');
   }
-  return definition.fileVersion;
+  return Object.freeze({
+    properties: definition.defaultProperties,
+    version: definition.fileVersion,
+  });
 })();
 
 class MeasuringAnimationFrameScheduler implements AnimationFrameScheduler {
@@ -84,10 +87,10 @@ const createPerformanceFixtureDocument = (): PerformanceFixtureDocument => {
     elementsById[elementId] = {
       id: elementId,
       controlType: FOUNDATION_CONTROL_TYPES.rectangle,
-      controlVersion: RECTANGLE_CONTROL_VERSION,
+      controlVersion: RECTANGLE_CONTROL_CONTRACT.version,
       frame: { x: column * 160 - 400, y: row * 120 - 300, width: 120, height: 80 },
       locked: false,
-      properties: {},
+      properties: RECTANGLE_CONTROL_CONTRACT.properties,
       childIds: [],
       assetIds: [],
       link: null,

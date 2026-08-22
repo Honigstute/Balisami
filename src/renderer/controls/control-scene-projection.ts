@@ -1,4 +1,9 @@
-import type { ControlDefinition, ElementProperties } from '../../domain';
+import {
+  parseControlRows,
+  type ControlDefinition,
+  type ElementProperties,
+  type ElementRowData,
+} from '../../domain';
 import type { WorldRect } from '../editor/viewport-transform';
 import {
   createControlSceneMarkPath,
@@ -15,6 +20,15 @@ import {
   createControlSceneIconProjection,
   type ControlSceneIconProjection,
 } from './control-scene-icon';
+import {
+  createControlRowSceneProjections,
+  type ControlRowSceneProjection,
+} from './control-row-scene-projection';
+
+export interface ControlSelectedRowProjection extends ControlRowSceneProjection {
+  readonly appearance: 'fill' | 'text';
+  readonly color: string | undefined;
+}
 
 export interface ControlSceneProjection {
   readonly borderVisible: boolean;
@@ -25,6 +39,10 @@ export interface ControlSceneProjection {
   readonly markPath: string;
   readonly outlinePath: string;
   readonly primitiveBounds: WorldRect;
+  /** Canonical measured row geometry shared by every presentation surface. */
+  readonly rows: readonly ControlRowSceneProjection[];
+  readonly rowSeparatorPath: string;
+  readonly selectedRow: ControlSelectedRowProjection | undefined;
   readonly opacity: number | undefined;
   readonly strokeColor: string | undefined;
   readonly textLayout: ControlSceneTextLayout | undefined;
@@ -35,6 +53,7 @@ export interface ControlSceneProjectionInput {
   readonly definition: ControlDefinition;
   readonly identity: string;
   readonly properties: ElementProperties;
+  readonly rowData?: ElementRowData;
   readonly textMeasurementService: ControlTextMeasurementService | undefined;
 }
 
@@ -47,6 +66,7 @@ export const createControlSceneProjection = ({
   definition,
   identity,
   properties,
+  rowData,
   textMeasurementService,
 }: ControlSceneProjectionInput): ControlSceneProjection => {
   const style = definition.scene.style;
@@ -76,10 +96,64 @@ export const createControlSceneProjection = ({
     style?.scrollbarVisibilityProperty !== null &&
     style?.scrollbarVisibilityProperty !== undefined &&
     properties[style.scrollbarVisibilityProperty] === true;
-  const textLayout =
+  const parsedRows =
+    definition.rows === null ? undefined : parseControlRows(definition.rows, properties);
+  const displayText =
+    definition.rows?.display === 'labels'
+      ? parsedRows?.map((row) => row.label).join('')
+      : undefined;
+  const sourceTextLayout =
     textMeasurementService === undefined
       ? undefined
-      : calculateControlSceneTextLayout(definition, bounds, properties, textMeasurementService);
+      : calculateControlSceneTextLayout(
+          definition,
+          bounds,
+          properties,
+          textMeasurementService,
+          displayText,
+        );
+  const rowProjections =
+    rowData === undefined
+      ? Object.freeze([])
+      : createControlRowSceneProjections(
+          definition,
+          properties,
+          rowData,
+          sourceTextLayout,
+          textMeasurementService,
+          bounds,
+        );
+  const textLayout =
+    definition.rows?.display !== 'labels' || sourceTextLayout === undefined
+      ? sourceTextLayout
+      : Object.freeze({
+          ...sourceTextLayout,
+          lines: Object.freeze(
+            rowProjections.map((row) =>
+              Object.freeze({ baselineY: row.baselineY, text: row.label, x: row.labelX }),
+            ),
+          ),
+          textAnchor: 'middle' as const,
+        });
+  const rowSelection = definition.rows?.selection;
+  const selectedValue =
+    rowSelection === null || rowSelection === undefined
+      ? undefined
+      : properties[rowSelection.property];
+  const selectedRow =
+    typeof selectedValue !== 'string' || rowSelection === null || rowSelection === undefined
+      ? undefined
+      : rowProjections.find((row) => row.id === selectedValue);
+  const rowSeparatorPath =
+    definition.rows?.layout !== 'segments'
+      ? ''
+      : rowProjections
+          .slice(0, -1)
+          .map((row) => {
+            const x = row.bounds.x + row.bounds.width;
+            return `M ${String(x)} ${String(bounds.y)} L ${String(x)} ${String(bounds.y + bounds.height)}`;
+          })
+          .join(' ');
   return Object.freeze({
     borderVisible:
       borderVisibility === false ||
@@ -98,6 +172,7 @@ export const createControlSceneProjection = ({
     markPath: [
       createControlSceneMarkPath(definition.type, bounds, identity, properties),
       ...(scrollbarVisible ? [createControlSceneScrollbarPath(bounds, identity)] : []),
+      rowSeparatorPath,
     ]
       .filter((path) => path.length > 0)
       .join(' '),
@@ -109,6 +184,16 @@ export const createControlSceneProjection = ({
           ? style?.state?.disabledOpacity
           : undefined,
     primitiveBounds: getControlScenePrimitiveBounds(definition.type, bounds),
+    rows: rowProjections,
+    rowSeparatorPath,
+    selectedRow:
+      selectedRow === undefined || rowSelection === null || rowSelection === undefined
+        ? undefined
+        : Object.freeze({
+            ...selectedRow,
+            appearance: rowSelection.appearance.kind,
+            color: resolveColor(rowSelection.appearance.colorProperty),
+          }),
     strokeColor:
       style === undefined
         ? definition.scene.colorTarget === 'stroke'

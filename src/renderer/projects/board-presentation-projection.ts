@@ -16,7 +16,6 @@ import {
   type ControlSceneProjection,
 } from '../controls/control-scene-projection';
 import type { ControlTextMeasurementService } from '../controls/control-text-measurement';
-import { createControlRowSceneProjections } from '../controls/control-row-scene-projection';
 import { createBoardSceneItems } from '../editor/document-scene-model';
 import { createWorldRect, type WorldRect } from '../editor/viewport-transform';
 
@@ -43,6 +42,7 @@ export interface BoardPresentationRowLink {
   readonly label: string;
   readonly link: ElementLink;
   readonly rowId: string;
+  readonly selected: boolean;
 }
 
 export interface BoardPresentationProjection {
@@ -123,19 +123,21 @@ export const createBoardPresentationProjection = (
       definition,
       identity: item.id,
       properties: item.properties,
+      rowData: item.rowData,
       textMeasurementService,
     });
-    const rowLinks = createControlRowSceneProjections(
-      definition,
-      item.properties,
-      item.rowData,
-      projection.textLayout,
-      textMeasurementService,
-      item.bounds,
-    ).flatMap((row) =>
+    const rowLinks = projection.rows.flatMap((row) =>
       row.link === null
         ? []
-        : [Object.freeze({ bounds: row.bounds, label: row.label, link: row.link, rowId: row.id })],
+        : [
+            Object.freeze({
+              bounds: row.bounds,
+              label: row.label,
+              link: row.link,
+              rowId: row.id,
+              selected: projection.selectedRow?.id === row.id,
+            }),
+          ],
     );
     return Object.freeze({
       ...projection,

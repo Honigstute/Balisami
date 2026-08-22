@@ -29,6 +29,8 @@ export interface ControlRowsUpdate {
   readonly rowData: ElementRowData;
 }
 
+export type ControlRowState = ControlRowsUpdate;
+
 const freezeRowData = (bindings: ElementRowData['bindings'], nextId: number): ElementRowData =>
   Object.freeze({
     version: ELEMENT_ROW_DATA_VERSION,
@@ -73,12 +75,14 @@ export const createElementRowId = (elementId: ElementId, generation: number): El
     `row_${hashStableText(`${elementId}:${String(generation)}`)}_${generation.toString(36).padStart(3, '0')}`,
   );
 
-export const createInitialElementRowData = (
+export const createInitialControlRowState = (
   definition: ControlDefinition,
   elementId: ElementId,
   properties: ElementProperties,
-): ElementRowData | undefined => {
-  if (definition.rows === null) return freezeRowData([], 0);
+): ControlRowState | undefined => {
+  if (definition.rows === null) {
+    return Object.freeze({ properties, rowData: freezeRowData([], 0) });
+  }
   const parsed = parseControlRows(definition.rows, properties);
   if (parsed === undefined) return undefined;
   const bindings = parsed.map((_row, index) => {
@@ -88,14 +92,22 @@ export const createInitialElementRowData = (
       link: null,
     });
   });
-  return freezeRowData(bindings, bindings.length);
+  const rowData = freezeRowData(bindings, bindings.length);
+  const selection = definition.rows.selection;
+  return Object.freeze({
+    properties:
+      selection === null
+        ? properties
+        : Object.freeze({
+            ...properties,
+            [selection.property]: selection.default === 'first' ? (bindings[0]?.id ?? null) : null,
+          }),
+    rowData,
+  });
 };
 
 /** Re-keys copied row identities for the new owning element without resetting generations. */
-export const rekeyElementRowData = (
-  rowData: ElementRowData,
-  targetElementId: ElementId,
-): ElementRowData =>
+const rekeyElementRowData = (rowData: ElementRowData, targetElementId: ElementId): ElementRowData =>
   freezeRowData(
     rowData.bindings.map((binding) =>
       Object.freeze({
@@ -105,6 +117,33 @@ export const rekeyElementRowData = (
     ),
     rowData.nextId,
   );
+
+/** Re-keys row identity and the optional stable selection as one clone operation. */
+export const rekeyControlRowState = (
+  definition: ControlDefinition,
+  properties: ElementProperties,
+  rowData: ElementRowData,
+  targetElementId: ElementId,
+): ControlRowState | undefined => {
+  const nextRowData = rekeyElementRowData(rowData, targetElementId);
+  const selection = definition.rows?.selection;
+  if (selection === null || selection === undefined) {
+    return Object.freeze({ properties, rowData: nextRowData });
+  }
+  const selectedValue = properties[selection.property];
+  if (selectedValue === null && selection.allowNone) {
+    return Object.freeze({ properties, rowData: nextRowData });
+  }
+  const selected = ElementRowIdSchema.safeParse(selectedValue);
+  if (!selected.success) return undefined;
+  const selectedIndex = rowData.bindings.findIndex((binding) => binding.id === selected.data);
+  const nextSelected = nextRowData.bindings[selectedIndex]?.id;
+  if (selectedIndex < 0 || nextSelected === undefined) return undefined;
+  return Object.freeze({
+    properties: Object.freeze({ ...properties, [selection.property]: nextSelected }),
+    rowData: nextRowData,
+  });
+};
 
 export const createControlRowEdits = (
   definition: ControlDefinition,
@@ -164,10 +203,34 @@ export const createControlRowsUpdate = (
     }
     if (existing === undefined && edit.generation < element.rowData.nextId) return undefined;
   }
-  const properties = Object.freeze({
+  let properties: ElementProperties = Object.freeze({
     ...element.properties,
     [rows.property]: edits.map((edit) => edit.label.trim()).join(` ${rows.separator} `),
   });
+  const selection = rows.selection;
+  if (selection !== null) {
+    const selectedValue = element.properties[selection.property];
+    if (selectedValue === null && selection.allowNone) {
+      properties = Object.freeze({ ...properties, [selection.property]: null });
+    } else {
+      const selected = ElementRowIdSchema.safeParse(selectedValue);
+      if (!selected.success) return undefined;
+      const retained = edits.find((edit) => edit.id === selected.data);
+      if (retained !== undefined) {
+        properties = Object.freeze({ ...properties, [selection.property]: retained.id });
+      } else {
+        const removedIndex = element.rowData.bindings.findIndex(
+          (binding) => binding.id === selected.data,
+        );
+        if (removedIndex < 0) return undefined;
+        // The row now occupying the removed position wins; deleting the last row
+        // falls back to its previous neighbor. This is stable across replay.
+        const replacement = edits[Math.min(removedIndex, edits.length - 1)]?.id ?? null;
+        if (replacement === null && !selection.allowNone) return undefined;
+        properties = Object.freeze({ ...properties, [selection.property]: replacement });
+      }
+    }
+  }
   if (parseControlRows(rows, properties)?.length !== edits.length) return undefined;
   return Object.freeze({
     properties,
@@ -181,6 +244,27 @@ export const createControlRowsUpdate = (
       ),
       nextId,
     ),
+  });
+};
+
+export const createControlRowSelectionUpdate = (
+  definition: ControlDefinition,
+  element: ElementNode,
+  selectedRowId: ElementRowId | null,
+): ControlRowsUpdate | undefined => {
+  const selection = definition.rows?.selection;
+  if (
+    selection === null ||
+    selection === undefined ||
+    (selectedRowId === null && !selection.allowNone) ||
+    (selectedRowId !== null &&
+      !element.rowData.bindings.some((binding) => binding.id === selectedRowId))
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    properties: Object.freeze({ ...element.properties, [selection.property]: selectedRowId }),
+    rowData: element.rowData,
   });
 };
 

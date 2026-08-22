@@ -192,10 +192,24 @@ export interface ControlInspectorSection {
  * stable identities and first-class links for those parsed rows.
  */
 export interface ControlRowsDefinition {
+  /** Source paints delimiter syntax; labels paints only parsed labels in their row geometry. */
+  readonly display: 'labels' | 'source';
+  /** Inline rows use measured label spans; segments expand those spans into adjacent cells. */
+  readonly layout: 'inline' | 'segments';
   readonly links: boolean;
   readonly maximum: number;
   readonly minimum: number;
   readonly property: string;
+  /** Optional persisted selection points at a stable ElementRowId, never a label or array index. */
+  readonly selection: Readonly<{
+    readonly allowNone: boolean;
+    readonly appearance: Readonly<{
+      readonly colorProperty: string | null;
+      readonly kind: 'fill' | 'text';
+    }>;
+    readonly default: 'first' | 'none';
+    readonly property: string;
+  }> | null;
   readonly separator: string;
 }
 
@@ -300,7 +314,16 @@ const listPropertyReferences = (definition: ControlDefinition): readonly string[
     ...(definition.accessibility.checkedProperty === null
       ? []
       : [definition.accessibility.checkedProperty]),
-    ...(definition.rows === null ? [] : [definition.rows.property]),
+    ...(definition.rows === null
+      ? []
+      : [
+          definition.rows.property,
+          ...(definition.rows.selection === null ? [] : [definition.rows.selection.property]),
+          ...(definition.rows.selection?.appearance.colorProperty === null ||
+          definition.rows.selection?.appearance.colorProperty === undefined
+            ? []
+            : [definition.rows.selection.appearance.colorProperty]),
+        ]),
   ]);
 
 const isNormalizedPoint = (point: ControlHitShapePoint): boolean =>
@@ -364,7 +387,18 @@ export const assertControlDefinitionsConform = (
         rows.minimum < 0 ||
         rows.minimum > rows.maximum ||
         rows.maximum > MAX_ELEMENT_ROW_BINDINGS ||
-        typeof rows.links !== 'boolean'
+        typeof rows.links !== 'boolean' ||
+        !['labels', 'source'].includes(rows.display) ||
+        !['inline', 'segments'].includes(rows.layout) ||
+        (rows.selection !== null &&
+          (rows.selection.property.trim().length === 0 ||
+            !['fill', 'text'].includes(rows.selection.appearance.kind) ||
+            (rows.selection.appearance.colorProperty !== null &&
+              typeof definition.defaultProperties[rows.selection.appearance.colorProperty] !==
+                'string') ||
+            !['first', 'none'].includes(rows.selection.default) ||
+            (!rows.selection.allowNone && rows.selection.default === 'none') ||
+            definition.defaultProperties[rows.selection.property] !== null))
       ) {
         throw new Error(`Control '${definition.type}' has invalid parsed-row metadata.`);
       }

@@ -1350,6 +1350,19 @@ p {
   user-select: none;
 }
 
+.scene-control__row-selection {
+  fill: var(--color-accent-strong);
+  fill-opacity: 0.28;
+  pointer-events: none;
+}
+
+.scene-control__selected-row-text {
+  fill: var(--color-ink);
+  font-family: var(--font-wireframe);
+  pointer-events: none;
+  user-select: none;
+}
+
 .scene-control__link-hint {
   pointer-events: none;
 }

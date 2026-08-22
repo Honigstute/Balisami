@@ -130,6 +130,7 @@ describe('control definition conformance harness', () => {
           definition,
           identity: before.id,
           properties: before.properties,
+          rowData: before.rowData,
           textMeasurementService: measurementService,
         }),
       ).toEqual(
@@ -138,6 +139,7 @@ describe('control definition conformance harness', () => {
           definition,
           identity: after.id,
           properties: after.properties,
+          rowData: after.rowData,
           textMeasurementService: measurementService,
         }),
       );

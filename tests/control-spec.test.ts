@@ -47,6 +47,8 @@ describe('control definition registry', () => {
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
       CONTROL_TYPES.breadcrumbs,
+      CONTROL_TYPES.buttonBar,
+      CONTROL_TYPES.linkBar,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -87,6 +89,8 @@ describe('control definition registry', () => {
       'Color Picker',
       'ON/OFF Switch',
       'Breadcrumbs',
+      'Button Bar',
+      'Link Bar',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);

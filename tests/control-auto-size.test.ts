@@ -9,6 +9,7 @@ import {
   createEmptyProjectDocument,
   createCustomIconReference,
   dispatchDocumentCommand,
+  getControlSpec,
 } from '../src/domain';
 import { calculateControlAutoSizeFrame } from '../src/renderer/controls/control-auto-size';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
@@ -41,6 +42,28 @@ const createElement = (controlType = CONTROL_TYPES.button) => {
 };
 
 describe('registry-driven control auto-size', () => {
+  it('allocates every equal segment from the widest parsed label without measuring syntax', () => {
+    const definition = getControlSpec(CONTROL_TYPES.buttonBar);
+    if (definition === undefined) throw new Error('Button Bar definition is missing.');
+    const inserted = createElement(CONTROL_TYPES.buttonBar);
+    if (inserted === undefined) throw new Error('Button Bar fixture is missing.');
+    const element = Object.freeze({
+      ...inserted,
+      properties: Object.freeze({ ...definition.defaultProperties, items: 'Widest | i' }),
+    });
+    const measure = vi.fn((request: { text: string }) => ({
+      baselineOffsets: [10],
+      height: 16,
+      lineCount: 1,
+      lineHeight: 16,
+      lines: [request.text],
+      width: request.text === 'Widest' ? 60 : 5,
+    }));
+
+    expect(calculateControlAutoSizeFrame(element, { measure })?.width).toBe(152);
+    expect(measure.mock.calls.map(([request]) => request.text)).toEqual(['Widest', 'i']);
+  });
+
   it('measures registered text and projects the frame without changing its origin', () => {
     const element = createElement();
     if (element === undefined) {

@@ -5,7 +5,7 @@ import {
   getControlHitShapePadding,
   getControlSpec,
   parseCustomIconReference,
-  rekeyElementRowData,
+  rekeyControlRowState,
   type BoardId,
   type AssetId,
   type ControlDefinition,
@@ -257,14 +257,18 @@ export const createBoardSceneItems = (
         throw new Error(`Document scene received unknown control type '${source.controlType}'.`);
       }
       const sourceEffectivelyLocked = ancestorLocked || source.locked;
+      const rowState = rekeyControlRowState(sourceSpec, properties, source.rowData, derivedId);
+      if (rowState === undefined) {
+        throw new Error('Document scene could not re-key component row state.');
+      }
       appendItem(source, bounds, sourceEffectivelyLocked, owner, {
-        assetIds: resolveDerivedAssetIds(source.assetIds, sourceSpec, properties),
+        assetIds: resolveDerivedAssetIds(source.assetIds, sourceSpec, rowState.properties),
         id: derivedId,
         interactive: false,
-        properties,
+        properties: rowState.properties,
         // Component projections use derived element identities. Re-key row IDs
         // as disposable scene data so multiple instances never share DOM/link IDs.
-        rowData: rekeyElementRowData(source.rowData, derivedId),
+        rowData: rowState.rowData,
       });
 
       if (source.controlType === CONTROL_TYPES.componentInstance) {

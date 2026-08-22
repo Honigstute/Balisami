@@ -3,8 +3,9 @@ import {
   DeleteElementCommandSchema,
   DOCUMENT_COMMAND_TYPES,
   createElementLocationIndex,
+  getControlSpec,
   mapElementLinks,
-  rekeyElementRowData,
+  rekeyControlRowState,
   selectBoardElementIds,
   type BoardId,
   type DocumentCommand,
@@ -102,13 +103,25 @@ export const planBoardContentClone = (
                 })
               : link,
           );
+    const definition = getControlSpec(remappedElement.controlType);
+    const rowState =
+      definition === undefined
+        ? undefined
+        : rekeyControlRowState(
+            definition,
+            remappedElement.properties,
+            remappedElement.rowData,
+            cloneElementId,
+          );
+    if (rowState === undefined) return undefined;
     const createElement = CreateElementCommandSchema.safeParse({
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: {
         ...remappedElement,
         childIds: [],
         id: cloneElementId,
-        rowData: rekeyElementRowData(remappedElement.rowData, cloneElementId),
+        properties: rowState.properties,
+        rowData: rowState.rowData,
       },
       owner,
       index:

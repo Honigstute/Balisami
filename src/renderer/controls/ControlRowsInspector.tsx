@@ -3,6 +3,7 @@ import { useEffect, useState, type KeyboardEvent } from 'react';
 import {
   appendControlRowEdit,
   createControlRowEdits,
+  createControlRowSelectionUpdate,
   createControlRowsUpdate,
   type ControlDefinition,
   type ControlRowEdit,
@@ -10,6 +11,7 @@ import {
   type ProjectDocument,
 } from '../../domain';
 import { AppButton } from '../design/AppButton';
+import { AppChoicePopover } from '../design/AppChoicePopover';
 import { AppInput } from '../design/AppInput';
 import type { ControlInspectorPropertiesUpdate } from './ControlInspector';
 import { areControlLinksEqual } from './control-link-equality';
@@ -79,6 +81,8 @@ export const ControlRowsInspector = ({
     const update = createControlRowsUpdate(definition, element, nextEdits, nextId);
     return update !== undefined && onApply(Object.freeze({ elementId: element.id, ...update }));
   };
+  const selectedValue =
+    rows.selection === null ? undefined : element.properties[rows.selection.property];
   return (
     <section className="inspector-section" data-control-rows-inspector="true">
       <h3>Items</h3>
@@ -148,6 +152,27 @@ export const ControlRowsInspector = ({
       >
         Add item
       </AppButton>
+      {rows.selection === null ? null : (
+        <div className="control-row-selection-editor" data-control-row-selection="true">
+          <AppChoicePopover
+            label="Selection"
+            onChange={(value) => {
+              const selectedRowId =
+                value === '' ? null : edits.find((edit) => edit.id === value)?.id;
+              if (selectedRowId === undefined) return;
+              const update = createControlRowSelectionUpdate(definition, element, selectedRowId);
+              if (update !== undefined) {
+                onApply(Object.freeze({ elementId: element.id, ...update }));
+              }
+            }}
+            options={Object.freeze([
+              ...(rows.selection.allowNone ? [Object.freeze({ label: 'None', value: '' })] : []),
+              ...edits.map((edit) => Object.freeze({ label: edit.label, value: edit.id })),
+            ])}
+            value={typeof selectedValue === 'string' ? selectedValue : ''}
+          />
+        </div>
+      )}
     </section>
   );
 };

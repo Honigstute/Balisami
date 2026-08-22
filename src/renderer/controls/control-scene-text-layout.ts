@@ -35,12 +35,13 @@ export const calculateControlSceneTextLayout = (
   bounds: WorldRect,
   properties: ElementProperties,
   measurementService: ControlTextMeasurementService,
+  displayValue?: string,
 ): ControlSceneTextLayout | undefined => {
   const text = definition.capabilities.text;
   if (text === null) {
     return undefined;
   }
-  const value = properties[text.property];
+  const value = displayValue ?? properties[text.property];
   if (typeof value !== 'string') {
     return undefined;
   }

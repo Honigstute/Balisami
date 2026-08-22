@@ -147,13 +147,15 @@ export {
   MAX_CONTROL_ROW_LABEL_LENGTH,
   appendControlRowEdit,
   createControlRowEdits,
+  createControlRowSelectionUpdate,
   createControlRowsUpdate,
   createElementRowId,
-  createInitialElementRowData,
+  createInitialControlRowState,
   parseControlRows,
-  rekeyElementRowData,
+  rekeyControlRowState,
   type ParsedControlRow,
   type ControlRowEdit,
+  type ControlRowState,
   type ControlRowsUpdate,
 } from './controls/control-rows';
 export {

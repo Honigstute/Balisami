@@ -7,6 +7,7 @@ import {
   CONTROL_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
+  createInitialControlRowState,
   getControlSpec,
   parseProjectDocument,
 } from '../src/domain';
@@ -178,5 +179,40 @@ describe('board thumbnail projection', () => {
       opacity: 0.35,
       strokeColor: '#112233',
     });
+  });
+
+  it('carries stable selected-row geometry through the shared board-thumbnail projection', () => {
+    const input = createValidProjectDocumentInput();
+    const buttonBar = getControlSpec(CONTROL_TYPES.buttonBar);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (buttonBar === undefined || child === undefined)
+      throw new Error('Row fixture is incomplete.');
+    const initial = createInitialControlRowState(
+      buttonBar,
+      DOCUMENT_FIXTURE_IDS.child,
+      buttonBar.defaultProperties,
+    );
+    if (initial === undefined) throw new Error('Button Bar row state is invalid.');
+    child.controlType = buttonBar.type;
+    child.controlVersion = buttonBar.fileVersion;
+    child.properties = structuredClone(initial.properties) as typeof child.properties;
+    child.rowData = structuredClone(initial.rowData) as unknown as typeof child.rowData;
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Selected-row thumbnail fixture is invalid.');
+
+    expect(
+      createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board, {
+        measure: ({ fontSize, text }) => ({
+          baselineOffsets: [fontSize],
+          height: fontSize * 1.2,
+          lineCount: 1,
+          lineHeight: fontSize * 1.2,
+          lines: [text],
+          width: text.length * fontSize * 0.5,
+        }),
+      })?.items[0]?.selectedRow,
+    ).toMatchObject({ id: initial.rowData.bindings[0]?.id, appearance: 'fill' });
   });
 });

@@ -1,4 +1,9 @@
-import type { ControlDefinition, ElementProperties } from '../../domain';
+import {
+  ElementIdSchema,
+  createInitialControlRowState,
+  type ControlDefinition,
+  type ElementProperties,
+} from '../../domain';
 import { createWorldRect, type WorldRect } from '../editor/viewport-transform';
 import {
   createControlSceneProjection,
@@ -32,11 +37,17 @@ export const createControlThumbnailProjection = (
   const padding =
     Math.min(definition.defaultSize.width, definition.defaultSize.height) *
     CONTROL_THUMBNAIL_PROJECTION_POLICY.framePaddingRatio;
+  const thumbnailElementId = ElementIdSchema.parse(
+    `element_thumbnail_${definition.type.replaceAll('.', '_')}`,
+  );
+  const rowState = createInitialControlRowState(definition, thumbnailElementId, properties);
+  if (rowState === undefined) return undefined;
   const scene = createControlSceneProjection({
     bounds,
     definition,
     identity: `control-thumbnail:${identity}`,
-    properties,
+    properties: rowState.properties,
+    rowData: rowState.rowData,
     textMeasurementService,
   });
   return Object.freeze({

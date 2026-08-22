@@ -322,6 +322,21 @@ const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: A
           );
         }
       });
+      const selection = spec.rows.selection;
+      if (selection !== null) {
+        const selectedValue = element.properties[selection.property];
+        if (selectedValue === null && selection.allowNone) {
+          // Explicitly unselected is a valid persisted state for this definition.
+        } else if (
+          typeof selectedValue !== 'string' ||
+          !element.rowData.bindings.some((binding) => binding.id === selectedValue)
+        ) {
+          addIssue(
+            ['elementsById', elementKey, 'properties', selection.property],
+            `Control type '${element.controlType}' selection must reference one of its stable rows.`,
+          );
+        }
+      }
     }
 
     for (const section of spec.inspector) {

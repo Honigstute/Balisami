@@ -6,7 +6,7 @@ import {
   ElementIdSchema,
   createElementLocationIndex,
   getControlSpec,
-  rekeyElementRowData,
+  rekeyControlRowState,
   selectElementLockState,
   type ComponentId,
   type DocumentCommand,
@@ -112,6 +112,12 @@ export const planComponentCreationFromGroup = (
     if (childIds.some((childId) => childId === undefined)) {
       return undefined;
     }
+    const sourceDefinition = getControlSpec(source.controlType);
+    const rowState =
+      sourceDefinition === undefined
+        ? undefined
+        : rekeyControlRowState(sourceDefinition, source.properties, source.rowData, cloneId);
+    if (rowState === undefined) return undefined;
     definitionElements.push(
       Object.freeze({
         ...source,
@@ -121,7 +127,8 @@ export const planComponentCreationFromGroup = (
             ? Object.freeze({ ...source.frame, x: 0, y: 0 })
             : source.frame,
         id: cloneId,
-        rowData: rekeyElementRowData(source.rowData, cloneId),
+        properties: rowState.properties,
+        rowData: rowState.rowData,
       }),
     );
   }

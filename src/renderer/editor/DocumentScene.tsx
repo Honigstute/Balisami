@@ -4,14 +4,15 @@ import {
   getControlAccessibleName,
   getControlSpec,
   type BoardId,
-  type ControlDefinition,
   type ElementId,
   type ProjectDocument,
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import { controlSceneHasFill, controlSceneHasOutline } from '../controls/control-scene-geometry';
-import { createControlSceneProjection } from '../controls/control-scene-projection';
-import { createControlRowSceneProjections } from '../controls/control-row-scene-projection';
+import {
+  createControlSceneProjection,
+  type ControlSceneProjection,
+} from '../controls/control-scene-projection';
 import { syncControlSceneIconElement } from '../controls/control-scene-icon';
 import type { ControlSceneTextLayout } from '../controls/control-scene-text-layout';
 import {
@@ -120,7 +121,7 @@ class DocumentScenePresenter {
       // Only a whole-control badge has constant-screen sizing.
       if (item.link === null) continue;
       const element = this.#elementsById.get(id);
-      const hint = element?.children[6];
+      const hint = element?.children[8];
       if (hint?.localName === 'g') {
         this.#updateElementLinkBadge(hint as SVGGElement, item.bounds, item);
       }
@@ -228,6 +229,9 @@ class DocumentScenePresenter {
     const element = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const fill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
     const image = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'image');
+    const rowSelection = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
+    const rowSelectionFill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
+    const selectedRowText = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'text');
     const outline = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const mark = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const catalogIcon = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
@@ -238,6 +242,9 @@ class DocumentScenePresenter {
     element.dataset.sceneElementId = id;
     fill.setAttribute('class', 'scene-control__fill');
     image.setAttribute('class', 'scene-control__image');
+    rowSelection.setAttribute('class', 'scene-control__row-selection-layer');
+    rowSelectionFill.setAttribute('class', 'scene-control__row-selection');
+    selectedRowText.setAttribute('class', 'scene-control__selected-row-text');
     outline.setAttribute('class', 'scene-control__outline');
     mark.setAttribute('class', 'scene-control__mark');
     catalogIcon.setAttribute('class', 'scene-control__catalog-icon');
@@ -245,8 +252,19 @@ class DocumentScenePresenter {
     linkHint.setAttribute('class', 'scene-control__link-hint');
     linkHintBackground.setAttribute('class', 'scene-control__link-hint-background');
     linkHintGlyph.setAttribute('class', 'scene-control__link-hint-glyph');
+    rowSelection.append(rowSelectionFill);
     linkHint.append(linkHintBackground, linkHintGlyph);
-    element.append(fill, image, outline, mark, catalogIcon, text, linkHint);
+    element.append(
+      fill,
+      image,
+      rowSelection,
+      outline,
+      mark,
+      catalogIcon,
+      text,
+      selectedRowText,
+      linkHint,
+    );
     this.#elementsById.set(id, element);
     return element;
   }
@@ -278,28 +296,34 @@ class DocumentScenePresenter {
   ): void {
     const fill = element.children[0];
     const image = element.children[1];
-    const outline = element.children[2];
-    const mark = element.children[3];
-    const catalogIcon = element.children[4];
-    const text = element.children[5];
-    const linkHint = element.children[6];
+    const rowSelection = element.children[2];
+    const outline = element.children[3];
+    const mark = element.children[4];
+    const catalogIcon = element.children[5];
+    const text = element.children[6];
+    const selectedRowText = element.children[7];
+    const linkHint = element.children[8];
     if (
       fill?.localName !== 'rect' ||
       image?.localName !== 'image' ||
+      rowSelection?.localName !== 'g' ||
       outline?.localName !== 'path' ||
       mark?.localName !== 'path' ||
       catalogIcon?.localName !== 'g' ||
       text?.localName !== 'text' ||
+      selectedRowText?.localName !== 'text' ||
       linkHint?.localName !== 'g'
     ) {
       throw new Error('Document scene element structure was changed unexpectedly.');
     }
     const fillElement = fill as SVGRectElement;
     const imageElement = image as SVGImageElement;
+    const rowSelectionElement = rowSelection as SVGGElement;
     const outlineElement = outline as SVGPathElement;
     const markElement = mark as SVGPathElement;
     const catalogIconElement = catalogIcon as SVGGElement;
     const textElement = text as SVGTextElement;
+    const selectedRowTextElement = selectedRowText as SVGTextElement;
     const linkHintElement = linkHint as SVGGElement;
     const spec = getControlSpec(item.controlType);
     if (spec === undefined) {
@@ -310,6 +334,7 @@ class DocumentScenePresenter {
       definition: spec,
       identity: item.id,
       properties,
+      rowData: item.rowData,
       textMeasurementService: this.#textMeasurementService,
     });
     element.setAttribute('aria-disabled', String(projection.disabled));
@@ -361,8 +386,48 @@ class DocumentScenePresenter {
     }
 
     syncControlSceneIconElement(catalogIconElement, projection.icon, this.#assetUrls);
+    this.#updateElementRowSelection(rowSelectionElement, selectedRowTextElement, projection);
     this.#updateElementText(textElement, projection.textLayout);
-    this.#updateElementLinkHint(linkHintElement, bounds, item, spec, projection.textLayout);
+    this.#updateElementLinkHint(linkHintElement, bounds, item, projection);
+  }
+
+  #updateElementRowSelection(
+    layer: SVGGElement,
+    textElement: SVGTextElement,
+    projection: ControlSceneProjection,
+  ): void {
+    const fill = layer.children[0];
+    if (fill?.localName !== 'rect' || layer.children.length !== 1) {
+      throw new Error('Document row selection structure was changed unexpectedly.');
+    }
+    const fillElement = fill as SVGRectElement;
+    const selected = projection.selectedRow;
+    const showFill = selected?.appearance === 'fill';
+    fillElement.setAttribute('display', showFill ? 'inline' : 'none');
+    fillElement.style.removeProperty('fill');
+    if (showFill && selected !== undefined) {
+      fillElement.setAttribute('x', String(selected.bounds.x));
+      fillElement.setAttribute('y', String(selected.bounds.y));
+      fillElement.setAttribute('width', String(selected.bounds.width));
+      fillElement.setAttribute('height', String(selected.bounds.height));
+      if (selected.color !== undefined) fillElement.style.fill = selected.color;
+    }
+
+    const textLayout = projection.textLayout;
+    const showText = selected?.appearance === 'text' && textLayout !== undefined;
+    textElement.setAttribute('display', showText ? 'inline' : 'none');
+    textElement.style.removeProperty('fill');
+    if (showText && selected !== undefined && textLayout !== undefined) {
+      textElement.textContent = selected.label;
+      textElement.setAttribute('x', String(selected.labelX));
+      textElement.setAttribute('y', String(selected.baselineY));
+      textElement.setAttribute('font-size', String(textLayout.fontSize));
+      textElement.setAttribute('font-style', textLayout.fontStyle);
+      textElement.setAttribute('font-weight', textLayout.fontWeight);
+      textElement.setAttribute('text-anchor', 'start');
+      textElement.setAttribute('text-decoration', textLayout.textDecoration);
+      if (selected.color !== undefined) textElement.style.fill = selected.color;
+    }
   }
 
   #updateElementImage(
@@ -391,18 +456,10 @@ class DocumentScenePresenter {
     hint: SVGGElement,
     bounds: DocumentSceneItem['bounds'],
     item: DocumentSceneItem,
-    definition: ControlDefinition,
-    textLayout: ControlSceneTextLayout | undefined,
+    projection: ControlSceneProjection,
   ): void {
     while (hint.children.length > 2) hint.lastElementChild?.remove();
-    const rowLinks = createControlRowSceneProjections(
-      definition,
-      item.properties,
-      item.rowData,
-      textLayout,
-      this.#textMeasurementService,
-      bounds,
-    ).filter((row) => row.link !== null);
+    const rowLinks = projection.rows.filter((row) => row.link !== null);
     for (const row of rowLinks) {
       const rowHint = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
       rowHint.setAttribute('class', 'scene-control__row-link-hint');

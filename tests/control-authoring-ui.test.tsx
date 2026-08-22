@@ -140,6 +140,8 @@ describe('alpha control authoring UI', () => {
       'Color Picker',
       'ON/OFF Switch',
       'Breadcrumbs',
+      'Button Bar',
+      'Link Bar',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -175,6 +177,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
       CONTROL_TYPES.breadcrumbs,
+      CONTROL_TYPES.buttonBar,
+      CONTROL_TYPES.linkBar,
     ]);
   });
 
@@ -314,6 +318,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
       CONTROL_TYPES.breadcrumbs,
+      CONTROL_TYPES.buttonBar,
+      CONTROL_TYPES.linkBar,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);
@@ -329,6 +335,11 @@ describe('alpha control authoring UI', () => {
         `[data-control-thumbnail='${CONTROL_TYPES.imagePlaceholder}'] .scene-control__outline`,
       ),
     ).toBeNull();
+    expect(
+      document.querySelector(
+        `[data-control-thumbnail='${CONTROL_TYPES.buttonBar}'] .scene-control__row-selection`,
+      ),
+    ).not.toBeNull();
   });
 
   it('searches, previews, inserts, and drags reusable components through the shared shelf', () => {
@@ -584,6 +595,49 @@ describe('alpha control authoring UI', () => {
         ],
       },
     });
+  });
+
+  it('edits stable row selection generically and exposes None only when the registry allows it', () => {
+    const buttonBar = createControlDocument(CONTROL_TYPES.buttonBar);
+    const selection = new SelectionStore();
+    selection.selectOnly(buttonBar.elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    const view = render(
+      <ControlInspector
+        document={buttonBar.document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Selection' }));
+    expect(screen.queryByRole('option', { name: 'None' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'Two' }));
+    const secondRowId =
+      buttonBar.document.elementsById[buttonBar.elementId]?.rowData.bindings[1]?.id;
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId: buttonBar.elementId,
+      properties: { selectedRowId: secondRowId },
+      rowData: buttonBar.document.elementsById[buttonBar.elementId]?.rowData,
+    });
+
+    const linkBar = createControlDocument(CONTROL_TYPES.linkBar);
+    selection.selectOnly(linkBar.elementId);
+    view.rerender(
+      <ControlInspector
+        document={linkBar.document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Selection' }));
+    expect(screen.getByRole('option', { name: 'None' })).toBeInTheDocument();
   });
 
   it('keeps a linked Trash target visible in the shared row/control link editor', () => {

@@ -1,10 +1,11 @@
 import { z } from 'zod';
 
 import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
+import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import { getIconDefinition } from '../../shared/icons/icon-catalog';
 import { CustomIconReferenceSchema } from './custom-icon-reference';
 import { ComponentInstancePropertiesSchema } from './component-instance';
-import { ComponentIdSchema } from '../document/ids';
+import { ComponentIdSchema, ElementRowIdSchema } from '../document/ids';
 import {
   ControlTypeIdSchema,
   ElementPropertiesSchema,
@@ -63,6 +64,8 @@ export const CONTROL_TYPES = Object.freeze({
   colorPicker: ControlTypeIdSchema.parse('wireframe.color-picker'),
   onOffSwitch: ControlTypeIdSchema.parse('wireframe.on-off-switch'),
   breadcrumbs: ControlTypeIdSchema.parse('wireframe.breadcrumbs'),
+  buttonBar: ControlTypeIdSchema.parse('wireframe.button-bar'),
+  linkBar: ControlTypeIdSchema.parse('wireframe.link-bar'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -183,6 +186,22 @@ const breadcrumbsPropertiesSchema = z
   .strictObject({
     ...textStyleSchemaShape,
     items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const buttonBarPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    selectedRowId: ElementRowIdSchema.nullable(),
+  })
+  .readonly();
+const linkBarPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    selectedColor: sceneColorSchema,
+    selectedRowId: ElementRowIdSchema.nullable(),
+    textColor: sceneColorSchema,
   })
   .readonly();
 
@@ -408,7 +427,19 @@ const createDefinition = (input: {
 }): ControlDefinition => {
   const scene = Object.freeze({
     ...input.scene,
-    propertyKeys: createPresentationPropertyKeys(input.scene, input.capabilities),
+    propertyKeys: Object.freeze([
+      ...new Set([
+        ...createPresentationPropertyKeys(input.scene, input.capabilities),
+        ...(input.rows?.selection === null || input.rows?.selection === undefined
+          ? []
+          : [
+              input.rows.selection.property,
+              ...(input.rows.selection.appearance.colorProperty === null
+                ? []
+                : [input.rows.selection.appearance.colorProperty]),
+            ]),
+      ]),
+    ]),
   });
   return Object.freeze({
     accessibility: input.accessibility,
@@ -1887,16 +1918,149 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     palette: createPalette('Breadcrumbs', 'Common', 310),
     propertiesSchema: breadcrumbsPropertiesSchema,
     rows: Object.freeze({
+      display: 'source',
+      layout: 'inline',
       links: true,
       maximum: 64,
       minimum: 1,
       property: 'items',
+      selection: null,
       separator: '›',
     }),
     scene: createScene('text', ['items']),
     tags: ['breadcrumb', 'links', 'navigation', 'path'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.breadcrumbs,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Button Bar', 'group'),
+    aliases: ['segmented button', 'segmented control'],
+    autoSize: createAutoSize('horizontal', 8, 8, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'horizontal',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        4,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: 'One | Two | Three',
+      selectedRowId: null,
+    },
+    defaultSize: createSize(159, 27),
+    export: createExport('scene'),
+    inspector: createInspector('Text', createTextStyleFields(false)),
+    minimumSize: createSize(48, 20),
+    maximumSize: null,
+    palette: createPalette('Button Bar', 'Buttons', 320),
+    propertiesSchema: buttonBarPropertiesSchema,
+    rows: Object.freeze({
+      display: 'labels',
+      layout: 'segments',
+      links: true,
+      maximum: 32,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: false,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'first',
+        property: 'selectedRowId',
+      }),
+      separator: '|',
+    }),
+    scene: createScene('rectangle', ['items']),
+    tags: ['bar', 'button', 'links', 'segmented', 'selection'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.buttonBar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Link Bar', 'group'),
+    aliases: ['navigation links', 'link navigation'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'horizontal',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        0,
+        {
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: 'Home | Products | Company | Blog',
+      selectedColor: 'default',
+      selectedRowId: null,
+      textColor: DESIGN_TOKENS.color.accentStrong,
+    },
+    defaultSize: createSize(226, 21),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Separator and Selected Text Color', property: 'selectedColor' },
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(64, 16),
+    maximumSize: null,
+    palette: createPalette('Link Bar', 'Common', 330),
+    propertiesSchema: linkBarPropertiesSchema,
+    rows: Object.freeze({
+      display: 'source',
+      layout: 'inline',
+      links: true,
+      maximum: 32,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: 'selectedColor', kind: 'text' }),
+        default: 'none',
+        property: 'selectedRowId',
+      }),
+      separator: '|',
+    }),
+    scene: createScene('text', ['items']),
+    tags: ['bar', 'links', 'navigation', 'selection'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.linkBar,
   }),
 ]);
 

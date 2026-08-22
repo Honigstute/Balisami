@@ -1,5 +1,6 @@
 import {
   getControlSpec,
+  parseControlRows,
   parseCustomIconReference,
   type ElementNode,
   type WorldRect,
@@ -46,7 +47,7 @@ export const calculateControlAutoSizeFrame = (
     text.style.fontSizeProperty === null
       ? undefined
       : element.properties[text.style.fontSizeProperty];
-  const measurement = measurementService.measure({
+  const measurementRequest = {
     fontSize: typeof styledFontSize === 'number' ? styledFontSize : text.fontSize,
     fontStyle:
       text.style.italicProperty !== null && element.properties[text.style.italicProperty] === true
@@ -57,8 +58,28 @@ export const calculateControlAutoSizeFrame = (
         ? 'bold'
         : 'normal',
     mode: text.mode,
-    text: value,
-  });
+  } as const;
+  const parsedRows =
+    definition.rows === null ? undefined : parseControlRows(definition.rows, element.properties);
+  const measurement =
+    definition.rows?.display === 'labels' && parsedRows !== undefined
+      ? (() => {
+          const labels = parsedRows.map((row) =>
+            measurementService.measure({ ...measurementRequest, text: row.label }),
+          );
+          const first = labels[0];
+          if (first === undefined)
+            return measurementService.measure({ ...measurementRequest, text: '' });
+          return Object.freeze({
+            ...first,
+            width:
+              (definition.rows.layout === 'segments'
+                ? Math.max(...labels.map((label) => label.width)) * labels.length
+                : labels.reduce((total, label) => total + label.width, 0)) +
+              (parsedRows.length - 1) * (policy.insets.left + policy.insets.right),
+          });
+        })()
+      : measurementService.measure({ ...measurementRequest, text: value });
   const iconId = element.properties.iconId;
   const iconWidth =
     definition.capabilities.icon &&

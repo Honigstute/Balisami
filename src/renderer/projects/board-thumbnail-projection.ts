@@ -100,6 +100,7 @@ export const createBoardThumbnailProjection = (
       definition,
       identity: item.id,
       properties: item.properties,
+      rowData: item.rowData,
       textMeasurementService,
     });
     const strokeStyle = item.properties.strokeStyle;

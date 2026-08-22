@@ -6,7 +6,7 @@ import {
   createElementLocationIndex,
   getControlSpec,
   parseCustomIconReference,
-  rekeyElementRowData,
+  rekeyControlRowState,
   selectElementLockState,
   type DocumentCommand,
   type ElementId,
@@ -98,6 +98,11 @@ export const planComponentDetachment = (
       const customAssetId = parseCustomIconReference(mergedProperties[field.property]);
       if (customAssetId !== undefined) assetIds.add(customAssetId);
     }
+    const rowState =
+      definition === undefined
+        ? undefined
+        : rekeyControlRowState(definition, mergedProperties, source.rowData, detachedId);
+    if (rowState === undefined) return undefined;
     detachedElements.push(
       Object.freeze({
         ...source,
@@ -113,8 +118,8 @@ export const planComponentDetachment = (
                 y: source.frame.y * scaleY,
               }),
         id: detachedId,
-        properties: mergedProperties,
-        rowData: rekeyElementRowData(source.rowData, detachedId),
+        properties: rowState.properties,
+        rowData: rowState.rowData,
       }),
     );
   }

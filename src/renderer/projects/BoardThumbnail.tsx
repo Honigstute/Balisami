@@ -2,6 +2,7 @@ import { useSyncExternalStore, type ComponentPropsWithoutRef } from 'react';
 
 import type { BoardId } from '../../domain';
 import { ControlSceneIcon } from '../controls/CatalogIcon';
+import { ControlSelectedRowFill, ControlSelectedRowText } from '../controls/ControlSelectedRow';
 import { BOARD_THUMBNAIL_LOADING, type BoardThumbnailStore } from './board-thumbnail-store';
 import type { BoardThumbnailItem } from './board-thumbnail-projection';
 import type { WorldRect } from '../editor/viewport-transform';
@@ -56,6 +57,7 @@ export const ThumbnailSceneSvg = ({
               style={item.fillColor === undefined ? undefined : { fill: item.fillColor }}
             />
           ) : null}
+          <ControlSelectedRowFill projection={item.selectedRow} textLayout={item.textLayout} />
           {imageUrl === undefined ? null : (
             <image
               className="scene-control__image"
@@ -104,6 +106,7 @@ export const ThumbnailSceneSvg = ({
               ))}
             </text>
           )}
+          <ControlSelectedRowText projection={item.selectedRow} textLayout={item.textLayout} />
         </g>
       );
     })}

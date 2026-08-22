@@ -13,6 +13,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.breadcrumbs':
     'common harness; parsed-row identity, inspector, clone, scene, and presentation geometry',
   'wireframe.button': 'common harness; registry visual fixture; icon, migration, and auto-size',
+  'wireframe.button-bar':
+    'common harness; stable row selection, clone, inspector, and segmented scene geometry',
   'wireframe.calendar':
     'common harness; registry visual fixture; deterministic Calendar scene geometry',
   'wireframe.chart-bar':
@@ -61,6 +63,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.v-rule':
     'common harness; intrinsic auto-size; range inspector; deterministic Rule geometry',
   'wireframe.webcam': 'common harness; registry visual fixture; deterministic Media scene geometry',
+  'wireframe.link-bar':
+    'common harness; optional stable row selection, links, inspector, and measured scene geometry',
 });
 
 const code = (value: string): string => `\`${value}\``;

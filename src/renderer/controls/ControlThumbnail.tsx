@@ -2,6 +2,7 @@ import type { ControlDefinition, ElementProperties } from '../../domain';
 import { controlSceneHasFill } from './control-scene-geometry';
 import type { ControlTextMeasurementService } from './control-text-measurement';
 import { createControlThumbnailProjection } from './control-thumbnail-projection';
+import { ControlSelectedRowFill, ControlSelectedRowText } from './ControlSelectedRow';
 
 interface ControlThumbnailProps {
   readonly definition: ControlDefinition;
@@ -51,6 +52,10 @@ export const ControlThumbnail = ({
           style={projection.fillColor === undefined ? undefined : { fill: projection.fillColor }}
         />
       ) : null}
+      <ControlSelectedRowFill
+        projection={projection.selectedRow}
+        textLayout={projection.textLayout}
+      />
       {!projection.borderVisible || projection.outlinePath.length === 0 ? null : (
         <path
           className="scene-control__outline"
@@ -87,6 +92,10 @@ export const ControlThumbnail = ({
           ))}
         </text>
       )}
+      <ControlSelectedRowText
+        projection={projection.selectedRow}
+        textLayout={projection.textLayout}
+      />
     </svg>
   );
 };

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } 
 
 import type { BoardId, ElementLink, ProjectDocument } from '../../domain';
 import { ControlSceneIcon } from '../controls/CatalogIcon';
+import { ControlSelectedRowFill, ControlSelectedRowText } from '../controls/ControlSelectedRow';
 import { getBrowserControlTextMeasurementService } from '../controls/control-text-measurement';
 import { Icon } from '../shell/Icon';
 import { createBoardPresentationProjection } from './board-presentation-projection';
@@ -261,6 +262,10 @@ export const PresentationView = ({
                       y={item.primitiveBounds.y}
                     />
                   ) : null}
+                  <ControlSelectedRowFill
+                    projection={item.selectedRow}
+                    textLayout={item.textLayout}
+                  />
                   {imageUrl === undefined ? null : (
                     <image
                       className="scene-control__image"
@@ -313,10 +318,15 @@ export const PresentationView = ({
                       ))}
                     </text>
                   )}
+                  <ControlSelectedRowText
+                    projection={item.selectedRow}
+                    textLayout={item.textLayout}
+                  />
                   {item.disabled
                     ? null
                     : item.rowLinks.map((row) => (
                         <rect
+                          aria-current={row.selected ? 'page' : undefined}
                           aria-label={row.label}
                           className="presentation-view__link-hit-area presentation-view__linked-control"
                           data-presentation-row-id={row.rowId}

@@ -5,6 +5,7 @@ import {
   CONTROL_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
+  createInitialControlRowState,
   createEmptyProjectDocument,
   dispatchDocumentCommand,
   listPaletteControlSpecs,
@@ -40,17 +41,22 @@ describe('registry-backed control insertion', () => {
         throw new Error('Control insertion did not commit.');
       }
       document = result.document;
+      const initialRowState = createInitialControlRowState(spec, elementId, spec.defaultProperties);
+      if (initialRowState === undefined) {
+        throw new Error(`Control '${spec.type}' has invalid registry row defaults.`);
+      }
       expect(document.elementsById[elementId]).toMatchObject({
         controlType: spec.type,
         frame: {
           height: spec.defaultSize.height,
           width: spec.defaultSize.width,
         },
-        properties: spec.defaultProperties,
+        properties: initialRowState.properties,
+        rowData: initialRowState.rowData,
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(31);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(33);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -85,6 +91,8 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
       CONTROL_TYPES.breadcrumbs,
+      CONTROL_TYPES.buttonBar,
+      CONTROL_TYPES.linkBar,
     ]);
   });
 

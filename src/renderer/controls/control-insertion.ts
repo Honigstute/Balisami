@@ -1,6 +1,6 @@
 import {
   DOCUMENT_COMMAND_TYPES,
-  createInitialElementRowData,
+  createInitialControlRowState,
   getControlPaletteEntry,
   getControlSpec,
   type AssetId,
@@ -65,8 +65,8 @@ export const createControlInsertionCommand = (
       x: request.center.x - spec.defaultSize.width / 2 + cascadeOffset,
       y: request.center.y - spec.defaultSize.height / 2 + cascadeOffset,
     });
-  const rowData = createInitialElementRowData(spec, request.elementId, paletteEntry.properties);
-  if (rowData === undefined) return undefined;
+  const rowState = createInitialControlRowState(spec, request.elementId, paletteEntry.properties);
+  if (rowState === undefined) return undefined;
   return Object.freeze({
     type: DOCUMENT_COMMAND_TYPES.createElement,
     element: Object.freeze({
@@ -78,8 +78,8 @@ export const createControlInsertionCommand = (
       id: request.elementId,
       link: null,
       locked: false,
-      properties: paletteEntry.properties,
-      rowData,
+      properties: rowState.properties,
+      rowData: rowState.rowData,
     }),
     index: board.childIds.length,
     owner: Object.freeze({ boardId: board.id, kind: 'board' }),

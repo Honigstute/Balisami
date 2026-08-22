@@ -8,6 +8,7 @@ import {
   ProjectIdSchema,
   appendControlRowEdit,
   createControlRowEdits,
+  createControlRowSelectionUpdate,
   createControlRowsUpdate,
   createDocumentHistory,
   createElementRowId,
@@ -17,14 +18,23 @@ import {
   getControlSpec,
   listElementLinkReferences,
   parseProjectDocument,
+  rekeyControlRowState,
   redoDocumentHistory,
   selectBoardCommandAvailability,
   undoDocumentHistory,
   type ElementNode,
+  type ControlTypeId,
   type ProjectDocument,
 } from '../src/domain';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
+import { decodeProjectFileEnvelope, encodeProjectFileEnvelope } from '../src/persistence';
+import {
+  captureSelectionClipboardPayload,
+  planSelectionPaste,
+} from '../src/renderer/editor/selection-clipboard';
+import { planSelectionDuplicate } from '../src/renderer/editor/selection-duplicate';
 import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
+import { planBoardContentClone } from '../src/renderer/projects/board-content-clone';
 
 const BOARD_ID = BoardIdSchema.parse('board_controlrows');
 const ELEMENT_ID = ElementIdSchema.parse('element_controlrows');
@@ -56,7 +66,205 @@ const requireDefinition = () => {
   return definition;
 };
 
+const createSelectionFixture = (controlType: ControlTypeId) => {
+  const created = createEmptyProjectDocument({
+    boardId: BOARD_ID,
+    projectId: ProjectIdSchema.parse('project_selectionrows'),
+  });
+  if (!created.ok) throw new Error('Selection rows fixture project is invalid.');
+  const definition = getControlSpec(controlType);
+  if (definition === undefined) throw new Error(`Definition '${controlType}' is missing.`);
+  const command = createControlInsertionCommand({
+    boardId: BOARD_ID,
+    center: createWorldPoint(240, 160),
+    controlType,
+    document: created.value,
+    elementId: ELEMENT_ID,
+  });
+  const inserted = dispatchDocumentCommand(created.value, command);
+  if (!inserted.ok || !inserted.changed)
+    throw new Error('Selection rows fixture was not inserted.');
+  const element = inserted.document.elementsById[ELEMENT_ID];
+  if (element === undefined) throw new Error('Selection rows fixture element is missing.');
+  return Object.freeze({ definition, document: inserted.document, element });
+};
+
 describe('registry parsed-row identity contract', () => {
+  it('materializes required and optional selection defaults and validates allow-none', () => {
+    const buttonBar = createSelectionFixture(CONTROL_TYPES.buttonBar);
+    const linkBar = createSelectionFixture(CONTROL_TYPES.linkBar);
+    const buttonIds = buttonBar.element.rowData.bindings.map((binding) => binding.id);
+
+    expect(buttonBar.element.properties.selectedRowId).toBe(buttonIds[0]);
+    expect(linkBar.element.properties.selectedRowId).toBeNull();
+    expect(
+      createControlRowSelectionUpdate(buttonBar.definition, buttonBar.element, null),
+    ).toBeUndefined();
+    expect(
+      createControlRowSelectionUpdate(linkBar.definition, linkBar.element, null),
+    ).toMatchObject({
+      properties: { selectedRowId: null },
+    });
+    expect(
+      createControlRowSelectionUpdate(
+        buttonBar.definition,
+        buttonBar.element,
+        createElementRowId(ElementIdSchema.parse('element_foreignrows'), 0),
+      ),
+    ).toBeUndefined();
+
+    for (const selectedRowId of [
+      null,
+      createElementRowId(ElementIdSchema.parse('element_foreignrows'), 0),
+    ]) {
+      const malformed = {
+        ...buttonBar.document,
+        elementsById: {
+          ...buttonBar.document.elementsById,
+          [ELEMENT_ID]: {
+            ...buttonBar.element,
+            properties: { ...buttonBar.element.properties, selectedRowId },
+          },
+        },
+      };
+      expect(parseProjectDocument(malformed).ok).toBe(false);
+    }
+  });
+
+  it('preserves stable selection through edits and reorder, replaces deletion deterministically, and rekeys clones atomically', () => {
+    const { definition, document, element } = createSelectionFixture(CONTROL_TYPES.buttonBar);
+    const edits = createControlRowEdits(definition, element);
+    if (edits === undefined) throw new Error('Button Bar rows did not parse.');
+    const selected = edits[1]!.id;
+    const selectedUpdate = createControlRowSelectionUpdate(definition, element, selected);
+    if (selectedUpdate === undefined) throw new Error('Button Bar selection is invalid.');
+    const selectedElement = Object.freeze({ ...element, ...selectedUpdate });
+    const reordered = createControlRowsUpdate(
+      definition,
+      selectedElement,
+      [Object.freeze({ ...edits[2]!, label: 'Three edited' }), edits[1]!, edits[0]!],
+      element.rowData.nextId,
+    );
+    if (reordered === undefined) throw new Error('Button Bar reorder is invalid.');
+    expect(reordered.properties.selectedRowId).toBe(selected);
+
+    const reorderedElement = Object.freeze({ ...selectedElement, ...reordered });
+    const reorderedEdits = createControlRowEdits(definition, reorderedElement);
+    if (reorderedEdits === undefined) throw new Error('Reordered Button Bar rows did not parse.');
+    const deleted = createControlRowsUpdate(
+      definition,
+      reorderedElement,
+      reorderedEdits.filter((edit) => edit.id !== selected),
+      reorderedElement.rowData.nextId,
+    );
+    if (deleted === undefined) throw new Error('Button Bar delete is invalid.');
+    expect(deleted.properties.selectedRowId).toBe(edits[0]!.id);
+
+    const lastSelectedUpdate = createControlRowSelectionUpdate(
+      definition,
+      element,
+      edits.at(-1)!.id,
+    );
+    if (lastSelectedUpdate === undefined) throw new Error('Last Button Bar row is invalid.');
+    const lastSelectedElement = Object.freeze({ ...element, ...lastSelectedUpdate });
+    const deletedLast = createControlRowsUpdate(
+      definition,
+      lastSelectedElement,
+      edits.slice(0, -1),
+      element.rowData.nextId,
+    );
+    if (deletedLast === undefined) throw new Error('Last Button Bar delete is invalid.');
+    expect(deletedLast.properties.selectedRowId).toBe(edits.at(-2)!.id);
+
+    const cloneId = ElementIdSchema.parse('element_controlrows_clone');
+    const rekeyed = rekeyControlRowState(
+      definition,
+      reordered.properties,
+      reordered.rowData,
+      cloneId,
+    );
+    if (rekeyed === undefined) throw new Error('Button Bar clone rekey is invalid.');
+    expect(rekeyed.rowData.bindings.map((binding) => binding.id)).toEqual([
+      createElementRowId(cloneId, 2),
+      createElementRowId(cloneId, 1),
+      createElementRowId(cloneId, 0),
+    ]);
+    expect(rekeyed.properties.selectedRowId).toBe(createElementRowId(cloneId, 1));
+
+    const committed = dispatchHistoryCommand(createDocumentHistory(document), {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: ELEMENT_ID,
+      ...selectedUpdate,
+    });
+    if (!committed.ok || !committed.changed)
+      throw new Error('Button Bar selection did not commit.');
+    const undone = undoDocumentHistory(committed.history);
+    if (!undone.ok || !undone.changed) throw new Error('Button Bar selection did not undo.');
+    expect(undone.history.document).toEqual(document);
+    const redone = redoDocumentHistory(undone.history);
+    if (!redone.ok || !redone.changed) throw new Error('Button Bar selection did not redo.');
+    expect(redone.history.document).toEqual(committed.history.document);
+  });
+
+  it('rekeys selected identity together with row data in duplicate, paste, and board clone planners', () => {
+    const { document, element } = createSelectionFixture(CONTROL_TYPES.buttonBar);
+    const selectedGeneration = element.rowData.bindings.find(
+      (binding) => binding.id === element.properties.selectedRowId,
+    )?.generation;
+    expect(selectedGeneration).toBe(0);
+
+    const duplicateId = ElementIdSchema.parse('element_rows_duplicate');
+    const duplicate = planSelectionDuplicate(
+      document,
+      [ELEMENT_ID],
+      [ELEMENT_ID],
+      () => duplicateId,
+    );
+    expect(duplicate?.commands[0]?.element.properties.selectedRowId).toBe(
+      createElementRowId(duplicateId, 0),
+    );
+    expect(duplicate?.commands[0]?.element.rowData.bindings[0]?.id).toBe(
+      createElementRowId(duplicateId, 0),
+    );
+
+    const payload = captureSelectionClipboardPayload(
+      document,
+      [ELEMENT_ID],
+      ELEMENT_ID,
+      [ELEMENT_ID],
+      'copy',
+    );
+    const pasteId = ElementIdSchema.parse('element_rows_paste001');
+    const paste = planSelectionPaste(document, payload, 0, () => pasteId);
+    expect(paste?.commands[0]?.element.properties.selectedRowId).toBe(
+      createElementRowId(pasteId, 0),
+    );
+    expect(paste?.commands[0]?.element.rowData.bindings[0]?.id).toBe(
+      createElementRowId(pasteId, 0),
+    );
+
+    const boardCloneId = ElementIdSchema.parse('element_rows_boardclone');
+    const boardClone = planBoardContentClone(document, BOARD_ID, BOARD_ID, () => boardCloneId);
+    const boardCloneElement =
+      boardClone?.commands[0]?.type === DOCUMENT_COMMAND_TYPES.createElement
+        ? boardClone.commands[0].element
+        : undefined;
+    expect(boardCloneElement?.properties.selectedRowId).toBe(createElementRowId(boardCloneId, 0));
+    expect(boardCloneElement?.rowData.bindings[0]?.id).toBe(createElementRowId(boardCloneId, 0));
+  });
+
+  it('round-trips selected stable row identity through the project codec', () => {
+    const { document, element } = createSelectionFixture(CONTROL_TYPES.buttonBar);
+    const encoded = encodeProjectFileEnvelope(document, {});
+    if (!encoded.ok) throw new Error('Selected row document could not be encoded.');
+    const decoded = decodeProjectFileEnvelope(encoded.value);
+    if (!decoded.ok) throw new Error('Selected row document could not be reopened.');
+    expect(decoded.value.document.elementsById[ELEMENT_ID]).toEqual(element);
+    expect(decoded.value.document.elementsById[ELEMENT_ID]?.properties.selectedRowId).toBe(
+      createElementRowId(ELEMENT_ID, 0),
+    );
+  });
+
   it('allocates deterministic initial identities and exposes whole-control plus row links', () => {
     const { document, element } = createFixture();
     expect(element.rowData).toEqual({

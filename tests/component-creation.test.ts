@@ -7,7 +7,7 @@ import {
   ComponentIdSchema,
   ElementIdSchema,
   createElementRowId,
-  createInitialElementRowData,
+  createInitialControlRowState,
   createDocumentHistory,
   dispatchHistoryTransaction,
   parseProjectDocument,
@@ -18,11 +18,7 @@ import {
 } from '../src/domain';
 import { planComponentCreationFromGroup } from '../src/renderer/controls/component-creation';
 import { createBoardSceneItems } from '../src/renderer/editor/document-scene-model';
-import {
-  createValidProjectDocumentInput,
-  DOCUMENT_FIXTURE_IDS,
-  getFixtureControlProperties,
-} from './fixtures/project-document';
+import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
 const COMPONENT_ID = ComponentIdSchema.parse('component_created001');
 const INSTANCE_ID = ElementIdSchema.parse('element_createdinst1');
@@ -129,20 +125,21 @@ describe('component creation planner', () => {
   it('re-keys persisted and component-projected row identities for every fresh owner', () => {
     const input = createValidProjectDocumentInput();
     const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
-    const definition = getControlSpec(CONTROL_TYPES.breadcrumbs);
+    const definition = getControlSpec(CONTROL_TYPES.buttonBar);
     if (child === undefined || definition === undefined) {
       throw new Error('Component row fixture is incomplete.');
     }
-    child.controlType = CONTROL_TYPES.breadcrumbs;
+    child.controlType = CONTROL_TYPES.buttonBar;
     child.controlVersion = definition.fileVersion;
-    child.properties = getFixtureControlProperties(CONTROL_TYPES.breadcrumbs);
-    child.assetIds = [];
-    const rowData = createInitialElementRowData(
+    const initialState = createInitialControlRowState(
       definition,
       DOCUMENT_FIXTURE_IDS.child,
       definition.defaultProperties,
     );
-    if (rowData === undefined) throw new Error('Component row data could not be created.');
+    if (initialState === undefined) throw new Error('Component row state could not be created.');
+    child.properties = structuredClone(initialState.properties) as typeof child.properties;
+    child.assetIds = [];
+    const rowData = initialState.rowData;
     child.rowData = {
       version: 1,
       nextId: rowData.nextId,
@@ -160,7 +157,7 @@ describe('component creation planner', () => {
       DOCUMENT_FIXTURE_IDS.group,
       COMPONENT_ID,
       INSTANCE_ID,
-      'Breadcrumb component',
+      'Button Bar component',
       (_sourceId, index) => [DEFINITION_ROOT_ID, DEFINITION_CHILD_ID][index],
     );
     if (plan === undefined) throw new Error('Component row creation could not be planned.');
@@ -169,12 +166,16 @@ describe('component creation planner', () => {
     expect(
       applied.history.document.elementsById[DEFINITION_CHILD_ID]?.rowData.bindings[0]?.id,
     ).toBe(createElementRowId(DEFINITION_CHILD_ID, 0));
+    expect(
+      applied.history.document.elementsById[DEFINITION_CHILD_ID]?.properties.selectedRowId,
+    ).toBe(createElementRowId(DEFINITION_CHILD_ID, 0));
     const projected = createBoardSceneItems(
       applied.history.document,
       DOCUMENT_FIXTURE_IDS.board,
-    ).find((item) => item.controlType === CONTROL_TYPES.breadcrumbs);
+    ).find((item) => item.controlType === CONTROL_TYPES.buttonBar);
     expect(projected).toBeDefined();
     if (projected === undefined) return;
     expect(projected.rowData.bindings[0]?.id).toBe(createElementRowId(projected.id, 0));
+    expect(projected.properties.selectedRowId).toBe(createElementRowId(projected.id, 0));
   });
 });

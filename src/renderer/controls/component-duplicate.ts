@@ -3,7 +3,8 @@ import {
   DOCUMENT_COMMAND_TYPES,
   DocumentTitleSchema,
   ElementIdSchema,
-  rekeyElementRowData,
+  getControlSpec,
+  rekeyControlRowState,
   type ComponentId,
   type CreateComponentCommand,
   type ElementId,
@@ -90,11 +91,18 @@ export const planComponentDuplicate = (
     if (id === undefined || childIds.some((childId) => childId === undefined)) {
       return undefined;
     }
+    const definition = getControlSpec(sourceElement.controlType);
+    const rowState =
+      definition === undefined
+        ? undefined
+        : rekeyControlRowState(definition, sourceElement.properties, sourceElement.rowData, id);
+    if (rowState === undefined) return undefined;
     return Object.freeze({
       ...sourceElement,
       childIds: Object.freeze(childIds as ElementId[]),
       id,
-      rowData: rekeyElementRowData(sourceElement.rowData, id),
+      properties: rowState.properties,
+      rowData: rowState.rowData,
     });
   });
   if (elements.some((element) => element === undefined)) return undefined;
