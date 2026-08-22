@@ -43,12 +43,15 @@ export {
   PROJECT_FILE_FORMAT_VERSION,
   PROJECT_FILE_MANIFEST_V1,
   PROJECT_FILE_MANIFEST_V2,
+  PROJECT_FILE_MANIFEST_V3,
   ProjectFileManifestV1Schema,
   ProjectFileManifestV2Schema,
+  ProjectFileManifestV3Schema,
   getProjectAssetEntryPath,
   isProjectAssetEntryPath,
   type ProjectFileManifestV1,
   type ProjectFileManifestV2,
+  type ProjectFileManifestV3,
 } from './project-file/manifest';
 export {
   routeProjectFileVersion,

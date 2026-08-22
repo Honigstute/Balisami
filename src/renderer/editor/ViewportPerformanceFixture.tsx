@@ -98,6 +98,7 @@ const createPerformanceFixtureDocument = (): PerformanceFixtureDocument => {
     id: projectId,
     name: 'Viewport performance fixture',
     boardIds: [boardId],
+    trashedBoardIds: [],
     boardsById: {
       [boardId]: {
         id: boardId,

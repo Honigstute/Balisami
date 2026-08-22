@@ -294,6 +294,74 @@ describe('document command dispatcher', () => {
     expect(linked.error.message).toContain(DOCUMENT_FIXTURE_IDS.child);
   });
 
+  it('moves a complete board to durable trash and restores its exact active position', () => {
+    const document = createTwoBoardDocument();
+
+    const trashed = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.trashBoard,
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+      toIndex: 0,
+    });
+
+    expect(trashed.document.boardIds).toEqual([SECONDARY_BOARD_ID]);
+    expect(trashed.document.trashedBoardIds).toEqual([DOCUMENT_FIXTURE_IDS.board]);
+    expect(trashed.document.boardsById).toBe(document.boardsById);
+    expect(trashed.document.elementsById).toBe(document.elementsById);
+    expect(trashed.document.assetsById).toBe(document.assetsById);
+    expect(trashed.document.boardsById[DOCUMENT_FIXTURE_IDS.board]).toEqual(
+      document.boardsById[DOCUMENT_FIXTURE_IDS.board],
+    );
+    expect(trashed.label).toBe('Move board “Main wireframe” to trash');
+    expect(trashed.inverse).toEqual({
+      type: DOCUMENT_COMMAND_TYPES.restoreBoard,
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+      toIndex: 0,
+    });
+    expectInverseRestores(document, trashed);
+
+    const restored = expectApplied(trashed.document, trashed.inverse);
+    expect(restored.label).toBe('Restore board “Main wireframe”');
+    expect(restored.inverse).toEqual({
+      type: DOCUMENT_COMMAND_TYPES.trashBoard,
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+      toIndex: 0,
+    });
+  });
+
+  it('protects the final active board and validates both trash insertion orders', () => {
+    const oneBoard = parseFixture(createValidProjectDocumentInput());
+    const finalBoard = expectFailure(oneBoard, {
+      type: DOCUMENT_COMMAND_TYPES.trashBoard,
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+      toIndex: 0,
+    });
+    expect(finalBoard.error).toMatchObject({ code: 'conflict' });
+
+    const twoBoards = createTwoBoardDocument();
+    expectFailure(twoBoards, {
+      type: DOCUMENT_COMMAND_TYPES.trashBoard,
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+      toIndex: 1,
+    });
+    expectFailure(twoBoards, {
+      type: DOCUMENT_COMMAND_TYPES.restoreBoard,
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+      toIndex: 0,
+    });
+
+    const trashed = expectApplied(twoBoards, {
+      type: DOCUMENT_COMMAND_TYPES.trashBoard,
+      boardId: SECONDARY_BOARD_ID,
+      toIndex: 0,
+    });
+    const invalidRestore = expectFailure(trashed.document, {
+      type: DOCUMENT_COMMAND_TYPES.restoreBoard,
+      boardId: SECONDARY_BOARD_ID,
+      toIndex: 2,
+    });
+    expect(invalidRestore.error).toMatchObject({ code: 'out-of-range' });
+  });
+
   it('returns not-found without mutation for commands targeting an absent board', () => {
     const document = parseFixture(createValidProjectDocumentInput());
 
@@ -301,6 +369,16 @@ describe('document command dispatcher', () => {
       {
         type: DOCUMENT_COMMAND_TYPES.deleteBoard,
         boardId: SECONDARY_BOARD_ID,
+      },
+      {
+        type: DOCUMENT_COMMAND_TYPES.trashBoard,
+        boardId: SECONDARY_BOARD_ID,
+        toIndex: 0,
+      },
+      {
+        type: DOCUMENT_COMMAND_TYPES.restoreBoard,
+        boardId: SECONDARY_BOARD_ID,
+        toIndex: 0,
       },
       {
         type: DOCUMENT_COMMAND_TYPES.renameBoard,

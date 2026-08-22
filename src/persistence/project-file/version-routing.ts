@@ -1,10 +1,14 @@
-import { migrateProjectDocumentV1ToV2, type ProjectDocumentMigrationResult } from '../../domain';
+import {
+  migrateProjectDocumentV1ToV2,
+  migrateProjectDocumentV2ToV3,
+  type ProjectDocumentMigrationResult,
+} from '../../domain';
 
 import { PROJECT_FILE_FORMAT_VERSION } from './manifest';
 
 export interface ProjectFileMigrationStep {
   readonly fromVersion: number;
-  readonly migrateDocument: (input: unknown) => ProjectDocumentMigrationResult;
+  readonly migrateDocument: (input: unknown) => ProjectDocumentMigrationResult<unknown>;
   readonly toVersion: number;
 }
 
@@ -32,6 +36,11 @@ const PROJECT_FILE_MIGRATION_STEPS: readonly ProjectFileMigrationStep[] = Object
     fromVersion: 1,
     migrateDocument: migrateProjectDocumentV1ToV2,
     toVersion: 2,
+  }),
+  Object.freeze({
+    fromVersion: 2,
+    migrateDocument: migrateProjectDocumentV2ToV3,
+    toVersion: 3,
   }),
 ]);
 

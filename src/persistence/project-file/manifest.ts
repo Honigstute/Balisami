@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const PROJECT_FILE_FORMAT_ID = 'wireframe-project' as const;
-export const PROJECT_FILE_FORMAT_VERSION = 2 as const;
+export const PROJECT_FILE_FORMAT_VERSION = 3 as const;
 
 export const PROJECT_FILE_ENTRY_PATHS = Object.freeze({
   assetDirectory: 'assets/sha256/',
@@ -20,11 +20,16 @@ export const ProjectFileManifestV1Schema = ProjectFileManifestBaseSchema.extend(
 }).readonly();
 
 export const ProjectFileManifestV2Schema = ProjectFileManifestBaseSchema.extend({
+  formatVersion: z.literal(2),
+}).readonly();
+
+export const ProjectFileManifestV3Schema = ProjectFileManifestBaseSchema.extend({
   formatVersion: z.literal(PROJECT_FILE_FORMAT_VERSION),
 }).readonly();
 
 export type ProjectFileManifestV1 = z.infer<typeof ProjectFileManifestV1Schema>;
 export type ProjectFileManifestV2 = z.infer<typeof ProjectFileManifestV2Schema>;
+export type ProjectFileManifestV3 = z.infer<typeof ProjectFileManifestV3Schema>;
 
 export const PROJECT_FILE_MANIFEST_V1: ProjectFileManifestV1 = ProjectFileManifestV1Schema.parse({
   format: PROJECT_FILE_FORMAT_ID,
@@ -34,6 +39,13 @@ export const PROJECT_FILE_MANIFEST_V1: ProjectFileManifestV1 = ProjectFileManife
 });
 
 export const PROJECT_FILE_MANIFEST_V2: ProjectFileManifestV2 = ProjectFileManifestV2Schema.parse({
+  format: PROJECT_FILE_FORMAT_ID,
+  formatVersion: 2,
+  documentEntry: PROJECT_FILE_ENTRY_PATHS.document,
+  assetDirectory: PROJECT_FILE_ENTRY_PATHS.assetDirectory,
+});
+
+export const PROJECT_FILE_MANIFEST_V3: ProjectFileManifestV3 = ProjectFileManifestV3Schema.parse({
   format: PROJECT_FILE_FORMAT_ID,
   formatVersion: PROJECT_FILE_FORMAT_VERSION,
   documentEntry: PROJECT_FILE_ENTRY_PATHS.document,

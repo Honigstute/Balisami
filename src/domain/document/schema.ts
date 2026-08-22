@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { AssetIdSchema, BoardIdSchema, ElementIdSchema, ProjectIdSchema } from './ids';
 
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 2 as const;
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 3 as const;
 
 export const DocumentTitleSchema = z.string().trim().min(1).max(120);
 const PropertyKeySchema = z
@@ -120,6 +120,7 @@ export const ProjectDocumentShapeSchema = z
     id: ProjectIdSchema,
     name: DocumentTitleSchema,
     boardIds: z.array(BoardIdSchema).readonly(),
+    trashedBoardIds: z.array(BoardIdSchema).readonly(),
     boardsById: z.record(BoardIdSchema, BoardSchema).readonly(),
     elementsById: z.record(ElementIdSchema, ElementNodeSchema).readonly(),
     assetsById: z.record(AssetIdSchema, AssetReferenceSchema).readonly(),

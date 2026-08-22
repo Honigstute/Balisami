@@ -83,6 +83,27 @@ describe('project document schema', () => {
     expect(parseProjectDocument(input)).toMatchObject({ ok: true });
   });
 
+  it('partitions every board between active order and durable trash', () => {
+    const trashed = createValidProjectDocumentInput();
+    trashed.boardIds = [];
+    trashed.trashedBoardIds = [DOCUMENT_FIXTURE_IDS.board];
+    expect(parseProjectDocument(trashed)).toMatchObject({ ok: true });
+
+    const competingOwners = createValidProjectDocumentInput();
+    competingOwners.trashedBoardIds = [DOCUMENT_FIXTURE_IDS.board];
+    expect(issuePaths(expectFailure(competingOwners))).toContain('trashedBoardIds.0');
+
+    const unowned = createValidProjectDocumentInput();
+    unowned.boardIds = [];
+    expect(issuePaths(expectFailure(unowned))).toContain(
+      `boardsById.${DOCUMENT_FIXTURE_IDS.board}`,
+    );
+
+    const missing = createValidProjectDocumentInput();
+    missing.trashedBoardIds = ['board_missing01'];
+    expect(issuePaths(expectFailure(missing))).toContain('trashedBoardIds.0');
+  });
+
   it('rejects unstable IDs, non-finite geometry, unsafe properties, and UI-only fields', () => {
     const input = createValidProjectDocumentInput();
     input.id = 'project-too-short';

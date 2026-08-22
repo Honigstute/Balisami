@@ -66,6 +66,7 @@ const createHitTestFixture = (elementCount: number) => {
     id: projectId,
     name: 'Hit-test performance fixture',
     boardIds: [boardId],
+    trashedBoardIds: [],
     boardsById: {
       [boardId]: { id: boardId, name: 'Dense board', note: { text: '' }, childIds },
     },

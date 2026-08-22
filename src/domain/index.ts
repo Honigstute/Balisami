@@ -15,6 +15,7 @@ export {
   DocumentCommandSchema,
   ElementCommandSchema,
   GroupElementsCommandSchema,
+  RestoreBoardCommandSchema,
   RenameBoardCommandSchema,
   ReorderBoardCommandSchema,
   ReorderElementCommandSchema,
@@ -24,6 +25,7 @@ export {
   SetElementLockedCommandSchema,
   SetElementPropertiesCommandSchema,
   UngroupElementCommandSchema,
+  TrashBoardCommandSchema,
   type BoardCommand,
   type CreateBoardCommand,
   type CreateElementCommand,
@@ -32,6 +34,7 @@ export {
   type DocumentCommand,
   type ElementCommand,
   type GroupElementsCommand,
+  type RestoreBoardCommand,
   type RenameBoardCommand,
   type ReorderBoardCommand,
   type ReorderElementCommand,
@@ -41,6 +44,7 @@ export {
   type SetElementLockedCommand,
   type SetElementPropertiesCommand,
   type UngroupElementCommand,
+  type TrashBoardCommand,
 } from './commands/schema';
 export {
   containsControlHitPoint,
@@ -107,6 +111,7 @@ export {
 export { createEmptyProjectDocument, type EmptyProjectDocumentInput } from './document/factory';
 export {
   migrateProjectDocumentV1ToV2,
+  migrateProjectDocumentV2ToV3,
   type ProjectDocumentMigrationResult,
 } from './document/migrations';
 export { ElementOwnerSchema, type ElementOwner } from './document/owner';
@@ -154,6 +159,7 @@ export {
   type WorldRect,
 } from './document/schema';
 export { ProjectDocumentV1ShapeSchema } from './document/schema-v1';
+export { ProjectDocumentV2ShapeSchema, type ProjectDocumentV2Shape } from './document/schema-v2';
 export {
   MAX_DOCUMENT_VALIDATION_ISSUES,
   ProjectDocumentSchema,

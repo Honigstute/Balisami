@@ -56,6 +56,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
   id: DOCUMENT_FIXTURE_IDS.project,
   name: 'Foundation fixture',
   boardIds: [DOCUMENT_FIXTURE_IDS.board],
+  trashedBoardIds: [],
   boardsById: {
     [DOCUMENT_FIXTURE_IDS.board]: {
       id: DOCUMENT_FIXTURE_IDS.board,

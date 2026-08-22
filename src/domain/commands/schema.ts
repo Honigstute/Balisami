@@ -15,9 +15,11 @@ import {
 export const DOCUMENT_COMMAND_TYPES = Object.freeze({
   createBoard: 'board.create',
   deleteBoard: 'board.delete',
+  restoreBoard: 'board.restore',
   reorderBoard: 'board.reorder',
   renameBoard: 'board.rename',
   setBoardNote: 'board.set-note',
+  trashBoard: 'board.trash',
   createElement: 'element.create',
   deleteElement: 'element.delete',
   groupElements: 'element.group',
@@ -96,6 +98,22 @@ export const DeleteBoardCommandSchema = z
   .strictObject({
     type: z.literal(DOCUMENT_COMMAND_TYPES.deleteBoard),
     boardId: BoardIdSchema,
+  })
+  .readonly();
+
+export const TrashBoardCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.trashBoard),
+    boardId: BoardIdSchema,
+    toIndex: z.number().int().nonnegative(),
+  })
+  .readonly();
+
+export const RestoreBoardCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.restoreBoard),
+    boardId: BoardIdSchema,
+    toIndex: z.number().int().nonnegative(),
   })
   .readonly();
 
@@ -213,9 +231,11 @@ export const UngroupElementCommandSchema = z
 const BOARD_COMMAND_SCHEMAS = [
   CreateBoardCommandSchema,
   DeleteBoardCommandSchema,
+  RestoreBoardCommandSchema,
   ReorderBoardCommandSchema,
   RenameBoardCommandSchema,
   SetBoardNoteCommandSchema,
+  TrashBoardCommandSchema,
 ] as const;
 
 const ELEMENT_COMMAND_SCHEMAS = [
@@ -241,9 +261,11 @@ export const DocumentCommandSchema = z.discriminatedUnion('type', [
 
 export type CreateBoardCommand = z.infer<typeof CreateBoardCommandSchema>;
 export type DeleteBoardCommand = z.infer<typeof DeleteBoardCommandSchema>;
+export type RestoreBoardCommand = z.infer<typeof RestoreBoardCommandSchema>;
 export type ReorderBoardCommand = z.infer<typeof ReorderBoardCommandSchema>;
 export type RenameBoardCommand = z.infer<typeof RenameBoardCommandSchema>;
 export type SetBoardNoteCommand = z.infer<typeof SetBoardNoteCommandSchema>;
+export type TrashBoardCommand = z.infer<typeof TrashBoardCommandSchema>;
 export type CreateElementCommand = z.infer<typeof CreateElementCommandSchema>;
 export type DeleteElementCommand = z.infer<typeof DeleteElementCommandSchema>;
 export type GroupElementsCommand = z.infer<typeof GroupElementsCommandSchema>;

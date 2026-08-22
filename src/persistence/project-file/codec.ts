@@ -18,9 +18,10 @@ import {
   isProjectAssetEntryPath,
   PROJECT_FILE_ENTRY_PATHS,
   PROJECT_FILE_FORMAT_ID,
-  PROJECT_FILE_MANIFEST_V2,
+  PROJECT_FILE_MANIFEST_V3,
   ProjectFileManifestV1Schema,
   ProjectFileManifestV2Schema,
+  ProjectFileManifestV3Schema,
 } from './manifest';
 import { routeProjectFileVersion, type ProjectFileVersionRouteResult } from './version-routing';
 
@@ -251,10 +252,13 @@ const decodeManifest = (
       entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
     });
   }
-  const parsed =
+  const manifestSchema =
     versionRoute.sourceVersion === 1
-      ? ProjectFileManifestV1Schema.safeParse(decoded.value)
-      : ProjectFileManifestV2Schema.safeParse(decoded.value);
+      ? ProjectFileManifestV1Schema
+      : versionRoute.sourceVersion === 2
+        ? ProjectFileManifestV2Schema
+        : ProjectFileManifestV3Schema;
+  const parsed = manifestSchema.safeParse(decoded.value);
   if (!parsed.success) {
     return fail({
       code: 'invalid-manifest',
@@ -372,7 +376,7 @@ export const encodeProjectFileEnvelope = (
     }
   }
 
-  const manifestBytes = encodeCanonicalJson(PROJECT_FILE_MANIFEST_V2);
+  const manifestBytes = encodeCanonicalJson(PROJECT_FILE_MANIFEST_V3);
   const documentBytes = encodeCanonicalJson(parsedDocument.value);
   for (const [path, bytes] of [
     [PROJECT_FILE_ENTRY_PATHS.manifest, manifestBytes],

@@ -104,6 +104,7 @@ const createSceneFixtureDocument = (): {
     id: projectId,
     name: 'Scene visual fixture',
     boardIds: [boardId],
+    trashedBoardIds: [],
     boardsById: {
       [boardId]: {
         id: boardId,
@@ -206,6 +207,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
     id: projectId,
     name: 'Alpha visual fixture',
     boardIds: [boardId],
+    trashedBoardIds: [],
     boardsById: {
       [boardId]: {
         id: boardId,

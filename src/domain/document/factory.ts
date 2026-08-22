@@ -22,6 +22,7 @@ export const createEmptyProjectDocument = (
     id: input.projectId,
     name: projectName,
     boardIds: [input.boardId],
+    trashedBoardIds: [],
     boardsById: {
       [String(input.boardId)]: {
         id: input.boardId,

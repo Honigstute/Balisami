@@ -33,11 +33,24 @@ const reportDuplicates = (
 
 const validateOrderedBoards = (document: ProjectDocumentShape, addIssue: AddIssue): void => {
   reportDuplicates(document.boardIds, ['boardIds'], 'board ID', addIssue);
-  const orderedIds = new Set<string>(document.boardIds);
+  reportDuplicates(document.trashedBoardIds, ['trashedBoardIds'], 'trashed board ID', addIssue);
+  const activeIds = new Set<string>(document.boardIds);
+  const ownedIds = new Set<string>([...document.boardIds, ...document.trashedBoardIds]);
 
   document.boardIds.forEach((boardId, index) => {
     if (!hasOwn(document.boardsById, boardId)) {
       addIssue(['boardIds', index], `Board '${boardId}' does not exist in boardsById.`);
+    }
+  });
+  document.trashedBoardIds.forEach((boardId, index) => {
+    if (!hasOwn(document.boardsById, boardId)) {
+      addIssue(
+        ['trashedBoardIds', index],
+        `Trashed board '${boardId}' does not exist in boardsById.`,
+      );
+    }
+    if (activeIds.has(boardId)) {
+      addIssue(['trashedBoardIds', index], `Board '${boardId}' cannot be both active and trashed.`);
     }
   });
 
@@ -48,8 +61,11 @@ const validateOrderedBoards = (document: ProjectDocumentShape, addIssue: AddIssu
         `Board map key '${key}' does not match record ID '${board.id}'.`,
       );
     }
-    if (!orderedIds.has(key)) {
-      addIssue(['boardsById', key], `Board map key '${key}' is not present in boardIds.`);
+    if (!ownedIds.has(key)) {
+      addIssue(
+        ['boardsById', key],
+        `Board map key '${key}' is not present in boardIds or trashedBoardIds.`,
+      );
     }
   }
 };

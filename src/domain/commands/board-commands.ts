@@ -7,12 +7,16 @@ import {
   type BoardCommand,
   type CreateBoardCommand,
   type DeleteBoardCommand,
+  type RestoreBoardCommand,
   type RenameBoardCommand,
   type ReorderBoardCommand,
   type SetBoardNoteCommand,
+  type TrashBoardCommand,
 } from './schema';
 
-type BoardDocumentPatch = Partial<Pick<ProjectDocument, 'boardIds' | 'boardsById'>>;
+type BoardDocumentPatch = Partial<
+  Pick<ProjectDocument, 'boardIds' | 'boardsById' | 'trashedBoardIds'>
+>;
 
 const createBoardRevision = (
   document: ProjectDocument,
@@ -120,6 +124,95 @@ const applyDeleteBoard = (
       index,
     },
     label: `Delete board “${board.name}”`,
+  };
+};
+
+const applyTrashBoard = (
+  document: ProjectDocument,
+  command: TrashBoardCommand,
+): CommandApplication => {
+  const board = getBoard(document, command.boardId);
+  const activeIndex = document.boardIds.indexOf(command.boardId);
+  if (board === undefined || activeIndex < 0) {
+    return {
+      ok: false,
+      code: 'not-found',
+      message: `Active board '${command.boardId}' does not exist.`,
+    };
+  }
+  if (document.boardIds.length <= 1) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: 'The final active board cannot be moved to trash.',
+    };
+  }
+  if (command.toIndex > document.trashedBoardIds.length) {
+    return {
+      ok: false,
+      code: 'out-of-range',
+      message: `Trash insertion index ${String(command.toIndex)} exceeds ${String(document.trashedBoardIds.length)}.`,
+    };
+  }
+
+  const boardIds = document.boardIds.filter((boardId) => boardId !== command.boardId);
+  const trashedBoardIds = [...document.trashedBoardIds];
+  trashedBoardIds.splice(command.toIndex, 0, command.boardId);
+
+  return {
+    ok: true,
+    changed: true,
+    candidate: createBoardRevision(document, {
+      boardIds: Object.freeze(boardIds),
+      trashedBoardIds: Object.freeze(trashedBoardIds),
+    }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.restoreBoard,
+      boardId: command.boardId,
+      toIndex: activeIndex,
+    },
+    label: `Move board “${board.name}” to trash`,
+  };
+};
+
+const applyRestoreBoard = (
+  document: ProjectDocument,
+  command: RestoreBoardCommand,
+): CommandApplication => {
+  const board = getBoard(document, command.boardId);
+  const trashIndex = document.trashedBoardIds.indexOf(command.boardId);
+  if (board === undefined || trashIndex < 0) {
+    return {
+      ok: false,
+      code: 'not-found',
+      message: `Trashed board '${command.boardId}' does not exist.`,
+    };
+  }
+  if (command.toIndex > document.boardIds.length) {
+    return {
+      ok: false,
+      code: 'out-of-range',
+      message: `Board restore index ${String(command.toIndex)} exceeds ${String(document.boardIds.length)}.`,
+    };
+  }
+
+  const boardIds = [...document.boardIds];
+  boardIds.splice(command.toIndex, 0, command.boardId);
+  const trashedBoardIds = document.trashedBoardIds.filter((boardId) => boardId !== command.boardId);
+
+  return {
+    ok: true,
+    changed: true,
+    candidate: createBoardRevision(document, {
+      boardIds: Object.freeze(boardIds),
+      trashedBoardIds: Object.freeze(trashedBoardIds),
+    }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.trashBoard,
+      boardId: command.boardId,
+      toIndex: trashIndex,
+    },
+    label: `Restore board “${board.name}”`,
   };
 };
 
@@ -248,12 +341,16 @@ export const applyBoardCommand = (
       return applyCreateBoard(document, command);
     case DOCUMENT_COMMAND_TYPES.deleteBoard:
       return applyDeleteBoard(document, command);
+    case DOCUMENT_COMMAND_TYPES.restoreBoard:
+      return applyRestoreBoard(document, command);
     case DOCUMENT_COMMAND_TYPES.reorderBoard:
       return applyReorderBoard(document, command);
     case DOCUMENT_COMMAND_TYPES.renameBoard:
       return applyRenameBoard(document, command);
     case DOCUMENT_COMMAND_TYPES.setBoardNote:
       return applySetBoardNote(document, command);
+    case DOCUMENT_COMMAND_TYPES.trashBoard:
+      return applyTrashBoard(document, command);
     default:
       return assertNever(command);
   }
