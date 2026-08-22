@@ -1,7 +1,12 @@
 import { useLayoutEffect, useRef, type DragEvent, type ReactNode } from 'react';
 
-import type { ControlTypeId } from '../../domain';
-import { CONTROL_DRAG_MIME_TYPE, parseDraggedControlType } from '../controls/control-drag-transfer';
+import type { ComponentId, ControlTypeId } from '../../domain';
+import {
+  COMPONENT_DRAG_MIME_TYPE,
+  CONTROL_DRAG_MIME_TYPE,
+  parseDraggedComponentId,
+  parseDraggedControlType,
+} from '../controls/control-drag-transfer';
 
 import type { ControlDrawInteraction } from './control-draw-interaction';
 import type { KeyboardNudgeInteraction } from './keyboard-nudge-interaction';
@@ -36,6 +41,7 @@ interface ViewportSceneProps {
   readonly onGroupSelection?: () => boolean;
   readonly onImportImageAt?: (file: File, point: WorldPoint) => void;
   readonly onInsertControlAt?: (controlType: ControlTypeId, point: WorldPoint) => boolean;
+  readonly onInsertComponentAt?: (componentId: ComponentId, point: WorldPoint) => boolean;
   readonly onLockSelection?: () => boolean;
   readonly onPasteSelection?: () => boolean;
   readonly onSendSelectionBackward?: () => boolean;
@@ -94,6 +100,7 @@ export const ViewportScene = ({
   onGroupSelection,
   onImportImageAt,
   onInsertControlAt,
+  onInsertComponentAt,
   onLockSelection,
   onPasteSelection,
   onSendSelectionBackward,
@@ -222,8 +229,10 @@ export const ViewportScene = ({
     const transferTypes = Array.from(event.dataTransfer.types);
     const hasControl =
       onInsertControlAt !== undefined && transferTypes.includes(CONTROL_DRAG_MIME_TYPE);
+    const hasComponent =
+      onInsertComponentAt !== undefined && transferTypes.includes(COMPONENT_DRAG_MIME_TYPE);
     const hasFiles = onImportImageAt !== undefined && transferTypes.includes('Files');
-    if (!hasControl && !hasFiles) {
+    if (!hasControl && !hasComponent && !hasFiles) {
       return;
     }
     event.preventDefault();
@@ -233,12 +242,16 @@ export const ViewportScene = ({
   const handleControlDrop = (event: DragEvent<HTMLDivElement>): void => {
     const root = rootRef.current;
     const controlType = parseDraggedControlType(event.dataTransfer.getData(CONTROL_DRAG_MIME_TYPE));
+    const componentId = parseDraggedComponentId(
+      event.dataTransfer.getData(COMPONENT_DRAG_MIME_TYPE),
+    );
     const file = event.dataTransfer.files?.item(0) ?? undefined;
     if (
       root === null ||
-      (controlType === undefined && file === undefined) ||
+      (controlType === undefined && componentId === undefined && file === undefined) ||
       (controlType !== undefined && onInsertControlAt === undefined) ||
-      (controlType === undefined && onImportImageAt === undefined)
+      (componentId !== undefined && onInsertComponentAt === undefined) ||
+      (controlType === undefined && componentId === undefined && onImportImageAt === undefined)
     ) {
       return;
     }
@@ -257,6 +270,8 @@ export const ViewportScene = ({
     const worldPoint = viewportPointToWorld(viewportPoint, camera.getTransformSnapshot());
     if (controlType !== undefined) {
       onInsertControlAt?.(controlType, worldPoint);
+    } else if (componentId !== undefined) {
+      onInsertComponentAt?.(componentId, worldPoint);
     } else if (file !== undefined) {
       onImportImageAt?.(file, worldPoint);
     }

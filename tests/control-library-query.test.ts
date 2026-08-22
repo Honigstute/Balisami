@@ -15,6 +15,7 @@ describe('control library query', () => {
       'Assets',
       'Buttons',
       'Common',
+      'Components',
       'Containers',
       'Forms',
       'Text',

@@ -4,7 +4,7 @@ import {
   type ControlDefinition,
 } from '../../domain';
 
-export type ControlLibraryCategory = 'All' | ControlCategory;
+export type ControlLibraryCategory = 'All' | 'Components' | ControlCategory;
 
 export interface ControlLibraryQuery {
   readonly category?: ControlLibraryCategory;
@@ -19,7 +19,7 @@ interface RankedDefinition {
 const compareCodePoints = (first: string, second: string): number =>
   first < second ? -1 : first > second ? 1 : 0;
 
-const normalizeSearchText = (value: string): string =>
+export const normalizeControlLibrarySearchText = (value: string): string =>
   value
     .normalize('NFKD')
     .replaceAll(/[\u0300-\u036f]/g, '')
@@ -55,13 +55,13 @@ const rankDefinition = (
   }
   const tokens = normalizedQuery.split(' ');
   const sources = [
-    { value: normalizeSearchText(palette.label), weight: 0 },
+    { value: normalizeControlLibrarySearchText(palette.label), weight: 0 },
     ...definition.search.aliases.map((value) => ({
-      value: normalizeSearchText(value),
+      value: normalizeControlLibrarySearchText(value),
       weight: 5,
     })),
     ...definition.search.tags.map((value) => ({
-      value: normalizeSearchText(value),
+      value: normalizeControlLibrarySearchText(value),
       weight: 10,
     })),
   ];
@@ -92,7 +92,9 @@ export const listControlLibraryCategories = (): readonly ControlLibraryCategory[
   }
   return Object.freeze([
     'All',
-    ...[...categories].sort((first, second) => compareCodePoints(first, second)),
+    ...[...categories, 'Components' as const].sort((first, second) =>
+      compareCodePoints(first, second),
+    ),
   ]);
 };
 
@@ -101,7 +103,7 @@ export const queryControlLibrary = (
   input: ControlLibraryQuery = {},
 ): readonly ControlDefinition[] => {
   const category = input.category ?? 'All';
-  const normalizedQuery = normalizeSearchText(input.query ?? '');
+  const normalizedQuery = normalizeControlLibrarySearchText(input.query ?? '');
   const ranked: RankedDefinition[] = [];
   for (const definition of listPaletteControlSpecs()) {
     if (

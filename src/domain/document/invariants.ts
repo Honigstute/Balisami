@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 
-import { getControlSpec } from '../controls/control-spec';
+import { ComponentInstancePropertiesSchema } from '../controls/component-instance';
+import { CONTROL_TYPES, getControlSpec } from '../controls/control-spec';
 import { parseCustomIconReference } from '../controls/custom-icon-reference';
 import type { BoardId, ComponentId, ElementId } from './ids';
 import type { ProjectDocumentShape } from './schema';
@@ -307,6 +308,169 @@ const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: A
   }
 };
 
+const collectElementSubtreeIds = (
+  document: ProjectDocumentShape,
+  rootElementId: ElementId,
+): ReadonlySet<ElementId> => {
+  const ids = new Set<ElementId>();
+  const visit = (elementId: ElementId): void => {
+    if (ids.has(elementId)) {
+      return;
+    }
+    ids.add(elementId);
+    document.elementsById[elementId]?.childIds.forEach(visit);
+  };
+  visit(rootElementId);
+  return ids;
+};
+
+const validateComponentInstances = (document: ProjectDocumentShape, addIssue: AddIssue): void => {
+  for (const [elementKey, element] of Object.entries(document.elementsById)) {
+    if (element.controlType !== CONTROL_TYPES.componentInstance) {
+      continue;
+    }
+    if (element.childIds.length > 0) {
+      addIssue(
+        ['elementsById', elementKey, 'childIds'],
+        'Component instances cannot own persisted child elements.',
+      );
+    }
+
+    const parsed = ComponentInstancePropertiesSchema.safeParse(element.properties);
+    if (!parsed.success) {
+      continue;
+    }
+    const definition = document.componentsById[parsed.data.componentId];
+    if (definition === undefined) {
+      addIssue(
+        ['elementsById', elementKey, 'properties', 'componentId'],
+        `Component '${parsed.data.componentId}' does not exist.`,
+      );
+      continue;
+    }
+    const definitionElementIds = collectElementSubtreeIds(document, definition.rootElementId);
+    for (const [targetId, override] of Object.entries(parsed.data.overrides)) {
+      const targetElementId = targetId as ElementId;
+      const target = document.elementsById[targetElementId];
+      if (!definitionElementIds.has(targetElementId) || target === undefined) {
+        addIssue(
+          ['elementsById', elementKey, 'properties', 'overrides', targetId],
+          `Override target '${targetId}' is not owned by component '${definition.id}'.`,
+        );
+        continue;
+      }
+      if (
+        target.controlType === CONTROL_TYPES.componentInstance &&
+        (hasOwn(override, 'componentId') || hasOwn(override, 'overrides'))
+      ) {
+        addIssue(
+          ['elementsById', elementKey, 'properties', 'overrides', targetId],
+          'Nested component references and override maps cannot be overridden.',
+        );
+        continue;
+      }
+
+      const targetSpec = getControlSpec(target.controlType);
+      if (targetSpec === undefined) {
+        continue;
+      }
+      const mergedProperties = Object.freeze({ ...target.properties, ...override });
+      const merged = targetSpec.propertiesSchema.safeParse(mergedProperties);
+      if (!merged.success) {
+        for (const issue of merged.error.issues) {
+          addIssue(
+            [
+              'elementsById',
+              elementKey,
+              'properties',
+              'overrides',
+              targetId,
+              ...issue.path.map(String),
+            ],
+            issue.message,
+          );
+        }
+        continue;
+      }
+
+      for (const field of targetSpec.inspector.flatMap((section) => section.fields)) {
+        if (field.kind !== 'icon') {
+          continue;
+        }
+        const customAssetId = parseCustomIconReference(mergedProperties[field.property]);
+        if (customAssetId === undefined) {
+          continue;
+        }
+        const asset = document.assetsById[customAssetId];
+        if (asset === undefined || !asset.mediaType.startsWith('image/')) {
+          addIssue(
+            ['elementsById', elementKey, 'properties', 'overrides', targetId, field.property],
+            `Custom icon asset '${customAssetId}' must be an existing image.`,
+          );
+        }
+        if (!target.assetIds.includes(customAssetId) && !element.assetIds.includes(customAssetId)) {
+          addIssue(
+            ['elementsById', elementKey, 'assetIds'],
+            `Override custom icon asset '${customAssetId}' must be owned by the instance or definition element.`,
+          );
+        }
+      }
+    }
+  }
+};
+
+const validateAcyclicComponentGraph = (
+  document: ProjectDocumentShape,
+  addIssue: AddIssue,
+): void => {
+  const edgesByComponent = new Map<
+    ComponentId,
+    readonly Readonly<{ elementId: ElementId; targetId: ComponentId }>[]
+  >();
+  for (const componentId of document.componentIds) {
+    const definition = document.componentsById[componentId];
+    if (definition === undefined) {
+      continue;
+    }
+    const edges = [...collectElementSubtreeIds(document, definition.rootElementId)].flatMap(
+      (elementId) => {
+        const element = document.elementsById[elementId];
+        if (element?.controlType !== CONTROL_TYPES.componentInstance) {
+          return [];
+        }
+        const properties = ComponentInstancePropertiesSchema.safeParse(element.properties);
+        return properties.success &&
+          document.componentsById[properties.data.componentId] !== undefined
+          ? [Object.freeze({ elementId, targetId: properties.data.componentId })]
+          : [];
+      },
+    );
+    edgesByComponent.set(componentId, Object.freeze(edges));
+  }
+
+  const visited = new Set<ComponentId>();
+  const active = new Set<ComponentId>();
+  const visit = (componentId: ComponentId): void => {
+    if (visited.has(componentId)) {
+      return;
+    }
+    active.add(componentId);
+    for (const edge of edgesByComponent.get(componentId) ?? []) {
+      if (active.has(edge.targetId)) {
+        addIssue(
+          ['elementsById', edge.elementId, 'properties', 'componentId'],
+          `Component hierarchy contains a cycle through '${edge.targetId}'.`,
+        );
+        continue;
+      }
+      visit(edge.targetId);
+    }
+    active.delete(componentId);
+    visited.add(componentId);
+  };
+  document.componentIds.forEach(visit);
+};
+
 const validateOwnership = (document: ProjectDocumentShape, addIssue: AddIssue): void => {
   const ownersByElement = new Map<ElementId, string[]>();
 
@@ -408,6 +572,8 @@ export const addProjectDocumentInvariantIssues = (
   validateMapIdentity(document, addIssue);
   validateControlCapabilities(document, addIssue);
   validateElementReferences(document, addIssue);
+  validateComponentInstances(document, addIssue);
   validateOwnership(document, addIssue);
   validateAcyclicElementTree(document, addIssue);
+  validateAcyclicComponentGraph(document, addIssue);
 };

@@ -4,6 +4,7 @@ import {
   BoardIdSchema,
   ComponentIdSchema,
   CONTROL_TYPES,
+  ElementIdSchema,
   MAX_DOCUMENT_VALIDATION_ISSUES,
   FOUNDATION_CONTROL_TYPES,
   createCustomIconReference,
@@ -256,6 +257,117 @@ describe('project document schema', () => {
     expect(issuePaths(expectFailure(multiplyOwnedRoot))).toContain(
       `elementsById.${DOCUMENT_FIXTURE_IDS.group}`,
     );
+  });
+
+  it('validates component-instance references and property-only overrides', () => {
+    const componentId = ComponentIdSchema.parse('component_override01');
+    const instanceId = ElementIdSchema.parse('element_instance01');
+    const input = createValidProjectDocumentInput();
+    const instanceSpec = getControlSpec(CONTROL_TYPES.componentInstance);
+    if (instanceSpec === undefined) {
+      throw new Error('Component instance definition is missing.');
+    }
+    const buttonSpec = getControlSpec(CONTROL_TYPES.button);
+    if (buttonSpec === undefined) {
+      throw new Error('Button definition is missing.');
+    }
+    const definitionChild = getElement(input, DOCUMENT_FIXTURE_IDS.child);
+    definitionChild.controlType = CONTROL_TYPES.button;
+    definitionChild.controlVersion = buttonSpec.fileVersion;
+    definitionChild.properties = { iconId: null, text: 'Definition action' };
+    input.componentIds = [componentId];
+    input.componentsById[componentId] = {
+      id: componentId,
+      name: 'Reusable card',
+      rootElementId: DOCUMENT_FIXTURE_IDS.group,
+    };
+    getBoard(input, DOCUMENT_FIXTURE_IDS.board).childIds = [instanceId];
+    input.elementsById[instanceId] = {
+      id: instanceId,
+      controlType: CONTROL_TYPES.componentInstance,
+      controlVersion: instanceSpec.fileVersion,
+      frame: { x: 40, y: 50, width: 320, height: 180 },
+      locked: false,
+      properties: {
+        componentId,
+        overrides: {
+          [DOCUMENT_FIXTURE_IDS.child]: { text: 'Instance action' },
+        },
+      },
+      childIds: [],
+      assetIds: [],
+      link: null,
+    };
+
+    expect(parseProjectDocument(input)).toMatchObject({ ok: true });
+
+    const missingDefinition = structuredClone(input);
+    getElement(missingDefinition, instanceId).properties.componentId = 'component_missing01';
+    expect(issuePaths(expectFailure(missingDefinition))).toContain(
+      `elementsById.${instanceId}.properties.componentId`,
+    );
+
+    const outsideTarget = structuredClone(input);
+    getElement(outsideTarget, instanceId).properties.overrides = {
+      element_outside01: { text: 'Outside' },
+    };
+    expect(issuePaths(expectFailure(outsideTarget))).toContain(
+      `elementsById.${instanceId}.properties.overrides.element_outside01`,
+    );
+
+    const invalidMergedProperties = structuredClone(input);
+    getElement(invalidMergedProperties, instanceId).properties.overrides = {
+      [DOCUMENT_FIXTURE_IDS.child]: { text: 42 },
+    };
+    expect(
+      issuePaths(expectFailure(invalidMergedProperties)).some((path) =>
+        path.startsWith(
+          `elementsById.${instanceId}.properties.overrides.${DOCUMENT_FIXTURE_IDS.child}`,
+        ),
+      ),
+    ).toBe(true);
+
+    const persistedChild = structuredClone(input);
+    getElement(persistedChild, instanceId).childIds = [DOCUMENT_FIXTURE_IDS.child];
+    expect(issuePaths(expectFailure(persistedChild))).toContain(
+      `elementsById.${instanceId}.childIds`,
+    );
+  });
+
+  it('rejects nested component cycles at the document boundary', () => {
+    const componentId = ComponentIdSchema.parse('component_cycle0001');
+    const nestedInstanceId = ElementIdSchema.parse('element_nestedinst1');
+    const input = createValidProjectDocumentInput();
+    const instanceSpec = getControlSpec(CONTROL_TYPES.componentInstance);
+    if (instanceSpec === undefined) {
+      throw new Error('Component instance definition is missing.');
+    }
+    input.componentIds = [componentId];
+    input.componentsById[componentId] = {
+      id: componentId,
+      name: 'Recursive component',
+      rootElementId: DOCUMENT_FIXTURE_IDS.group,
+    };
+    getBoard(input, DOCUMENT_FIXTURE_IDS.board).childIds = [];
+    getElement(input, DOCUMENT_FIXTURE_IDS.group).childIds = [nestedInstanceId];
+    delete input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    input.assetsById = {};
+    input.elementsById[nestedInstanceId] = {
+      id: nestedInstanceId,
+      controlType: CONTROL_TYPES.componentInstance,
+      controlVersion: instanceSpec.fileVersion,
+      frame: { x: 10, y: 10, width: 120, height: 80 },
+      locked: false,
+      properties: { componentId, overrides: {} },
+      childIds: [],
+      assetIds: [],
+      link: null,
+    };
+
+    const result = expectFailure(input);
+
+    expect(issuePaths(result)).toContain(`elementsById.${nestedInstanceId}.properties.componentId`);
+    expect(result.issues.some((issue) => issue.message.includes('Component hierarchy'))).toBe(true);
   });
 
   it('rejects element and asset records stored under competing IDs', () => {

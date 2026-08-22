@@ -2,6 +2,7 @@ import type { ProjectDocument } from '../document/validation';
 import type { CommandApplication } from './application';
 import { applyAssetCommand } from './asset-commands';
 import { applyBoardCommand } from './board-commands';
+import { applyComponentCommand } from './component-commands';
 import { applyElementCommand } from './element-commands';
 import { DOCUMENT_COMMAND_TYPES, type DocumentCommand } from './schema';
 
@@ -28,6 +29,15 @@ export const applyDocumentCommand = (
     case DOCUMENT_COMMAND_TYPES.selectBoardVersion:
     case DOCUMENT_COMMAND_TYPES.trashBoard:
       return applyBoardCommand(document, command);
+    case DOCUMENT_COMMAND_TYPES.createComponent:
+    case DOCUMENT_COMMAND_TYPES.convertGroupToComponent:
+    case DOCUMENT_COMMAND_TYPES.detachComponentInstance:
+    case DOCUMENT_COMMAND_TYPES.deleteComponent:
+    case DOCUMENT_COMMAND_TYPES.renameComponent:
+    case DOCUMENT_COMMAND_TYPES.reorderComponent:
+    case DOCUMENT_COMMAND_TYPES.restoreComponentInstance:
+    case DOCUMENT_COMMAND_TYPES.restoreGroupFromComponent:
+      return applyComponentCommand(document, command);
     case DOCUMENT_COMMAND_TYPES.createElement:
     case DOCUMENT_COMMAND_TYPES.deleteElement:
     case DOCUMENT_COMMAND_TYPES.groupElements:

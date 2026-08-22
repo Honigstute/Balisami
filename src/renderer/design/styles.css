@@ -1554,6 +1554,15 @@ p {
   font-size: var(--font-size-caption);
 }
 
+.inspector-override-field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.inspector-override-field .app-button {
+  justify-self: end;
+}
+
 .notes-placeholder {
   min-height: calc(var(--space-6) * 3);
   padding: var(--space-3);

@@ -73,6 +73,7 @@ describe('visual conformance fixture contract', () => {
       'viewportSelectionZoom',
     );
     expect(getRequestedVisualFixture('?visualFixture=mvpAlpha')).toBe('mvpAlpha');
+    expect(getRequestedVisualFixture('?visualFixture=components')).toBe('components');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -167,6 +168,35 @@ describe('visual conformance fixture contract', () => {
     expect(document.querySelector('.app-popover')?.parentElement).not.toBe(
       view.container.querySelector('[data-shell-region="inspector"]'),
     );
+  });
+
+  it('renders reusable instances, overrides, component shelf, and inspector in one stable shell', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('components');
+
+    expect(screen.getByRole('heading', { name: 'Reusable Card' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Definition name' })).toHaveValue('Reusable Card');
+    expect(screen.getByRole('button', { name: 'Break Apart' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Update Definition' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Insert Reusable Card' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(view.container.querySelectorAll('[data-control-visual="button"]')).toHaveLength(3);
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
   it('renders the registry-backed checkbox scene and inspector schema', async () => {

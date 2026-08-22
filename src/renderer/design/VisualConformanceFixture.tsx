@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   AssetIdSchema,
   BoardIdSchema,
+  ComponentIdSchema,
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
@@ -23,6 +24,7 @@ import {
   PROJECT_WORKFLOW_ALPHA_LAYOUT,
 } from '../../shared/project-workflow-alpha';
 import { ControlInspector } from '../controls/ControlInspector';
+import { listControlLibraryCategories } from '../controls/control-library-query';
 import { ControlShelf } from '../controls/ControlShelf';
 import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { DocumentScene } from '../editor/DocumentScene';
@@ -209,6 +211,108 @@ const createSceneFixtureDocument = (): {
     groupId,
     selectedId: buttonId,
   });
+};
+
+const createComponentFixtureDocument = (): {
+  readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
+  readonly componentId: ReturnType<typeof ComponentIdSchema.parse>;
+  readonly document: ProjectDocument;
+  readonly selectedId: ReturnType<typeof ElementIdSchema.parse>;
+} => {
+  const projectId = ProjectIdSchema.parse('project_visualcomponent');
+  const boardId = BoardIdSchema.parse('board_visualcomponent');
+  const componentId = ComponentIdSchema.parse('component_visualcard');
+  const rootId = ElementIdSchema.parse('element_visualcomproot');
+  const titleId = ElementIdSchema.parse('element_visualcomptitle');
+  const buttonId = ElementIdSchema.parse('element_visualcompbutton');
+  const selectedId = ElementIdSchema.parse('element_visualcompinst1');
+  const secondInstanceId = ElementIdSchema.parse('element_visualcompinst2');
+  const result = parseProjectDocument({
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
+    id: projectId,
+    name: 'Component visual fixture',
+    boardIds: [boardId],
+    componentIds: [componentId],
+    trashedBoardIds: [],
+    boardsById: {
+      [boardId]: {
+        id: boardId,
+        name: 'Components',
+        note: { text: '' },
+        childIds: [selectedId, secondInstanceId],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+    },
+    componentsById: {
+      [componentId]: { id: componentId, name: 'Reusable Card', rootElementId: rootId },
+    },
+    elementsById: {
+      [rootId]: {
+        id: rootId,
+        controlType: CONTROL_TYPES.group,
+        controlVersion: requireControlVersion(CONTROL_TYPES.group),
+        frame: { x: 0, y: 0, width: 300, height: 160 },
+        locked: false,
+        properties: {},
+        childIds: [titleId, buttonId],
+        assetIds: [],
+        link: null,
+      },
+      [titleId]: {
+        id: titleId,
+        controlType: CONTROL_TYPES.textLabel,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textLabel),
+        frame: { x: 24, y: 24, width: 220, height: 28 },
+        locked: false,
+        properties: { text: 'Definition title' },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [buttonId]: {
+        id: buttonId,
+        controlType: CONTROL_TYPES.button,
+        controlVersion: requireControlVersion(CONTROL_TYPES.button),
+        frame: { x: 24, y: 88, width: 150, height: 44 },
+        locked: false,
+        properties: { iconId: 'arrow-right', text: 'Definition action' },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [selectedId]: {
+        id: selectedId,
+        controlType: CONTROL_TYPES.componentInstance,
+        controlVersion: requireControlVersion(CONTROL_TYPES.componentInstance),
+        frame: { x: 70, y: 90, width: 300, height: 160 },
+        locked: false,
+        properties: {
+          componentId,
+          overrides: { [buttonId]: { text: 'Instance action' } },
+        },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+      [secondInstanceId]: {
+        id: secondInstanceId,
+        controlType: CONTROL_TYPES.componentInstance,
+        controlVersion: requireControlVersion(CONTROL_TYPES.componentInstance),
+        frame: { x: 410, y: 90, width: 300, height: 160 },
+        locked: false,
+        properties: { componentId, overrides: {} },
+        childIds: [],
+        assetIds: [],
+        link: null,
+      },
+    },
+    assetsById: {},
+  });
+  if (!result.ok) {
+    throw new Error('The deterministic component visual fixture is invalid.');
+  }
+  return Object.freeze({ boardId, componentId, document: result.value, selectedId });
 };
 
 const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
@@ -916,6 +1020,99 @@ const SceneFixture = ({
   );
 };
 
+const ComponentCanvasFixture = () => {
+  const camera = useViewportCameraStore(0.85);
+  const [fixture] = useState(createComponentFixtureDocument);
+  const [editor] = useState(() => {
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const selection = new SelectionStore();
+    selection.selectOnly(fixture.selectedId);
+    return Object.freeze({ model, selection });
+  });
+  return (
+    <ViewportScene
+      camera={camera}
+      interactionChildren={
+        <SelectionOverlay camera={camera} model={editor.model} selection={editor.selection} />
+      }
+      worldChildren={
+        <DocumentScene
+          activeBoardId={fixture.boardId}
+          camera={camera}
+          document={fixture.document}
+          model={editor.model}
+        />
+      }
+    />
+  );
+};
+
+const ComponentInspectorFixture = () => {
+  const [fixture] = useState(createComponentFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const ComponentShelfFixture = () => {
+  const [fixture] = useState(createComponentFixtureDocument);
+  const component = fixture.document.componentsById[fixture.componentId];
+  if (component === undefined) throw new Error('The component shelf fixture is incomplete.');
+  return (
+    <ControlShelf
+      category="Components"
+      components={[component]}
+      onInsert={() => false}
+      onInsertComponent={() => false}
+      projectDocument={fixture.document}
+    />
+  );
+};
+
+const ComponentNavigatorFixture = () => {
+  const [fixture] = useState(createComponentFixtureDocument);
+  const [thumbnailStore] = useState(
+    () => new BoardThumbnailStore({ scheduler: createBrowserBoardThumbnailScheduler() }),
+  );
+  useEffect(() => {
+    thumbnailStore.generate(fixture.document);
+    return () => thumbnailStore.dispose();
+  }, [fixture.document, thumbnailStore]);
+  return (
+    <WireframeNavigator
+      activeBoardId={fixture.boardId}
+      document={fixture.document}
+      onCreateAlternate={() => true}
+      onDuplicateBoard={() => true}
+      onDuplicateAlternate={() => true}
+      onMergeAlternate={() => true}
+      onPromoteAlternate={() => true}
+      onRenameAlternate={() => true}
+      onRenameBoard={() => true}
+      onRequestTrashBoard={() => undefined}
+      onReorderBoard={() => true}
+      onRequestDiscardAlternate={() => undefined}
+      onRestoreBoard={() => true}
+      onSelectBoard={() => undefined}
+      onSelectVersion={() => true}
+      shortcutPlatform="darwin"
+      thumbnailStore={thumbnailStore}
+    />
+  );
+};
+
 const ViewportZoomFixture = ({
   platform,
   withSelection = false,
@@ -1223,21 +1420,28 @@ export const VisualConformanceFixture = ({
                                         inspector: <IconPickerInspectorFixture />,
                                         shelf: <ControlShelf onInsert={() => false} />,
                                       }
-                                    : fixture === 'registryControl'
+                                    : fixture === 'components'
                                       ? {
-                                          canvas: <SceneFixture state="registryControl" />,
-                                          inspector: <RegistryControlInspectorFixture />,
-                                          shelf: <ControlShelf onInsert={() => false} />,
+                                          canvas: <ComponentCanvasFixture />,
+                                          inspector: <ComponentInspectorFixture />,
+                                          navigator: <ComponentNavigatorFixture />,
+                                          shelf: <ComponentShelfFixture />,
                                         }
-                                      : fixture === 'controls'
-                                        ? { inspector: <ControlStates /> }
-                                        : fixture === 'feedback'
-                                          ? { canvas: <StaticRegionFailure /> }
-                                          : fixture === 'tooltip'
-                                            ? { canvas: <TooltipFixture /> }
-                                            : fixture === 'popover'
-                                              ? { canvas: <PopoverFixture /> }
-                                              : undefined;
+                                      : fixture === 'registryControl'
+                                        ? {
+                                            canvas: <SceneFixture state="registryControl" />,
+                                            inspector: <RegistryControlInspectorFixture />,
+                                            shelf: <ControlShelf onInsert={() => false} />,
+                                          }
+                                        : fixture === 'controls'
+                                          ? { inspector: <ControlStates /> }
+                                          : fixture === 'feedback'
+                                            ? { canvas: <StaticRegionFailure /> }
+                                            : fixture === 'tooltip'
+                                              ? { canvas: <TooltipFixture /> }
+                                              : fixture === 'popover'
+                                                ? { canvas: <PopoverFixture /> }
+                                                : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -1264,12 +1468,23 @@ export const VisualConformanceFixture = ({
         ? CONTROL_TYPES.checkbox
         : undefined;
   const inspectorTitle =
-    inspectorControlType === undefined
-      ? undefined
-      : getControlSpec(inspectorControlType)?.palette?.label;
+    fixture === 'components'
+      ? 'Reusable Card'
+      : inspectorControlType === undefined
+        ? undefined
+        : getControlSpec(inspectorControlType)?.palette?.label;
 
   return (
     <AppShell
+      {...(fixture === 'components'
+        ? {
+            controlCategoryNavigation: {
+              activeCategory: 'Components',
+              categories: listControlLibraryCategories(),
+              onSelectCategory: () => undefined,
+            },
+          }
+        : {})}
       {...(inspectorTitle === undefined ? {} : { inspectorTitle })}
       projectName={`Visual · ${fixture}`}
       projectOverlay={projectOverlay}

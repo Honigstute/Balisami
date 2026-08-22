@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   AssetIdSchema,
   BoardIdSchema,
+  ComponentIdSchema,
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
@@ -11,6 +12,7 @@ import {
   createCustomIconReference,
   createEmptyProjectDocument,
   dispatchDocumentCommand,
+  parseProjectDocument,
   type ControlTypeId,
 } from '../src/domain';
 import {
@@ -22,12 +24,17 @@ import {
 } from '../src/renderer/controls/ControlInspector';
 import type { ControlInspectorLinkUpdate } from '../src/renderer/controls/ControlLinkInspector';
 import { ControlShelf } from '../src/renderer/controls/ControlShelf';
-import { CONTROL_DRAG_MIME_TYPE } from '../src/renderer/controls/control-drag-transfer';
+import {
+  COMPONENT_DRAG_MIME_TYPE,
+  CONTROL_DRAG_MIME_TYPE,
+} from '../src/renderer/controls/control-drag-transfer';
+import { planComponentCreationFromGroup } from '../src/renderer/controls/component-creation';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
 import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
 import { DESIGN_TOKENS } from '../src/shared/design-tokens';
+import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
 const createControlDocument = (controlType = CONTROL_TYPES.button) => {
   const boardId = BoardIdSchema.parse('board_controlui');
@@ -62,6 +69,35 @@ const thumbnailTextMeasurementService: ControlTextMeasurementService = {
     lines: [text],
     width: text.length * fontSize * 0.5,
   }),
+};
+
+const createReusableComponentDocument = () => {
+  const parsed = parseProjectDocument(createValidProjectDocumentInput());
+  if (!parsed.ok) {
+    throw new Error('Reusable component UI fixture is invalid.');
+  }
+  const componentId = ComponentIdSchema.parse('component_controlui1');
+  const instanceId = ElementIdSchema.parse('element_controlinst1');
+  const definitionIds = [
+    ElementIdSchema.parse('element_controlroot1'),
+    ElementIdSchema.parse('element_controlchild'),
+  ] as const;
+  const plan = planComponentCreationFromGroup(
+    parsed.value,
+    DOCUMENT_FIXTURE_IDS.group,
+    componentId,
+    instanceId,
+    'Reusable card',
+    (_sourceId, index) => definitionIds[index],
+  );
+  if (plan === undefined) {
+    throw new Error('Reusable component UI fixture could not be planned.');
+  }
+  const converted = dispatchDocumentCommand(parsed.value, plan.commands[0]);
+  if (!converted.ok || !converted.changed) {
+    throw new Error('Reusable component UI fixture could not be created.');
+  }
+  return Object.freeze({ componentId, document: converted.document, instanceId });
 };
 
 describe('alpha control authoring UI', () => {
@@ -197,6 +233,68 @@ describe('alpha control authoring UI', () => {
     expect(screen.getByText('Button', { selector: 'tspan' })).toBeInTheDocument();
     expect(screen.getByText('Text input', { selector: 'tspan' })).toBeInTheDocument();
     expect(screen.getByText('Checkbox', { selector: 'tspan' })).toBeInTheDocument();
+  });
+
+  it('searches, previews, inserts, and drags reusable components through the shared shelf', () => {
+    const { componentId, document } = createReusableComponentDocument();
+    const component = document.componentsById[componentId];
+    if (component === undefined) {
+      throw new Error('Reusable component definition is missing.');
+    }
+    const onInsertComponent = vi.fn(() => true);
+    render(
+      <ControlShelf
+        category="Components"
+        components={[component]}
+        onInsert={() => true}
+        onInsertComponent={onInsertComponent}
+        projectDocument={document}
+        query="card"
+        textMeasurementService={thumbnailTextMeasurementService}
+      />,
+    );
+    const item = screen.getByRole('button', { name: 'Insert Reusable card' });
+    expect(
+      globalThis.document.querySelector(`[data-component-thumbnail='${componentId}']`),
+    ).toBeInstanceOf(SVGSVGElement);
+
+    fireEvent.click(item);
+    expect(onInsertComponent).toHaveBeenCalledWith(componentId);
+
+    const transfer = new Map<string, string>();
+    const dataTransfer = {
+      effectAllowed: 'none',
+      setData: vi.fn((type: string, value: string) => transfer.set(type, value)),
+    } as unknown as DataTransfer;
+    fireEvent.dragStart(item, { dataTransfer });
+    expect(dataTransfer.effectAllowed).toBe('copy');
+    expect(transfer.get(COMPONENT_DRAG_MIME_TYPE)).toBe(componentId);
+  });
+
+  it('creates a named component from the selected group through the inspector', () => {
+    const parsed = parseProjectDocument(createValidProjectDocumentInput());
+    if (!parsed.ok) {
+      throw new Error('Group inspector fixture is invalid.');
+    }
+    const selection = new SelectionStore();
+    selection.selectOnly(DOCUMENT_FIXTURE_IDS.group);
+    const onCreateComponent = vi.fn(() => true);
+    render(
+      <ControlInspector
+        document={parsed.value}
+        onAutoSize={() => Promise.resolve(true)}
+        onCreateComponent={onCreateComponent}
+        onSetFrames={() => true}
+        onSetProperties={() => true}
+        selection={selection}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Reusable Component' })).toBeInTheDocument();
+    const name = screen.getByRole('textbox', { name: 'Component name' });
+    fireEvent.change(name, { target: { value: '  Primary card  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Component' }));
+    expect(onCreateComponent).toHaveBeenCalledWith(DOCUMENT_FIXTURE_IDS.group, 'Primary card');
   });
 
   it('edits selected geometry and text while reserving validation space', () => {

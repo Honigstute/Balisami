@@ -12,8 +12,16 @@ import {
   TextEditInteraction,
 } from '../src/renderer/editor/text-edit-interaction';
 import type { ViewportAlignmentCommand } from '../src/renderer/editor/viewport-input';
-import { CONTROL_TYPES, ElementIdSchema, type SetElementFrameCommand } from '../src/domain';
-import { CONTROL_DRAG_MIME_TYPE } from '../src/renderer/controls/control-drag-transfer';
+import {
+  ComponentIdSchema,
+  CONTROL_TYPES,
+  ElementIdSchema,
+  type SetElementFrameCommand,
+} from '../src/domain';
+import {
+  COMPONENT_DRAG_MIME_TYPE,
+  CONTROL_DRAG_MIME_TYPE,
+} from '../src/renderer/controls/control-drag-transfer';
 import { ControlDrawOverlay } from '../src/renderer/editor/ControlDrawOverlay';
 import { ControlDrawInteraction } from '../src/renderer/editor/control-draw-interaction';
 import { MoveInteraction } from '../src/renderer/editor/move-interaction';
@@ -692,6 +700,41 @@ describe('viewport scene layers', () => {
     expect(fireEvent(root, dropEvent)).toBe(false);
     expect(onInsertControlAt).toHaveBeenCalledWith(
       CONTROL_TYPES.button,
+      expect.objectContaining({ x: 100, y: 50 }),
+    );
+    store.dispose();
+  });
+
+  it('drops a reusable component at the canonical transformed world point', () => {
+    mockViewportBounds();
+    const scheduler = new TestAnimationFrameScheduler();
+    const store = createStore(scheduler);
+    const componentId = ComponentIdSchema.parse('component_viewport1');
+    const onInsertComponentAt = vi.fn(() => true);
+    const view = render(<ViewportScene camera={store} onInsertComponentAt={onInsertComponentAt} />);
+    const root = view.container.querySelector<HTMLElement>('.editor-viewport');
+    if (root === null) {
+      throw new Error('Viewport root did not mount.');
+    }
+    scheduler.flushNext();
+    store.scheduleTransform(createViewportTransform({ panX: 50, panY: 0, zoom: 2 }));
+    scheduler.flushNext();
+    const dataTransfer = {
+      dropEffect: 'none',
+      getData: (type: string) => (type === COMPONENT_DRAG_MIME_TYPE ? componentId : ''),
+      types: [COMPONENT_DRAG_MIME_TYPE],
+    } as unknown as DataTransfer;
+
+    expect(fireEvent.dragOver(root, { dataTransfer })).toBe(false);
+    expect(dataTransfer.dropEffect).toBe('copy');
+    const dropEvent = createEvent.drop(root, { dataTransfer });
+    Object.defineProperties(dropEvent, {
+      clientX: { value: 250 },
+      clientY: { value: 100 },
+    });
+    expect(fireEvent(root, dropEvent)).toBe(false);
+    expect(onInsertComponentAt).toHaveBeenCalledWith(
+      componentId,
       expect.objectContaining({ x: 100, y: 50 }),
     );
     store.dispose();

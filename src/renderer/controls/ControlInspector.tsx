@@ -8,8 +8,11 @@ import {
 } from 'react';
 
 import {
+  ComponentInstancePropertiesSchema,
+  CONTROL_TYPES,
   getControlSpec,
   type ControlInspectorPropertyField,
+  type ComponentId,
   type ElementId,
   type ElementProperties,
   type ProjectDocument,
@@ -29,6 +32,11 @@ import {
   type InspectorValue,
 } from './control-inspector-model';
 import { ControlLinkInspector, type ControlInspectorLinkUpdate } from './ControlLinkInspector';
+import {
+  createComponentOverrideModel,
+  type ComponentOverrideFieldModel,
+} from './component-override-model';
+import type { ComponentOverrideUpdate } from './component-override-update';
 
 export interface ControlInspectorFrameUpdate {
   readonly elementId: ElementId;
@@ -50,11 +58,16 @@ interface ControlInspectorProps {
   readonly customIcons?: readonly ProjectImageIconOption[];
   readonly document: ProjectDocument;
   readonly emptyContent?: ReactNode;
+  readonly onCreateComponent?: (groupId: ElementId, name: string) => boolean;
+  readonly onDetachComponent?: (instanceId: ElementId) => boolean;
   readonly onAutoSize: (elementId: ElementId) => Promise<boolean>;
   readonly onSetFrames: (updates: readonly ControlInspectorFrameUpdate[]) => boolean;
   readonly onSetIcons?: (updates: readonly ControlInspectorIconUpdate[]) => boolean;
   readonly onSetLinks?: (updates: readonly ControlInspectorLinkUpdate[]) => boolean;
+  readonly onSetComponentOverride?: (update: ComponentOverrideUpdate) => boolean;
+  readonly onRenameComponent?: (componentId: ComponentId, name: string) => boolean;
   readonly onSetProperties: (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean;
+  readonly onUpdateComponentDefinition?: (instanceId: ElementId) => boolean;
   readonly selection: SelectionStore;
 }
 
@@ -241,7 +254,7 @@ interface InspectorPropertyFieldProps {
 }
 
 /** Property field kinds are registry vocabulary, not control-type branches. */
-const InspectorPropertyField = ({
+export const InspectorPropertyField = ({
   customIcons,
   field,
   onCommit,
@@ -356,6 +369,14 @@ export const ControlInspectorTitle = ({
   const elementId = snapshot.selectedIds.length === 1 ? snapshot.primaryId : undefined;
   const element = elementId === undefined ? undefined : document.elementsById[elementId];
   const definition = element === undefined ? undefined : getControlSpec(element.controlType);
+  if (element?.controlType === CONTROL_TYPES.componentInstance) {
+    const properties = ComponentInstancePropertiesSchema.safeParse(element.properties);
+    const component =
+      properties.success === true
+        ? document.componentsById[properties.data.componentId]
+        : undefined;
+    return <>{component?.name ?? 'Component'}</>;
+  }
   return <>{definition?.palette?.label ?? (element === undefined ? emptyTitle : 'Group')}</>;
 };
 
@@ -363,11 +384,16 @@ export const ControlInspector = ({
   customIcons = [],
   document,
   emptyContent,
+  onCreateComponent = () => false,
+  onDetachComponent = () => false,
   onAutoSize,
   onSetFrames,
   onSetIcons,
   onSetLinks = () => false,
+  onSetComponentOverride = () => false,
+  onRenameComponent = () => false,
   onSetProperties,
+  onUpdateComponentDefinition = () => false,
   selection,
 }: ControlInspectorProps) => {
   const selectionSnapshot = useSyncExternalStore(
@@ -377,17 +403,35 @@ export const ControlInspector = ({
   );
   const model = createControlInspectorModel(document, selectionSnapshot.selectedIds);
   const element = model?.elements.length === 1 ? model.elements[0] : undefined;
+  const componentOverrideModel =
+    element === undefined ? undefined : createComponentOverrideModel(document, element.id);
   const [autoSizePending, setAutoSizePending] = useState(false);
   const [autoSizeValidation, setAutoSizeValidation] = useState<string>();
+  const [componentName, setComponentName] = useState(
+    `Component ${String(document.componentIds.length + 1)}`,
+  );
+  const [componentValidation, setComponentValidation] = useState<string>();
+  const [definitionName, setDefinitionName] = useState(
+    componentOverrideModel?.component.name ?? '',
+  );
+  const [definitionValidation, setDefinitionValidation] = useState<string>();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setAutoSizePending(false);
     setAutoSizeValidation(undefined);
+    setComponentName(`Component ${String(document.componentIds.length + 1)}`);
+    setComponentValidation(undefined);
+    setDefinitionName(componentOverrideModel?.component.name ?? '');
+    setDefinitionValidation(undefined);
     if (scrollRef.current !== null) {
       scrollRef.current.scrollTop = 0;
     }
-  }, [selectionSnapshot.revision]);
+  }, [
+    componentOverrideModel?.component.name,
+    document.componentIds.length,
+    selectionSnapshot.revision,
+  ]);
 
   if (model === undefined) {
     return (
@@ -491,6 +535,37 @@ export const ControlInspector = ({
             </div>
           )}
         </section>
+        {element?.controlType !== CONTROL_TYPES.group ? null : (
+          <section className="inspector-section">
+            <h3>Reusable Component</h3>
+            <AppInput
+              label="Component name"
+              maxLength={120}
+              onChange={(event) => {
+                setComponentName(event.currentTarget.value);
+                setComponentValidation(undefined);
+              }}
+              onKeyDown={blurOnEnter}
+              {...(componentValidation === undefined ? {} : { validation: componentValidation })}
+              value={componentName}
+            />
+            <AppButton
+              onClick={() => {
+                const normalizedName = componentName.trim();
+                if (normalizedName.length === 0) {
+                  setComponentValidation('Enter a component name.');
+                  return;
+                }
+                if (!onCreateComponent(element.id, normalizedName)) {
+                  setComponentValidation('The component could not be created.');
+                }
+              }}
+              tone="primary"
+            >
+              Create Component
+            </AppButton>
+          </section>
+        )}
         {model.propertySections.map((section) => (
           <section className="inspector-section" key={section.label}>
             <h3>{section.label}</h3>
@@ -542,6 +617,115 @@ export const ControlInspector = ({
             ) : null}
           </section>
         ))}
+        {componentOverrideModel === undefined ? null : (
+          <>
+            <section className="inspector-section">
+              <h3>Component</h3>
+              <AppInput
+                label="Definition name"
+                maxLength={120}
+                onBlur={() => {
+                  const normalizedName = definitionName.trim();
+                  if (normalizedName.length === 0) {
+                    setDefinitionValidation('Enter a component name.');
+                    return;
+                  }
+                  if (
+                    normalizedName !== componentOverrideModel.component.name &&
+                    !onRenameComponent(componentOverrideModel.component.id, normalizedName)
+                  ) {
+                    setDefinitionName(componentOverrideModel.component.name);
+                    setDefinitionValidation('The component could not be renamed.');
+                    return;
+                  }
+                  setDefinitionName(normalizedName);
+                  setDefinitionValidation(undefined);
+                }}
+                onChange={(event) => {
+                  setDefinitionName(event.currentTarget.value);
+                  setDefinitionValidation(undefined);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setDefinitionName(componentOverrideModel.component.name);
+                    event.currentTarget.blur();
+                    return;
+                  }
+                  blurOnEnter(event);
+                }}
+                {...(definitionValidation === undefined
+                  ? {}
+                  : { validation: definitionValidation })}
+                value={definitionName}
+              />
+              <p>Changes below apply only to this instance.</p>
+              <AppButton onClick={() => onDetachComponent(componentOverrideModel.instance.id)}>
+                Break Apart
+              </AppButton>
+              <AppButton
+                disabled={
+                  !componentOverrideModel.sections.some((section) =>
+                    section.fields.some((field) => field.overridden),
+                  )
+                }
+                onClick={() => onUpdateComponentDefinition(componentOverrideModel.instance.id)}
+                tone="primary"
+              >
+                Update Definition
+              </AppButton>
+            </section>
+            {componentOverrideModel.sections.map((section) => (
+              <section
+                className="inspector-section"
+                key={`${section.targetElementId}:${section.label}`}
+              >
+                <h3>{section.label}</h3>
+                {section.fields.map((field: ComponentOverrideFieldModel) => (
+                  <div
+                    className="inspector-override-field"
+                    key={`${String(selectionSnapshot.revision)}-${section.targetElementId}-${field.field.property}`}
+                  >
+                    <InspectorPropertyField
+                      customIcons={customIcons}
+                      field={field.field}
+                      onCommit={(property, value) =>
+                        onSetComponentOverride({
+                          instanceId: componentOverrideModel.instance.id,
+                          property,
+                          targetElementId: section.targetElementId,
+                          value,
+                        })
+                      }
+                      onCommitIcon={(property, value) =>
+                        onSetComponentOverride({
+                          instanceId: componentOverrideModel.instance.id,
+                          property,
+                          targetElementId: section.targetElementId,
+                          value,
+                        })
+                      }
+                      value={field}
+                    />
+                    <AppButton
+                      disabled={!field.overridden}
+                      onClick={() =>
+                        onSetComponentOverride({
+                          instanceId: componentOverrideModel.instance.id,
+                          property: field.field.property,
+                          reset: true,
+                          targetElementId: section.targetElementId,
+                        })
+                      }
+                    >
+                      Use Definition
+                    </AppButton>
+                  </div>
+                ))}
+              </section>
+            ))}
+          </>
+        )}
         <ControlLinkInspector
           document={document}
           elements={model.elements}

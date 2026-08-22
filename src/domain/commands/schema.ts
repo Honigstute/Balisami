@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
 import { FOUNDATION_CONTROL_TYPES } from '../controls/control-spec';
-import { AssetIdSchema, BoardIdSchema, ElementIdSchema } from '../document/ids';
+import { AssetIdSchema, BoardIdSchema, ComponentIdSchema, ElementIdSchema } from '../document/ids';
 import { ElementOwnerSchema } from '../document/owner';
 import {
   BoardNoteSchema,
   BoardSchema,
   AssetReferenceSchema,
+  ComponentDefinitionSchema,
   DocumentTitleSchema,
   ElementLinkSchema,
   ElementNodeSchema,
@@ -27,6 +28,14 @@ export const DOCUMENT_COMMAND_TYPES = Object.freeze({
   setBoardNote: 'board.set-note',
   selectBoardVersion: 'board.select-version',
   trashBoard: 'board.trash',
+  createComponent: 'component.create',
+  convertGroupToComponent: 'component.convert-group',
+  detachComponentInstance: 'component.detach-instance',
+  deleteComponent: 'component.delete',
+  renameComponent: 'component.rename',
+  reorderComponent: 'component.reorder',
+  restoreGroupFromComponent: 'component.restore-group',
+  restoreComponentInstance: 'component.restore-instance',
   createElement: 'element.create',
   deleteElement: 'element.delete',
   groupElements: 'element.group',
@@ -90,6 +99,22 @@ const UniqueAssetIdsSchema = z
     message: 'Asset IDs must be unique.',
   })
   .readonly();
+
+const ComponentElementsSchema = z
+  .array(ElementNodeSchema)
+  .min(1)
+  .refine((elements) => new Set(elements.map((element) => element.id)).size === elements.length, {
+    message: 'Component element IDs must be unique.',
+  })
+  .readonly();
+
+const ComponentInstanceElementSchema = EmptyElementSchema.refine(
+  (element) => element.controlType === FOUNDATION_CONTROL_TYPES.componentInstance,
+  {
+    message: `Expected control type '${FOUNDATION_CONTROL_TYPES.componentInstance}'.`,
+    path: ['controlType'],
+  },
+);
 
 export const CreateAssetCommandSchema = z
   .strictObject({
@@ -198,6 +223,135 @@ export const SelectBoardVersionCommandSchema = z
     type: z.literal(DOCUMENT_COMMAND_TYPES.selectBoardVersion),
     canonicalBoardId: BoardIdSchema,
     alternateId: BoardIdSchema.nullable(),
+  })
+  .readonly();
+
+export const CreateComponentCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.createComponent),
+    component: ComponentDefinitionSchema,
+    elements: ComponentElementsSchema,
+    index: z.number().int().nonnegative(),
+  })
+  .superRefine((command, context) => {
+    if (!command.elements.some((element) => element.id === command.component.rootElementId)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Component elements must include the declared root element.',
+        path: ['elements'],
+      });
+    }
+  })
+  .readonly();
+
+export const ConvertGroupToComponentCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.convertGroupToComponent),
+    component: ComponentDefinitionSchema,
+    definitionElements: ComponentElementsSchema,
+    instance: ComponentInstanceElementSchema,
+    sourceElementIds: UniqueElementIdsSchema,
+    sourceGroupId: ElementIdSchema,
+  })
+  .superRefine((command, context) => {
+    if (
+      !command.definitionElements.some((element) => element.id === command.component.rootElementId)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Definition elements must include the declared component root.',
+        path: ['definitionElements'],
+      });
+    }
+    if (command.sourceElementIds[0] !== command.sourceGroupId) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Source element order must begin with the converted group.',
+        path: ['sourceElementIds'],
+      });
+    }
+  })
+  .readonly();
+
+export const DeleteComponentCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.deleteComponent),
+    componentId: ComponentIdSchema,
+  })
+  .readonly();
+
+export const DetachComponentInstanceCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.detachComponentInstance),
+    detachedElements: ComponentElementsSchema,
+    detachedRootId: ElementIdSchema,
+    instanceId: ElementIdSchema,
+  })
+  .superRefine((command, context) => {
+    if (command.detachedElements[0]?.id !== command.detachedRootId) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Detached elements must begin with the detached root.',
+        path: ['detachedElements'],
+      });
+    }
+  })
+  .readonly();
+
+export const RenameComponentCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.renameComponent),
+    componentId: ComponentIdSchema,
+    name: DocumentTitleSchema,
+  })
+  .readonly();
+
+export const ReorderComponentCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.reorderComponent),
+    componentId: ComponentIdSchema,
+    toIndex: z.number().int().nonnegative(),
+  })
+  .readonly();
+
+export const RestoreGroupFromComponentCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.restoreGroupFromComponent),
+    componentId: ComponentIdSchema,
+    index: z.number().int().nonnegative(),
+    instanceId: ElementIdSchema,
+    owner: ElementOwnerSchema,
+    sourceElements: ComponentElementsSchema,
+    sourceGroupId: ElementIdSchema,
+  })
+  .superRefine((command, context) => {
+    if (command.sourceElements[0]?.id !== command.sourceGroupId) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Source elements must begin with the restored group.',
+        path: ['sourceElements'],
+      });
+    }
+  })
+  .readonly();
+
+export const RestoreComponentInstanceCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.restoreComponentInstance),
+    detachedElementIds: UniqueElementIdsSchema,
+    detachedRootId: ElementIdSchema,
+    index: z.number().int().nonnegative(),
+    instance: ComponentInstanceElementSchema,
+    owner: ElementOwnerSchema,
+  })
+  .superRefine((command, context) => {
+    if (command.detachedElementIds[0] !== command.detachedRootId) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Detached element order must begin with the detached root.',
+        path: ['detachedElementIds'],
+      });
+    }
   })
   .readonly();
 
@@ -319,6 +473,17 @@ const BOARD_COMMAND_SCHEMAS = [
 
 const ASSET_COMMAND_SCHEMAS = [CreateAssetCommandSchema, DeleteAssetCommandSchema] as const;
 
+const COMPONENT_COMMAND_SCHEMAS = [
+  CreateComponentCommandSchema,
+  ConvertGroupToComponentCommandSchema,
+  DetachComponentInstanceCommandSchema,
+  DeleteComponentCommandSchema,
+  RenameComponentCommandSchema,
+  ReorderComponentCommandSchema,
+  RestoreComponentInstanceCommandSchema,
+  RestoreGroupFromComponentCommandSchema,
+] as const;
+
 const ELEMENT_COMMAND_SCHEMAS = [
   CreateElementCommandSchema,
   DeleteElementCommandSchema,
@@ -339,9 +504,12 @@ export const AssetCommandSchema = z.discriminatedUnion('type', ASSET_COMMAND_SCH
 
 export const ElementCommandSchema = z.discriminatedUnion('type', ELEMENT_COMMAND_SCHEMAS);
 
+export const ComponentCommandSchema = z.discriminatedUnion('type', COMPONENT_COMMAND_SCHEMAS);
+
 export const DocumentCommandSchema = z.discriminatedUnion('type', [
   ...ASSET_COMMAND_SCHEMAS,
   ...BOARD_COMMAND_SCHEMAS,
+  ...COMPONENT_COMMAND_SCHEMAS,
   ...ELEMENT_COMMAND_SCHEMAS,
 ]);
 
@@ -358,6 +526,16 @@ export type RenameBoardCommand = z.infer<typeof RenameBoardCommandSchema>;
 export type SetBoardNoteCommand = z.infer<typeof SetBoardNoteCommandSchema>;
 export type SelectBoardVersionCommand = z.infer<typeof SelectBoardVersionCommandSchema>;
 export type TrashBoardCommand = z.infer<typeof TrashBoardCommandSchema>;
+export type CreateComponentCommand = z.infer<typeof CreateComponentCommandSchema>;
+export type ConvertGroupToComponentCommand = z.infer<typeof ConvertGroupToComponentCommandSchema>;
+export type DetachComponentInstanceCommand = z.infer<typeof DetachComponentInstanceCommandSchema>;
+export type DeleteComponentCommand = z.infer<typeof DeleteComponentCommandSchema>;
+export type RenameComponentCommand = z.infer<typeof RenameComponentCommandSchema>;
+export type ReorderComponentCommand = z.infer<typeof ReorderComponentCommandSchema>;
+export type RestoreGroupFromComponentCommand = z.infer<
+  typeof RestoreGroupFromComponentCommandSchema
+>;
+export type RestoreComponentInstanceCommand = z.infer<typeof RestoreComponentInstanceCommandSchema>;
 export type CreateElementCommand = z.infer<typeof CreateElementCommandSchema>;
 export type DeleteElementCommand = z.infer<typeof DeleteElementCommandSchema>;
 export type GroupElementsCommand = z.infer<typeof GroupElementsCommandSchema>;
@@ -370,6 +548,7 @@ export type SetElementLockedCommand = z.infer<typeof SetElementLockedCommandSche
 export type SetElementPropertiesCommand = z.infer<typeof SetElementPropertiesCommandSchema>;
 export type UngroupElementCommand = z.infer<typeof UngroupElementCommandSchema>;
 export type BoardCommand = z.infer<typeof BoardCommandSchema>;
+export type ComponentCommand = z.infer<typeof ComponentCommandSchema>;
 export type AssetCommand = z.infer<typeof AssetCommandSchema>;
 export type ElementCommand = z.infer<typeof ElementCommandSchema>;
 export type DocumentCommand = z.infer<typeof DocumentCommandSchema>;

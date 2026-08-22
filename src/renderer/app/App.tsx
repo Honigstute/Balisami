@@ -5,6 +5,7 @@ import recoveryProbeContract from '../../../recovery-probe-contract.json';
 import {
   AssetIdSchema,
   BoardIdSchema,
+  ComponentIdSchema,
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
@@ -14,7 +15,9 @@ import {
   selectRedoLabel,
   selectUndoLabel,
   type BoardId,
+  type ComponentId,
   type ControlTypeId,
+  type ElementId,
   type WorldRect,
 } from '../../domain';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
@@ -28,6 +31,11 @@ import { NoticeCenterStore } from '../design/notice-center';
 import { ControlInspector, ControlInspectorTitle } from '../controls/ControlInspector';
 import { calculateControlAutoSizeFrame } from '../controls/control-auto-size';
 import { planControlIconUpdates } from '../controls/control-icon-update';
+import { planComponentOverrideUpdate } from '../controls/component-override-update';
+import { planComponentCreationFromGroup } from '../controls/component-creation';
+import { planComponentDefinitionUpdateFromInstance } from '../controls/component-definition-update';
+import { planComponentDetachment } from '../controls/component-detachment';
+import { createComponentInstanceInsertionCommand } from '../controls/component-insertion';
 import { ControlShelf } from '../controls/ControlShelf';
 import { QuickAdd } from '../controls/QuickAdd';
 import {
@@ -165,6 +173,13 @@ const allocateEditorBoardId = () => {
   return result.success ? result.data : undefined;
 };
 
+const allocateEditorComponentId = () => {
+  const result = ComponentIdSchema.safeParse(
+    `component_${globalThis.crypto.randomUUID().replaceAll('-', '').toLowerCase()}`,
+  );
+  return result.success ? result.data : undefined;
+};
+
 interface ProjectWorkspaceProps {
   readonly platform: 'darwin' | 'win32';
   readonly quickAddShortcut: string;
@@ -274,6 +289,37 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         ...(requestedCenter === undefined ? {} : { placement: 'exact' }),
         verb: 'Insert',
       });
+    };
+    const insertComponent = (componentId: ComponentId, requestedCenter?: WorldPoint): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const canonicalBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
+      const boardId =
+        currentDocument === undefined || canonicalBoardId === undefined
+          ? undefined
+          : selectBoardPresentationId(currentDocument, canonicalBoardId);
+      const elementId = allocateEditorElementId();
+      const viewport = camera.getViewportSnapshot();
+      const center =
+        requestedCenter ??
+        viewportPointToWorld(
+          createViewportPoint(viewport.width / 2, viewport.height / 2),
+          camera.getTransformSnapshot(),
+        );
+      if (currentDocument === undefined || boardId === undefined || elementId === undefined) {
+        return false;
+      }
+      const command = createComponentInstanceInsertionCommand(
+        currentDocument,
+        boardId,
+        componentId,
+        elementId,
+        center,
+      );
+      if (command === undefined) return false;
+      const result = session.dispatch(command, { label: 'Insert component' });
+      if (result?.ok !== true || !result.changed) return false;
+      selection.selectOnly(elementId);
+      return true;
     };
     const importImage = async (file: File, center: WorldPoint): Promise<void> => {
       const assetId = allocateEditorAssetId();
@@ -623,6 +669,57 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             groupingSource,
           );
     };
+    const createComponentFromSelection = (sourceGroupId: ElementId, name: string): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const selected = selection.getSnapshot();
+      const componentId = allocateEditorComponentId();
+      const instanceId = allocateEditorElementId();
+      if (
+        currentDocument === undefined ||
+        selected.selectedIds.length !== 1 ||
+        selected.primaryId !== sourceGroupId ||
+        componentId === undefined ||
+        instanceId === undefined
+      ) {
+        return false;
+      }
+      const plan = planComponentCreationFromGroup(
+        currentDocument,
+        sourceGroupId,
+        componentId,
+        instanceId,
+        name,
+        () => allocateEditorElementId(),
+      );
+      if (plan === undefined) return false;
+      const result = session.dispatchTransaction(plan.commands, {
+        label: `Create component “${name.trim()}”`,
+      });
+      if (result?.ok !== true || !result.changed) return false;
+      selection.selectOnly(plan.instanceId);
+      return true;
+    };
+    const detachComponent = (instanceId: ElementId): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const selected = selection.getSnapshot();
+      if (
+        currentDocument === undefined ||
+        selected.selectedIds.length !== 1 ||
+        selected.primaryId !== instanceId
+      ) {
+        return false;
+      }
+      const plan = planComponentDetachment(currentDocument, instanceId, () =>
+        allocateEditorElementId(),
+      );
+      if (plan === undefined) return false;
+      const result = session.dispatchTransaction(plan.commands, {
+        label: 'Break apart component',
+      });
+      if (result?.ok !== true || !result.changed) return false;
+      selection.selectOnly(plan.detachedRootId);
+      return true;
+    };
     const ungroupSelection = (): boolean => {
       const currentDocument = session.getSnapshot().history?.document;
       return currentDocument === undefined
@@ -682,13 +779,16 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       bringSelectionForward: () => layerSelection(SELECTION_LAYER_ACTIONS.bringForward),
       bringSelectionToFront: () => layerSelection(SELECTION_LAYER_ACTIONS.bringToFront),
       copySelection,
+      createComponentFromSelection,
       cutSelection,
       deleteSelection,
+      detachComponent,
       drawInteraction,
       duplicateSelection,
       groupSelection,
       importImage,
       insertControl,
+      insertComponent,
       keyboardNudgeInteraction,
       lockSelection,
       model,
@@ -1426,6 +1526,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   },
                   onInsertControlAt: (controlType: ControlTypeId, point: WorldPoint) =>
                     editor.insertControl(controlType, point) !== undefined,
+                  onInsertComponentAt: editor.insertComponent,
                   onLockSelection: editor.lockSelection,
                   onPasteSelection: editor.pasteSelection,
                   onSendSelectionBackward: editor.sendSelectionBackward,
@@ -1501,6 +1602,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     // Already-canonical geometry is a successful semantic no-op and adds no history.
                     return result?.ok === true;
                   }}
+                  onCreateComponent={editor.createComponentFromSelection}
+                  onDetachComponent={editor.detachComponent}
                   onSetFrames={(updates) => {
                     const result = session.dispatchTransaction(
                       updates.map(({ elementId, frame }) => ({
@@ -1527,6 +1630,32 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     });
                     return result?.ok === true && result.changed;
                   }}
+                  onSetComponentOverride={(update) => {
+                    const currentDocument = session.getSnapshot().history?.document;
+                    const commands =
+                      currentDocument === undefined
+                        ? undefined
+                        : planComponentOverrideUpdate(currentDocument, update);
+                    if (commands === undefined) return false;
+                    const result = session.dispatchTransaction(commands, {
+                      label:
+                        update.reset === true
+                          ? 'Reset component override'
+                          : 'Edit component override',
+                    });
+                    return result?.ok === true && result.changed;
+                  }}
+                  onRenameComponent={(componentId, name) => {
+                    const result = session.dispatch(
+                      {
+                        type: DOCUMENT_COMMAND_TYPES.renameComponent,
+                        componentId,
+                        name,
+                      },
+                      { label: `Rename component “${name}”` },
+                    );
+                    return result?.ok === true;
+                  }}
                   onSetLinks={(updates) => {
                     const result = session.dispatchTransaction(
                       updates.map(({ elementId, link }) => ({
@@ -1552,6 +1681,18 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                         label: updates.length === 1 ? 'Edit properties' : 'Edit control properties',
                       },
                     );
+                    return result?.ok === true && result.changed;
+                  }}
+                  onUpdateComponentDefinition={(instanceId) => {
+                    const currentDocument = session.getSnapshot().history?.document;
+                    const commands =
+                      currentDocument === undefined
+                        ? undefined
+                        : planComponentDefinitionUpdateFromInstance(currentDocument, instanceId);
+                    if (commands === undefined) return false;
+                    const result = session.dispatchTransaction(commands, {
+                      label: 'Update component definition',
+                    });
                     return result?.ok === true && result.changed;
                   }}
                   selection={editor.selection}
@@ -1581,7 +1722,13 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
               ),
               shelf: (
                 <ControlShelf
+                  assetUrls={assetUrls}
                   category={activeControlCategory}
+                  components={document.componentIds.flatMap((componentId) => {
+                    const component = document.componentsById[componentId];
+                    return component === undefined ? [] : [component];
+                  })}
+                  projectDocument={document}
                   onImportImage={(file) => {
                     const viewport = camera.getViewportSnapshot();
                     const center = viewportPointToWorld(
@@ -1591,6 +1738,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     void editor.importImage(file, center);
                   }}
                   onInsert={(controlType) => editor.insertControl(controlType) !== undefined}
+                  onInsertComponent={editor.insertComponent}
                 />
               ),
             }),

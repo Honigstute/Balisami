@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
 import { getIconDefinition } from '../../shared/icons/icon-catalog';
 import { CustomIconReferenceSchema } from './custom-icon-reference';
+import { ComponentInstancePropertiesSchema } from './component-instance';
+import { ComponentIdSchema } from '../document/ids';
 import {
   ControlTypeIdSchema,
   ElementPropertiesSchema,
@@ -25,6 +27,7 @@ import {
 } from './control-definition';
 
 export const CONTROL_TYPES = Object.freeze({
+  componentInstance: ControlTypeIdSchema.parse('foundation.component-instance'),
   group: ControlTypeIdSchema.parse('foundation.group'),
   rectangle: ControlTypeIdSchema.parse('foundation.rectangle'),
   textLabel: ControlTypeIdSchema.parse('wireframe.text-label'),
@@ -37,6 +40,7 @@ export const CONTROL_TYPES = Object.freeze({
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
+  componentInstance: CONTROL_TYPES.componentInstance,
   group: CONTROL_TYPES.group,
   rectangle: CONTROL_TYPES.rectangle,
 });
@@ -196,6 +200,38 @@ const createDefinition = (input: {
   });
 
 const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
+  createDefinition({
+    accessibility: createAccessibility('Component instance', 'group'),
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        // Instances are conceptual containers for export/scene semantics. A
+        // document invariant still rejects persisted instance children because
+        // expansion is derived exclusively from the referenced definition.
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {
+      componentId: ComponentIdSchema.parse('component_unassigned'),
+      overrides: {},
+    },
+    defaultSize: createSize(240, 160),
+    export: createExport('transparent-container'),
+    minimumSize: createSize(24, 24),
+    maximumSize: null,
+    palette: null,
+    propertiesSchema: ComponentInstancePropertiesSchema,
+    scene: createScene('transparent', ['componentId', 'overrides']),
+    thumbnail: createThumbnail('none'),
+    type: CONTROL_TYPES.componentInstance,
+  }),
   createDefinition({
     accessibility: createAccessibility('Group', 'group'),
     autoSize: null,
