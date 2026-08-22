@@ -59,6 +59,7 @@ import {
   BoardThumbnailStore,
   createBrowserBoardThumbnailScheduler,
 } from '../projects/board-thumbnail-store';
+import { PresentationView } from '../projects/PresentationView';
 import { AppButton } from './AppButton';
 import { AppScroller } from './AppEmptyState';
 import { AppInput } from './AppInput';
@@ -282,6 +283,60 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
     groupId: ElementIdSchema.parse('element_alphagroup'),
     selectedId: buttonId,
   });
+};
+
+const createPresentationFixtureDocument = (): Readonly<{
+  boardId: ReturnType<typeof BoardIdSchema.parse>;
+  document: ProjectDocument;
+}> => {
+  const fixture = createAlphaFixtureDocument();
+  const canonical = fixture.document.boardsById[fixture.boardId];
+  const linkedElement = fixture.document.elementsById[fixture.selectedId];
+  const alternateId = BoardIdSchema.parse('board_visualpresentalt');
+  const detailsId = BoardIdSchema.parse('board_visualpresentdetails');
+  if (canonical === undefined || linkedElement === undefined) {
+    throw new Error('The presentation visual fixture source is incomplete.');
+  }
+  const result = parseProjectDocument({
+    ...fixture.document,
+    boardIds: [fixture.boardId, detailsId],
+    boardsById: {
+      [fixture.boardId]: {
+        ...canonical,
+        name: 'Account flow',
+        childIds: [],
+        alternateIds: [alternateId],
+        selectedAlternateId: alternateId,
+      },
+      [alternateId]: {
+        id: alternateId,
+        name: 'Client direction',
+        note: { text: '' },
+        childIds: canonical.childIds,
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+      [detailsId]: {
+        id: detailsId,
+        name: 'Confirmation',
+        note: { text: '' },
+        childIds: [],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+    },
+    elementsById: {
+      ...fixture.document.elementsById,
+      [fixture.selectedId]: {
+        ...linkedElement,
+        link: { kind: 'board', boardId: detailsId },
+      },
+    },
+  });
+  if (!result.ok) {
+    throw new Error('The deterministic presentation visual fixture is invalid.');
+  }
+  return Object.freeze({ boardId: fixture.boardId, document: result.value });
 };
 
 const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
@@ -1030,6 +1085,8 @@ export const VisualConformanceFixture = ({
   quickAddShortcut,
   runtimeLabel,
 }: VisualConformanceFixtureProps) => {
+  const presentationFixture =
+    fixture === 'presentation' ? createPresentationFixtureDocument() : undefined;
   const regionContent =
     fixture === 'scene'
       ? { canvas: <SceneFixture /> }
@@ -1086,7 +1143,14 @@ export const VisualConformanceFixture = ({
       <FeedbackOverlay />
     ) : fixture === 'modal' ? (
       <ModalFixture />
-    ) : undefined;
+    ) : presentationFixture === undefined ? undefined : (
+      <PresentationView
+        document={presentationFixture.document}
+        initialBoardId={presentationFixture.boardId}
+        onExit={() => undefined}
+        onOpenExternal={() => Promise.resolve(true)}
+      />
+    );
   const viewportControls =
     fixture === 'viewportZoom' ? (
       <ViewportZoomFixture platform={platform} />

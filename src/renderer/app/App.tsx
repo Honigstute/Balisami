@@ -37,6 +37,7 @@ import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { ViewportPerformanceFixture } from '../editor/ViewportPerformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
+import { PresentationView } from '../projects/PresentationView';
 import { ProjectHome } from '../projects/ProjectHome';
 import { BoardTrashDialog } from '../projects/BoardTrashDialog';
 import { BoardAlternateDiscardDialog } from '../projects/BoardAlternateDiscardDialog';
@@ -180,6 +181,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     Readonly<{ alternateId: BoardId; canonicalBoardId: BoardId }> | undefined
   >();
   const [pendingTrashBoardId, setPendingTrashBoardId] = useState<BoardId>();
+  const [presentingBoardId, setPresentingBoardId] = useState<BoardId>();
   const packagedProbeStarted = useRef(false);
   const packagedProbeProjectStarted = useRef(false);
   const [editor] = useState(() => {
@@ -662,6 +664,13 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     },
     [editor.activeBoard, resetElementInteraction],
   );
+  const startPresentation = useCallback((): void => {
+    if (activeBoardId === undefined) {
+      return;
+    }
+    resetElementInteraction();
+    setPresentingBoardId(activeBoardId);
+  }, [activeBoardId, resetElementInteraction]);
   const createBoard = useCallback((): boolean => {
     const currentDocument = session.getSnapshot().history?.document;
     const boardId = allocateEditorBoardId();
@@ -978,6 +987,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   }, [document, pendingAlternateDiscard, view.dialog]);
   useEffect(() => {
     if (
+      presentingBoardId !== undefined &&
+      (view.dialog !== undefined || !document?.boardIds.includes(presentingBoardId))
+    ) {
+      setPresentingBoardId(undefined);
+    }
+  }, [document, presentingBoardId, view.dialog]);
+  useEffect(() => {
+    if (
       packagedProbeProjectStarted.current ||
       !packagedProbeEnabled ||
       view.startup?.status !== 'ready' ||
@@ -1155,6 +1172,22 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         }}
       />
     );
+  const presentationOverlay =
+    presentingBoardId === undefined || document === undefined ? undefined : (
+      <PresentationView
+        document={document}
+        initialBoardId={presentingBoardId}
+        onExit={() => setPresentingBoardId(undefined)}
+        onOpenExternal={async (url) => {
+          try {
+            const result = await window.balsamicDesktop.openExternalUrl({ url });
+            return result.accepted;
+          } catch {
+            return false;
+          }
+        }}
+      />
+    );
 
   if (document === undefined) {
     return (
@@ -1205,8 +1238,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         )
       }
       navigatorControls={{ onCreateBoard: createBoard }}
+      presentationControls={{ onPresent: startPresentation }}
       projectName={view.displayName}
-      projectOverlay={projectDecisionOverlay ?? boardTrashOverlay ?? alternateDiscardOverlay}
+      projectOverlay={
+        projectDecisionOverlay ??
+        boardTrashOverlay ??
+        alternateDiscardOverlay ??
+        presentationOverlay
+      }
       {...(packagedRecoveryRestore
         ? {
             projectProbeState: {

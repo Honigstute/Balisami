@@ -94,6 +94,8 @@ class FakeDesktopApi implements DesktopApi {
 
   getRuntimeInfo = (): Promise<never> => Promise.reject(new Error('Not used by project session.'));
 
+  openExternalUrl: DesktopApi['openExternalUrl'] = () => Promise.resolve({ accepted: true });
+
   discardProjectRecovery: DesktopApi['discardProjectRecovery'] = (request) =>
     Promise.resolve(
       this.nextDiscard ?? {

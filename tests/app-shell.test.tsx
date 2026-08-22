@@ -36,6 +36,7 @@ const createDesktopApi = (overrides: Partial<DesktopApi> = {}): DesktopApi => {
     onProjectCloseOutcome: () => () => undefined,
     onProjectCloseRequest: () => () => undefined,
     onProjectCommand: () => () => undefined,
+    openExternalUrl: vi.fn().mockResolvedValue({ accepted: true }),
     openProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     openRecentProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     reportRendererReady: vi.fn().mockResolvedValue(undefined),
@@ -141,6 +142,25 @@ describe('application shell', () => {
     expect(await screen.findByText('Windows · x64 · v0.1.0 · Packaged')).toBeInTheDocument();
     expect(screen.getByText('Ctrl K')).toBeInTheDocument();
     expect(screen.queryByText('⌘ K')).not.toBeInTheDocument();
+  });
+
+  it('opens and exits full-screen presentation without changing the editor shell', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    const shell = await screen.findByTestId('app-shell');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Present' }));
+    const presentation = screen.getByRole('dialog', { name: 'Wireframe presentation' });
+    expect(presentation).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toBe(shell);
+    expect(screen.getByRole('button', { name: 'Exit presentation' })).toHaveFocus();
+
+    fireEvent.keyDown(presentation, { key: 'Escape' });
+    expect(
+      screen.queryByRole('dialog', { name: 'Wireframe presentation' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toBe(shell);
   });
 
   it('quick-adds one registry control as one undoable history entry', async () => {

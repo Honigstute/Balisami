@@ -7,6 +7,7 @@ import {
 
 export const DESKTOP_CHANNELS = {
   getRuntimeInfo: 'desktop:get-runtime-info',
+  openExternalUrl: 'desktop:open-external-url',
   projectCloseOutcome: 'desktop:project-close-outcome',
   projectCloseRequest: 'desktop:project-close-request',
   projectCloseResponse: 'desktop:project-close-response',
@@ -31,6 +32,10 @@ export interface RuntimeInfo {
   readonly arch: string;
   readonly isPackaged: boolean;
   readonly platform: RuntimePlatform;
+}
+
+export interface ExternalUrlRequest {
+  readonly url: string;
 }
 
 export type ProjectCommand = 'open' | 'open-recent' | 'save' | 'save-as';
@@ -150,6 +155,7 @@ export type DesktopEventUnsubscribe = () => void;
 
 export interface DesktopApi {
   getRuntimeInfo(): Promise<RuntimeInfo>;
+  openExternalUrl(request: ExternalUrlRequest): Promise<DesktopAcknowledgement>;
   onProjectCloseOutcome(listener: (outcome: ProjectCloseOutcome) => void): DesktopEventUnsubscribe;
   onProjectCloseRequest(listener: (request: ProjectCloseRequest) => void): DesktopEventUnsubscribe;
   onProjectCommand(listener: (command: ProjectCommand) => void): DesktopEventUnsubscribe;
@@ -194,6 +200,18 @@ const isSafeSaveTokenId = (value: unknown): value is number =>
 
 const isBoundedText = (value: unknown, maxLength: number): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= maxLength;
+
+export const isExternalUrlRequest = (value: unknown): value is ExternalUrlRequest => {
+  if (!isRecord(value) || !hasExactKeys(value, ['url']) || !isBoundedText(value.url, 2_048)) {
+    return false;
+  }
+  try {
+    const url = new URL(value.url);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
 
 const isSafeTimestamp = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;

@@ -46,6 +46,9 @@ interface AppShellProps {
   };
   readonly projectName?: string;
   readonly projectOverlay?: ReactNode;
+  readonly presentationControls?: {
+    readonly onPresent: () => void;
+  };
   readonly projectProbeState?: { readonly attributeName: string; readonly value: string };
   readonly quickAdd?: ReactNode;
   readonly quickAddShortcut: string;
@@ -83,11 +86,6 @@ const defaultViewportActions: ReadonlyArray<{
   { label: 'Zoom out', icon: 'zoomOut' },
   { label: 'Zoom in', icon: 'zoomIn' },
 ];
-
-const toolbarActionsAfterViewport: ReadonlyArray<{
-  readonly label: string;
-  readonly icon: IconName;
-}> = [{ label: 'Present', icon: 'presentation' }];
 
 const DisabledToolbarActions = ({
   actions,
@@ -127,6 +125,7 @@ export const AppShell = ({
   navigatorControls,
   projectName = 'Untitled project',
   projectOverlay,
+  presentationControls,
   projectProbeState,
   quickAdd,
   quickAddShortcut,
@@ -203,7 +202,16 @@ export const AppShell = ({
             </>
           )}
           {viewportControls ?? <DisabledToolbarActions actions={defaultViewportActions} />}
-          <DisabledToolbarActions actions={toolbarActionsAfterViewport} />
+          <button
+            aria-label="Present"
+            className="icon-button icon-button--dark"
+            disabled={presentationControls === undefined}
+            onClick={presentationControls?.onPresent}
+            title="Present"
+            type="button"
+          >
+            <Icon name="presentation" />
+          </button>
         </div>
 
         {quickAdd ?? (

@@ -21,6 +21,7 @@
     "viewportZoom",
     "viewportSelectionZoom",
     "mvpAlpha",
+    "presentation",
     "registryControl",
     "controls",
     "feedback",
