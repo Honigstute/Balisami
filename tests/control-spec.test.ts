@@ -14,6 +14,7 @@ describe('control definition registry', () => {
     const definitions = listControlSpecs();
 
     expect(definitions.map((definition) => definition.type)).toEqual([
+      FOUNDATION_CONTROL_TYPES.componentInstance,
       FOUNDATION_CONTROL_TYPES.group,
       FOUNDATION_CONTROL_TYPES.rectangle,
       CONTROL_TYPES.textLabel,
