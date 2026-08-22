@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  BoardIdSchema,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
@@ -29,6 +30,7 @@ import { TextEditInteraction } from '../src/renderer/editor/text-edit-interactio
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
 import { ProjectSession } from '../src/renderer/projects/project-session';
+import { planBoardDuplicate } from '../src/renderer/projects/board-duplicate';
 import type {
   DesktopApi,
   ProjectCloseOutcome,
@@ -665,6 +667,50 @@ describe('renderer project session', () => {
       label: 'Compound edit',
     });
     expect(desktop.recoveryRequests).toHaveLength(2);
+  });
+
+  it('duplicates a nested board through one history and recovery transaction', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await startNewSession(session);
+    const cloneBoardId = BoardIdSchema.parse('board_sessionduplicate');
+    const cloneElementIds = [
+      ElementIdSchema.parse('element_sessiondup_group'),
+      ElementIdSchema.parse('element_sessiondup_child'),
+    ];
+    const plan = planBoardDuplicate(
+      document,
+      DOCUMENT_FIXTURE_IDS.board,
+      cloneBoardId,
+      (_sourceId, index) => cloneElementIds[index],
+    );
+    if (plan === undefined) {
+      throw new Error('Board duplicate transaction plan was not created.');
+    }
+
+    const result = session.dispatchTransaction(plan.commands, { label: 'Duplicate board' });
+
+    expect(result).toMatchObject({ changed: true, ok: true });
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Board duplicate transaction history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [
+        { type: 'board.create' },
+        { type: 'element.create' },
+        { type: 'element.create' },
+      ],
+      label: 'Duplicate board',
+    });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+    expect(undoDocumentHistory(history)).toMatchObject({
+      changed: true,
+      history: { document },
+      ok: true,
+    });
   });
 
   it('keeps an in-place text draft outside the document and commits one undoable recovery point', async () => {

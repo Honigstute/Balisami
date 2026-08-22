@@ -988,8 +988,11 @@ const AlphaNavigatorFixture = () => {
     <WireframeNavigator
       activeBoardId={fixture.boardId}
       document={fixture.document}
+      onDuplicateBoard={() => true}
       onRenameBoard={() => true}
+      onReorderBoard={() => true}
       onSelectBoard={() => undefined}
+      shortcutPlatform="darwin"
     />
   );
 };

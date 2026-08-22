@@ -38,6 +38,7 @@ import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { ProjectHome } from '../projects/ProjectHome';
 import { ActiveBoardStore } from '../projects/active-board-store';
 import { createBoardCreationCommand } from '../projects/board-creation';
+import { planBoardDuplicate } from '../projects/board-duplicate';
 import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
 import { ControlDrawOverlay } from '../editor/ControlDrawOverlay';
@@ -636,6 +637,43 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     },
     [session],
   );
+  const reorderBoard = useCallback(
+    (boardId: NonNullable<typeof activeBoardId>, toIndex: number): boolean => {
+      const result = session.dispatch({
+        type: DOCUMENT_COMMAND_TYPES.reorderBoard,
+        boardId,
+        toIndex,
+      });
+      return result?.ok === true;
+    },
+    [session],
+  );
+  const duplicateBoard = useCallback(
+    (sourceBoardId: NonNullable<typeof activeBoardId>): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const cloneBoardId = allocateEditorBoardId();
+      if (currentDocument === undefined || cloneBoardId === undefined) {
+        return false;
+      }
+      const plan = planBoardDuplicate(currentDocument, sourceBoardId, cloneBoardId, () =>
+        allocateEditorElementId(),
+      );
+      if (plan === undefined) {
+        return false;
+      }
+      const result = session.dispatchTransaction(plan.commands, { label: 'Duplicate board' });
+      if (
+        result?.ok !== true ||
+        !result.changed ||
+        result.history.document.boardsById[cloneBoardId] === undefined
+      ) {
+        return false;
+      }
+      selectActiveBoard(cloneBoardId);
+      return true;
+    },
+    [selectActiveBoard, session],
+  );
   useEffect(() => {
     editor.activeBoard.reconcile(document?.boardIds ?? []);
   }, [document, editor]);
@@ -991,8 +1029,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                 <WireframeNavigator
                   activeBoardId={activeBoardId}
                   document={document}
+                  onDuplicateBoard={duplicateBoard}
                   onRenameBoard={renameBoard}
+                  onReorderBoard={reorderBoard}
                   onSelectBoard={selectActiveBoard}
+                  shortcutPlatform={platform}
                 />
               ),
               shelf: (

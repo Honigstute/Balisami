@@ -45,8 +45,11 @@ describe('wireframe navigator', () => {
       <WireframeNavigator
         activeBoardId={FIRST_BOARD_ID}
         document={createTwoBoardDocument()}
+        onDuplicateBoard={() => true}
         onRenameBoard={() => true}
+        onReorderBoard={() => true}
         onSelectBoard={onSelectBoard}
+        shortcutPlatform="darwin"
       />,
     );
     const first = screen.getByRole('button', { name: 'Wireframe 1' });
@@ -71,8 +74,11 @@ describe('wireframe navigator', () => {
       <WireframeNavigator
         activeBoardId={FIRST_BOARD_ID}
         document={createTwoBoardDocument()}
+        onDuplicateBoard={() => true}
         onRenameBoard={onRenameBoard}
+        onReorderBoard={() => true}
         onSelectBoard={() => undefined}
+        shortcutPlatform="darwin"
       />,
     );
     const first = screen.getByRole('button', { name: 'Wireframe 1' });
@@ -101,5 +107,40 @@ describe('wireframe navigator', () => {
     fireEvent.blur(blankInput);
     expect(onRenameBoard).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('routes exact duplicate/reorder shortcuts and pointer reorder', () => {
+    const onDuplicateBoard = vi.fn(() => true);
+    const onReorderBoard = vi.fn(() => true);
+    render(
+      <WireframeNavigator
+        activeBoardId={FIRST_BOARD_ID}
+        document={createTwoBoardDocument()}
+        onDuplicateBoard={onDuplicateBoard}
+        onRenameBoard={() => true}
+        onReorderBoard={onReorderBoard}
+        onSelectBoard={() => undefined}
+        shortcutPlatform="darwin"
+      />,
+    );
+    const first = screen.getByRole('button', { name: 'Wireframe 1' });
+    const second = screen.getByRole('button', { name: 'Second board' });
+
+    fireEvent.keyDown(first, { ctrlKey: true, key: 'd' });
+    fireEvent.keyDown(first, { key: 'd', metaKey: true, repeat: true });
+    expect(onDuplicateBoard).not.toHaveBeenCalled();
+    fireEvent.keyDown(first, { key: 'd', metaKey: true });
+    expect(onDuplicateBoard).toHaveBeenCalledWith(FIRST_BOARD_ID);
+
+    fireEvent.keyDown(second, { altKey: true, key: 'ArrowUp' });
+    expect(onReorderBoard).toHaveBeenCalledWith(SECOND_BOARD_ID, 0);
+
+    const dataTransfer = { effectAllowed: 'none', dropEffect: 'none' } as DataTransfer;
+    fireEvent.dragStart(second, { dataTransfer });
+    expect(dataTransfer.effectAllowed).toBe('move');
+    fireEvent.dragOver(first, { dataTransfer });
+    expect(dataTransfer.dropEffect).toBe('move');
+    fireEvent.drop(first, { dataTransfer });
+    expect(onReorderBoard).toHaveBeenLastCalledWith(SECOND_BOARD_ID, 0);
   });
 });
