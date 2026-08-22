@@ -205,6 +205,71 @@ const createPlaybackMarkPath = (bounds: WorldRect, elementId: string): string =>
   ].join(' ');
 };
 
+const createChartBarMarkPath = (bounds: WorldRect, elementId: string): string =>
+  [
+    [0.14, 0.72],
+    [0.34, 0.58],
+    [0.54, 0.86],
+    [0.74, 0.66],
+  ]
+    .map(([verticalRatio, widthRatio], index) =>
+      createSeededSketchRectPath(
+        createWorldRect(
+          bounds.x + bounds.width * 0.06,
+          bounds.y + bounds.height * verticalRatio!,
+          bounds.width * widthRatio!,
+          bounds.height * 0.13,
+        ),
+        `${elementId}:chart-bar:${String(index)}`,
+      ),
+    )
+    .join(' ');
+
+const createChartLineMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const point = (x: number, y: number) =>
+    createWorldPoint(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
+  return [
+    createSeededSketchLinePath({
+      end: point(0.94, 0.9),
+      seed: `${elementId}:chart-line-horizontal-axis`,
+      start: point(0.08, 0.9),
+    }),
+    createSeededSketchLinePath({
+      end: point(0.08, 0.08),
+      seed: `${elementId}:chart-line-vertical-axis`,
+      start: point(0.08, 0.9),
+    }),
+    createSeededPolylinePath(
+      [point(0.08, 0.82), point(0.36, 0.64), point(0.68, 0.2), point(0.92, 0.4)],
+      elementId,
+      'chart-line-primary',
+    ),
+    createSeededPolylinePath(
+      [point(0.08, 0.88), point(0.3, 0.42), point(0.66, 0.68), point(0.92, 0.14)],
+      elementId,
+      'chart-line-secondary',
+    ),
+  ].join(' ');
+};
+
+const createChartPieMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const center = createWorldPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  const radius = Math.min(bounds.width, bounds.height) * 0.42;
+  return [
+    createSeededCirclePath(center, radius, elementId, 'chart-pie-circle'),
+    createSeededSketchLinePath({
+      end: createWorldPoint(center.x, center.y - radius),
+      seed: `${elementId}:chart-pie-first-radius`,
+      start: center,
+    }),
+    createSeededSketchLinePath({
+      end: createWorldPoint(center.x - radius * 0.72, center.y + radius * 0.7),
+      seed: `${elementId}:chart-pie-second-radius`,
+      start: center,
+    }),
+  ].join(' ');
+};
+
 const createVolumeMarkPath = (
   bounds: WorldRect,
   elementId: string,
@@ -428,6 +493,15 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'arrow') {
     return createArrowMarkPath(controlType, bounds, elementId, properties);
+  }
+  if (definition.scene.kind === 'chart-bar') {
+    return createChartBarMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'chart-line') {
+    return createChartLineMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'chart-pie') {
+    return createChartPieMarkPath(bounds, elementId);
   }
   if (definition.scene.kind === 'playback') {
     return createPlaybackMarkPath(bounds, elementId);

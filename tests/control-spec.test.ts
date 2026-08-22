@@ -24,6 +24,9 @@ describe('control definition registry', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.chartBar,
+      CONTROL_TYPES.chartLine,
+      CONTROL_TYPES.chartPie,
       CONTROL_TYPES.playback,
       CONTROL_TYPES.videoPlayer,
       CONTROL_TYPES.volumeSlider,
@@ -45,6 +48,9 @@ describe('control definition registry', () => {
       'Image',
       'Browser Window',
       'Arrow',
+      'Chart: Bar',
+      'Chart: Line',
+      'Chart: Pie',
       'Playback',
       'Video Player',
       'Volume Slider',
@@ -138,6 +144,20 @@ describe('control definition registry', () => {
       scene: { hitShape: { kind: 'line', tolerance: 6 }, kind: 'arrow' },
       palette: { drawShortcut: null },
     });
+    for (const [type, kind] of [
+      [CONTROL_TYPES.chartBar, 'chart-bar'],
+      [CONTROL_TYPES.chartLine, 'chart-line'],
+      [CONTROL_TYPES.chartPie, 'chart-pie'],
+    ] as const) {
+      expect(getControlSpec(type)).toMatchObject({
+        accessibility: { role: 'img' },
+        autoSize: null,
+        defaultProperties: {},
+        inspector: [],
+        palette: { category: 'Common' },
+        scene: { hitShape: { kind: 'bounds' }, kind, propertyKeys: [] },
+      });
+    }
     for (const [type, kind, size] of [
       [CONTROL_TYPES.playback, 'playback', { height: 36, width: 110 }],
       [CONTROL_TYPES.videoPlayer, 'video-player', { height: 200, width: 300 }],

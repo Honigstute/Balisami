@@ -50,7 +50,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(12);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(15);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -62,6 +62,9 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.chartBar,
+      CONTROL_TYPES.chartLine,
+      CONTROL_TYPES.chartPie,
       CONTROL_TYPES.playback,
       CONTROL_TYPES.videoPlayer,
       CONTROL_TYPES.volumeSlider,

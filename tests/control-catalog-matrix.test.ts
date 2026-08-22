@@ -11,6 +11,12 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.browser':
     'common harness; registry visual fixture; scene geometry and inspector controls',
   'wireframe.button': 'common harness; registry visual fixture; icon, migration, and auto-size',
+  'wireframe.chart-bar':
+    'common harness; registry visual fixture; deterministic Chart scene geometry',
+  'wireframe.chart-line':
+    'common harness; registry visual fixture; deterministic Chart scene geometry',
+  'wireframe.chart-pie':
+    'common harness; registry visual fixture; deterministic Chart scene geometry',
   'wireframe.checkbox':
     'common harness; registry visual fixture; hit-shape, accessibility, and auto-size',
   'wireframe.image-placeholder':

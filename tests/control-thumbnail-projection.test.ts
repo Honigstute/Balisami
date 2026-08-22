@@ -136,4 +136,34 @@ describe('control thumbnail projection', () => {
       expect(first).toBe(second);
     }
   });
+
+  it('projects each static Chart control with deterministic definition-owned marks', () => {
+    for (const type of [CONTROL_TYPES.chartBar, CONTROL_TYPES.chartLine, CONTROL_TYPES.chartPie]) {
+      const definition = getControlSpec(type);
+      if (definition === undefined) {
+        throw new Error(`Chart control '${type}' is missing.`);
+      }
+      const bounds = createWorldRect(
+        0,
+        0,
+        definition.defaultSize.width,
+        definition.defaultSize.height,
+      );
+      const first = createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        `chart-seed:${definition.type}`,
+        definition.defaultProperties,
+      );
+      expect(first).not.toBe('');
+      expect(first).toBe(
+        createControlSceneMarkPath(
+          definition.type,
+          bounds,
+          `chart-seed:${definition.type}`,
+          definition.defaultProperties,
+        ),
+      );
+    }
+  });
 });

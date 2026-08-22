@@ -115,6 +115,9 @@ describe('alpha control authoring UI', () => {
       'Image',
       'Browser Window',
       'Arrow',
+      'Chart: Bar',
+      'Chart: Line',
+      'Chart: Pie',
       'Playback',
       'Video Player',
       'Volume Slider',
@@ -131,6 +134,9 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.chartBar,
+      CONTROL_TYPES.chartLine,
+      CONTROL_TYPES.chartPie,
       CONTROL_TYPES.playback,
       CONTROL_TYPES.videoPlayer,
       CONTROL_TYPES.volumeSlider,
@@ -200,9 +206,8 @@ describe('alpha control authoring UI', () => {
     });
     render(<ControlShelf onInsert={() => true} />);
     const items = screen.getAllByRole('button');
-    expect(items.map((item) => item.tabIndex)).toEqual([
-      0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    ]);
+    expect(items[0]).toHaveAttribute('tabindex', '0');
+    expect(items.slice(1).every((item) => item.tabIndex === -1)).toBe(true);
 
     items[0]?.focus();
     fireEvent.keyDown(items[0] as HTMLButtonElement, { key: 'ArrowRight' });
@@ -234,6 +239,9 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.chartBar,
+      CONTROL_TYPES.chartLine,
+      CONTROL_TYPES.chartPie,
       CONTROL_TYPES.playback,
       CONTROL_TYPES.videoPlayer,
       CONTROL_TYPES.volumeSlider,
