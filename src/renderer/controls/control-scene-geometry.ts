@@ -262,6 +262,38 @@ const createSplitterMarkPath = (
     .join(' ');
 };
 
+const createRedXMarkPath = (bounds: WorldRect, elementId: string): string =>
+  [
+    createSeededSketchLinePath({
+      end: createWorldPoint(bounds.x + bounds.width * 0.96, bounds.y + bounds.height * 0.94),
+      seed: `${elementId}:red-x:first`,
+      start: createWorldPoint(bounds.x + bounds.width * 0.04, bounds.y + bounds.height * 0.06),
+    }),
+    createSeededSketchLinePath({
+      end: createWorldPoint(bounds.x + bounds.width * 0.04, bounds.y + bounds.height * 0.94),
+      seed: `${elementId}:red-x:second`,
+      start: createWorldPoint(bounds.x + bounds.width * 0.96, bounds.y + bounds.height * 0.06),
+    }),
+  ].join(' ');
+
+const createSquigglyBlockMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const lines: string[] = [];
+  const rowCount = Math.max(2, Math.min(6, Math.round(bounds.height / 18)));
+  for (let row = 0; row < rowCount; row += 1) {
+    const y = bounds.y + bounds.height * ((row + 0.7) / rowCount);
+    const pointCount = 12;
+    const widthRatio = row === rowCount - 1 ? 0.72 : 0.92;
+    const points = Array.from({ length: pointCount }, (_, index) =>
+      createWorldPoint(
+        bounds.x + bounds.width * (0.04 + (widthRatio * index) / (pointCount - 1)),
+        y + (index % 2 === 0 ? -1 : 1) * Math.max(1, bounds.height * 0.025),
+      ),
+    );
+    lines.push(createSeededPolylinePath(points, elementId, `squiggly-block:${String(row)}`));
+  }
+  return lines.join(' ');
+};
+
 const createChartBarMarkPath = (bounds: WorldRect, elementId: string): string =>
   [
     [0.14, 0.72],
@@ -618,6 +650,12 @@ export const createControlSceneMarkPath = (
   if (definition.scene.kind === 'v-splitter') {
     return createSplitterMarkPath(bounds, elementId, 'vertical');
   }
+  if (definition.scene.kind === 'red-x') {
+    return createRedXMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'squiggly-block') {
+    return createSquigglyBlockMarkPath(bounds, elementId);
+  }
   if (definition.scene.kind === 'video-player') {
     return createVideoPlayerMarkPath(bounds, elementId);
   }
@@ -652,4 +690,4 @@ export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
   !['arrow', 'text', 'transparent'].includes(definition.scene.kind);
 
 export const controlSceneHasOutline = (definition: ControlDefinition): boolean =>
-  definition.scene.kind !== 'text' && definition.scene.kind !== 'transparent';
+  !['red-x', 'squiggly-block', 'text', 'transparent'].includes(definition.scene.kind);

@@ -3,7 +3,16 @@ import type { z } from 'zod';
 import type { ControlTypeId, ElementProperties, JsonValue } from '../document/schema';
 
 export type ControlCategory =
-  'Assets' | 'Buttons' | 'Common' | 'Containers' | 'Forms' | 'Layout' | 'Media' | 'Text' | 'iOS';
+  | 'Assets'
+  | 'Buttons'
+  | 'Common'
+  | 'Containers'
+  | 'Forms'
+  | 'Layout'
+  | 'Markup'
+  | 'Media'
+  | 'Text'
+  | 'iOS';
 export type ControlVisualKind =
   | 'arrow'
   | 'browser'
@@ -19,6 +28,8 @@ export type ControlVisualKind =
   | 'ios-picker'
   | 'playback'
   | 'rectangle'
+  | 'red-x'
+  | 'squiggly-block'
   | 'text'
   | 'transparent'
   | 'video-player'

@@ -19,6 +19,7 @@ describe('control draw interaction', () => {
   it('resolves only screenshot-backed registry shortcuts', () => {
     expect(getControlSpecByDrawShortcut('KeyR')?.type).toBe(CONTROL_TYPES.rectangle);
     expect(getControlSpecByDrawShortcut('KeyI')?.type).toBe(CONTROL_TYPES.imagePlaceholder);
+    expect(getControlSpecByDrawShortcut('KeyT')?.type).toBe(CONTROL_TYPES.squigglyBlock);
     expect(getControlSpecByDrawShortcut('KeyA')).toBeUndefined();
     expect(getControlSpecByDrawShortcut('r')).toBeUndefined();
   });

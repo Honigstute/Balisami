@@ -35,6 +35,8 @@ describe('control definition registry', () => {
       CONTROL_TYPES.iosPicker,
       CONTROL_TYPES.hSplitter,
       CONTROL_TYPES.vSplitter,
+      CONTROL_TYPES.redX,
+      CONTROL_TYPES.squigglyBlock,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -63,6 +65,8 @@ describe('control definition registry', () => {
       'iOS Picker',
       'H.Splitter',
       'V.Splitter',
+      'Red X',
+      'Squiggly Block of Text',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -166,6 +170,18 @@ describe('control definition registry', () => {
         scene: { hitShape: { kind: 'bounds' }, kind, propertyKeys: [] },
       });
     }
+    expect(getControlSpec(CONTROL_TYPES.redX)).toMatchObject({
+      defaultProperties: {},
+      inspector: [],
+      palette: { category: 'Markup', drawShortcut: null },
+      scene: { kind: 'red-x', propertyKeys: [] },
+    });
+    expect(getControlSpec(CONTROL_TYPES.squigglyBlock)).toMatchObject({
+      defaultProperties: {},
+      inspector: [],
+      palette: { category: 'Markup', drawShortcut: 'KeyT' },
+      scene: { kind: 'squiggly-block', propertyKeys: [] },
+    });
     expect(getControlSpec(CONTROL_TYPES.calendar)).toMatchObject({
       accessibility: { role: 'img' },
       autoSize: null,

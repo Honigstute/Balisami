@@ -252,4 +252,34 @@ describe('control thumbnail projection', () => {
       );
     }
   });
+
+  it('projects the fixed Markup controls with deterministic definition-owned marks', () => {
+    for (const type of [CONTROL_TYPES.redX, CONTROL_TYPES.squigglyBlock]) {
+      const definition = getControlSpec(type);
+      if (definition === undefined) {
+        throw new Error(`Markup control '${type}' is missing.`);
+      }
+      const bounds = createWorldRect(
+        0,
+        0,
+        definition.defaultSize.width,
+        definition.defaultSize.height,
+      );
+      const mark = createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        `markup-seed:${definition.type}`,
+        definition.defaultProperties,
+      );
+      expect(mark).not.toBe('');
+      expect(mark).toBe(
+        createControlSceneMarkPath(
+          definition.type,
+          bounds,
+          `markup-seed:${definition.type}`,
+          definition.defaultProperties,
+        ),
+      );
+    }
+  });
 });

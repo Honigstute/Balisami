@@ -29,6 +29,9 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry visual fixture; deterministic iOS Picker scene geometry',
   'wireframe.playback':
     'common harness; registry visual fixture; deterministic Media scene geometry',
+  'wireframe.red-x': 'common harness; registry visual fixture; deterministic Markup scene geometry',
+  'wireframe.squiggly-block-of-text':
+    'common harness; registry visual fixture; deterministic Markup scene geometry',
   'wireframe.text-input': 'common harness; registry visual fixture; control auto-size',
   'wireframe.text-label': 'common harness; registry visual fixture; control auto-size',
   'wireframe.video-player':

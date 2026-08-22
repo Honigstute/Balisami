@@ -50,7 +50,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(19);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(21);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -73,6 +73,8 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.iosPicker,
       CONTROL_TYPES.hSplitter,
       CONTROL_TYPES.vSplitter,
+      CONTROL_TYPES.redX,
+      CONTROL_TYPES.squigglyBlock,
     ]);
   });
 
