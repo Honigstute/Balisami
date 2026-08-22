@@ -130,10 +130,12 @@ describe('Quick Add', () => {
       CONTROL_TYPES.scratchOut,
       CONTROL_TYPES.helpButton,
       CONTROL_TYPES.modalScreen,
+      CONTROL_TYPES.colorPicker,
+      CONTROL_TYPES.onOffSwitch,
     ]) {
       preferences = recordQuickAddRecent(preferences, type);
     }
     expect(preferences.recent).toHaveLength(MAX_QUICK_ADD_RECENT);
-    expect(preferences.recent[0]).toBe(CONTROL_TYPES.modalScreen);
+    expect(preferences.recent[0]).toBe(CONTROL_TYPES.onOffSwitch);
   });
 });

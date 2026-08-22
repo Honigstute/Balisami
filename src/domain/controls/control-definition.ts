@@ -22,6 +22,7 @@ export type ControlVisualKind =
   | 'chart-line'
   | 'chart-pie'
   | 'checkbox'
+  | 'color-picker'
   | 'image'
   | 'h-splitter'
   | 'h-rule'
@@ -30,6 +31,7 @@ export type ControlVisualKind =
   | 'ios-picker'
   | 'playback'
   | 'modal-screen'
+  | 'on-off-switch'
   | 'rectangle'
   | 'red-x'
   | 'scratch-out'
@@ -161,6 +163,8 @@ export interface ControlSceneDefinition {
   /** Exact selectable geometry applied after the spatial index's AABB broad phase. */
   readonly hitShape: ControlHitShape;
   readonly kind: ControlVisualKind;
+  /** Registry-owned destination for a non-default `color` property. */
+  readonly colorTarget: 'fill' | 'stroke';
   /** Only these properties invalidate cached scene presentation. */
   readonly propertyKeys: readonly string[];
 }
@@ -379,6 +383,9 @@ export const assertControlDefinitionsConform = (
       throw new Error(`Control '${definition.type}' has invalid accessibility metadata.`);
     }
     const hitShape = definition.scene.hitShape;
+    if (!['fill', 'stroke'].includes(definition.scene.colorTarget)) {
+      throw new Error(`Control '${definition.type}' has invalid scene geometry metadata.`);
+    }
     if (
       !['bounds', 'ellipse', 'line'].includes(hitShape.kind) ||
       (hitShape.kind === 'line' &&

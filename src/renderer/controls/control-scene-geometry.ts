@@ -215,6 +215,36 @@ const createHelpButtonMarkPath = (bounds: WorldRect, elementId: string): string 
   ].join(' ');
 };
 
+const createColorPickerMarkPath = (bounds: WorldRect, elementId: string): string =>
+  createSeededPolylinePath(
+    [
+      createWorldPoint(bounds.x + bounds.width * 0.58, bounds.y + bounds.height * 0.72),
+      createWorldPoint(bounds.x + bounds.width * 0.88, bounds.y + bounds.height * 0.72),
+      createWorldPoint(bounds.x + bounds.width * 0.73, bounds.y + bounds.height * 0.9),
+    ],
+    elementId,
+    'color-picker-indicator',
+    true,
+  );
+
+const createOnOffSwitchMarkPath = (
+  bounds: WorldRect,
+  elementId: string,
+  properties: ElementProperties,
+): string => {
+  const radius = bounds.height * 0.38;
+  const centerX =
+    properties.state === 'off'
+      ? bounds.x + radius + bounds.width * 0.08
+      : bounds.x + bounds.width - radius - bounds.width * 0.08;
+  return createSeededCirclePath(
+    createWorldPoint(centerX, bounds.y + bounds.height / 2),
+    radius,
+    elementId,
+    'on-off-switch-thumb',
+  );
+};
+
 const createPlaybackMarkPath = (bounds: WorldRect, elementId: string): string => {
   const centerY = bounds.y + bounds.height / 2;
   const radius = Math.min(bounds.height * 0.38, bounds.width * 0.12);
@@ -802,6 +832,12 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'help-button') {
     return createHelpButtonMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'color-picker') {
+    return createColorPickerMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'on-off-switch') {
+    return createOnOffSwitchMarkPath(bounds, elementId, properties);
   }
   if (definition.scene.kind === 'squiggly-block') {
     return createSquigglyBlockMarkPath(bounds, elementId);

@@ -44,6 +44,8 @@ describe('control definition registry', () => {
       CONTROL_TYPES.scratchOut,
       CONTROL_TYPES.helpButton,
       CONTROL_TYPES.modalScreen,
+      CONTROL_TYPES.colorPicker,
+      CONTROL_TYPES.onOffSwitch,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -81,6 +83,8 @@ describe('control definition registry', () => {
       'Scratch-Out',
       'Help Button',
       'Modal Screen',
+      'Color Picker',
+      'ON/OFF Switch',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -210,6 +214,26 @@ describe('control definition registry', () => {
       inspector: [],
       palette: { category: 'Containers' },
       scene: { kind: 'modal-screen', propertyKeys: [] },
+    });
+    expect(getControlSpec(CONTROL_TYPES.colorPicker)).toMatchObject({
+      defaultProperties: { color: 'default' },
+      inspector: [{ fields: [{ kind: 'color', property: 'color' }] }],
+      palette: { category: 'Forms' },
+      scene: { colorTarget: 'fill', kind: 'color-picker', propertyKeys: ['color'] },
+    });
+    expect(getControlSpec(CONTROL_TYPES.onOffSwitch)).toMatchObject({
+      capabilities: { link: true, state: true },
+      defaultProperties: { color: 'default', state: 'on' },
+      inspector: [
+        {
+          fields: [
+            { kind: 'color', property: 'color' },
+            { kind: 'choice', property: 'state' },
+          ],
+        },
+      ],
+      palette: { category: 'Forms' },
+      scene: { colorTarget: 'fill', kind: 'on-off-switch', propertyKeys: ['color', 'state'] },
     });
     expect(getControlSpec(CONTROL_TYPES.redX)).toMatchObject({
       defaultProperties: {},
@@ -364,6 +388,14 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/accessibility metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          scene: { ...checkbox.scene, colorTarget: 'invalid' as never },
+        },
+      ]),
+    ).toThrow(/scene geometry metadata/u);
     expect(() =>
       assertControlDefinitionsConform([
         {

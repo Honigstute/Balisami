@@ -57,6 +57,8 @@ export const CONTROL_TYPES = Object.freeze({
   scratchOut: ControlTypeIdSchema.parse('wireframe.scratch-out'),
   helpButton: ControlTypeIdSchema.parse('wireframe.help-button'),
   modalScreen: ControlTypeIdSchema.parse('wireframe.modal-screen'),
+  colorPicker: ControlTypeIdSchema.parse('wireframe.color-picker'),
+  onOffSwitch: ControlTypeIdSchema.parse('wireframe.on-off-switch'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -123,6 +125,10 @@ const colorOpacityPropertiesSchema = z
     opacity: z.number().min(0).max(1),
   })
   .readonly();
+const colorPropertiesSchema = z.strictObject({ color: sceneColorSchema }).readonly();
+const onOffSwitchPropertiesSchema = z
+  .strictObject({ color: sceneColorSchema, state: z.enum(['off', 'on']) })
+  .readonly();
 
 const createSize = (width: number, height: number): ControlSize => Object.freeze({ height, width });
 
@@ -184,9 +190,11 @@ const createScene = (
   propertyKeys: readonly string[],
   checkbox?: ControlSceneDefinition['checkbox'],
   hitShape: ControlSceneDefinition['hitShape'] = Object.freeze({ kind: 'bounds' }),
+  colorTarget: ControlSceneDefinition['colorTarget'] = 'stroke',
 ): ControlSceneDefinition =>
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
+    colorTarget,
     hitShape: Object.freeze(hitShape),
     kind,
     propertyKeys: Object.freeze(propertyKeys),
@@ -530,7 +538,13 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     maximumSize: null,
     palette: createPalette('Browser Window', 'Containers', 70),
     propertiesSchema: browserPropertiesSchema,
-    scene: createScene('browser', ['borderMode', 'color', 'scrollbar']),
+    scene: createScene(
+      'browser',
+      ['borderMode', 'color', 'scrollbar'],
+      undefined,
+      undefined,
+      'fill',
+    ),
     tags: ['container', 'website', 'web'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.browser,
@@ -1223,6 +1237,77 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['backdrop', 'container', 'modal', 'overlay'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.modalScreen,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Color picker', 'img'),
+    aliases: ['color swatch', 'colour picker'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { color: 'default' },
+    defaultSize: createSize(26, 28),
+    export: createExport('scene'),
+    inspector: createInspector('Color Picker', [
+      { kind: 'color', label: 'Color', property: 'color' },
+    ]),
+    minimumSize: createSize(16, 16),
+    maximumSize: null,
+    palette: createPalette('Color Picker', 'Forms', 290),
+    propertiesSchema: colorPropertiesSchema,
+    scene: createScene('color-picker', ['color'], undefined, undefined, 'fill'),
+    tags: ['color', 'colour', 'form', 'picker', 'swatch'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.colorPicker,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('On/off switch', 'button'),
+    aliases: ['switch', 'toggle'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      null,
+    ),
+    defaultProperties: { color: 'default', state: 'on' },
+    defaultSize: createSize(42, 24),
+    export: createExport('scene'),
+    inspector: createInspector('ON/OFF Switch', [
+      { kind: 'color', label: 'Color', property: 'color' },
+      {
+        kind: 'choice',
+        label: 'State',
+        options: [
+          { label: 'Off', value: 'off' },
+          { label: 'On', value: 'on' },
+        ],
+        property: 'state',
+      },
+    ]),
+    minimumSize: createSize(28, 16),
+    maximumSize: null,
+    palette: createPalette('ON/OFF Switch', 'Forms', 300),
+    propertiesSchema: onOffSwitchPropertiesSchema,
+    scene: createScene('on-off-switch', ['color', 'state'], undefined, undefined, 'fill'),
+    tags: ['form', 'off', 'on', 'switch', 'toggle'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.onOffSwitch,
   }),
 ]);
 

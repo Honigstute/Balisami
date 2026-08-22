@@ -135,6 +135,8 @@ describe('alpha control authoring UI', () => {
       'Scratch-Out',
       'Help Button',
       'Modal Screen',
+      'Color Picker',
+      'ON/OFF Switch',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -167,6 +169,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.scratchOut,
       CONTROL_TYPES.helpButton,
       CONTROL_TYPES.modalScreen,
+      CONTROL_TYPES.colorPicker,
+      CONTROL_TYPES.onOffSwitch,
     ]);
   });
 
@@ -213,7 +217,12 @@ describe('alpha control authoring UI', () => {
 
     expect(
       screen.getAllByRole('button').map((button) => button.getAttribute('aria-label')),
-    ).toEqual(['Insert Text Input', 'Insert Checkbox']);
+    ).toEqual([
+      'Insert Text Input',
+      'Insert Checkbox',
+      'Insert Color Picker',
+      'Insert ON/OFF Switch',
+    ]);
 
     view.rerender(<ControlShelf onInsert={() => true} query="cta" />);
     expect(screen.getByRole('button', { name: 'Insert Button' })).toBeInTheDocument();
@@ -285,6 +294,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.scratchOut,
       CONTROL_TYPES.helpButton,
       CONTROL_TYPES.modalScreen,
+      CONTROL_TYPES.colorPicker,
+      CONTROL_TYPES.onOffSwitch,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);

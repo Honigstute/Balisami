@@ -38,6 +38,10 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; shared link inspector; deterministic Help Button geometry',
   'wireframe.modal-screen':
     'common harness; shared link inspector; deterministic Modal Screen geometry',
+  'wireframe.color-picker':
+    'common harness; registry color target; deterministic Color Picker geometry',
+  'wireframe.on-off-switch':
+    'common harness; shared link and state inspector; deterministic Switch geometry',
   'wireframe.squiggly-block-of-text':
     'common harness; registry visual fixture; deterministic Markup scene geometry',
   'wireframe.street-map':

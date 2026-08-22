@@ -414,4 +414,33 @@ describe('control thumbnail projection', () => {
       createControlSceneOutlinePath(definition.type, bounds, 'help-button-seed'),
     );
   });
+
+  it('projects deterministic Color Picker and ON/OFF Switch marks', () => {
+    for (const type of [CONTROL_TYPES.colorPicker, CONTROL_TYPES.onOffSwitch]) {
+      const definition = getControlSpec(type);
+      if (definition === undefined) {
+        throw new Error(`Form control '${type}' is missing.`);
+      }
+      const bounds = createWorldRect(
+        0,
+        0,
+        definition.defaultSize.width,
+        definition.defaultSize.height,
+      );
+      const first = createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        `form-seed:${definition.type}`,
+        definition.defaultProperties,
+      );
+      const second = createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        `form-seed:${definition.type}`,
+        definition.defaultProperties,
+      );
+      expect(first).not.toBe('');
+      expect(first).toBe(second);
+    }
+  });
 });

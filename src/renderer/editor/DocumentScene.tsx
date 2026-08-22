@@ -351,7 +351,7 @@ class DocumentScenePresenter {
     outlineElement.style.removeProperty('stroke');
     markElement.style.removeProperty('stroke');
     if (typeof color === 'string' && color !== 'default') {
-      if (spec.scene.kind === 'browser') {
+      if (spec.scene.colorTarget === 'fill') {
         fillElement.style.fill = color;
       } else {
         outlineElement.style.stroke = color;
