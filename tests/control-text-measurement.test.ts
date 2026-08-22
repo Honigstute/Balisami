@@ -32,7 +32,7 @@ describe('control text measurement', () => {
       text: 'Save\r\nnow',
     });
 
-    expect(context.font).toBe(`400 10px "${DESIGN_TOKENS.font.family.wireframe}"`);
+    expect(context.font).toBe(`normal 400 10px "${DESIGN_TOKENS.font.family.wireframe}"`);
     expect(context.textBaseline).toBe('alphabetic');
     expect(measurement).toEqual({
       baselineOffsets: [10.5],
@@ -98,9 +98,23 @@ describe('control text measurement', () => {
     const check = vi.fn(() => true);
     await prepareBundledWireframeFont({ check, load, ready: Promise.resolve() });
 
-    const expectedFont = `400 16px "${DESIGN_TOKENS.font.family.wireframe}"`;
+    const expectedFont = `normal 400 16px "${DESIGN_TOKENS.font.family.wireframe}"`;
     expect(load).toHaveBeenCalledWith(expectedFont, CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText);
+    expect(load).toHaveBeenCalledWith(
+      `italic 700 16px "${DESIGN_TOKENS.font.family.wireframe}"`,
+      CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText,
+    );
     expect(check).toHaveBeenCalledWith(expectedFont, CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText);
+
+    const styledContext = createContext();
+    createControlTextMeasurementService(styledContext).measure({
+      fontSize: 18,
+      fontStyle: 'italic',
+      fontWeight: 'bold',
+      mode: 'single-line',
+      text: 'Styled',
+    });
+    expect(styledContext.font).toBe(`italic 700 18px "${DESIGN_TOKENS.font.family.wireframe}"`);
 
     await expect(
       prepareBundledWireframeFont({

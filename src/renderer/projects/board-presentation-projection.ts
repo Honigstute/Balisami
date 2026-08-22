@@ -25,7 +25,6 @@ export interface BoardPresentationItem extends ControlSceneProjection {
   readonly accessibleName: string;
   readonly assetIds: readonly AssetId[];
   readonly checked: boolean | undefined;
-  readonly color: string | undefined;
   readonly controlType: ControlTypeId;
   readonly hasFill: boolean;
   readonly hasOutline: boolean;
@@ -109,31 +108,26 @@ export const createBoardPresentationProjection = (
       throw new Error(`Board presentation received unknown control '${item.controlType}'.`);
     }
     const checkedProperty = definition.accessibility.checkedProperty;
-    const color = item.properties.color;
-    const opacity = item.properties.opacity;
     const strokeStyle = item.properties.strokeStyle;
+    const projection = createControlSceneProjection({
+      bounds: item.bounds,
+      definition,
+      identity: item.id,
+      properties: item.properties,
+      textMeasurementService,
+    });
     return Object.freeze({
-      ...createControlSceneProjection({
-        bounds: item.bounds,
-        definition,
-        identity: item.id,
-        properties: item.properties,
-        textMeasurementService,
-      }),
+      ...projection,
       accessibleName: getControlAccessibleName(definition, item.properties),
       assetIds: item.assetIds,
       checked: checkedProperty === null ? undefined : item.properties[checkedProperty] === true,
-      color: typeof color === 'string' && color !== 'default' ? color : undefined,
       controlType: item.controlType,
       hasFill:
         controlSceneHasFill(definition) &&
         !(definition.scene.kind === 'image' && item.assetIds.length > 0),
-      hasOutline:
-        controlSceneHasOutline(definition) &&
-        (definition.scene.kind !== 'image' || item.properties.showBorder === true),
+      hasOutline: controlSceneHasOutline(definition) && projection.borderVisible,
       id: item.id,
       link: item.link,
-      opacity: typeof opacity === 'number' ? opacity : undefined,
       role: definition.accessibility.role,
       strokeStyle: typeof strokeStyle === 'string' ? strokeStyle : undefined,
       visualKind: item.visualKind,

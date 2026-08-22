@@ -66,7 +66,7 @@ describe('control definition conformance harness', () => {
         const checked = dispatchDocumentCommand(document, {
           type: DOCUMENT_COMMAND_TYPES.setElementProperties,
           elementId,
-          properties: { checked: true, text: 'Remember me' },
+          properties: { ...definition.defaultProperties, checked: true, text: 'Remember me' },
         });
         if (!checked.ok || !checked.changed) {
           throw new Error('Checkbox conformance state could not be applied.');

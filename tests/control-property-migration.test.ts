@@ -35,6 +35,45 @@ const createVersionTwoRectangle = (): ControlDefinition => {
 };
 
 describe('control property migrations', () => {
+  it('normalizes each original promoted control into its strict current schema', () => {
+    const cases = [
+      {
+        source: { extraLegacyJson: { allowed: true }, opacity: 0.25 },
+        type: CONTROL_TYPES.rectangle,
+        version: 1,
+      },
+      { source: { text: 'Legacy input' }, type: CONTROL_TYPES.textInput, version: 1 },
+      {
+        source: { checked: true, text: 'Legacy checkbox' },
+        type: CONTROL_TYPES.checkbox,
+        version: 1,
+      },
+      { source: { showBorder: true }, type: CONTROL_TYPES.imagePlaceholder, version: 1 },
+    ] as const;
+    for (const fixture of cases) {
+      const definition = getControlSpec(fixture.type);
+      if (definition === undefined) throw new Error(`Missing '${fixture.type}' definition.`);
+      const migrated = migrateControlProperties(definition, fixture.version, fixture.source);
+      expect(migrated).toMatchObject({ ok: true });
+      if (!migrated.ok) throw new Error(migrated.error.message);
+      expect(definition.propertiesSchema.safeParse(migrated.properties).success).toBe(true);
+      expect(Object.isFrozen(migrated.properties)).toBe(true);
+    }
+
+    const rectangle = getControlSpec(CONTROL_TYPES.rectangle);
+    if (rectangle === undefined) throw new Error('Rectangle definition is missing.');
+    expect(migrateControlProperties(rectangle, 1, { extraLegacyJson: { allowed: true } })).toEqual({
+      ok: true,
+      properties: {
+        borderColor: 'default',
+        borderMode: 'visual-2',
+        color: 'default',
+        opacity: 1,
+        scrollbar: false,
+      },
+    });
+  });
+
   it('migrates legacy buttons to the canonical nullable icon contract', () => {
     const button = getControlSpec(CONTROL_TYPES.button);
     if (button === undefined) {
@@ -42,24 +81,46 @@ describe('control property migrations', () => {
     }
     expect(migrateControlProperties(button, 1, { text: 'Legacy button' })).toEqual({
       ok: true,
-      properties: { iconId: null, text: 'Legacy button' },
+      properties: {
+        bold: false,
+        color: 'default',
+        fontSize: 16,
+        iconId: null,
+        italic: false,
+        state: 'normal',
+        text: 'Legacy button',
+        textAlignment: 'center',
+        underline: false,
+      },
     });
-    expect(button.propertiesSchema.safeParse({ iconId: 'trash', text: 'Delete' }).success).toBe(
-      true,
-    );
-    expect(button.propertiesSchema.safeParse({ iconId: 'trash-2', text: 'Alias' }).success).toBe(
-      false,
-    );
+    expect(
+      button.propertiesSchema.safeParse({
+        ...button.defaultProperties,
+        iconId: 'trash',
+        text: 'Delete',
+      }).success,
+    ).toBe(true);
+    expect(
+      button.propertiesSchema.safeParse({
+        ...button.defaultProperties,
+        iconId: 'trash-2',
+        text: 'Alias',
+      }).success,
+    ).toBe(false);
     const assetId = AssetIdSchema.parse('asset_customicon');
     expect(
       button.propertiesSchema.safeParse({
+        ...button.defaultProperties,
         iconId: createCustomIconReference(assetId),
         text: 'Brand',
       }).success,
     ).toBe(true);
     expect(
-      button.propertiesSchema.safeParse({ iconId: 'project-image:not-an-asset', text: 'Bad' })
-        .success,
+      button.propertiesSchema.safeParse({
+        ...button.defaultProperties,
+        iconId: 'project-image:not-an-asset',
+        text: 'Bad',
+      }).success,
     ).toBe(false);
   });
 

@@ -14,6 +14,7 @@ import {
 import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlProperties,
   getFixtureControlVersion,
 } from './fixtures/project-document';
 
@@ -52,7 +53,10 @@ const createComponentCommand = (
       controlVersion: getFixtureControlVersion(CONTROL_TYPES.button),
       frame: Object.freeze({ x: 20, y: 30, width: 120, height: 40 }),
       locked: false,
-      properties: Object.freeze({ iconId: null, text: 'Action' }),
+      properties: Object.freeze({
+        ...getFixtureControlProperties(CONTROL_TYPES.button),
+        text: 'Action',
+      }),
       childIds: Object.freeze([]),
       assetIds: Object.freeze([]),
       link: null,

@@ -41,8 +41,10 @@ export const ThumbnailSceneSvg = ({
       return (
         <g
           data-control-stroke-style={item.strokeStyle}
+          data-control-disabled={String(item.disabled)}
           data-control-visual={item.visualKind}
           key={item.id}
+          opacity={item.opacity}
         >
           {item.hasFill ? (
             <rect
@@ -51,6 +53,7 @@ export const ThumbnailSceneSvg = ({
               width={item.primitiveBounds.width}
               x={item.primitiveBounds.x}
               y={item.primitiveBounds.y}
+              style={item.fillColor === undefined ? undefined : { fill: item.fillColor }}
             />
           ) : null}
           {imageUrl === undefined ? null : (
@@ -69,6 +72,7 @@ export const ThumbnailSceneSvg = ({
               className="scene-control__outline"
               d={item.outlinePath}
               vectorEffect="non-scaling-stroke"
+              style={item.strokeColor === undefined ? undefined : { stroke: item.strokeColor }}
             />
           ) : null}
           {imageUrl === undefined && item.markPath.length > 0 ? (
@@ -76,6 +80,7 @@ export const ThumbnailSceneSvg = ({
               className="scene-control__mark"
               d={item.markPath}
               vectorEffect="non-scaling-stroke"
+              style={item.strokeColor === undefined ? undefined : { stroke: item.strokeColor }}
             />
           ) : null}
           {item.icon === undefined ? null : (
@@ -86,7 +91,11 @@ export const ThumbnailSceneSvg = ({
               className="scene-control__text"
               dominantBaseline="alphabetic"
               fontSize={item.textLayout.fontSize}
+              fontStyle={item.textLayout.fontStyle}
+              fontWeight={item.textLayout.fontWeight}
+              fill={item.textLayout.color}
               textAnchor={item.textLayout.textAnchor}
+              textDecoration={item.textLayout.textDecoration}
             >
               {item.textLayout.lines.map((line, index) => (
                 <tspan key={`${String(index)}:${line.text}`} x={line.x} y={line.baselineY}>

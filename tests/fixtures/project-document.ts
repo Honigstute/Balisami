@@ -10,6 +10,7 @@ import {
   type Board,
   type ComponentDefinition,
   type ElementNode,
+  type ElementProperties,
   type ProjectDocument,
 } from '../../src/domain';
 
@@ -43,6 +44,12 @@ export type ProjectDocumentInputFixture = Omit<
   boardsById: Record<string, MutableInput<Board>>;
   componentsById: Record<string, MutableInput<ComponentDefinition>>;
   elementsById: Record<string, MutableInput<ElementNode>>;
+};
+
+export const getFixtureControlProperties = (type: string): MutableInput<ElementProperties> => {
+  const definition = getControlSpec(type);
+  if (definition === undefined) throw new Error(`Fixture control '${type}' is not registered.`);
+  return structuredClone(definition.defaultProperties) as MutableInput<ElementProperties>;
 };
 
 export const DOCUMENT_FIXTURE_IDS = {
@@ -89,7 +96,10 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 16, y: 24, width: 120, height: 48 },
       locked: false,
-      properties: { opacity: 0.75, tags: ['example', true, null] },
+      properties: {
+        ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle),
+        opacity: 0.75,
+      },
       childIds: [],
       assetIds: [DOCUMENT_FIXTURE_IDS.asset],
       link: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },

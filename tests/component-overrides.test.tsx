@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -24,6 +24,7 @@ import { SelectionStore } from '../src/renderer/editor/selection-store';
 import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlProperties,
   getFixtureControlVersion,
 } from './fixtures/project-document';
 
@@ -43,7 +44,10 @@ const createComponentDocument = (
   }
   child.controlType = CONTROL_TYPES.button;
   child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.button);
-  child.properties = { iconId: null, text: 'Definition action' };
+  child.properties = {
+    ...getFixtureControlProperties(CONTROL_TYPES.button),
+    text: 'Definition action',
+  };
   child.assetIds = [];
   input.componentIds = [COMPONENT_ID];
   input.componentsById[COMPONENT_ID] = {
@@ -87,17 +91,13 @@ describe('component instance overrides', () => {
   it('projects registry fields, applies one override, and resets to the live definition', () => {
     const document = createComponentDocument();
     const model = createComponentOverrideModel(document, INSTANCE_ID);
-    expect(model).toMatchObject({
-      component: { id: COMPONENT_ID, name: 'Reusable action' },
-      sections: [
-        {
-          label: 'Definition action · Content',
-          targetElementId: DOCUMENT_FIXTURE_IDS.child,
-          fields: [
-            { field: { property: 'text' }, overridden: false, value: 'Definition action' },
-            { field: { property: 'iconId' }, overridden: false, value: null },
-          ],
-        },
+    expect(model?.component).toMatchObject({ id: COMPONENT_ID, name: 'Reusable action' });
+    expect(model?.sections.find((section) => section.label.endsWith('· Content'))).toMatchObject({
+      label: 'Definition action · Content',
+      targetElementId: DOCUMENT_FIXTURE_IDS.child,
+      fields: [
+        { field: { property: 'text' }, overridden: false, value: 'Definition action' },
+        { field: { property: 'iconId' }, overridden: false, value: null },
       ],
     });
 
@@ -113,7 +113,9 @@ describe('component instance overrides', () => {
     });
     if (!applied.ok || !applied.changed) throw new Error('Expected component override commit.');
     expect(
-      createComponentOverrideModel(applied.history.document, INSTANCE_ID)?.sections[0]?.fields[0],
+      createComponentOverrideModel(applied.history.document, INSTANCE_ID)
+        ?.sections.flatMap((section) => section.fields)
+        .find((field) => field.field.property === 'text'),
     ).toMatchObject({
       overridden: true,
       value: 'Instance action',
@@ -139,7 +141,9 @@ describe('component instance overrides', () => {
       overrides: {},
     });
     expect(
-      createComponentOverrideModel(reset.history.document, INSTANCE_ID)?.sections[0]?.fields[0],
+      createComponentOverrideModel(reset.history.document, INSTANCE_ID)
+        ?.sections.flatMap((section) => section.fields)
+        .find((field) => field.field.property === 'text'),
     ).toMatchObject({
       overridden: false,
       value: 'Definition action',
@@ -189,7 +193,7 @@ describe('component instance overrides', () => {
 
     expect(applied.history.undoEntries).toHaveLength(1);
     expect(applied.history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.properties).toEqual({
-      iconId: null,
+      ...getFixtureControlProperties(CONTROL_TYPES.button),
       text: 'Promoted action',
     });
     expect(applied.history.document.elementsById[INSTANCE_ID]?.properties).toEqual({
@@ -279,7 +283,9 @@ describe('component instance overrides', () => {
       value: 'Local action',
     });
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Use Definition' })[0] as HTMLElement);
+    const textOverrideRow = text.closest<HTMLElement>('.inspector-override-field');
+    if (textOverrideRow === null) throw new Error('Text override row is missing.');
+    fireEvent.click(within(textOverrideRow).getByRole('button', { name: 'Use Definition' }));
     expect(onSetComponentOverride).toHaveBeenCalledWith({
       instanceId: INSTANCE_ID,
       property: 'text',

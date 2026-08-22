@@ -5,9 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   AssetIdSchema,
   BoardIdSchema,
+  CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
+  getControlSpec,
   parseProjectDocument,
   undoDocumentHistory,
   type ProjectDocument,
@@ -809,7 +811,28 @@ describe('renderer project session', () => {
   });
 
   it('keeps an in-place text draft outside the document and commits one undoable recovery point', async () => {
-    const document = createAssetFreeProjectDocument();
+    const baseDocument = createAssetFreeProjectDocument();
+    const textInput = getControlSpec(CONTROL_TYPES.textInput);
+    const baseElement = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (textInput === undefined || baseElement === undefined) {
+      throw new Error('Text-edit integration fixture is incomplete.');
+    }
+    const parsed = parseProjectDocument({
+      ...baseDocument,
+      elementsById: {
+        ...baseDocument.elementsById,
+        [baseElement.id]: {
+          ...baseElement,
+          controlType: textInput.type,
+          controlVersion: textInput.fileVersion,
+          properties: { ...textInput.defaultProperties, text: 'Draft label' },
+        },
+      },
+    });
+    if (!parsed.ok) {
+      throw new Error(`Text-edit integration fixture is invalid: ${JSON.stringify(parsed.issues)}`);
+    }
+    const document = parsed.value;
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     await startNewSession(session);
@@ -861,7 +884,6 @@ describe('renderer project session', () => {
       throw new Error('Text-edit integration history was not created.');
     }
     expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.properties).toMatchObject({
-      opacity: 0.75,
       text: 'Accepted label',
     });
     expect(history.undoEntries).toHaveLength(1);
@@ -869,11 +891,7 @@ describe('renderer project session', () => {
     expect(history.undoEntries[0]?.forwardCommands).toEqual([
       {
         elementId: DOCUMENT_FIXTURE_IDS.child,
-        properties: {
-          opacity: 0.75,
-          tags: ['example', true, null],
-          text: 'Accepted label',
-        },
+        properties: { ...textInput.defaultProperties, text: 'Accepted label' },
         type: DOCUMENT_COMMAND_TYPES.setElementProperties,
       },
     ]);

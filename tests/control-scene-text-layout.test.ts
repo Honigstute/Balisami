@@ -33,13 +33,19 @@ describe('canonical control scene text layout', () => {
         { measure },
       ),
     ).toEqual({
+      color: undefined,
       fontSize: 16,
+      fontStyle: 'normal',
+      fontWeight: 'normal',
       lines: [{ baselineY: 41, text: 'Save now', x: 60 }],
       textAnchor: 'middle',
+      textDecoration: 'none',
       width: 70,
     });
     expect(measure).toHaveBeenCalledWith({
       fontSize: 16,
+      fontStyle: 'normal',
+      fontWeight: 'normal',
       mode: 'single-line',
       text: 'Save\r\nnow',
     });
@@ -74,13 +80,17 @@ describe('canonical control scene text layout', () => {
         { measure },
       ),
     ).toEqual({
+      color: undefined,
       fontSize: 16,
+      fontStyle: 'normal',
+      fontWeight: 'normal',
       lines: [
         { baselineY: 39, text: 'One', x: 36 },
         { baselineY: 53, text: '', x: 36 },
         { baselineY: 67, text: 'Three', x: 36 },
       ],
       textAnchor: 'start',
+      textDecoration: 'none',
       width: 40,
     });
   });

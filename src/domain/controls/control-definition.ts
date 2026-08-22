@@ -81,6 +81,23 @@ export interface ControlTextCapability {
   readonly inset: number;
   readonly mode: 'multiline' | 'single-line';
   readonly property: string;
+  /** Optional persisted style bindings. Null entries mean the style is fixed by this definition. */
+  readonly style: Readonly<{
+    alignmentProperty: string | null;
+    boldProperty: string | null;
+    colorProperty: string | null;
+    fontSizeProperty: string | null;
+    italicProperty: string | null;
+    underlineProperty: string | null;
+  }>;
+}
+
+export interface ControlImageCapability {
+  /** Element asset references remain the canonical image-selection owner. */
+  readonly assetSource: 'element-assets';
+  readonly fit: 'contain';
+  readonly maximumAssets: 1;
+  readonly placeholder: 'cross';
 }
 
 export type ControlGroupingCapability = 'container' | 'leaf';
@@ -91,6 +108,7 @@ export interface ControlCapabilities {
   readonly fill: boolean;
   readonly grouping: ControlGroupingCapability;
   readonly icon: boolean;
+  readonly image: ControlImageCapability | null;
   readonly link: boolean;
   readonly resizeAxes: ControlResizeAxes;
   readonly state: boolean;
@@ -165,6 +183,22 @@ export interface ControlSceneDefinition {
   readonly kind: ControlVisualKind;
   /** Registry-owned destination for a non-default `color` property. */
   readonly colorTarget: 'fill' | 'stroke';
+  /** Optional persisted style bindings used by every scene projection surface. */
+  readonly style?: Readonly<{
+    readonly borderHiddenValues: readonly string[];
+    borderModeProperty: string | null;
+    borderVisibilityProperty: string | null;
+    fillColorProperty: string | null;
+    opacityProperty: string | null;
+    scrollbarVisibilityProperty?: string | null;
+    strokeColorProperty: string | null;
+    /** Optional reusable visual/accessibility state binding. */
+    state?: Readonly<{
+      disabledOpacity: number;
+      disabledValues: readonly string[];
+      property: string;
+    }>;
+  }>;
   /** Only these properties invalidate cached scene presentation. */
   readonly propertyKeys: readonly string[];
 }
@@ -224,6 +258,17 @@ const listPropertyReferences = (definition: ControlDefinition): readonly string[
     ...definition.scene.propertyKeys,
     ...definition.inspector.flatMap((section) => section.fields.map((field) => field.property)),
     ...(definition.capabilities.text === null ? [] : [definition.capabilities.text.property]),
+    ...(definition.capabilities.text === null
+      ? []
+      : Object.values(definition.capabilities.text.style).filter(
+          (property): property is string => property !== null,
+        )),
+    ...(definition.scene.style === undefined
+      ? []
+      : Object.values(definition.scene.style).filter(
+          (property): property is string => typeof property === 'string',
+        )),
+    ...(definition.scene.style?.state === undefined ? [] : [definition.scene.style.state.property]),
     ...(definition.accessibility.nameProperty === null
       ? []
       : [definition.accessibility.nameProperty]),
@@ -352,8 +397,41 @@ export const assertControlDefinitionsConform = (
     ) {
       throw new Error(`Control '${definition.type}' has invalid capability metadata.`);
     }
+    if (
+      definition.capabilities.image !== null &&
+      (definition.capabilities.image.assetSource !== 'element-assets' ||
+        definition.capabilities.image.fit !== 'contain' ||
+        definition.capabilities.image.maximumAssets !== 1 ||
+        definition.capabilities.image.placeholder !== 'cross' ||
+        definition.scene.kind !== 'image')
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid image capability metadata.`);
+    }
+    if (definition.scene.kind === 'image' && definition.capabilities.image === null) {
+      throw new Error(`Control '${definition.type}' is missing image capability metadata.`);
+    }
     if (text !== null && typeof definition.defaultProperties[text.property] !== 'string') {
       throw new Error(`Control '${definition.type}' has an invalid text capability.`);
+    }
+    const defaultTextAlignment =
+      text?.style.alignmentProperty === null || text === null
+        ? null
+        : definition.defaultProperties[text.style.alignmentProperty];
+    if (
+      text !== null &&
+      ((text.style.alignmentProperty !== null &&
+        (typeof defaultTextAlignment !== 'string' ||
+          !['start', 'center', 'end'].includes(defaultTextAlignment))) ||
+        (text.style.fontSizeProperty !== null &&
+          !isPositiveFinite(Number(definition.defaultProperties[text.style.fontSizeProperty]))) ||
+        [text.style.boldProperty, text.style.italicProperty, text.style.underlineProperty].some(
+          (property) =>
+            property !== null && typeof definition.defaultProperties[property] !== 'boolean',
+        ) ||
+        (text.style.colorProperty !== null &&
+          typeof definition.defaultProperties[text.style.colorProperty] !== 'string'))
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid text-style metadata.`);
     }
     if (
       definition.autoSize !== null &&
@@ -394,6 +472,58 @@ export const assertControlDefinitionsConform = (
           !isPositiveFinite(hitShape.tolerance)))
     ) {
       throw new Error(`Control '${definition.type}' has an invalid hit shape.`);
+    }
+    if (
+      definition.scene.style !== undefined &&
+      [
+        definition.scene.style.borderModeProperty,
+        definition.scene.style.fillColorProperty,
+        definition.scene.style.opacityProperty,
+        definition.scene.style.strokeColorProperty,
+      ].some(
+        (property) =>
+          property !== null &&
+          !['number', 'string'].includes(typeof definition.defaultProperties[property]),
+      )
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid scene-style metadata.`);
+    }
+    if (
+      definition.scene.style !== undefined &&
+      ((definition.scene.style.borderModeProperty === null &&
+        definition.scene.style.borderHiddenValues.length > 0) ||
+        new Set(definition.scene.style.borderHiddenValues).size !==
+          definition.scene.style.borderHiddenValues.length ||
+        definition.scene.style.borderHiddenValues.some((value) => value.trim().length === 0))
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid border-mode metadata.`);
+    }
+    if (
+      definition.scene.style?.borderVisibilityProperty !== null &&
+      definition.scene.style?.borderVisibilityProperty !== undefined &&
+      typeof definition.defaultProperties[definition.scene.style.borderVisibilityProperty] !==
+        'boolean'
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid border-visibility metadata.`);
+    }
+    if (
+      definition.scene.style?.scrollbarVisibilityProperty !== null &&
+      definition.scene.style?.scrollbarVisibilityProperty !== undefined &&
+      typeof definition.defaultProperties[definition.scene.style.scrollbarVisibilityProperty] !==
+        'boolean'
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid scrollbar metadata.`);
+    }
+    const sceneState = definition.scene.style?.state;
+    if (
+      sceneState !== undefined &&
+      (typeof definition.defaultProperties[sceneState.property] !== 'string' ||
+        !isPositiveFinite(sceneState.disabledOpacity) ||
+        sceneState.disabledOpacity > 1 ||
+        sceneState.disabledValues.length === 0 ||
+        new Set(sceneState.disabledValues).size !== sceneState.disabledValues.length)
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid scene-state metadata.`);
     }
     if (definition.scene.kind === 'checkbox') {
       const checkbox = definition.scene.checkbox;

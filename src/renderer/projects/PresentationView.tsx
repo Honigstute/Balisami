@@ -204,17 +204,19 @@ export const PresentationView = ({
             viewBox={`${String(projection.viewBox.x)} ${String(projection.viewBox.y)} ${String(projection.viewBox.width)} ${String(projection.viewBox.height)}`}
           >
             {projection.items.map((item) => {
-              const isLinked = item.link !== null;
+              // Disabled controls retain their persisted link, but the projected
+              // interaction is suspended until their registry state returns to normal.
+              const isLinked = item.link !== null && !item.disabled;
               const assetId = item.visualKind === 'image' ? item.assetIds[0] : undefined;
               const imageUrl = assetId === undefined ? undefined : assetUrls[assetId];
-              const strokeColor = item.visualKind === 'browser' ? undefined : item.color;
-              const fillColor = item.visualKind === 'browser' ? item.color : undefined;
               return (
                 <g
                   aria-checked={item.checked}
+                  aria-disabled={item.disabled}
                   aria-label={item.accessibleName}
                   className={isLinked ? 'presentation-view__linked-control' : undefined}
                   data-control-stroke-style={item.strokeStyle}
+                  data-control-disabled={String(item.disabled)}
                   data-control-visual={item.visualKind}
                   data-presentation-element-id={item.id}
                   key={item.id}
@@ -246,7 +248,7 @@ export const PresentationView = ({
                     <rect
                       className="scene-control__fill"
                       height={item.primitiveBounds.height}
-                      style={fillColor === undefined ? undefined : { fill: fillColor }}
+                      style={item.fillColor === undefined ? undefined : { fill: item.fillColor }}
                       width={item.primitiveBounds.width}
                       x={item.primitiveBounds.x}
                       y={item.primitiveBounds.y}
@@ -267,7 +269,9 @@ export const PresentationView = ({
                     <path
                       className="scene-control__outline"
                       d={item.outlinePath}
-                      style={strokeColor === undefined ? undefined : { stroke: strokeColor }}
+                      style={
+                        item.strokeColor === undefined ? undefined : { stroke: item.strokeColor }
+                      }
                       vectorEffect="non-scaling-stroke"
                     />
                   ) : null}
@@ -275,7 +279,9 @@ export const PresentationView = ({
                     <path
                       className="scene-control__mark"
                       d={item.markPath}
-                      style={strokeColor === undefined ? undefined : { stroke: strokeColor }}
+                      style={
+                        item.strokeColor === undefined ? undefined : { stroke: item.strokeColor }
+                      }
                       vectorEffect="non-scaling-stroke"
                     />
                   ) : null}
@@ -287,7 +293,11 @@ export const PresentationView = ({
                       className="scene-control__text"
                       dominantBaseline="alphabetic"
                       fontSize={item.textLayout.fontSize}
+                      fontStyle={item.textLayout.fontStyle}
+                      fontWeight={item.textLayout.fontWeight}
+                      fill={item.textLayout.color}
                       textAnchor={item.textLayout.textAnchor}
+                      textDecoration={item.textLayout.textDecoration}
                     >
                       {item.textLayout.lines.map((line, index) => (
                         <tspan key={`${String(index)}:${line.text}`} x={line.x} y={line.baselineY}>

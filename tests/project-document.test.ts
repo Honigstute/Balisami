@@ -274,7 +274,7 @@ describe('project document schema', () => {
     const definitionChild = getElement(input, DOCUMENT_FIXTURE_IDS.child);
     definitionChild.controlType = CONTROL_TYPES.button;
     definitionChild.controlVersion = buttonSpec.fileVersion;
-    definitionChild.properties = { iconId: null, text: 'Definition action' };
+    definitionChild.properties = { ...buttonSpec.defaultProperties, text: 'Definition action' };
     input.componentIds = [componentId];
     input.componentsById[componentId] = {
       id: componentId,

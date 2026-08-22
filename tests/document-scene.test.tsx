@@ -11,7 +11,10 @@ import {
   parseProjectDocument,
   type ProjectDocument,
 } from '../src/domain';
-import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
+import type {
+  ControlTextMeasurementRequest,
+  ControlTextMeasurementService,
+} from '../src/renderer/controls/control-text-measurement';
 import { DocumentScene } from '../src/renderer/editor/DocumentScene';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
@@ -34,6 +37,7 @@ import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlVersion,
+  getFixtureControlProperties,
 } from './fixtures/project-document';
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
@@ -84,7 +88,7 @@ const parseMovePreviewFixture = (): ProjectDocument => {
     controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: 180, y: 24, width: 100, height: 48 },
     locked: false,
-    properties: {},
+    properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
     childIds: [],
     assetIds: [],
     link: null,
@@ -99,6 +103,9 @@ const parseMovePreviewFixture = (): ProjectDocument => {
 const parseTextSceneFixture = (): ProjectDocument => {
   const input = createValidProjectDocumentInput();
   input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.controlType = CONTROL_TYPES.textLabel;
+  input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.controlVersion = getFixtureControlVersion(
+    CONTROL_TYPES.textLabel,
+  );
   input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.properties = { text: 'Line\r\nbreak' };
   const result = parseProjectDocument(input);
   if (!result.ok) {
@@ -112,11 +119,46 @@ const parseImageSceneFixture = (): ProjectDocument => {
   const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
   child.controlType = CONTROL_TYPES.imagePlaceholder;
   child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.imagePlaceholder);
-  child.properties = { showBorder: false };
+  child.properties = { ...getFixtureControlProperties(CONTROL_TYPES.imagePlaceholder) };
   child.assetIds = [DOCUMENT_FIXTURE_IDS.asset];
   const result = parseProjectDocument(input);
   if (!result.ok) {
     throw new Error('Image scene fixture is invalid.');
+  }
+  return result.value;
+};
+
+type StylePropertyOverrides = Readonly<Record<string, boolean | null | number | string>>;
+
+const parseTextInputStyleSceneFixture = (
+  overrides: StylePropertyOverrides = {},
+): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+  child.controlType = CONTROL_TYPES.textInput;
+  child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.textInput);
+  child.properties = {
+    ...getFixtureControlProperties(CONTROL_TYPES.textInput),
+    ...overrides,
+  };
+  const result = parseProjectDocument(input);
+  if (!result.ok) {
+    throw new Error(`Text Input style scene fixture is invalid: ${JSON.stringify(result.issues)}`);
+  }
+  return result.value;
+};
+
+const parseRectangleScrollbarSceneFixture = (scrollbar: boolean): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.properties = {
+    ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle),
+    scrollbar,
+  };
+  const result = parseProjectDocument(input);
+  if (!result.ok) {
+    throw new Error(
+      `Rectangle scrollbar scene fixture is invalid: ${JSON.stringify(result.issues)}`,
+    );
   }
   return result.value;
 };
@@ -313,9 +355,167 @@ describe('document SVG scene', () => {
     expect(line).toHaveTextContent('Line break');
     expect(service.measure).toHaveBeenCalledWith({
       fontSize: 18,
+      fontStyle: 'normal',
+      fontWeight: 'normal',
       mode: 'single-line',
       text: 'Line\r\nbreak',
     });
+    camera.dispose();
+  });
+
+  it('invalidates one keyed live node for every registry-owned text style and state binding', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const model = new DocumentSceneModel();
+    const service: ControlTextMeasurementService = {
+      measure: vi.fn(({ fontSize, text }: ControlTextMeasurementRequest) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      })),
+    };
+    const renderScene = (document: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+            textMeasurementService={service}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(parseTextInputStyleSceneFixture()));
+    scheduler.flushNext();
+    const selector = `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`;
+    const keyedElement = view.container.querySelector<SVGGElement>(selector);
+    if (keyedElement === null) {
+      throw new Error('Text Input scene element did not mount.');
+    }
+    let priorRevision = keyedElement.dataset.sceneRevision;
+    const cases: readonly Readonly<{
+      assert: (element: SVGGElement) => void;
+      properties: StylePropertyOverrides;
+    }>[] = [
+      {
+        properties: { bold: true },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('font-weight', 'bold'),
+      },
+      {
+        properties: { italic: true },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('font-style', 'italic'),
+      },
+      {
+        properties: { underline: true },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('text-decoration', 'underline'),
+      },
+      {
+        properties: { fontSize: 19 },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('font-size', '19'),
+      },
+      {
+        properties: { textAlignment: 'end' },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('text-anchor', 'end'),
+      },
+      {
+        properties: { textColor: '#123456' },
+        assert: (element) => expect(element.querySelector('text')).toHaveStyle({ fill: '#123456' }),
+      },
+      {
+        properties: { state: 'disabled' },
+        assert: (element) => {
+          expect(element).toHaveAttribute('aria-disabled', 'true');
+          expect(element).toHaveStyle({ opacity: '0.45' });
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      view.rerender(renderScene(parseTextInputStyleSceneFixture(testCase.properties)));
+      const updatedElement = view.container.querySelector<SVGGElement>(selector);
+      expect(updatedElement).toBe(keyedElement);
+      expect(updatedElement?.dataset.sceneRevision).not.toBe(priorRevision);
+      if (updatedElement === null) {
+        throw new Error('Updated Text Input scene element disappeared.');
+      }
+      testCase.assert(updatedElement);
+      priorRevision = updatedElement.dataset.sceneRevision;
+    }
+    camera.dispose();
+  });
+
+  it('updates the keyed rectangle mark when its confirmed scrollbar field changes', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const model = new DocumentSceneModel();
+    const renderScene = (document: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(parseRectangleScrollbarSceneFixture(false)));
+    scheduler.flushNext();
+    const selector = `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`;
+    const keyedElement = view.container.querySelector<SVGGElement>(selector);
+    const mark = keyedElement?.querySelector<SVGPathElement>('.scene-control__mark');
+    expect(mark).toHaveAttribute('display', 'none');
+
+    view.rerender(renderScene(parseRectangleScrollbarSceneFixture(true)));
+    expect(view.container.querySelector(selector)).toBe(keyedElement);
+    expect(keyedElement?.querySelector('.scene-control__mark')).toBe(mark);
+    expect(mark).toHaveAttribute('display', 'inline');
+    expect(mark?.getAttribute('d')).not.toBe('');
     camera.dispose();
   });
 

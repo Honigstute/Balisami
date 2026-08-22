@@ -18,6 +18,7 @@ import {
   type ControlCapabilities,
   type ControlDefinition,
   type ControlExportDefinition,
+  type ControlImageCapability,
   type ControlInspectorSection,
   type ControlPaletteMetadata,
   type ControlSceneDefinition,
@@ -78,20 +79,66 @@ const canonicalBundledIconIdSchema = z
     'Unknown or non-canonical icon ID.',
   );
 const controlIconIdSchema = z.union([canonicalBundledIconIdSchema, CustomIconReferenceSchema]);
+const sceneColorSchema = z.union([z.literal('default'), z.string().regex(/^#[0-9a-f]{6}$/iu)]);
+const controlStateSchema = z.enum(['normal', 'disabled']);
+const textAlignmentSchema = z.enum(['start', 'center', 'end']);
+const textStyleSchemaShape = {
+  bold: z.boolean(),
+  fontSize: z.number().min(8).max(96),
+  italic: z.boolean(),
+  underline: z.boolean(),
+} as const;
+const centeredTextStyleSchemaShape = {
+  ...textStyleSchemaShape,
+  textAlignment: textAlignmentSchema,
+} as const;
+const rectanglePropertiesSchema = z
+  .strictObject({
+    borderColor: sceneColorSchema,
+    borderMode: z.enum(['visual-1', 'visual-2', 'visual-3', 'visual-4', 'visual-5', 'visual-6']),
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+  })
+  .readonly();
 const buttonPropertiesSchema = z
   .strictObject({
+    ...centeredTextStyleSchemaShape,
+    color: sceneColorSchema,
     iconId: controlIconIdSchema.nullable(),
+    state: controlStateSchema,
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const textInputPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    borderColor: sceneColorSchema,
+    borderMode: z.enum(['full', 'underline']),
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
   })
   .readonly();
 const checkboxPropertiesSchema = z
   .strictObject({
+    ...textStyleSchemaShape,
     checked: z.boolean(),
+    iconId: controlIconIdSchema.nullable(),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const imagePlaceholderPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    showBorder: z.boolean(),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
-const imagePlaceholderPropertiesSchema = z.strictObject({ showBorder: z.boolean() }).readonly();
-const sceneColorSchema = z.union([z.literal('default'), z.string().regex(/^#[0-9a-f]{6}$/iu)]);
 const browserPropertiesSchema = z
   .strictObject({
     borderMode: z.enum(['visual-1', 'visual-2']),
@@ -159,17 +206,80 @@ const createPalette = (
   drawShortcut: string | null = null,
 ): ControlPaletteMetadata => Object.freeze({ category, drawShortcut, label, order });
 
+const createTextStyleDefaults = (fontSize: number, alignment?: 'center' | 'start') =>
+  Object.freeze({
+    bold: false,
+    fontSize,
+    italic: false,
+    ...(alignment === undefined ? {} : { textAlignment: alignment }),
+    underline: false,
+  });
+
+const createTextStyleFields = (alignment: boolean): ControlInspectorSection['fields'] =>
+  Object.freeze([
+    { kind: 'boolean', label: 'Bold', property: 'bold' },
+    { kind: 'boolean', label: 'Italic', property: 'italic' },
+    { kind: 'boolean', label: 'Underline', property: 'underline' },
+    ...(alignment
+      ? [
+          {
+            kind: 'choice' as const,
+            label: 'Alignment',
+            options: Object.freeze([
+              Object.freeze({ label: 'Left', value: 'start' }),
+              Object.freeze({ label: 'Center', value: 'center' }),
+              Object.freeze({ label: 'Right', value: 'end' }),
+            ]),
+            property: 'textAlignment',
+          },
+        ]
+      : []),
+    { kind: 'number', label: 'Size', maximum: 96, minimum: 8, property: 'fontSize', step: 1 },
+  ]);
+
 const createText = (
   alignment: ControlTextCapability['alignment'],
   fontSize: number,
   inset: number,
+  style: Partial<ControlTextCapability['style']> = {},
 ): ControlTextCapability =>
-  Object.freeze({ alignment, fontSize, inset, mode: 'single-line', property: 'text' });
+  Object.freeze({
+    alignment,
+    fontSize,
+    inset,
+    mode: 'single-line',
+    property: 'text',
+    style: Object.freeze({
+      alignmentProperty: null,
+      boldProperty: null,
+      colorProperty: null,
+      fontSizeProperty: null,
+      italicProperty: null,
+      underlineProperty: null,
+      ...style,
+    }),
+  });
+
+const createImageCapability = (): ControlImageCapability =>
+  Object.freeze({
+    assetSource: 'element-assets',
+    fit: 'contain',
+    maximumAssets: 1,
+    placeholder: 'cross',
+  });
+
+const createDisabledState = (property = 'state') =>
+  Object.freeze({
+    disabledOpacity: 0.45,
+    disabledValues: Object.freeze(['disabled']),
+    property,
+  });
 
 const createCapabilities = (
-  input: Omit<ControlCapabilities, 'text'>,
+  input: Omit<ControlCapabilities, 'image' | 'text'> &
+    Readonly<{ image?: ControlImageCapability | null }>,
   text: ControlTextCapability | null,
-): ControlCapabilities => Object.freeze({ ...input, text });
+): ControlCapabilities => Object.freeze({ ...input, image: input.image ?? null, text });
 
 const createAccessibility = (
   fallbackLabel: string,
@@ -191,20 +301,67 @@ const createScene = (
   checkbox?: ControlSceneDefinition['checkbox'],
   hitShape: ControlSceneDefinition['hitShape'] = Object.freeze({ kind: 'bounds' }),
   colorTarget: ControlSceneDefinition['colorTarget'] = 'stroke',
+  style?: ControlSceneDefinition['style'],
 ): ControlSceneDefinition =>
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
     colorTarget,
     hitShape: Object.freeze(hitShape),
     kind,
-    propertyKeys: Object.freeze(propertyKeys),
+    propertyKeys: Object.freeze([...new Set(propertyKeys)]),
+    ...(style === undefined ? {} : { style: Object.freeze(style) }),
   });
+
+/**
+ * Derives the complete cache dependency contract from declarative scene and
+ * text bindings. Adding a new presentation binding must flow through this one
+ * list so live SVG nodes, thumbnails, and presentation cannot become stale.
+ */
+const createPresentationPropertyKeys = (
+  scene: ControlSceneDefinition,
+  capabilities: ControlCapabilities,
+): readonly string[] => {
+  const text = capabilities.text;
+  const style = scene.style;
+  return Object.freeze([
+    ...new Set([
+      ...scene.propertyKeys,
+      ...(text === null
+        ? []
+        : [
+            text.property,
+            ...Object.values(text.style).filter(
+              (property): property is string => property !== null,
+            ),
+          ]),
+      ...(style === undefined
+        ? []
+        : Object.values(style).filter(
+            (property): property is string => typeof property === 'string',
+          )),
+      ...(style?.state === undefined ? [] : [style.state.property]),
+    ]),
+  ]);
+};
 
 const createInspector = (
   label: string,
   fields: ControlInspectorSection['fields'],
 ): readonly ControlInspectorSection[] =>
   Object.freeze([Object.freeze({ fields: Object.freeze(fields), label })]);
+
+const createInspectorFields = (
+  fields: ControlInspectorSection['fields'],
+): ControlInspectorSection['fields'] => Object.freeze(fields);
+
+const createInspectorSections = (
+  sections: readonly ControlInspectorSection[],
+): readonly ControlInspectorSection[] =>
+  Object.freeze(
+    sections.map((section) =>
+      Object.freeze({ fields: Object.freeze(section.fields), label: section.label }),
+    ),
+  );
 
 const createDefinition = (input: {
   accessibility: ControlAccessibilityDefinition;
@@ -225,8 +382,12 @@ const createDefinition = (input: {
   tags?: readonly string[];
   thumbnail: ControlThumbnailDefinition;
   type: ControlTypeId;
-}): ControlDefinition =>
-  Object.freeze({
+}): ControlDefinition => {
+  const scene = Object.freeze({
+    ...input.scene,
+    propertyKeys: createPresentationPropertyKeys(input.scene, input.capabilities),
+  });
+  return Object.freeze({
     accessibility: input.accessibility,
     autoSize: input.autoSize,
     capabilities: input.capabilities,
@@ -240,7 +401,7 @@ const createDefinition = (input: {
     migrations: Object.freeze(input.migrations ?? []),
     palette: input.palette,
     propertiesSchema: input.propertiesSchema,
-    scene: input.scene,
+    scene,
     search: Object.freeze({
       aliases: Object.freeze(input.aliases ?? []),
       tags: Object.freeze(input.tags ?? []),
@@ -248,6 +409,7 @@ const createDefinition = (input: {
     thumbnail: input.thumbnail,
     type: input.type,
   });
+};
 
 const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
   createDefinition({
@@ -324,14 +486,103 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
       },
       null,
     ),
-    defaultProperties: {},
+    defaultProperties: {
+      borderColor: 'default',
+      borderMode: 'visual-2',
+      color: 'default',
+      opacity: 1,
+      scrollbar: false,
+    },
     defaultSize: createSize(180, 120),
     export: createExport('scene'),
+    fileVersion: 2,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Border',
+            options: Object.freeze([
+              Object.freeze({ label: 'Visual 1', value: 'visual-1' }),
+              Object.freeze({ label: 'Visual 2', value: 'visual-2' }),
+              Object.freeze({ label: 'Visual 3', value: 'visual-3' }),
+              Object.freeze({ label: 'Visual 4', value: 'visual-4' }),
+              Object.freeze({ label: 'Visual 5', value: 'visual-5' }),
+              Object.freeze({ label: 'Visual 6', value: 'visual-6' }),
+            ]),
+            property: 'borderMode',
+          },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+        ]),
+        label: 'Layout',
+      }),
+    ]),
     minimumSize: createSize(24, 24),
     maximumSize: null,
     palette: createPalette('Rectangle', 'Common', 10, 'KeyR'),
-    propertiesSchema: ElementPropertiesSchema,
-    scene: createScene('rectangle', []),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) => {
+          const normalizeColor = (value: unknown): string =>
+            typeof value === 'string' && (value === 'default' || /^#[0-9a-f]{6}$/iu.test(value))
+              ? value
+              : 'default';
+          const borderMode = properties.borderMode;
+          const opacity = properties.opacity;
+          return Object.freeze({
+            borderColor: normalizeColor(properties.borderColor),
+            borderMode:
+              typeof borderMode === 'string' &&
+              ['visual-1', 'visual-2', 'visual-3', 'visual-4', 'visual-5', 'visual-6'].includes(
+                borderMode,
+              )
+                ? borderMode
+                : 'visual-2',
+            color: normalizeColor(properties.color),
+            opacity:
+              typeof opacity === 'number' &&
+              Number.isFinite(opacity) &&
+              opacity >= 0 &&
+              opacity <= 1
+                ? opacity
+                : 1,
+            scrollbar: typeof properties.scrollbar === 'boolean' ? properties.scrollbar : false,
+          });
+        },
+        toVersion: 2,
+      },
+    ],
+    propertiesSchema: rectanglePropertiesSchema,
+    scene: createScene('rectangle', [], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze(['visual-1']),
+      borderModeProperty: 'borderMode',
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      scrollbarVisibilityProperty: 'scrollbar',
+      strokeColorProperty: 'borderColor',
+    }),
     tags: ['container', 'panel'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.rectangle,
@@ -379,15 +630,51 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         resizeAxes: 'both',
         state: true,
       },
-      createText('center', 16, 8),
+      createText('center', 16, 8, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
     ),
-    defaultProperties: { iconId: null, text: 'Button' },
+    defaultProperties: {
+      ...createTextStyleDefaults(16, 'center'),
+      color: 'default',
+      iconId: null,
+      state: 'normal',
+      text: 'Button',
+    },
     defaultSize: createSize(120, 40),
     export: createExport('scene'),
-    fileVersion: 3,
-    inspector: createInspector('Content', [
-      { kind: 'text', label: 'Text', property: 'text' },
-      { kind: 'icon', label: 'Icon', property: 'iconId' },
+    fileVersion: 4,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([{ kind: 'color', label: 'Color', property: 'color' }]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'text', label: 'Text', property: 'text' },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+        ]),
+        label: 'Content',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
     ]),
     minimumSize: createSize(48, 28),
     maximumSize: null,
@@ -403,9 +690,28 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         migrate: (properties) => Object.freeze({ ...properties }),
         toVersion: 3,
       },
+      {
+        fromVersion: 3,
+        migrate: (properties) =>
+          Object.freeze({
+            ...properties,
+            ...createTextStyleDefaults(16, 'center'),
+            color: 'default',
+            state: 'normal',
+          }),
+        toVersion: 4,
+      },
     ],
     propertiesSchema: buttonPropertiesSchema,
-    scene: createScene('button', ['iconId', 'text']),
+    scene: createScene('button', ['iconId', 'state', 'text'], undefined, undefined, 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: null,
+      strokeColorProperty: null,
+      state: createDisabledState(),
+    }),
     tags: ['action'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.button,
@@ -424,17 +730,111 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         resizeAxes: 'both',
         state: true,
       },
-      createText('start', 16, 10),
+      createText('start', 16, 10, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
     ),
-    defaultProperties: { text: 'Text input' },
+    defaultProperties: {
+      ...createTextStyleDefaults(16, 'start'),
+      borderColor: 'default',
+      borderMode: 'full',
+      color: 'default',
+      opacity: 1,
+      state: 'normal',
+      text: 'Text input',
+      textColor: 'default',
+    },
     defaultSize: createSize(180, 40),
     export: createExport('scene'),
-    inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
+    fileVersion: 2,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Border',
+            options: Object.freeze([
+              Object.freeze({ label: 'Full', value: 'full' }),
+              Object.freeze({ label: 'Underline', value: 'underline' }),
+            ]),
+            property: 'borderMode',
+          },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'text', label: 'Content', property: 'text' },
+          ...createTextStyleFields(true),
+        ]),
+        label: 'Text',
+      }),
+    ]),
     minimumSize: createSize(72, 28),
     maximumSize: null,
     palette: createPalette('Text Input', 'Forms', 40),
-    propertiesSchema: textPropertiesSchema,
-    scene: createScene('input', ['text']),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) =>
+          Object.freeze({
+            ...properties,
+            ...createTextStyleDefaults(16, 'start'),
+            borderColor: 'default',
+            borderMode: 'full',
+            color: 'default',
+            opacity: 1,
+            state: 'normal',
+            textColor: 'default',
+          }),
+        toVersion: 2,
+      },
+    ],
+    propertiesSchema: textInputPropertiesSchema,
+    scene: createScene('input', ['state', 'text'], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: 'borderMode',
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      strokeColorProperty: 'borderColor',
+      state: createDisabledState(),
+    }),
     tags: ['form', 'field'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.textInput,
@@ -453,51 +853,159 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         resizeAxes: 'both',
         state: true,
       },
-      createText('start', 16, 0),
+      createText('start', 16, 0, {
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
     ),
-    defaultProperties: { checked: false, text: 'Checkbox' },
+    defaultProperties: {
+      ...createTextStyleDefaults(16),
+      checked: false,
+      iconId: null,
+      state: 'normal',
+      text: 'Checkbox',
+      textColor: 'default',
+    },
     defaultSize: createSize(160, 32),
     export: createExport('scene'),
-    inspector: createInspector('Properties', [
-      { kind: 'text', label: 'Label', property: 'text' },
-      { kind: 'boolean', label: 'State', property: 'checked' },
+    fileVersion: 2,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Checked', property: 'checked' },
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'text', label: 'Label', property: 'text' },
+          ...createTextStyleFields(false),
+        ]),
+        label: 'Text',
+      }),
     ]),
     minimumSize: createSize(48, 24),
     maximumSize: null,
     palette: createPalette('Checkbox', 'Forms', 50),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) =>
+          Object.freeze({
+            ...properties,
+            ...createTextStyleDefaults(16),
+            iconId: null,
+            state: 'normal',
+            textColor: 'default',
+          }),
+        toVersion: 2,
+      },
+    ],
     propertiesSchema: checkboxPropertiesSchema,
-    scene: createScene('checkbox', ['checked', 'text'], { boxSize: 18, gap: 8 }),
+    scene: createScene(
+      'checkbox',
+      ['checked', 'iconId', 'state', 'text'],
+      { boxSize: 18, gap: 8 },
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: null,
+        state: createDisabledState(),
+      },
+    ),
     tags: ['form', 'selection', 'toggle'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.checkbox,
   }),
   createDefinition({
-    accessibility: createAccessibility('Image placeholder', 'img'),
+    accessibility: createAccessibility('Image placeholder', 'img', 'text'),
     aliases: ['image', 'photo', 'picture'],
-    autoSize: null,
+    autoSize: createIntrinsicAutoSize('both'),
     capabilities: createCapabilities(
       {
         border: true,
         fill: false,
         grouping: 'leaf',
         icon: false,
+        image: createImageCapability(),
         link: true,
         resizeAxes: 'both',
         state: false,
       },
-      null,
+      createText('center', 16, 0, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
     ),
-    defaultProperties: { showBorder: false },
+    defaultProperties: {
+      ...createTextStyleDefaults(16),
+      showBorder: false,
+      text: '',
+    },
     defaultSize: createSize(120, 100),
     export: createExport('scene'),
-    inspector: createInspector('Border', [
-      { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+    fileVersion: 2,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'text', label: 'Content', property: 'text' },
+          ...createTextStyleFields(false),
+        ]),
+        label: 'Text',
+      }),
     ]),
     minimumSize: createSize(24, 24),
     maximumSize: null,
     palette: createPalette('Image', 'Assets', 60, 'KeyI'),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) =>
+          Object.freeze({ ...properties, ...createTextStyleDefaults(16), text: '' }),
+        toVersion: 2,
+      },
+    ],
     propertiesSchema: imagePlaceholderPropertiesSchema,
-    scene: createScene('image', ['showBorder']),
+    scene: createScene('image', ['showBorder', 'text'], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: 'showBorder',
+      fillColorProperty: null,
+      opacityProperty: null,
+      strokeColorProperty: null,
+    }),
     tags: ['asset', 'placeholder'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.imagePlaceholder,

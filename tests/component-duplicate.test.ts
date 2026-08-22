@@ -12,6 +12,7 @@ import {
 import { planComponentDuplicate } from '../src/renderer/controls/component-duplicate';
 import {
   createValidProjectDocumentInput,
+  getFixtureControlProperties,
   getFixtureControlVersion,
 } from './fixtures/project-document';
 
@@ -47,7 +48,7 @@ const createFixture = (): ProjectDocument => {
         controlVersion: getFixtureControlVersion(CONTROL_TYPES.button),
         frame: { x: 20, y: 30, width: 120, height: 40 },
         locked: false,
-        properties: { iconId: null, text: 'Action' },
+        properties: { ...getFixtureControlProperties(CONTROL_TYPES.button), text: 'Action' },
         childIds: [],
         assetIds: [],
         link: null,
@@ -84,7 +85,7 @@ describe('component definition duplication', () => {
     expect(duplicated.document.componentIds).toEqual([SOURCE_COMPONENT_ID, newComponentId]);
     expect(duplicated.document.elementsById[copyRootId]?.childIds).toEqual([copyChildId]);
     expect(duplicated.document.elementsById[copyChildId]?.properties).toEqual({
-      iconId: null,
+      ...getFixtureControlProperties(CONTROL_TYPES.button),
       text: 'Action',
     });
 

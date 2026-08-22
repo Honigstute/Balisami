@@ -2,6 +2,9 @@
 @import '@fontsource/ibm-plex-sans/500.css';
 @import '@fontsource/ibm-plex-sans/600.css';
 @import '@fontsource/comic-neue/400.css';
+@import '@fontsource/comic-neue/400-italic.css';
+@import '@fontsource/comic-neue/700.css';
+@import '@fontsource/comic-neue/700-italic.css';
 
 *,
 *::before,

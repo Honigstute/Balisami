@@ -14,7 +14,11 @@ import {
   BOARD_THUMBNAIL_POLICY,
   createBoardThumbnailProjection,
 } from '../src/renderer/projects/board-thumbnail-projection';
-import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
+import {
+  createValidProjectDocumentInput,
+  DOCUMENT_FIXTURE_IDS,
+  getFixtureControlProperties,
+} from './fixtures/project-document';
 
 describe('board thumbnail projection', () => {
   it('uses canonical nested world geometry and registry-backed scene paths', () => {
@@ -70,7 +74,7 @@ describe('board thumbnail projection', () => {
     }
     child.controlType = button.type;
     child.controlVersion = button.fileVersion;
-    child.properties = { iconId: 'arrow-right', text: 'Continue' };
+    child.properties = { ...button.defaultProperties, iconId: 'arrow-right', text: 'Continue' };
     child.assetIds = [];
     input.assetsById = {};
     const parsed = parseProjectDocument(input);
@@ -93,6 +97,7 @@ describe('board thumbnail projection', () => {
     child.controlType = button.type;
     child.controlVersion = button.fileVersion;
     child.properties = {
+      ...button.defaultProperties,
       iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
       text: 'Continue',
     };
@@ -125,7 +130,7 @@ describe('board thumbnail projection', () => {
         controlVersion: definition.fileVersion,
         frame: { x: index * 2, y: index, width: 20, height: 10 },
         locked: false,
-        properties: {},
+        properties: getFixtureControlProperties(definition.type),
         childIds: [],
         assetIds: [],
         link: null,
@@ -143,5 +148,33 @@ describe('board thumbnail projection', () => {
     expect(projection.omittedItemCount).toBe(5);
     expect(projection.items[0]?.id).toBe(ids[5]);
     expect(projection.items.at(-1)?.id).toBe(ids.at(-1));
+  });
+
+  it('carries registry-owned scene and text styles without surface-specific interpretation', () => {
+    const input = createValidProjectDocumentInput();
+    const rectangle = getControlSpec(CONTROL_TYPES.rectangle);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (rectangle === undefined || child === undefined)
+      throw new Error('Style fixture is incomplete.');
+    child.properties = {
+      ...rectangle.defaultProperties,
+      borderColor: '#112233',
+      borderMode: 'visual-1',
+      color: '#445566',
+      opacity: 0.35,
+    };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Style projection fixture is invalid.');
+    expect(
+      createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board)?.items[0],
+    ).toMatchObject({
+      borderVisible: false,
+      fillColor: '#445566',
+      hasOutline: false,
+      opacity: 0.35,
+      strokeColor: '#112233',
+    });
   });
 });

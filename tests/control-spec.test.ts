@@ -102,19 +102,19 @@ describe('control definition registry', () => {
         expect(definition.defaultProperties).toHaveProperty(property);
       }
     }
-    expect(getControlSpec(CONTROL_TYPES.button)).toMatchObject({
+    const button = getControlSpec(CONTROL_TYPES.button);
+    expect(button).toMatchObject({
       defaultProperties: { iconId: null, text: 'Button' },
-      fileVersion: 3,
-      inspector: [
-        {
-          fields: [
-            { kind: 'text', label: 'Text', property: 'text' },
-            { kind: 'icon', label: 'Icon', property: 'iconId' },
-          ],
-        },
-      ],
-      scene: { propertyKeys: ['iconId', 'text'] },
+      fileVersion: 4,
     });
+    expect(button?.inspector.flatMap((section) => section.fields)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'text', property: 'text' }),
+        expect.objectContaining({ kind: 'icon', property: 'iconId' }),
+        expect.objectContaining({ kind: 'color', property: 'color' }),
+        expect.objectContaining({ kind: 'select', property: 'state' }),
+      ]),
+    );
     expect(getControlSpec(CONTROL_TYPES.checkbox)).toMatchObject({
       accessibility: {
         checkedProperty: 'checked',
@@ -132,11 +132,14 @@ describe('control definition registry', () => {
         text: { property: 'text' },
       },
       defaultProperties: { checked: false, text: 'Checkbox' },
-      scene: { hitShape: { kind: 'bounds' }, kind: 'checkbox', propertyKeys: ['checked', 'text'] },
+      scene: { hitShape: { kind: 'bounds' }, kind: 'checkbox' },
       search: { aliases: ['check', 'tick'] },
       thumbnail: { kind: 'scene' },
       export: { kind: 'scene' },
     });
+    expect(getControlSpec(CONTROL_TYPES.checkbox)?.scene.propertyKeys).toEqual(
+      expect.arrayContaining(['checked', 'text', 'textColor', 'state', 'iconId']),
+    );
     expect(getControlSpec(FOUNDATION_CONTROL_TYPES.group)).toMatchObject({
       export: { kind: 'transparent-container' },
       thumbnail: { kind: 'none' },
@@ -420,6 +423,58 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/capability metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          capabilities: {
+            ...checkbox.capabilities,
+            text: {
+              ...(checkbox.capabilities.text as NonNullable<typeof checkbox.capabilities.text>),
+              style: {
+                ...(checkbox.capabilities.text?.style as NonNullable<
+                  typeof checkbox.capabilities.text
+                >['style']),
+                boldProperty: 'text',
+              },
+            },
+          },
+        },
+      ]),
+    ).toThrow(/text-style metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...rectangle,
+          scene: {
+            ...rectangle.scene,
+            style: {
+              ...(rectangle.scene.style as NonNullable<typeof rectangle.scene.style>),
+              scrollbarVisibilityProperty: 'opacity',
+            },
+          },
+        },
+      ]),
+    ).toThrow(/scrollbar metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          scene: {
+            ...checkbox.scene,
+            style: {
+              ...(checkbox.scene.style as NonNullable<typeof checkbox.scene.style>),
+              state: {
+                ...(checkbox.scene.style?.state as NonNullable<
+                  NonNullable<typeof checkbox.scene.style>['state']
+                >),
+                disabledOpacity: 2,
+              },
+            },
+          },
+        },
+      ]),
+    ).toThrow(/scene-state metadata/u);
     expect(() =>
       assertControlDefinitionsConform([
         {

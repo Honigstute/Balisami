@@ -12,6 +12,17 @@ import {
 } from '../src/renderer/controls/control-scene-icon';
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
 
+const centeredTextLayout = Object.freeze({
+  color: undefined,
+  fontSize: 16,
+  fontStyle: 'normal' as const,
+  fontWeight: 'normal' as const,
+  lines: [],
+  textAnchor: 'middle' as const,
+  textDecoration: 'none' as const,
+  width: 20,
+});
+
 describe('catalog icon scene projection', () => {
   it('projects canonical catalog nodes into deterministic centered button geometry', () => {
     const button = getControlSpec(CONTROL_TYPES.button);
@@ -22,7 +33,7 @@ describe('catalog icon scene projection', () => {
       button,
       createWorldRect(10, 20, 120, 40),
       { iconId: 'arrow-right', text: 'Go' },
-      { fontSize: 16, lines: [], textAnchor: 'middle', width: 20 },
+      centeredTextLayout,
     );
     expect(projection).toMatchObject({
       definition: { id: 'arrow-right' },
@@ -43,7 +54,7 @@ describe('catalog icon scene projection', () => {
       button,
       createWorldRect(0, 0, 120, 40),
       { iconId: 'arrow-right', text: 'Go' },
-      { fontSize: 16, lines: [], textAnchor: 'middle', width: 20 },
+      centeredTextLayout,
     );
     syncControlSceneIconElement(group, first);
     const nodes = [...group.children];
@@ -54,7 +65,7 @@ describe('catalog icon scene projection', () => {
       button,
       createWorldRect(0, 0, 160, 40),
       { iconId: 'arrow-right', text: 'Go' },
-      { fontSize: 16, lines: [], textAnchor: 'middle', width: 20 },
+      centeredTextLayout,
     );
     syncControlSceneIconElement(group, resized);
     expect([...group.children]).toEqual(nodes);
@@ -72,7 +83,7 @@ describe('catalog icon scene projection', () => {
       button,
       createWorldRect(0, 0, 120, 40),
       { iconId: createCustomIconReference(assetId), text: 'Go' },
-      { fontSize: 16, lines: [], textAnchor: 'middle', width: 20 },
+      centeredTextLayout,
     );
     expect(projection).toMatchObject({ assetId, kind: 'asset', size: 16, x: 40, y: 12 });
 

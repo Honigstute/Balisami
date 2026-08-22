@@ -27,6 +27,7 @@ import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlVersion,
+  getFixtureControlProperties,
   type ProjectDocumentInputFixture,
 } from './fixtures/project-document';
 
@@ -50,7 +51,7 @@ const createTwoRectangleDocument = (rootX = 200, rootY = 100): ProjectDocument =
     controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: rootX, y: rootY, width: 80, height: 60 },
     locked: false,
-    properties: {},
+    properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
     childIds: [],
     assetIds: [],
     link: null,
@@ -67,7 +68,7 @@ const createOverlappingRectangleDocument = (topLocked = false): ProjectDocument 
     controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: -4, y: 36.5, width: 120, height: 48 },
     locked: false,
-    properties: {},
+    properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
     childIds: [],
     assetIds: [],
     link: null,
@@ -119,7 +120,10 @@ const createComponentInstanceDocument = (
   }
   child.controlType = CONTROL_TYPES.button;
   child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.button);
-  child.properties = { iconId: null, text: definitionText };
+  child.properties = {
+    ...getFixtureControlProperties(CONTROL_TYPES.button),
+    text: definitionText,
+  };
   child.assetIds = [];
   input.assetsById = {};
   input.componentIds = [COMPONENT_ID];
@@ -247,15 +251,6 @@ describe('document scene model', () => {
     });
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)).toBe(initialItem);
 
-    const propertyOnlyInput = createValidProjectDocumentInput();
-    propertyOnlyInput.elementsById[DOCUMENT_FIXTURE_IDS.child]!.properties = { state: 'changed' };
-    const propertyOnly = parseFixture(propertyOnlyInput);
-    expect(model.reconcile(propertyOnly, DOCUMENT_FIXTURE_IDS.board)).toMatchObject({
-      changed: false,
-      updatedItemCount: 0,
-    });
-    expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)).toBe(initialItem);
-
     const movedInput = createValidProjectDocumentInput();
     movedInput.elementsById[DOCUMENT_FIXTURE_IDS.child]!.frame.x = 30;
     const moved = parseFixture(movedInput);
@@ -315,7 +310,7 @@ describe('document scene model', () => {
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 200, y: 100, width: 80, height: 60 },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,
@@ -502,7 +497,7 @@ describe('document scene model', () => {
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: -4, y: 36.5, width: 120, height: 48 },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,

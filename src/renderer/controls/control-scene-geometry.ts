@@ -38,11 +38,13 @@ export const getControlSceneTextX = (
   definition: ControlDefinition,
   bounds: WorldRect,
   properties: ElementProperties = definition.defaultProperties,
+  alignment: 'center' | 'end' | 'start' = definition.capabilities.text?.alignment ?? 'start',
 ): number => {
   const text = definition.capabilities.text;
-  if (text === null || text.alignment === 'center') {
+  if (text === null || alignment === 'center') {
     return bounds.x + bounds.width / 2;
   }
+  if (alignment === 'end') return bounds.x + bounds.width - text.inset;
   if (definition.scene.kind === 'checkbox') {
     const checkbox = definition.scene.checkbox;
     if (checkbox === undefined) {
@@ -88,6 +90,13 @@ export const createControlSceneOutlinePath = (
       )
       .join(' ');
   }
+  if (definition.scene.kind === 'input' && properties?.borderMode === 'underline') {
+    return createSeededSketchLinePath({
+      end: createWorldPoint(bounds.x + bounds.width, bounds.y + bounds.height),
+      seed: `${elementId}:input-underline`,
+      start: createWorldPoint(bounds.x, bounds.y + bounds.height),
+    });
+  }
   if (definition.scene.kind === 'h-rule' || definition.scene.kind === 'v-rule') {
     const horizontal = definition.scene.kind === 'h-rule';
     return createSeededSketchLinePath({
@@ -115,6 +124,16 @@ export const createControlSceneOutlinePath = (
     getControlScenePrimitiveBounds(controlType, bounds),
     `${elementId}:${definition.scene.kind}`,
   );
+};
+
+/** Small registry-bound decoration shared by live, thumbnail, presentation, and export projections. */
+export const createControlSceneScrollbarPath = (bounds: WorldRect, identity: string): string => {
+  const inset = Math.min(8, bounds.height / 4, bounds.width / 4);
+  return createSeededSketchLinePath({
+    end: createWorldPoint(bounds.x + bounds.width - inset, bounds.y + bounds.height - inset),
+    seed: `${identity}:scrollbar`,
+    start: createWorldPoint(bounds.x + bounds.width - inset, bounds.y + inset),
+  });
 };
 
 const createImagePlaceholderMarkPath = (bounds: WorldRect, elementId: string): string =>

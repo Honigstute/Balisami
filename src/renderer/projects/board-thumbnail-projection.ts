@@ -110,9 +110,7 @@ export const createBoardThumbnailProjection = (
       hasFill:
         controlSceneHasFill(definition) &&
         !(definition.scene.kind === 'image' && item.assetIds.length > 0),
-      hasOutline:
-        controlSceneHasOutline(definition) &&
-        (definition.scene.kind !== 'image' || item.properties.showBorder === true),
+      hasOutline: controlSceneHasOutline(definition) && projection.borderVisible,
       id: item.id,
       strokeStyle: typeof strokeStyle === 'string' ? strokeStyle : undefined,
       visualKind: item.visualKind,

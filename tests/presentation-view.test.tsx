@@ -21,7 +21,9 @@ const OFFICIAL_ELEMENT_ID = ElementIdSchema.parse('element_presentofficial');
 const HOME_LINK_ID = ElementIdSchema.parse('element_presenthomelink');
 const EXTERNAL_LINK_ID = ElementIdSchema.parse('element_presentexternal');
 
-const createPresentationDocument = (): ProjectDocument => {
+const createPresentationDocument = (
+  homeLinkState: 'disabled' | 'normal' = 'normal',
+): ProjectDocument => {
   const button = getControlSpec(CONTROL_TYPES.button);
   if (button === undefined) {
     throw new Error('Presentation fixture requires the Button control.');
@@ -78,7 +80,16 @@ const createPresentationDocument = (): ProjectDocument => {
         controlVersion: button.fileVersion,
         frame: { x: 80, y: 70, width: 180, height: 48 },
         locked: false,
-        properties: { ...button.defaultProperties, iconId: 'arrow-right', text: 'Open details' },
+        properties: {
+          ...button.defaultProperties,
+          bold: true,
+          color: '#445566',
+          iconId: 'arrow-right',
+          italic: true,
+          state: homeLinkState,
+          text: 'Open details',
+          underline: true,
+        },
         childIds: [],
         assetIds: [],
         link: { kind: 'board', boardId: DETAILS_ID },
@@ -116,6 +127,7 @@ describe('board presentation', () => {
       definition: { id: 'arrow-right' },
       kind: 'catalog',
     });
+    expect(projection?.items[0]).toMatchObject({ fillColor: '#445566', strokeColor: undefined });
   });
 
   it('navigates linked boards, supports back/forward, opens external links, and exits', () => {
@@ -132,6 +144,12 @@ describe('board presentation', () => {
 
     expect(screen.getByText('Home · Concept')).toBeInTheDocument();
     expect(document.querySelector('[data-icon-id="arrow-right"]')).toBeInTheDocument();
+    const presentationControl = document.querySelector(
+      `[data-presentation-element-id='${HOME_LINK_ID}']`,
+    );
+    expect(presentationControl?.querySelector('.scene-control__fill')).toHaveStyle({
+      fill: '#445566',
+    });
     const homeLink = screen.getByRole('link', { name: 'Open details' });
     const exit = screen.getByRole('button', { name: 'Exit presentation' });
     expect(exit).toHaveFocus();
@@ -156,5 +174,40 @@ describe('board presentation', () => {
       key: 'Escape',
     });
     expect(onExit).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a disabled control link persisted but removes activation and tab focus', () => {
+    const onOpenExternal = vi.fn().mockResolvedValue(true);
+    const view = render(
+      <PresentationView
+        document={createPresentationDocument('disabled')}
+        initialBoardId={HOME_ID}
+        onExit={vi.fn()}
+        onOpenExternal={onOpenExternal}
+      />,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Open details' })).not.toBeInTheDocument();
+    const disabledControl = screen.getByRole('button', { name: 'Open details' });
+    expect(disabledControl).toHaveAttribute('aria-disabled', 'true');
+    expect(disabledControl).not.toHaveAttribute('tabindex');
+    fireEvent.click(disabledControl);
+    fireEvent.keyDown(disabledControl, { key: 'Enter' });
+    fireEvent.keyDown(disabledControl, { key: ' ' });
+    expect(screen.getByText('Home · Concept')).toBeInTheDocument();
+    expect(onOpenExternal).not.toHaveBeenCalled();
+
+    view.rerender(
+      <PresentationView
+        document={createPresentationDocument('normal')}
+        initialBoardId={HOME_ID}
+        onExit={vi.fn()}
+        onOpenExternal={onOpenExternal}
+      />,
+    );
+    const restoredLink = screen.getByRole('link', { name: 'Open details' });
+    expect(restoredLink).toHaveAttribute('tabindex', '0');
+    fireEvent.click(restoredLink);
+    expect(screen.getByText('Details')).toBeInTheDocument();
   });
 });

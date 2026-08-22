@@ -15,9 +15,13 @@ export interface ControlSceneTextLine {
 }
 
 export interface ControlSceneTextLayout {
+  readonly color: string | undefined;
   readonly fontSize: number;
+  readonly fontStyle: 'italic' | 'normal';
+  readonly fontWeight: 'bold' | 'normal';
   readonly lines: readonly ControlSceneTextLine[];
-  readonly textAnchor: 'middle' | 'start';
+  readonly textAnchor: 'end' | 'middle' | 'start';
+  readonly textDecoration: 'none' | 'underline';
   readonly width: number;
 }
 
@@ -40,8 +44,24 @@ export const calculateControlSceneTextLayout = (
   if (typeof value !== 'string') {
     return undefined;
   }
+  const style = text.style;
+  const fontSizeValue =
+    style.fontSizeProperty === null ? undefined : properties[style.fontSizeProperty];
+  const fontSize = typeof fontSizeValue === 'number' ? fontSizeValue : text.fontSize;
+  const alignmentValue =
+    style.alignmentProperty === null ? undefined : properties[style.alignmentProperty];
+  const alignment =
+    alignmentValue === 'center' || alignmentValue === 'end' || alignmentValue === 'start'
+      ? alignmentValue
+      : text.alignment;
   const measurement = measurementService.measure({
-    fontSize: text.fontSize,
+    fontSize,
+    fontStyle:
+      style.italicProperty !== null && properties[style.italicProperty] === true
+        ? 'italic'
+        : 'normal',
+    fontWeight:
+      style.boldProperty !== null && properties[style.boldProperty] === true ? 'bold' : 'normal',
     mode: text.mode,
     text: value,
   });
@@ -54,9 +74,7 @@ export const calculateControlSceneTextLayout = (
 
   const layoutTop = bounds.y + (bounds.height - measurement.height) / 2;
   const hasCenteredIcon =
-    definition.capabilities.icon &&
-    text.alignment === 'center' &&
-    typeof properties.iconId === 'string';
+    definition.capabilities.icon && alignment === 'center' && typeof properties.iconId === 'string';
   const iconSize = Math.min(
     DESIGN_TOKENS.control.iconSize,
     Math.max(0, bounds.height - DESIGN_TOKENS.space[2] * 2),
@@ -68,10 +86,18 @@ export const calculateControlSceneTextLayout = (
           iconSize +
           DESIGN_TOKENS.space[1] +
           measurement.width / 2
-      : getControlSceneTextX(definition, bounds, properties),
+      : getControlSceneTextX(definition, bounds, properties, alignment),
   );
+  const colorValue = style.colorProperty === null ? undefined : properties[style.colorProperty];
   return Object.freeze({
-    fontSize: text.fontSize,
+    color: typeof colorValue === 'string' && colorValue !== 'default' ? colorValue : undefined,
+    fontSize,
+    fontStyle:
+      style.italicProperty !== null && properties[style.italicProperty] === true
+        ? 'italic'
+        : 'normal',
+    fontWeight:
+      style.boldProperty !== null && properties[style.boldProperty] === true ? 'bold' : 'normal',
     lines: Object.freeze(
       measurement.lines.map((line, index) =>
         Object.freeze({
@@ -83,7 +109,11 @@ export const calculateControlSceneTextLayout = (
         }),
       ),
     ),
-    textAnchor: text.alignment === 'center' ? 'middle' : 'start',
+    textAnchor: alignment === 'center' ? 'middle' : alignment,
+    textDecoration:
+      style.underlineProperty !== null && properties[style.underlineProperty] === true
+        ? 'underline'
+        : 'none',
     width: measurement.width,
   });
 };

@@ -103,6 +103,35 @@ describe('project file codec', () => {
     });
   });
 
+  it('normalizes every v1-valid Rectangle property object before strict v2 validation', () => {
+    const legacy = createValidProjectDocumentInput();
+    const element = legacy.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    const rectangle = getControlSpec(CONTROL_TYPES.rectangle);
+    if (element === undefined || rectangle === undefined) {
+      throw new Error('Legacy Rectangle migration fixture is incomplete.');
+    }
+    element.controlVersion = 1;
+    element.properties = { extraLegacyJson: { nested: ['valid', true, null] }, opacity: 0.25 };
+    element.assetIds = [];
+    legacy.assetsById = {};
+    const envelope = replaceEntry(
+      encodeFixture(),
+      PROJECT_FILE_ENTRY_PATHS.document,
+      encodeCanonicalJson(legacy),
+    );
+
+    const decoded = decodeProjectFileEnvelope(envelope);
+    if (!decoded.ok) throw new Error(`Legacy Rectangle decoding failed: ${decoded.error.message}`);
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toMatchObject({
+      controlType: CONTROL_TYPES.rectangle,
+      controlVersion: rectangle.fileVersion,
+      properties: { ...rectangle.defaultProperties, opacity: 0.25 },
+    });
+    expect(
+      decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.properties,
+    ).not.toHaveProperty('extraLegacyJson');
+  });
+
   it('round-trips a validated project document without assets', () => {
     const document = createAssetFreeProjectDocument();
     const encoded = encodeFixture(document);
@@ -266,6 +295,7 @@ describe('project file codec', () => {
     child.controlType = button.type;
     child.controlVersion = button.fileVersion;
     child.properties = {
+      ...button.defaultProperties,
       iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
       text: 'Brand',
     };

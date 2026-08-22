@@ -98,6 +98,17 @@ const requireControlVersion = (type: ControlTypeId): number => {
   return definition.fileVersion;
 };
 
+const requireControlProperties = (
+  type: ControlTypeId,
+  overrides: Readonly<Record<string, boolean | null | number | string>> = {},
+) => {
+  const definition = getControlSpec(type);
+  if (definition === undefined) {
+    throw new Error(`Visual fixture control '${type}' is not registered.`);
+  }
+  return { ...definition.defaultProperties, ...overrides };
+};
+
 const createSceneFixtureDocument = (): {
   readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
   readonly document: ProjectDocument;
@@ -139,7 +150,7 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
         frame: { x: 160, y: 100, width: 520, height: 380 },
         locked: false,
-        properties: {},
+        properties: requireControlProperties(FOUNDATION_CONTROL_TYPES.rectangle),
         childIds: [],
         assetIds: [],
         link: null,
@@ -172,7 +183,9 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(CONTROL_TYPES.textInput),
         frame: { x: 28, y: 96, width: 300, height: 48 },
         locked: false,
-        properties: { text: 'Email address' },
+        properties: requireControlProperties(CONTROL_TYPES.textInput, {
+          text: 'Email address',
+        }),
         childIds: [],
         assetIds: [],
         link: null,
@@ -183,7 +196,10 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: { x: 28, y: 172, width: 128, height: 44 },
         locked: false,
-        properties: { iconId: 'arrow-right', text: 'Continue' },
+        properties: requireControlProperties(CONTROL_TYPES.button, {
+          iconId: 'arrow-right',
+          text: 'Continue',
+        }),
         childIds: [],
         assetIds: [],
         link: null,
@@ -194,7 +210,7 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
         frame: { x: 372, y: 28, width: 112, height: 304 },
         locked: false,
-        properties: {},
+        properties: requireControlProperties(FOUNDATION_CONTROL_TYPES.rectangle),
         childIds: [],
         assetIds: [],
         link: null,
@@ -277,7 +293,10 @@ const createComponentFixtureDocument = (): {
         controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: { x: 24, y: 88, width: 150, height: 44 },
         locked: false,
-        properties: { iconId: 'arrow-right', text: 'Definition action' },
+        properties: requireControlProperties(CONTROL_TYPES.button, {
+          iconId: 'arrow-right',
+          text: 'Definition action',
+        }),
         childIds: [],
         assetIds: [],
         link: null,
@@ -348,7 +367,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         controlVersion: requireControlVersion(CONTROL_TYPES.rectangle),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.rectangle,
         locked: false,
-        properties: {},
+        properties: requireControlProperties(CONTROL_TYPES.rectangle),
         childIds: [],
         assetIds: [],
         link: null,
@@ -370,7 +389,10 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
         locked: false,
-        properties: { iconId: 'arrow-right', text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
+        properties: requireControlProperties(CONTROL_TYPES.button, {
+          iconId: 'arrow-right',
+          text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT,
+        }),
         childIds: [],
         assetIds: [],
         link: { kind: 'board', boardId },
@@ -381,7 +403,9 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         controlVersion: requireControlVersion(CONTROL_TYPES.textInput),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textInput,
         locked: false,
-        properties: { text: 'Email address' },
+        properties: requireControlProperties(CONTROL_TYPES.textInput, {
+          text: 'Email address',
+        }),
         childIds: [],
         assetIds: [],
         link: null,
@@ -505,7 +529,9 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         id: imageId,
         link: null,
         locked: false,
-        properties: { showBorder: true },
+        properties: requireControlProperties(CONTROL_TYPES.imagePlaceholder, {
+          showBorder: true,
+        }),
       },
       index: 0,
       owner: { elementId: browserId, kind: 'element' },
@@ -546,7 +572,10 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         id: checkboxId,
         link: null,
         locked: false,
-        properties: { checked: true, text: 'Remember me' },
+        properties: requireControlProperties(CONTROL_TYPES.checkbox, {
+          checked: true,
+          text: 'Remember me',
+        }),
       },
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
       owner: { boardId: fixture.boardId, kind: 'board' },

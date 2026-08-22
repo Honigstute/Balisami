@@ -42,8 +42,20 @@ export const calculateControlAutoSizeFrame = (
     return undefined;
   }
 
+  const styledFontSize =
+    text.style.fontSizeProperty === null
+      ? undefined
+      : element.properties[text.style.fontSizeProperty];
   const measurement = measurementService.measure({
-    fontSize: text.fontSize,
+    fontSize: typeof styledFontSize === 'number' ? styledFontSize : text.fontSize,
+    fontStyle:
+      text.style.italicProperty !== null && element.properties[text.style.italicProperty] === true
+        ? 'italic'
+        : 'normal',
+    fontWeight:
+      text.style.boldProperty !== null && element.properties[text.style.boldProperty] === true
+        ? 'bold'
+        : 'normal',
     mode: text.mode,
     text: value,
   });

@@ -35,6 +35,14 @@ const getControlVersion = (type: string): number => {
   return definition.fileVersion;
 };
 
+const getControlProperties = (type: string): Readonly<Record<string, unknown>> => {
+  const definition = getControlSpec(type);
+  if (definition === undefined) {
+    throw new Error(`M11 performance fixture control '${type}' is not registered.`);
+  }
+  return definition.defaultProperties;
+};
+
 const parseFixture = (
   scenario: M11PerformanceScenario,
   boardId: ReturnType<typeof BoardIdSchema.parse>,
@@ -101,7 +109,7 @@ export const createM11AssetHeavyFixture = (): M11ProjectPerformanceFixture => {
         height: 100,
       },
       locked: false,
-      properties: { showBorder: false },
+      properties: { ...getControlProperties(CONTROL_TYPES.imagePlaceholder) },
       childIds: [],
       assetIds: [assetId],
       link: null,
@@ -180,7 +188,7 @@ export const createM11ComponentHeavyFixture = (): M11ProjectPerformanceFixture =
           height: 72,
         },
         locked: false,
-        properties: {},
+        properties: { ...getControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
         childIds: [],
         assetIds: [],
         link: null,

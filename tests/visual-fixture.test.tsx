@@ -222,7 +222,11 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Insert Volume Slider' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Webcam' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Checkbox' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Checked' })).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen
+        .getAllByRole('button', { name: 'Checked' })
+        .find((button) => button.getAttribute('aria-pressed') === 'true'),
+    ).toBeDefined();
     await waitFor(() => {
       const checkbox = view.container.querySelector('[data-control-visual="checkbox"]');
       const image = view.container.querySelector('[data-control-visual="image"]');

@@ -23,8 +23,10 @@ export const ControlThumbnail = ({ definition, textMeasurementService }: Control
       className="control-library__preview"
       data-control-thumbnail={definition.type}
       data-control-thumbnail-visual={definition.scene.kind}
+      data-control-disabled={String(projection.disabled)}
       {...(typeof strokeStyle === 'string' ? { 'data-control-stroke-style': strokeStyle } : {})}
       preserveAspectRatio="xMidYMid meet"
+      style={projection.opacity === undefined ? undefined : { opacity: projection.opacity }}
       viewBox={`${String(viewBox.x)} ${String(viewBox.y)} ${String(viewBox.width)} ${String(viewBox.height)}`}
     >
       {hasFill ? (
@@ -34,20 +36,37 @@ export const ControlThumbnail = ({ definition, textMeasurementService }: Control
           width={projection.primitiveBounds.width}
           x={projection.primitiveBounds.x}
           y={projection.primitiveBounds.y}
+          style={projection.fillColor === undefined ? undefined : { fill: projection.fillColor }}
         />
       ) : null}
-      {projection.outlinePath.length === 0 ? null : (
-        <path className="scene-control__outline" d={projection.outlinePath} />
+      {!projection.borderVisible || projection.outlinePath.length === 0 ? null : (
+        <path
+          className="scene-control__outline"
+          d={projection.outlinePath}
+          style={
+            projection.strokeColor === undefined ? undefined : { stroke: projection.strokeColor }
+          }
+        />
       )}
       {projection.markPath.length === 0 ? null : (
-        <path className="scene-control__mark" d={projection.markPath} />
+        <path
+          className="scene-control__mark"
+          d={projection.markPath}
+          style={
+            projection.strokeColor === undefined ? undefined : { stroke: projection.strokeColor }
+          }
+        />
       )}
       {projection.textLayout === undefined ? null : (
         <text
           className="scene-control__text"
           dominantBaseline="alphabetic"
           fontSize={projection.textLayout.fontSize}
+          fontStyle={projection.textLayout.fontStyle}
+          fontWeight={projection.textLayout.fontWeight}
+          fill={projection.textLayout.color}
           textAnchor={projection.textLayout.textAnchor}
+          textDecoration={projection.textLayout.textDecoration}
         >
           {projection.textLayout.lines.map((line, index) => (
             <tspan key={`${String(index)}:${line.text}`} x={line.x} y={line.baselineY}>

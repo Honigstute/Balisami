@@ -28,7 +28,7 @@ import {
   createWorldVector,
 } from '../src/renderer/editor/viewport-transform';
 import { createEditorSpatialFixture } from './fixtures/editor-spatial-fixture';
-import { getFixtureControlVersion } from './fixtures/project-document';
+import { getFixtureControlProperties, getFixtureControlVersion } from './fixtures/project-document';
 
 const percentile95 = (samples: readonly number[]): number => {
   const ordered = [...samples].sort((first, second) => first - second);
@@ -55,7 +55,7 @@ const createHitTestFixture = (elementCount: number) => {
         height: 12,
       },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,

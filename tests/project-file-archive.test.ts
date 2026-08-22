@@ -4,6 +4,7 @@ import path from 'node:path';
 import { unzipSync, zipSync, type Zippable } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
+import { getControlSpec } from '../src/domain';
 import {
   MAX_PROJECT_FILE_ENTRY_COUNT,
   MAX_PROJECT_MANIFEST_BYTES,
@@ -115,7 +116,7 @@ describe('physical project file archive', () => {
         selectedAlternateId: null,
       });
       for (const element of Object.values(decoded.value.document.elementsById)) {
-        expect(element.controlVersion).toBe(1);
+        expect(element.controlVersion).toBe(getControlSpec(element.controlType)?.fileVersion);
       }
     }
   });

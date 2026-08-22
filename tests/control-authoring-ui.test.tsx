@@ -12,6 +12,7 @@ import {
   createCustomIconReference,
   createEmptyProjectDocument,
   dispatchDocumentCommand,
+  getControlSpec,
   parseProjectDocument,
   type ControlTypeId,
 } from '../src/domain';
@@ -306,6 +307,11 @@ describe('alpha control authoring UI', () => {
     expect(screen.getByText('Button', { selector: 'tspan' })).toBeInTheDocument();
     expect(screen.getByText('Text input', { selector: 'tspan' })).toBeInTheDocument();
     expect(screen.getByText('Checkbox', { selector: 'tspan' })).toBeInTheDocument();
+    expect(
+      document.querySelector(
+        `[data-control-thumbnail='${CONTROL_TYPES.imagePlaceholder}'] .scene-control__outline`,
+      ),
+    ).toBeNull();
   });
 
   it('searches, previews, inserts, and drags reusable components through the shared shelf', () => {
@@ -541,12 +547,10 @@ describe('alpha control authoring UI', () => {
     expect(screen.getByRole('button', { name: 'Trash' })).toHaveFocus();
     fireEvent.click(screen.getByRole('button', { name: 'Trash' }));
 
-    expect(onSetProperties).toHaveBeenCalledWith([
-      {
-        elementId,
-        properties: { iconId: 'trash', text: 'Button' },
-      },
-    ]);
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { iconId: 'trash', text: 'Button' },
+    });
     expect(screen.queryByRole('dialog', { name: 'Icon library' })).not.toBeInTheDocument();
   });
 
@@ -598,7 +602,10 @@ describe('alpha control authoring UI', () => {
     const edited = dispatchDocumentCommand(inserted.document, {
       type: DOCUMENT_COMMAND_TYPES.setElementProperties,
       elementId: secondId,
-      properties: { iconId: null, text: 'Secondary' },
+      properties: {
+        ...getControlSpec(CONTROL_TYPES.button)!.defaultProperties,
+        text: 'Secondary',
+      },
     });
     if (!edited.ok || !edited.changed) {
       throw new Error('Multi-inspector fixture control could not be edited.');
@@ -733,7 +740,7 @@ describe('alpha control authoring UI', () => {
     expect(screen.getByRole('heading', { name: 'Position' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Size' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Checked' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Checked' })).not.toBeInTheDocument();
   });
 
   it('renders registry boolean fields without a checkbox-specific inspector branch', () => {
@@ -753,10 +760,39 @@ describe('alpha control authoring UI', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Checked' }));
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Checked' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    );
     expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
       elementId,
       properties: { checked: true, text: 'Checkbox' },
+    });
+  });
+
+  it('edits Image content through its registry-owned Text section', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.imagePlaceholder);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+    const content = screen.getByRole('textbox', { name: 'Content' });
+    fireEvent.change(content, { target: { value: 'Product photo' } });
+    fireEvent.blur(content);
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { text: 'Product photo' },
     });
   });
 

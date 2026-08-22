@@ -31,6 +31,7 @@ const createCustomIconDocument = () => {
   element.controlType = button.type;
   element.controlVersion = button.fileVersion;
   element.properties = {
+    ...button.defaultProperties,
     iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
     text: 'Continue',
   };

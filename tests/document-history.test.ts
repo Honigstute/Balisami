@@ -384,8 +384,8 @@ const nextRandom = (state: { value: number }): number => {
 const createHistoryElement = () =>
   ElementNodeSchema.parse({
     id: HISTORY_ELEMENT_ID,
-    controlType: FOUNDATION_CONTROL_TYPES.rectangle,
-    controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
+    controlType: FOUNDATION_CONTROL_TYPES.group,
+    controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.group),
     frame: { x: 40, y: 40, width: 180, height: 80 },
     locked: false,
     properties: { label: 'History fixture' },

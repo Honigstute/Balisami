@@ -18,6 +18,7 @@ import {
 import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlProperties,
   getFixtureControlVersion,
   type ProjectDocumentInputFixture,
 } from './fixtures/project-document';
@@ -75,7 +76,10 @@ const createElement = (
       controlType === 'foundation.unknown' ? 1 : getFixtureControlVersion(controlType),
     frame: { x: 40, y: 60, width: 160, height: 80 },
     locked: false,
-    properties: { label: 'New element' },
+    properties:
+      controlType === 'foundation.unknown'
+        ? { label: 'New element' }
+        : { ...getFixtureControlProperties(controlType) },
     childIds: [],
     assetIds: [],
     link: null,
@@ -674,7 +678,10 @@ describe('element document commands', () => {
 
     const staleVersion = expectFailure(document, {
       type: DOCUMENT_COMMAND_TYPES.createElement,
-      element: { ...createElement(), controlVersion: 2 },
+      element: {
+        ...createElement(),
+        controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle) + 1,
+      },
       owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
       index: 0,
     });
@@ -793,7 +800,12 @@ describe('element document commands', () => {
   });
 
   it('replaces JSON-safe properties, detects deep no-ops, and restores prior values', () => {
-    const document = parseFixture(createValidProjectDocumentInput());
+    const input = createValidProjectDocumentInput();
+    const fixtureElement = getFixtureElement(input);
+    fixtureElement.controlType = FOUNDATION_CONTROL_TYPES.group;
+    fixtureElement.controlVersion = getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.group);
+    fixtureElement.properties = { tags: ['example', true, null], opacity: 0.75 };
+    const document = parseFixture(input);
     const properties = {
       label: 'Checkout card',
       state: { disabled: false, variants: ['desktop', 'mobile'] },

@@ -9,6 +9,7 @@ import {
   getControlScenePrimitiveBounds,
 } from '../src/renderer/controls/control-scene-geometry';
 import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
+import { createControlSceneProjection } from '../src/renderer/controls/control-scene-projection';
 import { createControlThumbnailProjection } from '../src/renderer/controls/control-thumbnail-projection';
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
 
@@ -100,6 +101,47 @@ describe('control thumbnail projection', () => {
         ...arrow.defaultProperties,
         routing: 'visual-2',
       }),
+    );
+  });
+
+  it('projects definition-owned disabled state and rectangle scrollbar geometry', () => {
+    const button = getControlSpec(CONTROL_TYPES.button);
+    const input = getControlSpec(CONTROL_TYPES.textInput);
+    const rectangle = getControlSpec(CONTROL_TYPES.rectangle);
+    if (button === undefined || input === undefined || rectangle === undefined) {
+      throw new Error('Representative style controls are missing.');
+    }
+    const bounds = createWorldRect(0, 0, 160, 80);
+    const project = (definition: typeof button, properties: typeof definition.defaultProperties) =>
+      createControlSceneProjection({
+        bounds,
+        definition,
+        identity: `style:${definition.type}`,
+        properties,
+        textMeasurementService: measurementService,
+      });
+
+    expect(project(button, button.defaultProperties)).toMatchObject({
+      disabled: false,
+      opacity: undefined,
+    });
+    expect(project(button, { ...button.defaultProperties, state: 'disabled' })).toMatchObject({
+      disabled: true,
+      opacity: 0.45,
+    });
+    expect(
+      project(input, { ...input.defaultProperties, opacity: 0.8, state: 'disabled' }).opacity,
+    ).toBeCloseTo(0.36);
+
+    const hiddenScrollbar = project(rectangle, rectangle.defaultProperties);
+    const visibleScrollbar = project(rectangle, {
+      ...rectangle.defaultProperties,
+      scrollbar: true,
+    });
+    expect(hiddenScrollbar.markPath).toBe('');
+    expect(visibleScrollbar.markPath).not.toBe('');
+    expect(visibleScrollbar.markPath).toBe(
+      project(rectangle, { ...rectangle.defaultProperties, scrollbar: true }).markPath,
     );
   });
 

@@ -18,6 +18,7 @@ import { createBoardSceneItems } from '../src/renderer/editor/document-scene-mod
 import {
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlProperties,
   getFixtureControlVersion,
 } from './fixtures/project-document';
 
@@ -35,7 +36,10 @@ const createComponentDocument = (locked = false): ProjectDocument => {
   }
   child.controlType = CONTROL_TYPES.button;
   child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.button);
-  child.properties = { iconId: null, text: 'Definition action' };
+  child.properties = {
+    ...getFixtureControlProperties(CONTROL_TYPES.button),
+    text: 'Definition action',
+  };
   child.assetIds = [];
   input.componentIds = [COMPONENT_ID];
   input.componentsById[COMPONENT_ID] = {

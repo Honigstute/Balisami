@@ -60,7 +60,13 @@ describe('registry-driven control auto-size', () => {
       height: 38,
       width: 99.125,
     });
-    expect(measure).toHaveBeenCalledWith({ fontSize: 16, mode: 'single-line', text: 'Button' });
+    expect(measure).toHaveBeenCalledWith({
+      fontSize: 16,
+      fontStyle: 'normal',
+      fontWeight: 'normal',
+      mode: 'single-line',
+      text: 'Button',
+    });
   });
 
   it('preserves the inactive checkbox height and refuses controls without a policy', () => {

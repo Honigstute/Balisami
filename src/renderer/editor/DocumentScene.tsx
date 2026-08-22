@@ -8,11 +8,7 @@ import {
   type ProjectDocument,
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
-import {
-  createControlSceneOutlinePath,
-  controlSceneHasFill,
-  controlSceneHasOutline,
-} from '../controls/control-scene-geometry';
+import { controlSceneHasFill, controlSceneHasOutline } from '../controls/control-scene-geometry';
 import { createControlSceneProjection } from '../controls/control-scene-projection';
 import { syncControlSceneIconElement } from '../controls/control-scene-icon';
 import type { ControlSceneTextLayout } from '../controls/control-scene-text-layout';
@@ -146,7 +142,7 @@ class DocumentScenePresenter {
     for (const [id, item] of this.#canonicalItemsById) {
       const element = this.#elementsById.get(id);
       if (element !== undefined) {
-        this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
+        this.#updateElementGeometry(element, item.bounds, item.properties, item);
       }
     }
     this.#applyResizePreview();
@@ -160,7 +156,7 @@ class DocumentScenePresenter {
     for (const [id, item] of this.#canonicalItemsById) {
       const element = this.#elementsById.get(id);
       if (element !== undefined) {
-        this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
+        this.#updateElementGeometry(element, item.bounds, item.properties, item);
       }
     }
   }
@@ -212,25 +208,14 @@ class DocumentScenePresenter {
     if (element === undefined || item === undefined) {
       return;
     }
-    this.#updateElementGeometry(
-      element,
-      snapshot.worldBounds,
-      createControlSceneOutlinePath(
-        item.controlType,
-        snapshot.worldBounds,
-        snapshot.elementId,
-        item.properties,
-      ),
-      item.properties,
-      item,
-    );
+    this.#updateElementGeometry(element, snapshot.worldBounds, item.properties, item);
   }
 
   #restoreCanonicalElement(id: ElementId): void {
     const element = this.#elementsById.get(id);
     const item = this.#canonicalItemsById.get(id);
     if (element !== undefined && item !== undefined) {
-      this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
+      this.#updateElementGeometry(element, item.bounds, item.properties, item);
     }
   }
 
@@ -276,14 +261,13 @@ class DocumentScenePresenter {
     } else {
       element.setAttribute('aria-checked', String(item.properties[checkedProperty] === true));
     }
-    this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
+    this.#updateElementGeometry(element, item.bounds, item.properties, item);
     element.dataset.sceneRevision = item.revision;
   }
 
   #updateElementGeometry(
     element: SVGGElement,
     bounds: DocumentSceneItem['bounds'],
-    path: string,
     properties: DocumentSceneItem['properties'],
     item: DocumentSceneItem,
   ): void {
@@ -323,12 +307,14 @@ class DocumentScenePresenter {
       properties,
       textMeasurementService: this.#textMeasurementService,
     });
+    element.setAttribute('aria-disabled', String(projection.disabled));
+    element.dataset.controlDisabled = String(projection.disabled);
     const primitiveBounds = projection.primitiveBounds;
     fillElement.setAttribute('x', String(primitiveBounds.x));
     fillElement.setAttribute('y', String(primitiveBounds.y));
     fillElement.setAttribute('width', String(primitiveBounds.width));
     fillElement.setAttribute('height', String(primitiveBounds.height));
-    outlineElement.setAttribute('d', path);
+    outlineElement.setAttribute('d', projection.outlinePath);
     const hasImage = this.#updateElementImage(imageElement, bounds, item);
     const markPath = hasImage ? '' : projection.markPath;
     markElement.setAttribute('d', markPath);
@@ -340,26 +326,18 @@ class DocumentScenePresenter {
     );
     outlineElement.setAttribute(
       'display',
-      controlSceneHasOutline(spec) &&
-        (spec.scene.kind !== 'image' || properties.showBorder === true)
-        ? 'inline'
-        : 'none',
+      controlSceneHasOutline(spec) && projection.borderVisible ? 'inline' : 'none',
     );
 
-    const color = properties.color ?? properties.borderColor;
     fillElement.style.removeProperty('fill');
     outlineElement.style.removeProperty('stroke');
     markElement.style.removeProperty('stroke');
-    if (typeof color === 'string' && color !== 'default') {
-      if (spec.scene.colorTarget === 'fill') {
-        fillElement.style.fill = color;
-      } else {
-        outlineElement.style.stroke = color;
-        markElement.style.stroke = color;
-      }
+    if (projection.fillColor !== undefined) fillElement.style.fill = projection.fillColor;
+    if (projection.strokeColor !== undefined) {
+      outlineElement.style.stroke = projection.strokeColor;
+      markElement.style.stroke = projection.strokeColor;
     }
-    element.style.opacity =
-      typeof properties.opacity === 'number' ? String(properties.opacity) : '';
+    element.style.opacity = projection.opacity === undefined ? '' : String(projection.opacity);
     const strokeStyle = properties.strokeStyle;
     if (typeof strokeStyle === 'string') {
       element.dataset.controlStrokeStyle = strokeStyle;
@@ -461,7 +439,12 @@ class DocumentScenePresenter {
     textElement.setAttribute('display', 'inline');
     textElement.setAttribute('dominant-baseline', 'alphabetic');
     textElement.setAttribute('font-size', String(layout.fontSize));
+    textElement.setAttribute('font-style', layout.fontStyle);
+    textElement.setAttribute('font-weight', layout.fontWeight);
     textElement.setAttribute('text-anchor', layout.textAnchor);
+    textElement.setAttribute('text-decoration', layout.textDecoration);
+    if (layout.color === undefined) textElement.style.removeProperty('fill');
+    else textElement.style.fill = layout.color;
     while (textElement.children.length > layout.lines.length) {
       textElement.lastElementChild?.remove();
     }
