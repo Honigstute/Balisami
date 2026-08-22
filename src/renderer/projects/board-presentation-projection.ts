@@ -16,6 +16,7 @@ import {
   type ControlSceneProjection,
 } from '../controls/control-scene-projection';
 import type { ControlTextMeasurementService } from '../controls/control-text-measurement';
+import { createControlRowSceneProjections } from '../controls/control-row-scene-projection';
 import { createBoardSceneItems } from '../editor/document-scene-model';
 import { createWorldRect, type WorldRect } from '../editor/viewport-transform';
 
@@ -32,8 +33,16 @@ export interface BoardPresentationItem extends ControlSceneProjection {
   readonly link: ElementLink | null;
   readonly opacity: number | undefined;
   readonly role: 'button' | 'checkbox' | 'group' | 'img' | 'textbox';
+  readonly rowLinks: readonly BoardPresentationRowLink[];
   readonly strokeStyle: string | undefined;
   readonly visualKind: ControlVisualKind;
+}
+
+export interface BoardPresentationRowLink {
+  readonly bounds: WorldRect;
+  readonly label: string;
+  readonly link: ElementLink;
+  readonly rowId: string;
 }
 
 export interface BoardPresentationProjection {
@@ -116,6 +125,18 @@ export const createBoardPresentationProjection = (
       properties: item.properties,
       textMeasurementService,
     });
+    const rowLinks = createControlRowSceneProjections(
+      definition,
+      item.properties,
+      item.rowData,
+      projection.textLayout,
+      textMeasurementService,
+      item.bounds,
+    ).flatMap((row) =>
+      row.link === null
+        ? []
+        : [Object.freeze({ bounds: row.bounds, label: row.label, link: row.link, rowId: row.id })],
+    );
     return Object.freeze({
       ...projection,
       accessibleName: getControlAccessibleName(definition, item.properties),
@@ -129,6 +150,7 @@ export const createBoardPresentationProjection = (
       id: item.id,
       link: item.link,
       role: definition.accessibility.role,
+      rowLinks: Object.freeze(rowLinks),
       strokeStyle: typeof strokeStyle === 'string' ? strokeStyle : undefined,
       visualKind: item.visualKind,
     });

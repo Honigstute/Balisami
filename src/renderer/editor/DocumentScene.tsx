@@ -4,12 +4,14 @@ import {
   getControlAccessibleName,
   getControlSpec,
   type BoardId,
+  type ControlDefinition,
   type ElementId,
   type ProjectDocument,
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import { controlSceneHasFill, controlSceneHasOutline } from '../controls/control-scene-geometry';
 import { createControlSceneProjection } from '../controls/control-scene-projection';
+import { createControlRowSceneProjections } from '../controls/control-row-scene-projection';
 import { syncControlSceneIconElement } from '../controls/control-scene-icon';
 import type { ControlSceneTextLayout } from '../controls/control-scene-text-layout';
 import {
@@ -114,10 +116,13 @@ class DocumentScenePresenter {
     }
     this.#cameraZoom = zoom;
     for (const [id, item] of this.#canonicalItemsById) {
+      // Parsed-row rectangles use world geometry and stay valid across zoom.
+      // Only a whole-control badge has constant-screen sizing.
+      if (item.link === null) continue;
       const element = this.#elementsById.get(id);
       const hint = element?.children[6];
       if (hint?.localName === 'g') {
-        this.#updateElementLinkHint(hint as SVGGElement, item.bounds, item);
+        this.#updateElementLinkBadge(hint as SVGGElement, item.bounds, item);
       }
     }
     this.#applyResizePreview();
@@ -357,7 +362,7 @@ class DocumentScenePresenter {
 
     syncControlSceneIconElement(catalogIconElement, projection.icon, this.#assetUrls);
     this.#updateElementText(textElement, projection.textLayout);
-    this.#updateElementLinkHint(linkHintElement, bounds, item);
+    this.#updateElementLinkHint(linkHintElement, bounds, item, spec, projection.textLayout);
   }
 
   #updateElementImage(
@@ -386,6 +391,40 @@ class DocumentScenePresenter {
     hint: SVGGElement,
     bounds: DocumentSceneItem['bounds'],
     item: DocumentSceneItem,
+    definition: ControlDefinition,
+    textLayout: ControlSceneTextLayout | undefined,
+  ): void {
+    while (hint.children.length > 2) hint.lastElementChild?.remove();
+    const rowLinks = createControlRowSceneProjections(
+      definition,
+      item.properties,
+      item.rowData,
+      textLayout,
+      this.#textMeasurementService,
+      bounds,
+    ).filter((row) => row.link !== null);
+    for (const row of rowLinks) {
+      const rowHint = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
+      rowHint.setAttribute('class', 'scene-control__row-link-hint');
+      rowHint.setAttribute('x', String(row.bounds.x));
+      rowHint.setAttribute('y', String(row.bounds.y));
+      rowHint.setAttribute('width', String(row.bounds.width));
+      rowHint.setAttribute('height', String(row.bounds.height));
+      rowHint.dataset.rowId = row.id;
+      if (row.link !== null) {
+        rowHint.dataset.linkKind = row.link.kind;
+        rowHint.dataset.linkTarget = row.link.kind === 'board' ? row.link.boardId : row.link.url;
+      }
+      hint.append(rowHint);
+    }
+    this.#updateElementLinkBadge(hint, bounds, item);
+  }
+
+  /** Zoom-only path: update the constant-screen badge without measuring or rebuilding rows. */
+  #updateElementLinkBadge(
+    hint: SVGGElement,
+    bounds: DocumentSceneItem['bounds'],
+    item: DocumentSceneItem,
   ): void {
     const background = hint.children[0];
     const glyph = hint.children[1];
@@ -393,11 +432,17 @@ class DocumentScenePresenter {
       throw new Error('Document scene link hint structure was changed unexpectedly.');
     }
     if (item.link === null) {
+      background.setAttribute('display', 'none');
+      glyph.setAttribute('display', 'none');
       hint.setAttribute('display', 'none');
       delete hint.dataset.linkKind;
       delete hint.dataset.linkTarget;
+      if (hint.children.length > 2) hint.removeAttribute('display');
       return;
     }
+
+    background.removeAttribute('display');
+    glyph.removeAttribute('display');
 
     const size = DESIGN_TOKENS.control.iconSize / this.#cameraZoom;
     const inset = DESIGN_TOKENS.editor.selectionHandleSize / this.#cameraZoom;

@@ -3,6 +3,7 @@ import {
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   createElementLocationIndex,
+  rekeyElementRowData,
   selectElementLockState,
   type CreateElementCommand,
   type ElementId,
@@ -126,6 +127,7 @@ export const planSelectionDuplicate = (
       element: {
         ...candidate.element,
         id: cloneId,
+        rowData: rekeyElementRowData(candidate.element.rowData, cloneId),
         frame: {
           ...candidate.element.frame,
           x: cloneX,

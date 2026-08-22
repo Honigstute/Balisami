@@ -4,7 +4,18 @@ import path from 'node:path';
 import { unzipSync, zipSync, type Zippable } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
-import { getControlSpec } from '../src/domain';
+import {
+  CONTROL_TYPES,
+  DOCUMENT_COMMAND_TYPES,
+  ElementIdSchema,
+  createControlRowEdits,
+  createControlRowsUpdate,
+  createElementRowId,
+  dispatchDocumentCommand,
+  getControlSpec,
+} from '../src/domain';
+import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
+import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
 import {
   MAX_PROJECT_FILE_ENTRY_COUNT,
   MAX_PROJECT_MANIFEST_BYTES,
@@ -122,7 +133,7 @@ describe('physical project file archive', () => {
       });
       for (const element of Object.values(decoded.value.document.elementsById)) {
         expect(element.controlVersion).toBe(getControlSpec(element.controlType)?.fileVersion);
-        expect(element.rowData).toEqual({ version: 1, bindings: [] });
+        expect(element.rowData).toEqual({ version: 1, nextId: 0, bindings: [] });
       }
     }
   });
@@ -143,6 +154,85 @@ describe('physical project file archive', () => {
     expect(Array.from(decoded.value.assetsById[DOCUMENT_FIXTURE_IDS.asset] ?? [])).toEqual(
       Array.from(PROJECT_FILE_FIXTURE_ASSET_BYTES),
     );
+  });
+
+  it('save-reopens stable row generations with board and external row links', async () => {
+    const source = createAssetFreeProjectDocument();
+    const elementId = ElementIdSchema.parse('element_archive_rows');
+    const inserted = dispatchDocumentCommand(
+      source,
+      createControlInsertionCommand({
+        boardId: DOCUMENT_FIXTURE_IDS.board,
+        center: createWorldPoint(420, 240),
+        controlType: CONTROL_TYPES.breadcrumbs,
+        document: source,
+        elementId,
+      }),
+    );
+    if (!inserted.ok || !inserted.changed) throw new Error('Archive row control was not inserted.');
+    const definition = getControlSpec(CONTROL_TYPES.breadcrumbs);
+    const element = inserted.document.elementsById[elementId];
+    if (definition === undefined || element === undefined) {
+      throw new Error('Archive row definition is missing.');
+    }
+    const edits = createControlRowEdits(definition, element);
+    if (edits === undefined) throw new Error('Archive rows did not parse.');
+    const update = createControlRowsUpdate(
+      definition,
+      element,
+      edits.map((edit, index) =>
+        index === 0
+          ? Object.freeze({
+              ...edit,
+              link: Object.freeze({
+                kind: 'board' as const,
+                boardId: DOCUMENT_FIXTURE_IDS.board,
+              }),
+            })
+          : index === 1
+            ? Object.freeze({
+                ...edit,
+                link: Object.freeze({
+                  kind: 'external' as const,
+                  url: 'https://example.com/archive-row',
+                }),
+              })
+            : edit,
+      ),
+      element.rowData.nextId,
+    );
+    if (update === undefined) throw new Error('Archive row update is invalid.');
+    const linked = dispatchDocumentCommand(inserted.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId,
+      properties: update.properties,
+      rowData: update.rowData,
+    });
+    if (!linked.ok || !linked.changed) throw new Error('Archive row links did not apply.');
+    const encoded = await encodeProjectFileArchive(linked.document);
+    if (!encoded.ok) throw new Error(`Archive rows did not save: ${encoded.error.message}`);
+    const decoded = await decodeProjectFileArchive(encoded.value);
+    if (!decoded.ok) throw new Error(`Archive rows did not reopen: ${decoded.error.message}`);
+
+    expect(decoded.value.document).toEqual(linked.document);
+    expect(decoded.value.document.elementsById[elementId]?.rowData).toEqual({
+      version: 1,
+      nextId: 4,
+      bindings: [
+        {
+          generation: 0,
+          id: createElementRowId(elementId, 0),
+          link: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+        },
+        {
+          generation: 1,
+          id: createElementRowId(elementId, 1),
+          link: { kind: 'external', url: 'https://example.com/archive-row' },
+        },
+        { generation: 2, id: createElementRowId(elementId, 2), link: null },
+        { generation: 3, id: createElementRowId(elementId, 3), link: null },
+      ],
+    });
   });
 
   it('rejects non-binary, malformed, and truncated containers', async () => {

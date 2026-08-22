@@ -15,6 +15,7 @@ import {
   type ComponentId,
   type ElementId,
   type ElementProperties,
+  type ElementRowData,
   type ProjectDocument,
   type WorldRect,
 } from '../../domain';
@@ -38,6 +39,7 @@ import {
   type ComponentOverrideFieldModel,
 } from './component-override-model';
 import type { ComponentOverrideUpdate } from './component-override-update';
+import { ControlRowsInspector } from './ControlRowsInspector';
 
 export interface ControlInspectorFrameUpdate {
   readonly elementId: ElementId;
@@ -47,6 +49,7 @@ export interface ControlInspectorFrameUpdate {
 export interface ControlInspectorPropertiesUpdate {
   readonly elementId: ElementId;
   readonly properties: ElementProperties;
+  readonly rowData?: ElementRowData;
 }
 
 export interface ControlInspectorIconUpdate {
@@ -627,6 +630,14 @@ export const ControlInspector = ({
               Create Component
             </AppButton>
           </section>
+        )}
+        {element === undefined || spec?.rows === null || spec?.rows === undefined ? null : (
+          <ControlRowsInspector
+            definition={spec}
+            document={document}
+            element={element}
+            onApply={(update) => onSetProperties([update])}
+          />
         )}
         {model.propertySections.map((section) => (
           <section className="inspector-section" key={section.label}>

@@ -12,6 +12,7 @@ import {
   ElementLinkSchema,
   ElementNodeSchema,
   ElementPropertiesSchema,
+  ElementRowDataSchema,
   WorldRectSchema,
 } from '../document/schema';
 
@@ -446,6 +447,8 @@ export const SetElementPropertiesCommandSchema = z
     type: z.literal(DOCUMENT_COMMAND_TYPES.setElementProperties),
     elementId: ElementIdSchema,
     properties: ElementPropertiesSchema,
+    /** Parsed-row identity changes commit atomically with their source property. */
+    rowData: ElementRowDataSchema.optional(),
   })
   .readonly();
 

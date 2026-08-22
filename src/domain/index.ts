@@ -128,6 +128,7 @@ export {
   type ControlInspectorSection,
   type ControlPropertyMigration,
   type ControlResizeAxes,
+  type ControlRowsDefinition,
   type ControlPaletteMetadata,
   type ControlPalettePreset,
   type ControlSceneDefinition,
@@ -136,6 +137,25 @@ export {
   type ControlThumbnailDefinition,
   type ControlVisualKind,
 } from './controls/control-definition';
+export {
+  listDefinitionElementLinkReferences,
+  listElementLinkReferences,
+  mapElementLinks,
+  type ControlLinkReference,
+} from './controls/control-link-references';
+export {
+  MAX_CONTROL_ROW_LABEL_LENGTH,
+  appendControlRowEdit,
+  createControlRowEdits,
+  createControlRowsUpdate,
+  createElementRowId,
+  createInitialElementRowData,
+  parseControlRows,
+  rekeyElementRowData,
+  type ParsedControlRow,
+  type ControlRowEdit,
+  type ControlRowsUpdate,
+} from './controls/control-rows';
 export {
   CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,

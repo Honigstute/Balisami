@@ -3,6 +3,7 @@ import {
   DOCUMENT_COMMAND_TYPES,
   DocumentTitleSchema,
   ElementIdSchema,
+  rekeyElementRowData,
   type ComponentId,
   type CreateComponentCommand,
   type ElementId,
@@ -93,6 +94,7 @@ export const planComponentDuplicate = (
       ...sourceElement,
       childIds: Object.freeze(childIds as ElementId[]),
       id,
+      rowData: rekeyElementRowData(sourceElement.rowData, id),
     });
   });
   if (elements.some((element) => element === undefined)) return undefined;

@@ -11,6 +11,7 @@ import {
   FOUNDATION_CONTROL_TYPES,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
   createCustomIconReference,
+  createInitialElementRowData,
   dispatchDocumentCommand,
   getControlSpec,
   parseProjectDocument,
@@ -498,6 +499,7 @@ const createPresentationFixtureDocument = (): Readonly<{
 
 const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
   const fixture = createAlphaFixtureDocument();
+  const breadcrumbsId = ElementIdSchema.parse('element_registrybreadcrumbs');
   const checkboxId = ElementIdSchema.parse('element_registrycheckbox');
   const browserId = ElementIdSchema.parse('element_registrybrowser');
   const imageId = ElementIdSchema.parse('element_registryimage');
@@ -506,6 +508,32 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   const videoPlayerId = ElementIdSchema.parse('element_registryvideoplayer');
   const volumeSliderId = ElementIdSchema.parse('element_registryvolumeslider');
   const webcamId = ElementIdSchema.parse('element_registrywebcam');
+  const breadcrumbsDefinition = getControlSpec(CONTROL_TYPES.breadcrumbs);
+  const breadcrumbsProperties = requireControlProperties(CONTROL_TYPES.breadcrumbs);
+  const initialBreadcrumbRows =
+    breadcrumbsDefinition === undefined
+      ? undefined
+      : createInitialElementRowData(breadcrumbsDefinition, breadcrumbsId, breadcrumbsProperties);
+  if (initialBreadcrumbRows === undefined) {
+    throw new Error('The deterministic Breadcrumbs row fixture is invalid.');
+  }
+  const breadcrumbsRowData = Object.freeze({
+    ...initialBreadcrumbRows,
+    bindings: Object.freeze(
+      initialBreadcrumbRows.bindings.map((binding, index) =>
+        Object.freeze({
+          ...binding,
+          link:
+            index === 0
+              ? Object.freeze({
+                  kind: 'external' as const,
+                  url: 'https://example.com/home',
+                })
+              : null,
+        }),
+      ),
+    ),
+  });
   let document = fixture.document;
   const commands = [
     {
@@ -585,9 +613,26 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       element: {
         assetIds: [],
         childIds: [],
+        controlType: CONTROL_TYPES.breadcrumbs,
+        controlVersion: requireControlVersion(CONTROL_TYPES.breadcrumbs),
+        frame: { x: 76, y: 300, width: 240, height: 28 },
+        id: breadcrumbsId,
+        link: null,
+        rowData: breadcrumbsRowData,
+        locked: false,
+        properties: breadcrumbsProperties,
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
         controlType: CONTROL_TYPES.checkbox,
         controlVersion: requireControlVersion(CONTROL_TYPES.checkbox),
-        frame: { x: 76, y: 312, width: 180, height: 32 },
+        frame: { x: 76, y: 340, width: 180, height: 32 },
         id: checkboxId,
         link: null,
         rowData: EMPTY_ELEMENT_ROW_DATA,
@@ -597,7 +642,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
           text: 'Remember me',
         }),
       },
-      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 2,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
     {
@@ -614,7 +659,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         locked: false,
         properties: {},
       },
-      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 2,
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 3,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
     {
@@ -631,7 +676,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         locked: false,
         properties: {},
       },
-      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 3,
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 4,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
     {
@@ -648,7 +693,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         locked: false,
         properties: {},
       },
-      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 4,
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 5,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
     {
@@ -665,7 +710,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         locked: false,
         properties: {},
       },
-      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 5,
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 6,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
   ] as const;
@@ -676,7 +721,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
     }
     document = result.document;
   }
-  return Object.freeze({ ...fixture, document, selectedId: checkboxId });
+  return Object.freeze({ ...fixture, document, selectedId: breadcrumbsId });
 };
 
 const createGroupSelectionFixtureDocument = (
@@ -1597,7 +1642,7 @@ export const VisualConformanceFixture = ({
     fixture === 'mvpAlpha' || fixture === 'iconPicker'
       ? CONTROL_TYPES.button
       : fixture === 'registryControl'
-        ? CONTROL_TYPES.checkbox
+        ? CONTROL_TYPES.breadcrumbs
         : undefined;
   const inspectorTitle =
     fixture === 'components'

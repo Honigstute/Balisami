@@ -158,7 +158,7 @@ describe('project document migrations', () => {
     if (!migrated.ok) throw new Error(migrated.message);
     expect(migrated.value.schemaVersion).toBe(6);
     for (const element of Object.values(migrated.value.elementsById)) {
-      expect(element.rowData).toEqual({ version: 1, bindings: [] });
+      expect(element.rowData).toEqual({ version: 1, nextId: 0, bindings: [] });
       expect(Object.isFrozen(element.rowData)).toBe(true);
     }
     expect(released).toEqual(before);

@@ -6,6 +6,7 @@ import {
   ElementIdSchema,
   createElementLocationIndex,
   getControlSpec,
+  rekeyElementRowData,
   selectElementLockState,
   type ComponentId,
   type DocumentCommand,
@@ -120,6 +121,7 @@ export const planComponentCreationFromGroup = (
             ? Object.freeze({ ...source.frame, x: 0, y: 0 })
             : source.frame,
         id: cloneId,
+        rowData: rekeyElementRowData(source.rowData, cloneId),
       }),
     );
   }

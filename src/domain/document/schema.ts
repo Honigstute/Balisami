@@ -86,6 +86,7 @@ export const MAX_ELEMENT_ROW_BINDINGS = 512;
 
 export const ElementRowBindingSchema = z
   .strictObject({
+    generation: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     id: ElementRowIdSchema,
     link: ElementLinkSchema.nullable(),
   })
@@ -94,6 +95,8 @@ export const ElementRowBindingSchema = z
 export const ElementRowDataSchema = z
   .strictObject({
     version: z.literal(ELEMENT_ROW_DATA_VERSION),
+    /** Monotonic allocation generation; deleted row identities are never reused. */
+    nextId: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     bindings: z
       .array(ElementRowBindingSchema)
       .max(MAX_ELEMENT_ROW_BINDINGS)
@@ -103,12 +106,18 @@ export const ElementRowDataSchema = z
           message: 'Element row IDs must be unique within their owning element.',
         },
       )
+      .refine(
+        (bindings) =>
+          new Set(bindings.map((binding) => binding.generation)).size === bindings.length,
+        { message: 'Element row generations must be unique within their owning element.' },
+      )
       .readonly(),
   })
   .readonly();
 
 export const EMPTY_ELEMENT_ROW_DATA = ElementRowDataSchema.parse({
   version: ELEMENT_ROW_DATA_VERSION,
+  nextId: 0,
   bindings: [],
 });
 

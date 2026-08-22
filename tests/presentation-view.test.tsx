@@ -8,12 +8,15 @@ import {
   ElementIdSchema,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
   ProjectIdSchema,
+  createElementRowId,
+  createInitialElementRowData,
   getControlSpec,
   parseProjectDocument,
   type ProjectDocument,
 } from '../src/domain';
 import { createBoardPresentationProjection } from '../src/renderer/projects/board-presentation-projection';
 import { PresentationView } from '../src/renderer/projects/PresentationView';
+import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
 
 const HOME_ID = BoardIdSchema.parse('board_presenthome');
 const HOME_ALTERNATE_ID = BoardIdSchema.parse('board_presenthomealt');
@@ -21,6 +24,7 @@ const DETAILS_ID = BoardIdSchema.parse('board_presentdetails');
 const OFFICIAL_ELEMENT_ID = ElementIdSchema.parse('element_presentofficial');
 const HOME_LINK_ID = ElementIdSchema.parse('element_presenthomelink');
 const EXTERNAL_LINK_ID = ElementIdSchema.parse('element_presentexternal');
+const ROW_LINK_ID = ElementIdSchema.parse('element_presentrows');
 
 const createPresentationDocument = (
   homeLinkState: 'disabled' | 'normal' = 'normal',
@@ -118,6 +122,80 @@ const createPresentationDocument = (
   return parsed.value;
 };
 
+const createRowPresentationDocument = (): ProjectDocument => {
+  const breadcrumbs = getControlSpec(CONTROL_TYPES.breadcrumbs);
+  if (breadcrumbs === undefined) throw new Error('Breadcrumbs definition is missing.');
+  const properties = { ...breadcrumbs.defaultProperties, items: 'Home › Products › Details' };
+  const initialRows = createInitialElementRowData(breadcrumbs, ROW_LINK_ID, properties);
+  if (initialRows === undefined) throw new Error('Breadcrumb rows could not be created.');
+  const parsed = parseProjectDocument({
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
+    id: ProjectIdSchema.parse('project_rowpresentation'),
+    name: 'Row presentation fixture',
+    boardIds: [HOME_ID, DETAILS_ID],
+    componentIds: [],
+    trashedBoardIds: [],
+    boardsById: {
+      [HOME_ID]: {
+        id: HOME_ID,
+        name: 'Home',
+        note: { text: '' },
+        childIds: [ROW_LINK_ID],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+      [DETAILS_ID]: {
+        id: DETAILS_ID,
+        name: 'Details',
+        note: { text: '' },
+        childIds: [],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+    },
+    componentsById: {},
+    elementsById: {
+      [ROW_LINK_ID]: {
+        id: ROW_LINK_ID,
+        controlType: breadcrumbs.type,
+        controlVersion: breadcrumbs.fileVersion,
+        frame: { x: 30, y: 30, width: 240, height: 28 },
+        locked: false,
+        properties,
+        childIds: [],
+        assetIds: [],
+        link: null,
+        rowData: {
+          ...initialRows,
+          bindings: initialRows.bindings.map((binding, index) => ({
+            ...binding,
+            link:
+              index === 0
+                ? { kind: 'board', boardId: DETAILS_ID }
+                : index === 1
+                  ? { kind: 'external', url: 'https://example.com/products' }
+                  : null,
+          })),
+        },
+      },
+    },
+    assetsById: {},
+  });
+  if (!parsed.ok) throw new Error(`Row presentation fixture is invalid.`);
+  return parsed.value;
+};
+
+const rowTextMeasurementService: ControlTextMeasurementService = {
+  measure: ({ fontSize, text }) => ({
+    baselineOffsets: [fontSize],
+    height: fontSize * 1.2,
+    lineCount: 1,
+    lineHeight: fontSize * 1.2,
+    lines: [text],
+    width: [...text].reduce((width, character) => width + (character === 'W' ? 9 : 4), 0),
+  }),
+};
+
 describe('board presentation', () => {
   it('projects the selected alternate rather than stale official content', () => {
     const projection = createBoardPresentationProjection(createPresentationDocument(), HOME_ID);
@@ -212,6 +290,37 @@ describe('board presentation', () => {
     const restoredLink = screen.getByRole('link', { name: 'Open details' });
     expect(restoredLink).toHaveAttribute('tabindex', '0');
     fireEvent.click(restoredLink);
+    expect(screen.getByText('Details')).toBeInTheDocument();
+  });
+
+  it('places row targets above painted text and activates the exact linked row', () => {
+    const onOpenExternal = vi.fn().mockResolvedValue(true);
+    render(
+      <PresentationView
+        document={createRowPresentationDocument()}
+        initialBoardId={HOME_ID}
+        onExit={vi.fn()}
+        onOpenExternal={onOpenExternal}
+        textMeasurementService={rowTextMeasurementService}
+      />,
+    );
+
+    const external = screen.getByRole('link', { name: 'Products' });
+    expect(external).toHaveAttribute(
+      'data-presentation-row-id',
+      createElementRowId(ROW_LINK_ID, 1),
+    );
+    const paintedText = document.querySelector(
+      `[data-presentation-element-id='${ROW_LINK_ID}'] .scene-control__text`,
+    );
+    if (paintedText === null) throw new Error('Painted breadcrumb text is missing.');
+    expect(paintedText.compareDocumentPosition(external) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    fireEvent.keyDown(external, { key: 'Enter' });
+    expect(onOpenExternal).toHaveBeenCalledWith('https://example.com/products');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
     expect(screen.getByText('Details')).toBeInTheDocument();
   });
 });

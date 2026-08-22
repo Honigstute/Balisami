@@ -3,6 +3,8 @@ import type { z } from 'zod';
 import { ComponentInstancePropertiesSchema } from '../controls/component-instance';
 import { CONTROL_TYPES, getControlSpec } from '../controls/control-spec';
 import { parseCustomIconReference } from '../controls/custom-icon-reference';
+import { listElementLinkReferences } from '../controls/control-link-references';
+import { createElementRowId, parseControlRows } from '../controls/control-rows';
 import type { BoardId, ComponentId, ElementId } from './ids';
 import type { ProjectDocumentShape } from './schema';
 
@@ -232,11 +234,23 @@ const validateElementReferences = (document: ProjectDocumentShape, addIssue: Add
       }
     });
 
-    if (element.link?.kind === 'board' && !canonicalBoardIds.has(element.link.boardId)) {
-      addIssue(
-        ['elementsById', elementKey, 'link', 'boardId'],
-        `Linked canonical board '${element.link.boardId}' does not exist.`,
-      );
+    for (const reference of listElementLinkReferences(element)) {
+      if (reference.link.kind === 'board' && !canonicalBoardIds.has(reference.link.boardId)) {
+        addIssue(
+          reference.kind === 'control'
+            ? ['elementsById', elementKey, 'link', 'boardId']
+            : [
+                'elementsById',
+                elementKey,
+                'rowData',
+                'bindings',
+                reference.index,
+                'link',
+                'boardId',
+              ],
+          `Linked canonical board '${reference.link.boardId}' does not exist.`,
+        );
+      }
     }
   }
 };
@@ -274,6 +288,40 @@ const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: A
           issue.message,
         );
       }
+    }
+
+    if (spec.rows === null) {
+      if (element.rowData.bindings.length > 0) {
+        addIssue(
+          ['elementsById', elementKey, 'rowData'],
+          `Control type '${element.controlType}' cannot own parsed row data.`,
+        );
+      }
+    } else {
+      const parsedRows = parseControlRows(spec.rows, element.properties);
+      if (parsedRows === undefined || parsedRows.length !== element.rowData.bindings.length) {
+        addIssue(
+          ['elementsById', elementKey, 'rowData'],
+          `Control type '${element.controlType}' row identities must match its parsed content.`,
+        );
+      }
+      if (!spec.rows.links && element.rowData.bindings.some((binding) => binding.link !== null)) {
+        addIssue(
+          ['elementsById', elementKey, 'rowData'],
+          `Control type '${element.controlType}' cannot own row links.`,
+        );
+      }
+      element.rowData.bindings.forEach((binding, index) => {
+        if (
+          binding.generation >= element.rowData.nextId ||
+          binding.id !== createElementRowId(element.id, binding.generation)
+        ) {
+          addIssue(
+            ['elementsById', elementKey, 'rowData', 'bindings', index],
+            'Row identity must use an allocated, never-reused generation owned by this element.',
+          );
+        }
+      });
     }
 
     for (const section of spec.inspector) {

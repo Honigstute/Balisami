@@ -7,7 +7,10 @@ import {
   DOCUMENT_COMMAND_TYPES,
   CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
+  createElementRowId,
+  createInitialElementRowData,
   dispatchDocumentCommand,
+  getControlSpec,
   parseProjectDocument,
   type ProjectDocument,
 } from '../src/domain';
@@ -165,6 +168,37 @@ const parseRectangleScrollbarSceneFixture = (scrollbar: boolean): ProjectDocumen
   return result.value;
 };
 
+const parseBreadcrumbSceneFixture = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+  const definition = getControlSpec(CONTROL_TYPES.breadcrumbs);
+  if (definition === undefined) throw new Error('Breadcrumbs definition is missing.');
+  child.controlType = CONTROL_TYPES.breadcrumbs;
+  child.controlVersion = definition.fileVersion;
+  child.frame = { x: 16, y: 24, width: 220, height: 28 };
+  child.properties = getFixtureControlProperties(CONTROL_TYPES.breadcrumbs);
+  child.assetIds = [];
+  const rowData = createInitialElementRowData(
+    definition,
+    DOCUMENT_FIXTURE_IDS.child,
+    definition.defaultProperties,
+  );
+  if (rowData === undefined) throw new Error('Breadcrumb rows could not be initialized.');
+  child.rowData = {
+    version: 1,
+    nextId: rowData.nextId,
+    bindings: rowData.bindings.map((binding, index) => ({
+      generation: binding.generation,
+      id: binding.id,
+      link: index === 0 ? { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board } : null,
+    })),
+  };
+  input.assetsById = {};
+  const result = parseProjectDocument(input);
+  if (!result.ok) throw new Error('Breadcrumb scene fixture is invalid.');
+  return result.value;
+};
+
 describe('document SVG scene', () => {
   it('renders an authenticated image URL without placeholder marks or an implicit border', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
@@ -286,6 +320,65 @@ describe('document SVG scene', () => {
     view.rerender(renderScene(cleared.document));
     expect(view.container.querySelector('.scene-control__link-hint')).toBe(hint);
     expect(hint).toHaveAttribute('display', 'none');
+    camera.dispose();
+  });
+
+  it('projects exact row link hints once and does no row measurement or DOM rebuild on zoom', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const measure = vi.fn(({ fontSize, text }: ControlTextMeasurementRequest) => ({
+      baselineOffsets: [fontSize],
+      height: fontSize * 1.2,
+      lineCount: 1,
+      lineHeight: fontSize * 1.2,
+      lines: [text],
+      width: [...text].reduce((width, character) => width + (character === 'W' ? 9 : 4), 0),
+    }));
+    const service: ControlTextMeasurementService = { measure };
+    const document = parseBreadcrumbSceneFixture();
+    const view = render(
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={new DocumentSceneModel()}
+            textMeasurementService={service}
+          />
+        }
+      />,
+    );
+    scheduler.flushNext();
+    const rowId = createElementRowId(DOCUMENT_FIXTURE_IDS.child, 0);
+    const hint = view.container.querySelector<SVGRectElement>(`[data-row-id="${rowId}"]`);
+    expect(hint).toHaveAttribute('data-link-kind', 'board');
+    expect(hint).toHaveAttribute('data-link-target', DOCUMENT_FIXTURE_IDS.board);
+    expect(hint).toHaveAttribute('x', '-4');
+    expect(Number(hint?.getAttribute('width'))).toBeGreaterThan(0);
+    const measurementCount = measure.mock.calls.length;
+
+    camera.scheduleTransform(createViewportTransform({ panX: 0, panY: 0, zoom: 2 }));
+    scheduler.flushNext();
+    expect(view.container.querySelector(`[data-row-id="${rowId}"]`)).toBe(hint);
+    expect(measure).toHaveBeenCalledTimes(measurementCount);
     camera.dispose();
   });
 

@@ -1,3 +1,4 @@
+import { listElementLinkReferences } from '../controls/control-link-references';
 import type { BoardId } from '../document/ids';
 import type { Board } from '../document/schema';
 import type { ProjectDocument } from '../document/validation';
@@ -107,8 +108,10 @@ const applyDeleteBoard = (
     };
   }
 
-  const linkingElement = Object.values(document.elementsById).find(
-    (element) => element.link?.kind === 'board' && element.link.boardId === command.boardId,
+  const linkingElement = Object.values(document.elementsById).find((element) =>
+    listElementLinkReferences(element).some(
+      (reference) => reference.link.kind === 'board' && reference.link.boardId === command.boardId,
+    ),
   );
   if (linkingElement !== undefined) {
     return {

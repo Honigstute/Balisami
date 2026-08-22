@@ -2,7 +2,21 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { BoardIdSchema, ElementIdSchema, dispatchDocumentCommand } from '../src/domain';
+import {
+  BoardIdSchema,
+  CONTROL_TYPES,
+  DOCUMENT_COMMAND_TYPES,
+  ElementIdSchema,
+  ProjectIdSchema,
+  createControlRowEdits,
+  createControlRowsUpdate,
+  createElementRowId,
+  createEmptyProjectDocument,
+  dispatchDocumentCommand,
+  getControlSpec,
+} from '../src/domain';
+import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
+import { createWorldPoint } from '../src/renderer/editor/viewport-transform';
 import { planBoardDuplicate } from '../src/renderer/projects/board-duplicate';
 import { createAssetFreeProjectDocument, parseProjectFileFixture } from './fixtures/project-file';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
@@ -140,5 +154,72 @@ describe('board duplicate planner', () => {
       kind: 'board',
       boardId: CLONE_BOARD_ID,
     });
+  });
+
+  it('re-keys parsed rows and remaps their self-board links through the shared clone path', () => {
+    const sourceBoardId = BoardIdSchema.parse('board_rowclone_source');
+    const sourceElementId = ElementIdSchema.parse('element_rowclone_source');
+    const cloneBoardId = BoardIdSchema.parse('board_rowclone_target');
+    const cloneElementId = ElementIdSchema.parse('element_rowclone_target');
+    const created = createEmptyProjectDocument({
+      boardId: sourceBoardId,
+      projectId: ProjectIdSchema.parse('project_rowclone'),
+    });
+    if (!created.ok) throw new Error('Row clone project is invalid.');
+    const inserted = dispatchDocumentCommand(
+      created.value,
+      createControlInsertionCommand({
+        boardId: sourceBoardId,
+        center: createWorldPoint(160, 120),
+        controlType: CONTROL_TYPES.breadcrumbs,
+        document: created.value,
+        elementId: sourceElementId,
+      }),
+    );
+    if (!inserted.ok || !inserted.changed) throw new Error('Row clone control was not inserted.');
+    const definition = getControlSpec(CONTROL_TYPES.breadcrumbs);
+    const sourceElement = inserted.document.elementsById[sourceElementId];
+    if (definition === undefined || sourceElement === undefined) {
+      throw new Error('Row clone definition is missing.');
+    }
+    const edits = createControlRowEdits(definition, sourceElement);
+    if (edits === undefined) throw new Error('Row clone labels did not parse.');
+    const update = createControlRowsUpdate(
+      definition,
+      sourceElement,
+      edits.map((edit, index) =>
+        index === 0
+          ? Object.freeze({
+              ...edit,
+              link: Object.freeze({ kind: 'board' as const, boardId: sourceBoardId }),
+            })
+          : edit,
+      ),
+      sourceElement.rowData.nextId,
+    );
+    if (update === undefined) throw new Error('Row clone link update is invalid.');
+    const linked = dispatchDocumentCommand(inserted.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: sourceElementId,
+      properties: update.properties,
+      rowData: update.rowData,
+    });
+    if (!linked.ok || !linked.changed) throw new Error('Row clone link did not apply.');
+    const plan = planBoardDuplicate(
+      linked.document,
+      sourceBoardId,
+      cloneBoardId,
+      () => cloneElementId,
+    );
+    if (plan === undefined) throw new Error('Row board clone could not be planned.');
+    const createClone = plan.commands.find(
+      (command) => command.type === DOCUMENT_COMMAND_TYPES.createElement,
+    );
+    expect(createClone?.element.rowData.bindings[0]).toEqual({
+      generation: 0,
+      id: createElementRowId(cloneElementId, 0),
+      link: { kind: 'board', boardId: cloneBoardId },
+    });
+    expect(createClone?.element.rowData.nextId).toBe(sourceElement.rowData.nextId);
   });
 });

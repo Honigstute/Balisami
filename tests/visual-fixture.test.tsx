@@ -199,7 +199,7 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
-  it('renders the registry-backed checkbox scene and inspector schema', async () => {
+  it('renders the registry-backed Breadcrumbs row editor and linked-row scene hint', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,
       height: 600,
@@ -221,12 +221,12 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Insert Video Player' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Volume Slider' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Webcam' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Checkbox' })).toBeInTheDocument();
-    expect(
-      screen
-        .getAllByRole('button', { name: 'Checked' })
-        .find((button) => button.getAttribute('aria-pressed') === 'true'),
-    ).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Insert Breadcrumbs' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Breadcrumbs' })).toBeInTheDocument();
+    const rowEditor = view.container.querySelector('[data-control-rows-inspector="true"]');
+    expect(rowEditor).not.toBeNull();
+    expect(rowEditor?.querySelector('input[value="Home"]')).not.toBeNull();
+    expect(rowEditor?.querySelector('input[value="https://example.com/home"]')).not.toBeNull();
     await waitFor(() => {
       const checkbox = view.container.querySelector('[data-control-visual="checkbox"]');
       const image = view.container.querySelector('[data-control-visual="image"]');
@@ -236,6 +236,9 @@ describe('visual conformance fixture contract', () => {
       const videoPlayer = view.container.querySelector('[data-control-visual="video-player"]');
       const volumeSlider = view.container.querySelector('[data-control-visual="volume-slider"]');
       const webcam = view.container.querySelector('[data-control-visual="webcam"]');
+      const linkedRowHint = view.container.querySelector(
+        '.scene-control__row-link-hint[data-link-target="https://example.com/home"]',
+      );
       expect(checkbox).not.toBeNull();
       expect(image).not.toBeNull();
       expect(browser).not.toBeNull();
@@ -244,6 +247,10 @@ describe('visual conformance fixture contract', () => {
       expect(videoPlayer).not.toBeNull();
       expect(volumeSlider).not.toBeNull();
       expect(webcam).not.toBeNull();
+      if (document.fonts !== undefined) {
+        expect(linkedRowHint).not.toBeNull();
+        expect(Number(linkedRowHint?.getAttribute('width'))).toBeGreaterThan(0);
+      }
       for (const mediaControl of [playback, videoPlayer, volumeSlider, webcam]) {
         expect(mediaControl?.querySelector('.scene-control__mark')).not.toHaveAttribute(
           'display',

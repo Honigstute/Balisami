@@ -5,6 +5,7 @@ import {
   getControlHitShapePadding,
   getControlSpec,
   parseCustomIconReference,
+  rekeyElementRowData,
   type BoardId,
   type AssetId,
   type ControlDefinition,
@@ -14,6 +15,7 @@ import {
   type ElementLink,
   type ElementOwner,
   type ElementProperties,
+  type ElementRowData,
   type ProjectDocument,
 } from '../../domain';
 import { createControlSceneOutlinePath } from '../controls/control-scene-geometry';
@@ -41,6 +43,7 @@ export interface DocumentSceneItem {
   readonly owner: ElementOwner;
   readonly path: string;
   readonly properties: ElementProperties;
+  readonly rowData: ElementRowData;
   readonly revision: string;
   readonly visualKind: ControlVisualKind;
 }
@@ -70,6 +73,7 @@ export interface BoardSceneItem {
   readonly link: ElementLink | null;
   readonly owner: ElementOwner;
   readonly properties: ElementProperties;
+  readonly rowData: ElementRowData;
   readonly visualKind: ControlVisualKind;
 }
 
@@ -118,7 +122,7 @@ const createItemRevision = (
     ...(spec.accessibility.checkedProperty === null ? [] : [spec.accessibility.checkedProperty]),
   ]);
   const renderProperties = [...presentationPropertyKeys].map((key) => item.properties[key]);
-  return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${String(item.interactive)}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}|${JSON.stringify(item.assetIds)}|${JSON.stringify(item.link)}`;
+  return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${String(item.interactive)}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}|${JSON.stringify(item.assetIds)}|${JSON.stringify(item.link)}|${JSON.stringify(item.rowData)}`;
 };
 
 const createDerivedSceneItemId = (instancePath: string, sourceElementId: ElementId): ElementId =>
@@ -169,6 +173,7 @@ export const createBoardSceneItems = (
       id?: ElementId;
       interactive?: boolean;
       properties?: ElementProperties;
+      rowData?: ElementRowData;
     }> = {},
   ): void => {
     const spec = resolveControlDefinition(element.controlType);
@@ -191,6 +196,7 @@ export const createBoardSceneItems = (
         locked: effectivelyLocked,
         owner,
         properties: input.properties ?? element.properties,
+        rowData: input.rowData ?? element.rowData,
         visualKind: spec.scene.kind,
       }),
     );
@@ -256,6 +262,9 @@ export const createBoardSceneItems = (
         id: derivedId,
         interactive: false,
         properties,
+        // Component projections use derived element identities. Re-key row IDs
+        // as disposable scene data so multiple instances never share DOM/link IDs.
+        rowData: rekeyElementRowData(source.rowData, derivedId),
       });
 
       if (source.controlType === CONTROL_TYPES.componentInstance) {
@@ -475,6 +484,7 @@ export class DocumentSceneModel {
                 )
               : existing.path,
         properties: derivedItem.properties,
+        rowData: derivedItem.rowData,
         revision,
         visualKind: derivedItem.visualKind,
       });

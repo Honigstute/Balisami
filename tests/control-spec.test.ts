@@ -46,6 +46,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.modalScreen,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
+      CONTROL_TYPES.breadcrumbs,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -85,6 +86,7 @@ describe('control definition registry', () => {
       'Modal Screen',
       'Color Picker',
       'ON/OFF Switch',
+      'Breadcrumbs',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -336,7 +338,13 @@ describe('control definition registry', () => {
     const checkbox = getControlSpec(CONTROL_TYPES.checkbox);
     const arrow = getControlSpec(CONTROL_TYPES.arrow);
     const rectangle = getControlSpec(CONTROL_TYPES.rectangle);
-    if (checkbox === undefined || arrow === undefined || rectangle === undefined) {
+    const breadcrumbs = getControlSpec(CONTROL_TYPES.breadcrumbs);
+    if (
+      checkbox === undefined ||
+      arrow === undefined ||
+      rectangle === undefined ||
+      breadcrumbs === undefined
+    ) {
       throw new Error('Representative control definition is missing.');
     }
     expect(() => assertControlDefinitionsConform([checkbox, checkbox])).toThrow(/duplicate type/u);
@@ -588,6 +596,25 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/inspector field/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...breadcrumbs,
+          rows: {
+            ...(breadcrumbs.rows as NonNullable<typeof breadcrumbs.rows>),
+            maximum: 10_000,
+          },
+        },
+      ]),
+    ).toThrow(/parsed-row metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...breadcrumbs,
+          defaultProperties: { ...breadcrumbs.defaultProperties, items: ' › ' },
+        },
+      ]),
+    ).toThrow(/default parsed rows/u);
   });
 
   it('owns child-container capability and rejects unknown control types', () => {

@@ -11,6 +11,8 @@ import {
   createElementLocationIndex,
   selectElementLockState,
   getControlSpec,
+  listElementLinkReferences,
+  rekeyElementRowData,
   selectOwnerChildIds,
   type CreateElementCommand,
   type ElementId,
@@ -130,7 +132,10 @@ const referencesAreAvailable = (
   element: SelectionClipboardPayload['entries'][number]['element'],
 ): boolean =>
   element.assetIds.every((assetId) => document.assetsById[assetId] !== undefined) &&
-  (element.link?.kind !== 'board' || document.boardsById[element.link.boardId] !== undefined);
+  listElementLinkReferences(element).every(
+    (reference) =>
+      reference.link.kind !== 'board' || document.boardsById[reference.link.boardId] !== undefined,
+  );
 
 /** Captures a canonical, validated snapshot without changing clipboard or document state. */
 export const captureSelectionClipboardPayload = (
@@ -329,6 +334,7 @@ export const planSelectionPaste = (
       element: {
         ...entry.element,
         id: cloneId,
+        rowData: rekeyElementRowData(entry.element.rowData, cloneId),
         frame: { ...entry.element.frame, x: cloneX, y: cloneY },
         childIds: [],
       },

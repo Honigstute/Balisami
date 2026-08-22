@@ -3,6 +3,8 @@ import {
   DeleteElementCommandSchema,
   DOCUMENT_COMMAND_TYPES,
   createElementLocationIndex,
+  mapElementLinks,
+  rekeyElementRowData,
   selectBoardElementIds,
   type BoardId,
   type DocumentCommand,
@@ -89,20 +91,24 @@ export const planBoardContentClone = (
       return undefined;
     }
 
-    const link =
-      sourceElement.link?.kind === 'board' && options.remapBoardLink !== undefined
-        ? Object.freeze({
-            kind: 'board' as const,
-            boardId: options.remapBoardLink(sourceElement.link.boardId),
-          })
-        : sourceElement.link;
+    const remappedElement =
+      options.remapBoardLink === undefined
+        ? sourceElement
+        : mapElementLinks(sourceElement, (link) =>
+            link.kind === 'board'
+              ? Object.freeze({
+                  kind: 'board' as const,
+                  boardId: options.remapBoardLink!(link.boardId),
+                })
+              : link,
+          );
     const createElement = CreateElementCommandSchema.safeParse({
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: {
-        ...sourceElement,
+        ...remappedElement,
         childIds: [],
         id: cloneElementId,
-        link,
+        rowData: rekeyElementRowData(remappedElement.rowData, cloneElementId),
       },
       owner,
       index:

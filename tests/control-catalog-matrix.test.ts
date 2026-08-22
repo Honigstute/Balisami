@@ -10,6 +10,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.arrow': 'common harness; registry visual fixture; line hit-shape and scene geometry',
   'wireframe.browser':
     'common harness; registry visual fixture; scene geometry and inspector controls',
+  'wireframe.breadcrumbs':
+    'common harness; parsed-row identity, inspector, clone, scene, and presentation geometry',
   'wireframe.button': 'common harness; registry visual fixture; icon, migration, and auto-size',
   'wireframe.calendar':
     'common harness; registry visual fixture; deterministic Calendar scene geometry',

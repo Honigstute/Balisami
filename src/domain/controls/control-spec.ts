@@ -22,6 +22,7 @@ import {
   type ControlInspectorSection,
   type ControlPaletteMetadata,
   type ControlPalettePreset,
+  type ControlRowsDefinition,
   type ControlSceneDefinition,
   type ControlSize,
   type ControlTextCapability,
@@ -61,6 +62,7 @@ export const CONTROL_TYPES = Object.freeze({
   modalScreen: ControlTypeIdSchema.parse('wireframe.modal-screen'),
   colorPicker: ControlTypeIdSchema.parse('wireframe.color-picker'),
   onOffSwitch: ControlTypeIdSchema.parse('wireframe.on-off-switch'),
+  breadcrumbs: ControlTypeIdSchema.parse('wireframe.breadcrumbs'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -177,6 +179,12 @@ const colorPropertiesSchema = z.strictObject({ color: sceneColorSchema }).readon
 const onOffSwitchPropertiesSchema = z
   .strictObject({ color: sceneColorSchema, state: z.enum(['off', 'on']) })
   .readonly();
+const breadcrumbsPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
 
 const createSize = (width: number, height: number): ControlSize => Object.freeze({ height, width });
 
@@ -255,13 +263,14 @@ const createText = (
   fontSize: number,
   inset: number,
   style: Partial<ControlTextCapability['style']> = {},
+  property = 'text',
 ): ControlTextCapability =>
   Object.freeze({
     alignment,
     fontSize,
     inset,
     mode: 'single-line',
-    property: 'text',
+    property,
     style: Object.freeze({
       alignmentProperty: null,
       boldProperty: null,
@@ -391,6 +400,7 @@ const createDefinition = (input: {
   minimumSize: ControlSize;
   palette: ControlPaletteMetadata | null;
   propertiesSchema: ControlDefinition['propertiesSchema'];
+  rows?: ControlRowsDefinition | null;
   scene: ControlSceneDefinition;
   tags?: readonly string[];
   thumbnail: ControlThumbnailDefinition;
@@ -414,6 +424,7 @@ const createDefinition = (input: {
     migrations: Object.freeze(input.migrations ?? []),
     palette: input.palette,
     propertiesSchema: input.propertiesSchema,
+    rows: input.rows ?? null,
     scene,
     search: Object.freeze({
       aliases: Object.freeze(input.aliases ?? []),
@@ -1836,6 +1847,56 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['form', 'off', 'on', 'switch', 'toggle'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.onOffSwitch,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Breadcrumbs', 'group'),
+    aliases: ['breadcrumb', 'navigation path'],
+    autoSize: createAutoSize('horizontal', 0, 0, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'horizontal',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        0,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: 'Home › Products › Xyz › Features',
+    },
+    defaultSize: createSize(210, 21),
+    export: createExport('scene'),
+    inspector: createInspector('Text', createTextStyleFields(false)),
+    minimumSize: createSize(24, 16),
+    maximumSize: null,
+    palette: createPalette('Breadcrumbs', 'Common', 310),
+    propertiesSchema: breadcrumbsPropertiesSchema,
+    rows: Object.freeze({
+      links: true,
+      maximum: 64,
+      minimum: 1,
+      property: 'items',
+      separator: '›',
+    }),
+    scene: createScene('text', ['items']),
+    tags: ['breadcrumb', 'links', 'navigation', 'path'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.breadcrumbs,
   }),
 ]);
 

@@ -1370,6 +1370,14 @@ p {
   vector-effect: non-scaling-stroke;
 }
 
+.scene-control__row-link-hint {
+  fill: var(--color-accent-strong);
+  fill-opacity: 0.12;
+  stroke: var(--color-accent-strong);
+  stroke-width: var(--border-width);
+  vector-effect: non-scaling-stroke;
+}
+
 [data-control-visual='input'] .scene-control__fill,
 [data-control-thumbnail-visual='input'] .scene-control__fill {
   fill: var(--color-chrome);
@@ -1603,6 +1611,20 @@ p {
 
 .inspector-auto-size .app-button {
   width: 100%;
+}
+
+.control-row-editor {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-divider);
+  border-radius: var(--radius-compact);
+}
+
+.control-row-editor__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
 }
 
 .inspector-auto-size span {

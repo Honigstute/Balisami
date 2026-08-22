@@ -6,6 +6,7 @@ import {
   createElementLocationIndex,
   getControlSpec,
   parseCustomIconReference,
+  rekeyElementRowData,
   selectElementLockState,
   type DocumentCommand,
   type ElementId,
@@ -113,6 +114,7 @@ export const planComponentDetachment = (
               }),
         id: detachedId,
         properties: mergedProperties,
+        rowData: rekeyElementRowData(source.rowData, detachedId),
       }),
     );
   }

@@ -54,6 +54,7 @@ export const getFixtureControlProperties = (type: string): MutableInput<ElementP
 
 export const createEmptyElementRowDataInput = () => ({
   version: 1 as const,
+  nextId: 0,
   bindings: [],
 });
 

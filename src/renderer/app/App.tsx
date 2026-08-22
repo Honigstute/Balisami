@@ -1729,10 +1729,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   }}
                   onSetProperties={(updates) => {
                     const result = session.dispatchTransaction(
-                      updates.map(({ elementId, properties }) => ({
+                      updates.map(({ elementId, properties, rowData }) => ({
                         type: DOCUMENT_COMMAND_TYPES.setElementProperties,
                         elementId,
                         properties,
+                        ...(rowData === undefined ? {} : { rowData }),
                       })),
                       {
                         coalesceKey: `inspector-properties:${String(editor.selection.getSnapshot().revision)}`,

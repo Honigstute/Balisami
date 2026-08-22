@@ -65,6 +65,7 @@ describe('control library query', () => {
       CONTROL_TYPES.modalScreen,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
+      CONTROL_TYPES.breadcrumbs,
     ]);
   });
 

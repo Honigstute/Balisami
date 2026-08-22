@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 
+import { MAX_ELEMENT_ROW_BINDINGS } from '../document/schema';
 import type { ControlTypeId, ElementProperties, JsonValue } from '../document/schema';
 
 export type ControlCategory =
@@ -185,6 +186,19 @@ export interface ControlInspectorSection {
   readonly label: string;
 }
 
+/**
+ * Stable logical rows parsed from one persisted string property. The source
+ * property remains the sole label/order owner; ElementNode.rowData owns only
+ * stable identities and first-class links for those parsed rows.
+ */
+export interface ControlRowsDefinition {
+  readonly links: boolean;
+  readonly maximum: number;
+  readonly minimum: number;
+  readonly property: string;
+  readonly separator: string;
+}
+
 export interface ControlSceneDefinition {
   /** Checkbox dimensions are world units and ignored by other scene primitives. */
   readonly checkbox?: Readonly<{ boxSize: number; gap: number }>;
@@ -251,6 +265,7 @@ export interface ControlDefinition {
   readonly migrations: readonly ControlPropertyMigration[];
   readonly palette: ControlPaletteMetadata | null;
   readonly propertiesSchema: z.ZodType;
+  readonly rows: ControlRowsDefinition | null;
   readonly scene: ControlSceneDefinition;
   readonly search: Readonly<{ aliases: readonly string[]; tags: readonly string[] }>;
   readonly thumbnail: ControlThumbnailDefinition;
@@ -285,6 +300,7 @@ const listPropertyReferences = (definition: ControlDefinition): readonly string[
     ...(definition.accessibility.checkedProperty === null
       ? []
       : [definition.accessibility.checkedProperty]),
+    ...(definition.rows === null ? [] : [definition.rows.property]),
   ]);
 
 const isNormalizedPoint = (point: ControlHitShapePoint): boolean =>
@@ -335,6 +351,31 @@ export const assertControlDefinitionsConform = (
     const defaults = definition.propertiesSchema.safeParse(definition.defaultProperties);
     if (!defaults.success) {
       throw new Error(`Control '${definition.type}' has properties that reject their defaults.`);
+    }
+    const rows = definition.rows;
+    if (rows !== null) {
+      const defaultRowSource = definition.defaultProperties[rows.property];
+      if (
+        typeof defaultRowSource !== 'string' ||
+        rows.separator.length === 0 ||
+        rows.separator.length > 16 ||
+        !Number.isSafeInteger(rows.minimum) ||
+        !Number.isSafeInteger(rows.maximum) ||
+        rows.minimum < 0 ||
+        rows.minimum > rows.maximum ||
+        rows.maximum > MAX_ELEMENT_ROW_BINDINGS ||
+        typeof rows.links !== 'boolean'
+      ) {
+        throw new Error(`Control '${definition.type}' has invalid parsed-row metadata.`);
+      }
+      const defaultRows = defaultRowSource.split(rows.separator).map((label) => label.trim());
+      if (
+        defaultRows.length < rows.minimum ||
+        defaultRows.length > rows.maximum ||
+        defaultRows.some((label) => label.length === 0)
+      ) {
+        throw new Error(`Control '${definition.type}' has invalid default parsed rows.`);
+      }
     }
     for (const property of listPropertyReferences(definition)) {
       if (!hasOwn(definition.defaultProperties, property)) {

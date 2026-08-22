@@ -116,6 +116,7 @@ describe('project document schema', () => {
     getElement(overLimit, DOCUMENT_FIXTURE_IDS.child).rowData.bindings = Array.from(
       { length: MAX_ELEMENT_ROW_BINDINGS + 1 },
       (_, index) => ({
+        generation: index,
         id: ElementRowIdSchema.parse(`row_binding${String(index).padStart(6, '0')}`),
         link: null,
       }),

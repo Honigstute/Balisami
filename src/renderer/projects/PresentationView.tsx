@@ -6,6 +6,7 @@ import { getBrowserControlTextMeasurementService } from '../controls/control-tex
 import { Icon } from '../shell/Icon';
 import { createBoardPresentationProjection } from './board-presentation-projection';
 import { createPresentationHistory, reducePresentationHistory } from './presentation-history';
+import type { ControlTextMeasurementService } from '../controls/control-text-measurement';
 
 const FOCUSABLE_SELECTOR = [
   'button:not(:disabled)',
@@ -22,6 +23,8 @@ interface PresentationViewProps {
   readonly initialBoardId: BoardId;
   readonly onExit: () => void;
   readonly onOpenExternal: (url: string) => Promise<boolean>;
+  /** Optional deterministic authority for tests/embedded presenters; browser font loading is default. */
+  readonly textMeasurementService?: ControlTextMeasurementService;
 }
 
 const isActivationKey = (event: KeyboardEvent<SVGGElement>): boolean =>
@@ -33,6 +36,7 @@ export const PresentationView = ({
   initialBoardId,
   onExit,
   onOpenExternal,
+  textMeasurementService: providedTextMeasurementService,
 }: PresentationViewProps) => {
   const [history, dispatch] = useReducer(
     reducePresentationHistory,
@@ -40,7 +44,7 @@ export const PresentationView = ({
     createPresentationHistory,
   );
   const [message, setMessage] = useState('');
-  const [textMeasurementService, setTextMeasurementService] = useState<
+  const [loadedTextMeasurementService, setLoadedTextMeasurementService] = useState<
     Awaited<ReturnType<typeof getBrowserControlTextMeasurementService>> | undefined
   >();
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -58,11 +62,12 @@ export const PresentationView = ({
     dispatch({ boardIds: document.boardIds, type: 'reconcile' });
   }, [document.boardIds]);
   useEffect(() => {
+    if (providedTextMeasurementService !== undefined) return;
     let disposed = false;
     void getBrowserControlTextMeasurementService()
       .then((service) => {
         if (!disposed) {
-          setTextMeasurementService(service);
+          setLoadedTextMeasurementService(service);
         }
       })
       .catch(() => {
@@ -71,7 +76,9 @@ export const PresentationView = ({
     return () => {
       disposed = true;
     };
-  }, []);
+  }, [providedTextMeasurementService]);
+
+  const textMeasurementService = providedTextMeasurementService ?? loadedTextMeasurementService;
 
   const projection = useMemo(
     () => createBoardPresentationProjection(document, history.current, textMeasurementService),
@@ -306,6 +313,33 @@ export const PresentationView = ({
                       ))}
                     </text>
                   )}
+                  {item.disabled
+                    ? null
+                    : item.rowLinks.map((row) => (
+                        <rect
+                          aria-label={row.label}
+                          className="presentation-view__link-hit-area presentation-view__linked-control"
+                          data-presentation-row-id={row.rowId}
+                          height={row.bounds.height}
+                          key={row.rowId}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            activateLink(row.link);
+                          }}
+                          onKeyDown={(event) => {
+                            if (isActivationKey(event)) {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              activateLink(row.link);
+                            }
+                          }}
+                          role="link"
+                          tabIndex={0}
+                          width={row.bounds.width}
+                          x={row.bounds.x}
+                          y={row.bounds.y}
+                        />
+                      ))}
                 </g>
               );
             })}

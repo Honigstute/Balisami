@@ -117,7 +117,7 @@ export const migrateProjectDocumentV5ToV6 = (input: unknown): ProjectDocumentMig
         elementId,
         Object.freeze({
           ...element,
-          rowData: Object.freeze({ bindings: Object.freeze([]), version: 1 as const }),
+          rowData: Object.freeze({ bindings: Object.freeze([]), nextId: 0, version: 1 as const }),
         }),
       ]),
     ),

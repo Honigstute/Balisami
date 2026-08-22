@@ -24,6 +24,7 @@ import {
   type ControlInspectorPropertiesUpdate,
 } from '../src/renderer/controls/ControlInspector';
 import type { ControlInspectorLinkUpdate } from '../src/renderer/controls/ControlLinkInspector';
+import { ControlLinkFields } from '../src/renderer/controls/ControlLinkFields';
 import { ControlShelf } from '../src/renderer/controls/ControlShelf';
 import {
   COMPONENT_DRAG_MIME_TYPE,
@@ -138,6 +139,7 @@ describe('alpha control authoring UI', () => {
       'Modal Screen',
       'Color Picker',
       'ON/OFF Switch',
+      'Breadcrumbs',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -172,6 +174,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.modalScreen,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
+      CONTROL_TYPES.breadcrumbs,
     ]);
   });
 
@@ -310,6 +313,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.modalScreen,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
+      CONTROL_TYPES.breadcrumbs,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);
@@ -534,6 +538,79 @@ describe('alpha control authoring UI', () => {
       elementId,
       link: { kind: 'external', url: 'https://example.com/flow' },
     });
+  });
+
+  it('edits parsed-row web links through the shared draft lifecycle and cancels with Escape', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.breadcrumbs);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    const openFirstRowExternal = () => {
+      fireEvent.click(screen.getAllByRole('button', { name: 'Link type' })[0]!);
+      fireEvent.click(screen.getByRole('option', { name: 'Web address' }));
+      return screen.getByRole('textbox', { name: 'Web address' });
+    };
+    const cancelled = openFirstRowExternal();
+    expect(cancelled).toHaveValue('https://');
+    fireEvent.change(cancelled, { target: { value: 'https://cancel.example' } });
+    fireEvent.keyDown(cancelled, { key: 'Escape' });
+    expect(screen.queryByRole('textbox', { name: 'Web address' })).toBeNull();
+    expect(onSetProperties).not.toHaveBeenCalled();
+
+    const committed = openFirstRowExternal();
+    fireEvent.change(committed, { target: { value: 'https://example.com/first' } });
+    fireEvent.keyDown(committed, { key: 'Enter' });
+    expect(onSetProperties).toHaveBeenCalledOnce();
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      rowData: {
+        bindings: [
+          { link: { kind: 'external', url: 'https://example.com/first' } },
+          { link: null },
+          { link: null },
+          { link: null },
+        ],
+      },
+    });
+  });
+
+  it('keeps a linked Trash target visible in the shared row/control link editor', () => {
+    const input = createValidProjectDocumentInput();
+    const trashBoardId = BoardIdSchema.parse('board_controlui_trash');
+    input.trashedBoardIds = [trashBoardId];
+    input.boardsById[trashBoardId] = {
+      id: trashBoardId,
+      name: 'Archived target',
+      note: { text: '' },
+      childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Trash link field fixture is invalid.');
+    render(
+      <ControlLinkFields
+        document={parsed.value}
+        link={{ kind: 'board', boardId: trashBoardId }}
+        onCommit={() => true}
+        revisionKey="trash-target"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Wireframe' }));
+    expect(screen.getByRole('option', { name: 'Archived target (In Trash)' })).toBeInTheDocument();
   });
 
   it('searches the portalled catalog and emits one canonical icon property update', async () => {

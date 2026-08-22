@@ -774,11 +774,45 @@ const applySetElementProperties = (
   if (element === undefined) {
     return notFound('Element', command.elementId);
   }
-  if (areJsonValuesEqual(element.properties, command.properties)) {
+  const definition = getControlSpec(element.controlType);
+  const rowProperty = definition?.rows?.property;
+  const rowSourceChanged =
+    rowProperty !== undefined &&
+    !areJsonValuesEqual(
+      element.properties[rowProperty] ?? null,
+      command.properties[rowProperty] ?? null,
+    );
+  if (rowSourceChanged && command.rowData === undefined) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: 'Parsed row content and its explicit ordered row identities must change atomically.',
+    };
+  }
+  if (
+    definition?.rows === null &&
+    command.rowData !== undefined &&
+    !areJsonValuesEqual(element.rowData, command.rowData)
+  ) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Control type '${element.controlType}' cannot change parsed row data.`,
+    };
+  }
+  const nextRowData = command.rowData ?? element.rowData;
+  if (
+    areJsonValuesEqual(element.properties, command.properties) &&
+    areJsonValuesEqual(element.rowData, nextRowData)
+  ) {
     return { ok: true, changed: false, label: 'Edit element properties' };
   }
 
-  const updatedElement = Object.freeze({ ...element, properties: command.properties });
+  const updatedElement = Object.freeze({
+    ...element,
+    properties: command.properties,
+    rowData: nextRowData,
+  });
   return {
     ok: true,
     changed: true,
@@ -792,6 +826,7 @@ const applySetElementProperties = (
       type: DOCUMENT_COMMAND_TYPES.setElementProperties,
       elementId: command.elementId,
       properties: element.properties,
+      rowData: element.rowData,
     },
     label: 'Edit element properties',
   };

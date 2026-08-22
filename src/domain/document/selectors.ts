@@ -1,4 +1,5 @@
 import { getControlSpec } from '../controls/control-spec';
+import { listElementLinkReferences } from '../controls/control-link-references';
 import type { BoardId, ElementId } from './ids';
 import type { ElementOwner } from './owner';
 import type { Board, ElementNode, WorldRect } from './schema';
@@ -292,8 +293,10 @@ export const selectBoardCommandAvailability = (
     return undefined;
   }
 
-  const isLinked = Object.values(document.elementsById).some(
-    (element) => element.link?.kind === 'board' && element.link.boardId === boardId,
+  const isLinked = Object.values(document.elementsById).some((element) =>
+    listElementLinkReferences(element).some(
+      (reference) => reference.link.kind === 'board' && reference.link.boardId === boardId,
+    ),
   );
   return Object.freeze({
     canDelete: board.childIds.length === 0 && board.alternateIds.length === 0 && !isLinked,

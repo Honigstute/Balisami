@@ -1,6 +1,6 @@
 import {
   DOCUMENT_COMMAND_TYPES,
-  EMPTY_ELEMENT_ROW_DATA,
+  createInitialElementRowData,
   getControlPaletteEntry,
   getControlSpec,
   type AssetId,
@@ -65,6 +65,8 @@ export const createControlInsertionCommand = (
       x: request.center.x - spec.defaultSize.width / 2 + cascadeOffset,
       y: request.center.y - spec.defaultSize.height / 2 + cascadeOffset,
     });
+  const rowData = createInitialElementRowData(spec, request.elementId, paletteEntry.properties);
+  if (rowData === undefined) return undefined;
   return Object.freeze({
     type: DOCUMENT_COMMAND_TYPES.createElement,
     element: Object.freeze({
@@ -77,7 +79,7 @@ export const createControlInsertionCommand = (
       link: null,
       locked: false,
       properties: paletteEntry.properties,
-      rowData: EMPTY_ELEMENT_ROW_DATA,
+      rowData,
     }),
     index: board.childIds.length,
     owner: Object.freeze({ boardId: board.id, kind: 'board' }),
