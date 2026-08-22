@@ -1156,7 +1156,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         {
           type: DOCUMENT_COMMAND_TYPES.setElementProperties,
           elementId: buttonId,
-          properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
+          properties: { iconId: null, text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
         },
       ],
       { label: 'Edit alpha button' },
