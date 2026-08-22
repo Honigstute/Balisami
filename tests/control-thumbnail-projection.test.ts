@@ -362,4 +362,31 @@ describe('control thumbnail projection', () => {
       );
     }
   });
+
+  it('projects Scratch-Out as a deterministic seeded scribble', () => {
+    const definition = getControlSpec(CONTROL_TYPES.scratchOut);
+    if (definition === undefined) {
+      throw new Error('Scratch-Out control is missing.');
+    }
+    const bounds = createWorldRect(
+      0,
+      0,
+      definition.defaultSize.width,
+      definition.defaultSize.height,
+    );
+    const first = createControlSceneMarkPath(
+      definition.type,
+      bounds,
+      'scratch-out-seed',
+      definition.defaultProperties,
+    );
+    const second = createControlSceneMarkPath(
+      definition.type,
+      bounds,
+      'scratch-out-seed',
+      definition.defaultProperties,
+    );
+    expect(first).not.toBe('');
+    expect(first).toBe(second);
+  });
 });

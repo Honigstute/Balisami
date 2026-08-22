@@ -32,6 +32,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.playback':
     'common harness; registry visual fixture; deterministic Media scene geometry',
   'wireframe.red-x': 'common harness; registry visual fixture; deterministic Markup scene geometry',
+  'wireframe.scratch-out':
+    'common harness; range inspector; deterministic Scratch-Out scene geometry',
   'wireframe.squiggly-block-of-text':
     'common harness; registry visual fixture; deterministic Markup scene geometry',
   'wireframe.street-map':

@@ -162,6 +162,25 @@ const createSeededCirclePath = (
   );
 };
 
+const createScratchOutMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const rows = 7;
+  return Array.from({ length: rows }, (_, index) => {
+    const y = bounds.y + bounds.height * (0.12 + (index / (rows - 1)) * 0.76);
+    const reverse = index % 2 === 1;
+    return createSeededSketchLinePath({
+      end: createWorldPoint(
+        reverse ? bounds.x + bounds.width * 0.08 : bounds.x + bounds.width * 0.92,
+        y,
+      ),
+      seed: `${elementId}:scratch-out:${String(index)}`,
+      start: createWorldPoint(
+        reverse ? bounds.x + bounds.width * 0.92 : bounds.x + bounds.width * 0.08,
+        y,
+      ),
+    });
+  }).join(' ');
+};
+
 const createPlaybackMarkPath = (bounds: WorldRect, elementId: string): string => {
   const centerY = bounds.y + bounds.height / 2;
   const radius = Math.min(bounds.height * 0.38, bounds.width * 0.12);
@@ -744,6 +763,9 @@ export const createControlSceneMarkPath = (
   if (definition.scene.kind === 'red-x') {
     return createRedXMarkPath(bounds, elementId);
   }
+  if (definition.scene.kind === 'scratch-out') {
+    return createScratchOutMarkPath(bounds, elementId);
+  }
   if (definition.scene.kind === 'squiggly-block') {
     return createSquigglyBlockMarkPath(bounds, elementId);
   }
@@ -784,7 +806,11 @@ export const createControlSceneMarkPath = (
 };
 
 export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
-  !['arrow', 'h-rule', 'text', 'transparent', 'v-rule'].includes(definition.scene.kind);
+  !['arrow', 'h-rule', 'scratch-out', 'text', 'transparent', 'v-rule'].includes(
+    definition.scene.kind,
+  );
 
 export const controlSceneHasOutline = (definition: ControlDefinition): boolean =>
-  !['red-x', 'squiggly-block', 'text', 'transparent'].includes(definition.scene.kind);
+  !['red-x', 'scratch-out', 'squiggly-block', 'text', 'transparent'].includes(
+    definition.scene.kind,
+  );

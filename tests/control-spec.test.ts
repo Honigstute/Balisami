@@ -41,6 +41,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.toolbar,
       CONTROL_TYPES.hRule,
       CONTROL_TYPES.vRule,
+      CONTROL_TYPES.scratchOut,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -75,6 +76,7 @@ describe('control definition registry', () => {
       'Toolbar',
       'H.Rule',
       'V.Rule',
+      'Scratch-Out',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -178,6 +180,19 @@ describe('control definition registry', () => {
         scene: { hitShape: { kind: 'bounds' }, kind, propertyKeys: [] },
       });
     }
+    expect(getControlSpec(CONTROL_TYPES.scratchOut)).toMatchObject({
+      defaultProperties: { color: 'default', opacity: 1 },
+      inspector: [
+        {
+          fields: [
+            { kind: 'color', property: 'color' },
+            { kind: 'range', property: 'opacity' },
+          ],
+        },
+      ],
+      palette: { category: 'Markup' },
+      scene: { kind: 'scratch-out', propertyKeys: ['color', 'opacity'] },
+    });
     expect(getControlSpec(CONTROL_TYPES.redX)).toMatchObject({
       defaultProperties: {},
       inspector: [],

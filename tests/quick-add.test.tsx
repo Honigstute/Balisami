@@ -127,10 +127,11 @@ describe('Quick Add', () => {
       CONTROL_TYPES.toolbar,
       CONTROL_TYPES.hRule,
       CONTROL_TYPES.vRule,
+      CONTROL_TYPES.scratchOut,
     ]) {
       preferences = recordQuickAddRecent(preferences, type);
     }
     expect(preferences.recent).toHaveLength(MAX_QUICK_ADD_RECENT);
-    expect(preferences.recent[0]).toBe(CONTROL_TYPES.vRule);
+    expect(preferences.recent[0]).toBe(CONTROL_TYPES.scratchOut);
   });
 });

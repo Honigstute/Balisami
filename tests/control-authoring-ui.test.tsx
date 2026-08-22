@@ -132,6 +132,7 @@ describe('alpha control authoring UI', () => {
       'Toolbar',
       'H.Rule',
       'V.Rule',
+      'Scratch-Out',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -161,6 +162,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.toolbar,
       CONTROL_TYPES.hRule,
       CONTROL_TYPES.vRule,
+      CONTROL_TYPES.scratchOut,
     ]);
   });
 
@@ -276,6 +278,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.toolbar,
       CONTROL_TYPES.hRule,
       CONTROL_TYPES.vRule,
+      CONTROL_TYPES.scratchOut,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);

@@ -30,6 +30,7 @@ export type ControlVisualKind =
   | 'playback'
   | 'rectangle'
   | 'red-x'
+  | 'scratch-out'
   | 'squiggly-block'
   | 'street-map'
   | 'text'

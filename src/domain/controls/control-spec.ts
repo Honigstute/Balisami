@@ -54,6 +54,7 @@ export const CONTROL_TYPES = Object.freeze({
   toolbar: ControlTypeIdSchema.parse('wireframe.toolbar'),
   hRule: ControlTypeIdSchema.parse('wireframe.h-rule'),
   vRule: ControlTypeIdSchema.parse('wireframe.v-rule'),
+  scratchOut: ControlTypeIdSchema.parse('wireframe.scratch-out'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -112,6 +113,12 @@ const rulePropertiesSchema = z
     borderColor: sceneColorSchema,
     opacity: z.number().min(0).max(1),
     strokeStyle: z.enum(['solid', 'dashed', 'dotted']),
+  })
+  .readonly();
+const colorOpacityPropertiesSchema = z
+  .strictObject({
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
   })
   .readonly();
 
@@ -1126,6 +1133,38 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['divider', 'line', 'markup', 'rule'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.vRule,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Scratch-out', 'img'),
+    aliases: ['redaction', 'scribble', 'strike out'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { color: 'default', opacity: 1 },
+    defaultSize: createSize(205, 107),
+    export: createExport('scene'),
+    inspector: createInspector('Scratch-Out', [
+      { kind: 'color', label: 'Color', property: 'color' },
+      { kind: 'range', label: 'Opacity', maximum: 1, minimum: 0, property: 'opacity', step: 0.05 },
+    ]),
+    minimumSize: createSize(32, 24),
+    maximumSize: null,
+    palette: createPalette('Scratch-Out', 'Markup', 260),
+    propertiesSchema: colorOpacityPropertiesSchema,
+    scene: createScene('scratch-out', ['color', 'opacity']),
+    tags: ['markup', 'redact', 'scratch', 'scribble'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.scratchOut,
   }),
 ]);
 
