@@ -42,6 +42,8 @@ describe('control definition registry', () => {
       CONTROL_TYPES.hRule,
       CONTROL_TYPES.vRule,
       CONTROL_TYPES.scratchOut,
+      CONTROL_TYPES.helpButton,
+      CONTROL_TYPES.modalScreen,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -77,6 +79,8 @@ describe('control definition registry', () => {
       'H.Rule',
       'V.Rule',
       'Scratch-Out',
+      'Help Button',
+      'Modal Screen',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -192,6 +196,20 @@ describe('control definition registry', () => {
       ],
       palette: { category: 'Markup' },
       scene: { kind: 'scratch-out', propertyKeys: ['color', 'opacity'] },
+    });
+    expect(getControlSpec(CONTROL_TYPES.helpButton)).toMatchObject({
+      capabilities: { link: true },
+      defaultProperties: {},
+      inspector: [],
+      palette: { category: 'Buttons' },
+      scene: { kind: 'help-button', propertyKeys: [] },
+    });
+    expect(getControlSpec(CONTROL_TYPES.modalScreen)).toMatchObject({
+      capabilities: { link: true },
+      defaultProperties: {},
+      inspector: [],
+      palette: { category: 'Containers' },
+      scene: { kind: 'modal-screen', propertyKeys: [] },
     });
     expect(getControlSpec(CONTROL_TYPES.redX)).toMatchObject({
       defaultProperties: {},

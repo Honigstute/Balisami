@@ -133,6 +133,8 @@ describe('alpha control authoring UI', () => {
       'H.Rule',
       'V.Rule',
       'Scratch-Out',
+      'Help Button',
+      'Modal Screen',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -163,6 +165,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.hRule,
       CONTROL_TYPES.vRule,
       CONTROL_TYPES.scratchOut,
+      CONTROL_TYPES.helpButton,
+      CONTROL_TYPES.modalScreen,
     ]);
   });
 
@@ -279,6 +283,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.hRule,
       CONTROL_TYPES.vRule,
       CONTROL_TYPES.scratchOut,
+      CONTROL_TYPES.helpButton,
+      CONTROL_TYPES.modalScreen,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);

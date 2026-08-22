@@ -50,7 +50,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(26);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(28);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -80,6 +80,8 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.hRule,
       CONTROL_TYPES.vRule,
       CONTROL_TYPES.scratchOut,
+      CONTROL_TYPES.helpButton,
+      CONTROL_TYPES.modalScreen,
     ]);
   });
 

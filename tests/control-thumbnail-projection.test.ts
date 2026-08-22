@@ -389,4 +389,29 @@ describe('control thumbnail projection', () => {
     expect(first).not.toBe('');
     expect(first).toBe(second);
   });
+
+  it('projects the Help Button from deterministic outline and question-mark paths', () => {
+    const definition = getControlSpec(CONTROL_TYPES.helpButton);
+    if (definition === undefined) {
+      throw new Error('Help Button control is missing.');
+    }
+    const bounds = createWorldRect(
+      0,
+      0,
+      definition.defaultSize.width,
+      definition.defaultSize.height,
+    );
+    const outline = createControlSceneOutlinePath(definition.type, bounds, 'help-button-seed');
+    const mark = createControlSceneMarkPath(
+      definition.type,
+      bounds,
+      'help-button-seed',
+      definition.defaultProperties,
+    );
+    expect(outline).not.toBe('');
+    expect(mark).not.toBe('');
+    expect(outline).toBe(
+      createControlSceneOutlinePath(definition.type, bounds, 'help-button-seed'),
+    );
+  });
 });

@@ -102,6 +102,15 @@ export const createControlSceneOutlinePath = (
       ),
     });
   }
+  if (definition.scene.kind === 'help-button') {
+    const radius = Math.min(bounds.width, bounds.height) * 0.45;
+    return createSeededCirclePath(
+      createWorldPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2),
+      radius,
+      elementId,
+      'help-button-outline',
+    );
+  }
   return createSeededSketchRectPath(
     getControlScenePrimitiveBounds(controlType, bounds),
     `${elementId}:${definition.scene.kind}`,
@@ -179,6 +188,31 @@ const createScratchOutMarkPath = (bounds: WorldRect, elementId: string): string 
       ),
     });
   }).join(' ');
+};
+
+const createHelpButtonMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const centerX = bounds.x + bounds.width / 2;
+  const top = bounds.y + bounds.height * 0.2;
+  const middle = bounds.y + bounds.height * 0.58;
+  const bottom = bounds.y + bounds.height * 0.78;
+  return [
+    createSeededPolylinePath(
+      [
+        createWorldPoint(centerX - bounds.width * 0.14, top),
+        createWorldPoint(centerX + bounds.width * 0.14, top),
+        createWorldPoint(centerX + bounds.width * 0.12, bounds.y + bounds.height * 0.42),
+        createWorldPoint(centerX, middle),
+      ],
+      elementId,
+      'help-button-question',
+    ),
+    createSeededCirclePath(
+      createWorldPoint(centerX, bottom),
+      Math.max(0.8, Math.min(bounds.width, bounds.height) * 0.025),
+      elementId,
+      'help-button-dot',
+    ),
+  ].join(' ');
 };
 
 const createPlaybackMarkPath = (bounds: WorldRect, elementId: string): string => {
@@ -766,6 +800,9 @@ export const createControlSceneMarkPath = (
   if (definition.scene.kind === 'scratch-out') {
     return createScratchOutMarkPath(bounds, elementId);
   }
+  if (definition.scene.kind === 'help-button') {
+    return createHelpButtonMarkPath(bounds, elementId);
+  }
   if (definition.scene.kind === 'squiggly-block') {
     return createSquigglyBlockMarkPath(bounds, elementId);
   }
@@ -806,7 +843,7 @@ export const createControlSceneMarkPath = (
 };
 
 export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
-  !['arrow', 'h-rule', 'scratch-out', 'text', 'transparent', 'v-rule'].includes(
+  !['arrow', 'h-rule', 'help-button', 'scratch-out', 'text', 'transparent', 'v-rule'].includes(
     definition.scene.kind,
   );
 
