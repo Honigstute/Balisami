@@ -988,6 +988,7 @@ const AlphaNavigatorFixture = () => {
     <WireframeNavigator
       activeBoardId={fixture.boardId}
       document={fixture.document}
+      onRenameBoard={() => true}
       onSelectBoard={() => undefined}
     />
   );

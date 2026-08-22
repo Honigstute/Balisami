@@ -1060,9 +1060,10 @@ p {
   color: var(--color-ink);
   background: transparent;
   border: 0;
+  cursor: default;
 }
 
-.wireframe-list__row[aria-selected='true'] {
+.wireframe-list__row[aria-current='page'] {
   color: var(--color-canvas);
   background: var(--color-accent-strong);
 }
@@ -1094,6 +1095,13 @@ p {
   font-size: var(--font-size-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.wireframe-list__name-input {
+  width: calc(100% - var(--space-4));
+  align-self: center;
+  font-size: var(--font-size-caption);
+  text-align: center;
 }
 
 .canvas-viewport {

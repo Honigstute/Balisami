@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -45,11 +45,12 @@ describe('wireframe navigator', () => {
       <WireframeNavigator
         activeBoardId={FIRST_BOARD_ID}
         document={createTwoBoardDocument()}
+        onRenameBoard={() => true}
         onSelectBoard={onSelectBoard}
       />,
     );
-    const first = screen.getByRole('option', { name: 'Wireframe 1' });
-    const second = screen.getByRole('option', { name: 'Second board' });
+    const first = screen.getByRole('button', { name: 'Wireframe 1' });
+    const second = screen.getByRole('button', { name: 'Second board' });
 
     expect(first).toHaveAttribute('tabindex', '0');
     expect(second).toHaveAttribute('tabindex', '-1');
@@ -62,5 +63,43 @@ describe('wireframe navigator', () => {
     fireEvent.keyDown(first, { key: 'End' });
     expect(onSelectBoard).toHaveBeenNthCalledWith(3, FIRST_BOARD_ID);
     expect(onSelectBoard).toHaveBeenNthCalledWith(4, SECOND_BOARD_ID);
+  });
+
+  it('renames with F2, Enter, blur, and Escape without leaving the fixed row', async () => {
+    const onRenameBoard = vi.fn(() => true);
+    render(
+      <WireframeNavigator
+        activeBoardId={FIRST_BOARD_ID}
+        document={createTwoBoardDocument()}
+        onRenameBoard={onRenameBoard}
+        onSelectBoard={() => undefined}
+      />,
+    );
+    const first = screen.getByRole('button', { name: 'Wireframe 1' });
+
+    fireEvent.keyDown(first, { key: 'F2' });
+    const input = screen.getByRole('textbox', { name: 'Rename Wireframe 1' });
+    expect(globalThis.document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: '  Checkout flow  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onRenameBoard).toHaveBeenCalledWith(FIRST_BOARD_ID, 'Checkout flow');
+    expect(screen.queryByRole('textbox')).toBeNull();
+
+    const restoredFirst = screen.getByRole('button', { name: 'Wireframe 1' });
+    fireEvent.keyDown(restoredFirst, { key: 'Enter' });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
+    expect(onRenameBoard).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(globalThis.document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Wireframe 1' }),
+      ),
+    );
+
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Wireframe 1' }));
+    const blankInput = screen.getByRole('textbox');
+    fireEvent.change(blankInput, { target: { value: '   ' } });
+    fireEvent.blur(blankInput);
+    expect(onRenameBoard).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('textbox')).toBeNull();
   });
 });

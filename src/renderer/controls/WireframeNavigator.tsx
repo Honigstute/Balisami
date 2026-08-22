@@ -1,19 +1,52 @@
-import { useRef, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 
 import type { BoardId, ProjectDocument } from '../../domain';
 
 interface WireframeNavigatorProps {
   readonly activeBoardId: BoardId | undefined;
   readonly document: ProjectDocument;
+  readonly onRenameBoard: (boardId: BoardId, name: string) => boolean;
   readonly onSelectBoard: (boardId: BoardId) => void;
 }
 
 export const WireframeNavigator = ({
   activeBoardId,
   document,
+  onRenameBoard,
   onSelectBoard,
 }: WireframeNavigatorProps) => {
   const rowRefs = useRef(new Map<BoardId, HTMLButtonElement>());
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renamingBoardId, setRenamingBoardId] = useState<BoardId>();
+  const cancelRename = (): void => {
+    const boardId = renamingBoardId;
+    setRenamingBoardId(undefined);
+    setRenameDraft('');
+    if (boardId !== undefined) {
+      globalThis.queueMicrotask(() => rowRefs.current.get(boardId)?.focus());
+    }
+  };
+  const beginRename = (boardId: BoardId): void => {
+    const board = document.boardsById[boardId];
+    if (board === undefined) {
+      return;
+    }
+    setRenamingBoardId(boardId);
+    setRenameDraft(board.name);
+  };
+  const commitRename = (): void => {
+    if (renamingBoardId === undefined) {
+      return;
+    }
+    const name = renameDraft.trim();
+    if (name.length === 0 || !onRenameBoard(renamingBoardId, name)) {
+      globalThis.queueMicrotask(() => renameInputRef.current?.focus());
+      return;
+    }
+    setRenamingBoardId(undefined);
+    setRenameDraft('');
+  };
   const selectAt = (index: number): void => {
     const boardId = document.boardIds[index];
     if (boardId === undefined) {
@@ -34,6 +67,14 @@ export const WireframeNavigator = ({
             : event.key === 'End'
               ? lastIndex
               : undefined;
+    if (event.key === 'F2' || event.key === 'Enter') {
+      event.preventDefault();
+      const boardId = document.boardIds[index];
+      if (boardId !== undefined) {
+        beginRename(boardId);
+      }
+      return;
+    }
     if (targetIndex === undefined) {
       return;
     }
@@ -42,19 +83,51 @@ export const WireframeNavigator = ({
   };
 
   return (
-    <div aria-label="Project wireframes" className="wireframe-list" role="listbox">
+    <div aria-label="Project wireframes" className="wireframe-list">
       {document.boardIds.map((boardId, index) => {
         const board = document.boardsById[boardId];
         if (board === undefined) {
           return null;
         }
         const active = boardId === activeBoardId;
+        const renaming = boardId === renamingBoardId;
+        if (renaming) {
+          return (
+            <div className="wireframe-list__row" key={boardId}>
+              <span aria-hidden="true" className="wireframe-list__thumbnail">
+                <span />
+                <span />
+                <span />
+              </span>
+              <input
+                aria-label={`Rename ${board.name}`}
+                autoFocus
+                className="app-control wireframe-list__name-input"
+                maxLength={120}
+                onBlur={() => (renameDraft.trim().length === 0 ? cancelRename() : commitRename())}
+                onChange={(event) => setRenameDraft(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    commitRename();
+                  } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cancelRename();
+                  }
+                }}
+                ref={renameInputRef}
+                value={renameDraft}
+              />
+            </div>
+          );
+        }
         return (
           <button
-            aria-selected={active}
+            aria-current={active ? 'page' : undefined}
             className="wireframe-list__row"
             key={boardId}
             onClick={() => onSelectBoard(boardId)}
+            onDoubleClick={() => beginRename(boardId)}
             onKeyDown={(event) => onKeyDown(event, index)}
             ref={(node) => {
               if (node === null) {
@@ -63,7 +136,6 @@ export const WireframeNavigator = ({
                 rowRefs.current.set(boardId, node);
               }
             }}
-            role="option"
             tabIndex={active ? 0 : -1}
             type="button"
           >

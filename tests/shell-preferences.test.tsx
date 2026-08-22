@@ -84,6 +84,21 @@ describe('shell preferences', () => {
     );
   });
 
+  it('routes board creation from the fixed navigator header', () => {
+    const onCreateBoard = vi.fn();
+    render(
+      <AppShell
+        navigatorControls={{ onCreateBoard }}
+        quickAddShortcut="Ctrl/Cmd K"
+        statusLabel="Ready"
+        statusTone="ready"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add wireframe' }));
+    expect(onCreateBoard).toHaveBeenCalledOnce();
+  });
+
   it('clamps widths while preserving the last expanded width through collapse', () => {
     const expanded = setShellPaneWidth(DEFAULT_SHELL_PREFERENCES, 'navigator', 10_000);
     expect(expanded.navigator.width).toBe(DESIGN_TOKENS.shell.navigatorMaxWidth);

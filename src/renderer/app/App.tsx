@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import projectWorkflowProbeContract from '../../../project-workflow-probe-contract.json';
 import recoveryProbeContract from '../../../recovery-probe-contract.json';
 import {
-  DOCUMENT_COMMAND_TYPES,
+  BoardIdSchema,
   CONTROL_TYPES,
+  DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   getControlSpec,
   getControlAccessibleName,
@@ -36,6 +37,7 @@ import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { ProjectHome } from '../projects/ProjectHome';
 import { ActiveBoardStore } from '../projects/active-board-store';
+import { createBoardCreationCommand } from '../projects/board-creation';
 import { useProjectSession } from '../projects/use-project-session';
 import { DocumentScene } from '../editor/DocumentScene';
 import { ControlDrawOverlay } from '../editor/ControlDrawOverlay';
@@ -114,6 +116,13 @@ const getPlatformLabel = (platform: 'darwin' | 'win32'): string =>
 const allocateEditorElementId = () => {
   const result = ElementIdSchema.safeParse(
     `element_${globalThis.crypto.randomUUID().replaceAll('-', '').toLowerCase()}`,
+  );
+  return result.success ? result.data : undefined;
+};
+
+const allocateEditorBoardId = () => {
+  const result = BoardIdSchema.safeParse(
+    `board_${globalThis.crypto.randomUUID().replaceAll('-', '').toLowerCase()}`,
   );
   return result.success ? result.data : undefined;
 };
@@ -595,6 +604,38 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     },
     [editor],
   );
+  const createBoard = useCallback((): boolean => {
+    const currentDocument = session.getSnapshot().history?.document;
+    const boardId = allocateEditorBoardId();
+    if (currentDocument === undefined || boardId === undefined) {
+      return false;
+    }
+    const command = createBoardCreationCommand(currentDocument, boardId);
+    if (command === undefined) {
+      return false;
+    }
+    const result = session.dispatch(command);
+    if (
+      result?.ok !== true ||
+      !result.changed ||
+      result.history.document.boardsById[boardId] === undefined
+    ) {
+      return false;
+    }
+    selectActiveBoard(boardId);
+    return true;
+  }, [selectActiveBoard, session]);
+  const renameBoard = useCallback(
+    (boardId: NonNullable<typeof activeBoardId>, name: string): boolean => {
+      const result = session.dispatch({
+        type: DOCUMENT_COMMAND_TYPES.renameBoard,
+        boardId,
+        name,
+      });
+      return result?.ok === true;
+    },
+    [session],
+  );
   useEffect(() => {
     editor.activeBoard.reconcile(document?.boardIds ?? []);
   }, [document, editor]);
@@ -786,6 +827,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           <ControlInspectorTitle document={document} selection={editor.selection} />
         )
       }
+      navigatorControls={{ onCreateBoard: createBoard }}
       projectName={view.displayName}
       projectOverlay={projectDecisionOverlay}
       {...(packagedRecoveryRestore
@@ -949,6 +991,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                 <WireframeNavigator
                   activeBoardId={activeBoardId}
                   document={document}
+                  onRenameBoard={renameBoard}
                   onSelectBoard={selectActiveBoard}
                 />
               ),

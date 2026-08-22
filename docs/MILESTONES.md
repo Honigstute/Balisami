@@ -502,7 +502,7 @@ Exit gate:
 - A user can find, place, edit, move, resize, snap, undo, save, reopen, and delete every representative control without console errors.
 - Shelf slots and viewport bounds are unchanged by long names, missing previews, active category, selection type, validation, or open overlays.
 
-### [ ] M10 — Boards, notes, links, alternates, and presentation
+### [~] M10 — Boards, notes, links, alternates, and presentation
 
 Depends on: M9
 
@@ -510,7 +510,8 @@ Objective: turn the single-board editor into a useful wireframing project.
 
 Current progress (2026-08-22):
 
-- Board selection now has one session-only owner rather than being derived from board order. Navigator click plus Arrow, Home, and End navigation select the active board without creating document history or dirty state; selection changes cancel element interaction/editing and clear element selection before the active scene changes. Every active-board canvas path now uses that session choice, while document replacement and future board deletion reconcile deterministically to the first remaining canonical board. The fixed navigator/shell geometry remains unchanged.
+- Board selection now has one session-only owner rather than being derived from board order. Navigator click plus Arrow, Home, and End navigation select the active board without creating document history or dirty state; selection changes cancel element interaction/editing and clear element selection before the active scene changes. Every active-board canvas path now uses that session choice, while document replacement and future board deletion reconcile deterministically to the first remaining canonical board. The fixed navigator/shell geometry remains unchanged. Commit `ed7aeb7` passed [push Quality run 32535242402](https://github.com/Honigstute/Balisami/actions/runs/32535242402) and independent [PR Quality run 32535244988](https://github.com/Honigstute/Balisami/actions/runs/32535244988) on native macOS 26 arm64 and Windows 2025 x64; all four jobs passed source, package/fuse/smoke, visual/scale, performance, project workflow, forced-crash recovery, and native artifact gates.
+- The navigator can now create an empty board from its fixed header and rename any board in place by double-click, F2, or Enter. Default names use the first unused `Wireframe N` title, IDs are allocated at the application edge, and both actions cross the existing validated command/history/recovery boundary exactly once. Enter or valid blur commits a trimmed name, Escape cancels, and blank blur restores the canonical title without a command. The focused slice passes 48 board-store, command-builder, navigator, shell, control, and visual-contract tests plus formatting, lint, 173-module dependency boundaries, and strict TypeScript.
 
 Deliverables:
 
@@ -609,4 +610,4 @@ Exit gate:
 
 ## Next action
 
-Start M10 with the existing validated board command/document seams: make navigator board selection session-owned and keyboard-accessible while preserving the fixed shell, then add one focused CRUD vertical slice through the existing command boundary. Define alternate-version rules before implementing alternates. Visible icon picking remains M11 work because its persisted `iconId` contract is not present in the current representative schemas. The Arrow draw shortcut remains deferred until its persisted endpoint-direction contract is evidence-backed. M8's other documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.
+Continue M10 navigator CRUD with board reorder and deterministic deep duplicate through one transaction, then define the recoverable delete/trash contract before exposing deletion. Define alternate-version rules before implementing alternates. Visible icon picking remains M11 work because its persisted `iconId` contract is not present in the current representative schemas. The Arrow draw shortcut remains deferred until its persisted endpoint-direction contract is evidence-backed. M8's other documented evidence gaps remain assigned to their stated later milestones, and M7 remains intentionally paused until the roadmap reactivates it or a concrete workflow blocker is documented.

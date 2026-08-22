@@ -41,6 +41,9 @@ interface AppShellProps {
     readonly undoLabel?: string;
   };
   readonly inspectorTitle?: ReactNode;
+  readonly navigatorControls?: {
+    readonly onCreateBoard: () => void;
+  };
   readonly projectName?: string;
   readonly projectOverlay?: ReactNode;
   readonly projectProbeState?: { readonly attributeName: string; readonly value: string };
@@ -121,6 +124,7 @@ export const AppShell = ({
   controlCategoryNavigation,
   historyControls,
   inspectorTitle = 'Inspector',
+  navigatorControls,
   projectName = 'Untitled project',
   projectOverlay,
   projectProbeState,
@@ -269,6 +273,16 @@ export const AppShell = ({
         <div className="panel-header">
           <h2>Wireframes</h2>
           <div className="panel-header__actions">
+            <button
+              aria-label="Add wireframe"
+              className="icon-button panel-action--optional"
+              disabled={navigatorControls === undefined}
+              onClick={navigatorControls?.onCreateBoard}
+              title="Add wireframe"
+              type="button"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
             <button
               aria-label="Wireframe options"
               className="icon-button panel-action--optional"
