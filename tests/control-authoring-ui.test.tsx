@@ -130,6 +130,8 @@ describe('alpha control authoring UI', () => {
       'Squiggly Block of Text',
       'Street Map',
       'Toolbar',
+      'H.Rule',
+      'V.Rule',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -157,6 +159,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.squigglyBlock,
       CONTROL_TYPES.streetMap,
       CONTROL_TYPES.toolbar,
+      CONTROL_TYPES.hRule,
+      CONTROL_TYPES.vRule,
     ]);
   });
 
@@ -270,6 +274,8 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.squigglyBlock,
       CONTROL_TYPES.streetMap,
       CONTROL_TYPES.toolbar,
+      CONTROL_TYPES.hRule,
+      CONTROL_TYPES.vRule,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);
@@ -769,6 +775,126 @@ describe('alpha control authoring UI', () => {
     expect(onSetProperties.mock.calls[2]?.[0]?.[0]).toMatchObject({
       elementId,
       properties: { color: DESIGN_TOKENS.color.accentStrong },
+    });
+  });
+
+  it('commits a bounded range field once when its pointer gesture completes', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.hRule);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    const opacity = screen.getByRole('slider', { name: 'Opacity' });
+    fireEvent.change(opacity, { target: { value: '0.7' } });
+    fireEvent.change(opacity, { target: { value: '0.5' } });
+    expect(onSetProperties).not.toHaveBeenCalled();
+    fireEvent.pointerUp(opacity, { target: { value: '0.5' } });
+    expect(onSetProperties).toHaveBeenCalledOnce();
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { opacity: 0.5 },
+    });
+    fireEvent.blur(opacity);
+    expect(onSetProperties).toHaveBeenCalledOnce();
+  });
+
+  it('commits a cancelled range gesture once even when blur follows', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.hRule);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    const opacity = screen.getByRole('slider', { name: 'Opacity' });
+    fireEvent.change(opacity, { target: { value: '0.4' } });
+    fireEvent.pointerCancel(opacity, { target: { value: '0.4' } });
+    fireEvent.blur(opacity);
+
+    expect(onSetProperties).toHaveBeenCalledOnce();
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { opacity: 0.4 },
+    });
+  });
+
+  it('unifies a mixed range selection to its minimum exactly once', () => {
+    const first = createControlDocument(CONTROL_TYPES.hRule);
+    const secondId = ElementIdSchema.parse('element_controlui_mixed_range');
+    const inserted = dispatchDocumentCommand(
+      first.document,
+      createControlInsertionCommand({
+        boardId: first.document.boardIds[0]!,
+        center: createWorldPoint(500, 240),
+        controlType: CONTROL_TYPES.hRule,
+        document: first.document,
+        elementId: secondId,
+      }),
+    );
+    if (!inserted.ok || !inserted.changed) {
+      throw new Error('Mixed range fixture control could not be inserted.');
+    }
+    const edited = dispatchDocumentCommand(inserted.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: secondId,
+      properties: {
+        ...inserted.document.elementsById[secondId]!.properties,
+        opacity: 0.5,
+      },
+    });
+    if (!edited.ok || !edited.changed) {
+      throw new Error('Mixed range fixture control could not be edited.');
+    }
+    const selection = new SelectionStore();
+    selection.replace([first.elementId, secondId], secondId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={edited.document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    const opacity = screen.getByRole('slider', { name: 'Opacity' });
+    expect(within(opacity.parentElement!).getByText('Mixed')).toBeInTheDocument();
+    fireEvent.pointerUp(opacity, { target: { value: '0' } });
+    fireEvent.blur(opacity);
+
+    expect(onSetProperties).toHaveBeenCalledOnce();
+    const updates = onSetProperties.mock.calls[0]?.[0];
+    expect(updates).toHaveLength(2);
+    expect(updates?.[0]).toMatchObject({
+      elementId: first.elementId,
+      properties: { opacity: 0 },
+    });
+    expect(updates?.[1]).toMatchObject({
+      elementId: secondId,
+      properties: { opacity: 0 },
     });
   });
 

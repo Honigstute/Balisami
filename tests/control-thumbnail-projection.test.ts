@@ -338,4 +338,28 @@ describe('control thumbnail projection', () => {
       ),
     );
   });
+
+  it('projects both Rules as deterministic definition-owned lines', () => {
+    for (const type of [CONTROL_TYPES.hRule, CONTROL_TYPES.vRule]) {
+      const definition = getControlSpec(type);
+      if (definition === undefined) {
+        throw new Error(`Rule control '${type}' is missing.`);
+      }
+      const bounds = createWorldRect(
+        0,
+        0,
+        definition.defaultSize.width,
+        definition.defaultSize.height,
+      );
+      const outline = createControlSceneOutlinePath(
+        definition.type,
+        bounds,
+        `rule-seed:${definition.type}`,
+      );
+      expect(outline).not.toBe('');
+      expect(outline).toBe(
+        createControlSceneOutlinePath(definition.type, bounds, `rule-seed:${definition.type}`),
+      );
+    }
+  });
 });

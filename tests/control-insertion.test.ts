@@ -50,7 +50,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(23);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(25);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -77,6 +77,8 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.squigglyBlock,
       CONTROL_TYPES.streetMap,
       CONTROL_TYPES.toolbar,
+      CONTROL_TYPES.hRule,
+      CONTROL_TYPES.vRule,
     ]);
   });
 

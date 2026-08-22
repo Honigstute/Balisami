@@ -52,6 +52,8 @@ export const CONTROL_TYPES = Object.freeze({
   squigglyBlock: ControlTypeIdSchema.parse('wireframe.squiggly-block-of-text'),
   streetMap: ControlTypeIdSchema.parse('wireframe.street-map'),
   toolbar: ControlTypeIdSchema.parse('wireframe.toolbar'),
+  hRule: ControlTypeIdSchema.parse('wireframe.h-rule'),
+  vRule: ControlTypeIdSchema.parse('wireframe.v-rule'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -105,6 +107,13 @@ const arrowPropertiesSchema = z
   })
   .readonly();
 const staticVisualPropertiesSchema = z.strictObject({}).readonly();
+const rulePropertiesSchema = z
+  .strictObject({
+    borderColor: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    strokeStyle: z.enum(['solid', 'dashed', 'dotted']),
+  })
+  .readonly();
 
 const createSize = (width: number, height: number): ControlSize => Object.freeze({ height, width });
 
@@ -117,7 +126,15 @@ const createAutoSize = (
 ): ControlAutoSizePolicy =>
   Object.freeze({
     axis,
+    basis: 'text',
     insets: Object.freeze({ bottom, left, right, top }),
+  });
+
+const createIntrinsicAutoSize = (axis: ControlAutoSizePolicy['axis']): ControlAutoSizePolicy =>
+  Object.freeze({
+    axis,
+    basis: 'intrinsic',
+    insets: Object.freeze({ bottom: 0, left: 0, right: 0, top: 0 }),
   });
 
 const createPalette = (
@@ -1025,6 +1042,90 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['actions', 'editor', 'formatting', 'toolbar'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.toolbar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Horizontal rule', 'img'),
+    aliases: ['horizontal divider', 'horizontal line'],
+    autoSize: createIntrinsicAutoSize('both'),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { borderColor: 'default', opacity: 1, strokeStyle: 'solid' },
+    defaultSize: createSize(100, 10),
+    export: createExport('scene'),
+    inspector: createInspector('Rule', [
+      { kind: 'color', label: 'Border Color', property: 'borderColor' },
+      { kind: 'range', label: 'Opacity', maximum: 1, minimum: 0, property: 'opacity', step: 0.05 },
+      {
+        kind: 'choice',
+        label: 'Stroke',
+        options: [
+          { label: 'Solid', value: 'solid' },
+          { label: 'Dashed', value: 'dashed' },
+          { label: 'Dotted', value: 'dotted' },
+        ],
+        property: 'strokeStyle',
+      },
+    ]),
+    minimumSize: createSize(24, 6),
+    maximumSize: null,
+    palette: createPalette('H.Rule', 'Markup', 240),
+    propertiesSchema: rulePropertiesSchema,
+    scene: createScene('h-rule', ['borderColor', 'opacity', 'strokeStyle']),
+    tags: ['divider', 'line', 'markup', 'rule'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.hRule,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Vertical rule', 'img'),
+    aliases: ['vertical divider', 'vertical line'],
+    autoSize: createIntrinsicAutoSize('both'),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { borderColor: 'default', opacity: 1, strokeStyle: 'solid' },
+    defaultSize: createSize(10, 100),
+    export: createExport('scene'),
+    inspector: createInspector('Rule', [
+      { kind: 'color', label: 'Border Color', property: 'borderColor' },
+      { kind: 'range', label: 'Opacity', maximum: 1, minimum: 0, property: 'opacity', step: 0.05 },
+      {
+        kind: 'choice',
+        label: 'Stroke',
+        options: [
+          { label: 'Solid', value: 'solid' },
+          { label: 'Dashed', value: 'dashed' },
+          { label: 'Dotted', value: 'dotted' },
+        ],
+        property: 'strokeStyle',
+      },
+    ]),
+    minimumSize: createSize(6, 24),
+    maximumSize: null,
+    palette: createPalette('V.Rule', 'Markup', 250),
+    propertiesSchema: rulePropertiesSchema,
+    scene: createScene('v-rule', ['borderColor', 'opacity', 'strokeStyle']),
+    tags: ['divider', 'line', 'markup', 'rule'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.vRule,
   }),
 ]);
 

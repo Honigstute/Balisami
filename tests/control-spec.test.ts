@@ -39,6 +39,8 @@ describe('control definition registry', () => {
       CONTROL_TYPES.squigglyBlock,
       CONTROL_TYPES.streetMap,
       CONTROL_TYPES.toolbar,
+      CONTROL_TYPES.hRule,
+      CONTROL_TYPES.vRule,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -71,6 +73,8 @@ describe('control definition registry', () => {
       'Squiggly Block of Text',
       'Street Map',
       'Toolbar',
+      'H.Rule',
+      'V.Rule',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -198,6 +202,26 @@ describe('control definition registry', () => {
       palette: { category: 'Common' },
       scene: { kind: 'toolbar', propertyKeys: [] },
     });
+    for (const [type, kind] of [
+      [CONTROL_TYPES.hRule, 'h-rule'],
+      [CONTROL_TYPES.vRule, 'v-rule'],
+    ] as const) {
+      expect(getControlSpec(type)).toMatchObject({
+        autoSize: { basis: 'intrinsic' },
+        defaultProperties: { borderColor: 'default', opacity: 1, strokeStyle: 'solid' },
+        inspector: [
+          {
+            fields: [
+              { kind: 'color', property: 'borderColor' },
+              { kind: 'range', property: 'opacity' },
+              { kind: 'choice', property: 'strokeStyle' },
+            ],
+          },
+        ],
+        palette: { category: 'Markup' },
+        scene: { kind },
+      });
+    }
     expect(getControlSpec(CONTROL_TYPES.calendar)).toMatchObject({
       accessibility: { role: 'img' },
       autoSize: null,
@@ -291,7 +315,11 @@ describe('control definition registry', () => {
       assertControlDefinitionsConform([
         {
           ...checkbox,
-          autoSize: { axis: 'horizontal', insets: { bottom: 0, left: -1, right: 0, top: 0 } },
+          autoSize: {
+            axis: 'horizontal',
+            basis: 'text',
+            insets: { bottom: 0, left: -1, right: 0, top: 0 },
+          },
         },
       ]),
     ).toThrow(/auto-size policy/u);

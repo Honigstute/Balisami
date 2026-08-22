@@ -25,7 +25,16 @@ export const calculateControlAutoSizeFrame = (
   }
   const text = definition.capabilities.text;
   const policy = definition.autoSize;
-  if (text === null || policy === null) {
+  if (policy === null) {
+    return undefined;
+  }
+  if (policy.basis === 'intrinsic') {
+    const width = policy.axis === 'vertical' ? element.frame.width : definition.defaultSize.width;
+    const height =
+      policy.axis === 'horizontal' ? element.frame.height : definition.defaultSize.height;
+    return Object.freeze({ ...element.frame, height, width });
+  }
+  if (text === null) {
     return undefined;
   }
   const value = element.properties[text.property];

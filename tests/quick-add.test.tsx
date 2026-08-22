@@ -125,10 +125,12 @@ describe('Quick Add', () => {
       CONTROL_TYPES.squigglyBlock,
       CONTROL_TYPES.streetMap,
       CONTROL_TYPES.toolbar,
+      CONTROL_TYPES.hRule,
+      CONTROL_TYPES.vRule,
     ]) {
       preferences = recordQuickAddRecent(preferences, type);
     }
     expect(preferences.recent).toHaveLength(MAX_QUICK_ADD_RECENT);
-    expect(preferences.recent[0]).toBe(CONTROL_TYPES.toolbar);
+    expect(preferences.recent[0]).toBe(CONTROL_TYPES.vRule);
   });
 });

@@ -346,7 +346,7 @@ class DocumentScenePresenter {
         : 'none',
     );
 
-    const color = properties.color;
+    const color = properties.color ?? properties.borderColor;
     fillElement.style.removeProperty('fill');
     outlineElement.style.removeProperty('stroke');
     markElement.style.removeProperty('stroke');

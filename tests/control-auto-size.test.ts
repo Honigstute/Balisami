@@ -88,6 +88,21 @@ describe('registry-driven control auto-size', () => {
     expect(calculateControlAutoSizeFrame(rectangle, measurement)).toBeUndefined();
   });
 
+  it('restores an intrinsic non-text control without calling the text measurement service', () => {
+    const rule = createElement(CONTROL_TYPES.hRule);
+    if (rule === undefined) {
+      throw new Error('Intrinsic Auto-Size fixture is missing.');
+    }
+    const measure = vi.fn();
+    expect(
+      calculateControlAutoSizeFrame(
+        { ...rule, frame: { ...rule.frame, height: 40, width: 260 } },
+        { measure },
+      ),
+    ).toEqual({ ...rule.frame, height: 10, width: 100 });
+    expect(measure).not.toHaveBeenCalled();
+  });
+
   it('reserves the tokenized icon size and gap when a button icon is present', () => {
     const element = createElement();
     if (element === undefined) {

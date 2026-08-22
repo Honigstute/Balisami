@@ -25,6 +25,7 @@ import { AppButton } from '../design/AppButton';
 import { AppInput } from '../design/AppInput';
 import { AppIconPopover, type ProjectImageIconOption } from '../design/AppIconPopover';
 import { AppSegmentedControl } from '../design/AppSegmentedControl';
+import { AppSlider } from '../design/AppSlider';
 import type { SelectionStore } from '../editor/selection-store';
 import {
   createControlInspectorModel,
@@ -245,6 +246,58 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
   );
 };
 
+interface InspectorRangeInputProps {
+  readonly field: Extract<ControlInspectorPropertyField, Readonly<{ kind: 'number' | 'range' }>>;
+  readonly onCommit: (value: number) => boolean;
+  readonly value: InspectorValue<number>;
+}
+
+/** Range input drafts locally so a continuous gesture still creates one history command. */
+const InspectorRangeInput = ({ field, onCommit, value }: InspectorRangeInputProps) => {
+  const canonical = value.mixed ? undefined : value.value;
+  const [draft, setDraft] = useState(canonical ?? field.minimum);
+  const [showsMixed, setShowsMixed] = useState(canonical === undefined);
+  const committed = useRef<number | undefined>(canonical);
+
+  useEffect(() => {
+    setDraft(canonical ?? field.minimum);
+    setShowsMixed(canonical === undefined);
+    committed.current = canonical;
+  }, [canonical, field.minimum]);
+
+  const commit = (next: number): void => {
+    if (!Number.isFinite(next) || next === committed.current) {
+      return;
+    }
+    if (onCommit(next)) {
+      committed.current = next;
+      setShowsMixed(false);
+      return;
+    }
+    setDraft(committed.current ?? field.minimum);
+    setShowsMixed(committed.current === undefined);
+  };
+
+  return (
+    <AppSlider
+      label={field.label}
+      max={field.maximum}
+      min={field.minimum}
+      onBlur={() => commit(draft)}
+      onChange={(event) => {
+        setDraft(Number(event.currentTarget.value));
+        setShowsMixed(false);
+      }}
+      onKeyUp={(event) => commit(Number(event.currentTarget.value))}
+      onPointerCancel={(event) => commit(Number(event.currentTarget.value))}
+      onPointerUp={(event) => commit(Number(event.currentTarget.value))}
+      output={showsMixed ? 'Mixed' : formatInspectorNumber(draft)}
+      step={field.step}
+      value={draft}
+    />
+  );
+};
+
 interface InspectorPropertyFieldProps {
   readonly customIcons: readonly ProjectImageIconOption[];
   readonly field: ControlInspectorPropertyField;
@@ -338,6 +391,15 @@ export const InspectorPropertyField = ({
         minimum={field.minimum}
         onCommit={(nextValue) => onCommit(field.property, nextValue)}
         step={field.step}
+        value={value as InspectorValue<number>}
+      />
+    );
+  }
+  if (field.kind === 'range' && (typeof value.value === 'number' || value.mixed)) {
+    return (
+      <InspectorRangeInput
+        field={field}
+        onCommit={(nextValue) => onCommit(field.property, nextValue)}
         value={value as InspectorValue<number>}
       />
     );

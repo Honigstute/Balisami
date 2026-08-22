@@ -25,6 +25,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry visual fixture; image and thumbnail projection',
   'wireframe.h-splitter':
     'common harness; registry visual fixture; deterministic Layout scene geometry',
+  'wireframe.h-rule':
+    'common harness; intrinsic auto-size; range inspector; deterministic Rule geometry',
   'wireframe.ios-picker':
     'common harness; registry visual fixture; deterministic iOS Picker scene geometry',
   'wireframe.playback':
@@ -44,6 +46,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry visual fixture; deterministic Media scene geometry',
   'wireframe.v-splitter':
     'common harness; registry visual fixture; deterministic Layout scene geometry',
+  'wireframe.v-rule':
+    'common harness; intrinsic auto-size; range inspector; deterministic Rule geometry',
   'wireframe.webcam': 'common harness; registry visual fixture; deterministic Media scene geometry',
 });
 

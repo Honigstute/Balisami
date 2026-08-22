@@ -24,6 +24,7 @@ export type ControlVisualKind =
   | 'checkbox'
   | 'image'
   | 'h-splitter'
+  | 'h-rule'
   | 'input'
   | 'ios-picker'
   | 'playback'
@@ -35,6 +36,7 @@ export type ControlVisualKind =
   | 'toolbar'
   | 'transparent'
   | 'video-player'
+  | 'v-rule'
   | 'v-splitter'
   | 'volume-slider'
   | 'webcam';
@@ -55,6 +57,8 @@ export interface ControlAutoSizeInsets {
 
 export interface ControlAutoSizePolicy {
   readonly axis: ControlAutoSizeAxis;
+  /** Text measures bundled-font content; intrinsic restores the registered default extent. */
+  readonly basis: 'intrinsic' | 'text';
   readonly insets: ControlAutoSizeInsets;
 }
 
@@ -137,7 +141,7 @@ export type ControlInspectorPropertyField =
       }>)
   | (ControlInspectorPropertyFieldBase &
       Readonly<{
-        kind: 'number';
+        kind: 'number' | 'range';
         maximum: number;
         minimum: number;
         step: number;
@@ -305,7 +309,7 @@ export const assertControlDefinitionsConform = (
                 (option) => option.label.trim().length === 0 || option.value.trim().length === 0,
               ) ||
               !choiceValues.includes(value))) ||
-          (field.kind === 'number' &&
+          ((field.kind === 'number' || field.kind === 'range') &&
             (typeof value !== 'number' ||
               !Number.isFinite(value) ||
               !Number.isFinite(field.minimum) ||
@@ -346,7 +350,8 @@ export const assertControlDefinitionsConform = (
     }
     if (
       definition.autoSize !== null &&
-      (text === null ||
+      ((definition.autoSize.basis === 'text' && text === null) ||
+        !['intrinsic', 'text'].includes(definition.autoSize.basis) ||
         !['both', 'horizontal', 'vertical'].includes(definition.autoSize.axis) ||
         [
           definition.autoSize.insets.bottom,

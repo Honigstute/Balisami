@@ -71,7 +71,10 @@ const areFieldsCompatible = (
       )
     );
   }
-  if (first.kind === 'number' && second.kind === 'number') {
+  if (
+    (first.kind === 'number' || first.kind === 'range') &&
+    (second.kind === 'number' || second.kind === 'range')
+  ) {
     return (
       first.minimum === second.minimum &&
       first.maximum === second.maximum &&
@@ -88,7 +91,7 @@ const readPrimitiveProperty = (
   const value = element.properties[field.property];
   if (
     (field.kind === 'boolean' && typeof value === 'boolean') ||
-    (field.kind === 'number' && typeof value === 'number') ||
+    ((field.kind === 'number' || field.kind === 'range') && typeof value === 'number') ||
     ((field.kind === 'choice' ||
       field.kind === 'color' ||
       field.kind === 'icon' ||

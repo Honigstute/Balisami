@@ -88,6 +88,20 @@ export const createControlSceneOutlinePath = (
       )
       .join(' ');
   }
+  if (definition.scene.kind === 'h-rule' || definition.scene.kind === 'v-rule') {
+    const horizontal = definition.scene.kind === 'h-rule';
+    return createSeededSketchLinePath({
+      end: createWorldPoint(
+        horizontal ? bounds.x + bounds.width : bounds.x + bounds.width / 2,
+        horizontal ? bounds.y + bounds.height / 2 : bounds.y + bounds.height,
+      ),
+      seed: `${elementId}:${definition.scene.kind}`,
+      start: createWorldPoint(
+        horizontal ? bounds.x : bounds.x + bounds.width / 2,
+        horizontal ? bounds.y + bounds.height / 2 : bounds.y,
+      ),
+    });
+  }
   return createSeededSketchRectPath(
     getControlScenePrimitiveBounds(controlType, bounds),
     `${elementId}:${definition.scene.kind}`,
@@ -770,7 +784,7 @@ export const createControlSceneMarkPath = (
 };
 
 export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
-  !['arrow', 'text', 'transparent'].includes(definition.scene.kind);
+  !['arrow', 'h-rule', 'text', 'transparent', 'v-rule'].includes(definition.scene.kind);
 
 export const controlSceneHasOutline = (definition: ControlDefinition): boolean =>
   !['red-x', 'squiggly-block', 'text', 'transparent'].includes(definition.scene.kind);
