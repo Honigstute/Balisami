@@ -20,6 +20,7 @@ import { AppChoicePopover } from '../design/AppChoicePopover';
 import { AppColorPopover } from '../design/AppColorPopover';
 import { AppButton } from '../design/AppButton';
 import { AppInput } from '../design/AppInput';
+import { AppIconPopover } from '../design/AppIconPopover';
 import { AppSegmentedControl } from '../design/AppSegmentedControl';
 import type { SelectionStore } from '../editor/selection-store';
 import {
@@ -225,7 +226,7 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
 
 interface InspectorPropertyFieldProps {
   readonly field: ControlInspectorPropertyField;
-  readonly onCommit: (property: string, value: boolean | number | string) => boolean;
+  readonly onCommit: (property: string, value: boolean | number | string | null) => boolean;
   readonly value: InspectorValue<InspectorPrimitive>;
 }
 
@@ -261,6 +262,19 @@ const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFie
         mixed={value.mixed}
         onChange={(nextValue) => onCommit(field.property, nextValue)}
         value={typeof value.value === 'string' ? value.value : undefined}
+      />
+    );
+  }
+  if (
+    field.kind === 'icon' &&
+    (typeof value.value === 'string' || value.value === null || value.mixed)
+  ) {
+    return (
+      <AppIconPopover
+        label={field.label}
+        mixed={value.mixed}
+        onChange={(nextValue) => onCommit(field.property, nextValue)}
+        value={value.value as string | null | undefined}
       />
     );
   }

@@ -104,7 +104,7 @@ export interface ControlInspectorChoiceOption {
 }
 
 export type ControlInspectorPropertyField =
-  | (ControlInspectorPropertyFieldBase & Readonly<{ kind: 'boolean' | 'color' | 'text' }>)
+  | (ControlInspectorPropertyFieldBase & Readonly<{ kind: 'boolean' | 'color' | 'icon' | 'text' }>)
   | (ControlInspectorPropertyFieldBase &
       Readonly<{
         kind: 'choice' | 'select';
@@ -271,6 +271,7 @@ export const assertControlDefinitionsConform = (
           (field.kind === 'boolean' && typeof value !== 'boolean') ||
           (field.kind === 'text' && typeof value !== 'string') ||
           (field.kind === 'color' && typeof value !== 'string') ||
+          (field.kind === 'icon' && value !== null && typeof value !== 'string') ||
           ((field.kind === 'choice' || field.kind === 'select') &&
             (typeof value !== 'string' ||
               field.options.length < 2 ||
@@ -291,6 +292,11 @@ export const assertControlDefinitionsConform = (
         ) {
           throw new Error(
             `Control '${definition.type}' has an invalid '${field.property}' inspector field.`,
+          );
+        }
+        if (field.kind === 'icon' && !definition.capabilities.icon) {
+          throw new Error(
+            `Control '${definition.type}' exposes an icon field without icon capability.`,
           );
         }
       }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ProjectDocument } from '../src/domain';
+import { CONTROL_TYPES, getControlSpec, type ProjectDocument } from '../src/domain';
 import {
   MAX_PROJECT_FILE_ENTRY_COUNT,
   MAX_PROJECT_JSON_DEPTH,
@@ -68,6 +68,35 @@ const manifestBytes = (overrides: Readonly<Record<string, unknown>> = {}): Uint8
   });
 
 describe('project file codec', () => {
+  it('migrates persisted legacy button properties before current document validation', () => {
+    const legacy = createValidProjectDocumentInput();
+    const element = legacy.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    const button = getControlSpec(CONTROL_TYPES.button);
+    if (element === undefined || button === undefined) {
+      throw new Error('Legacy button migration fixture is incomplete.');
+    }
+    element.controlType = CONTROL_TYPES.button;
+    element.controlVersion = 1;
+    element.properties = { text: 'Legacy action' };
+    element.assetIds = [];
+    legacy.assetsById = {};
+    const envelope = replaceEntry(
+      encodeFixture(),
+      PROJECT_FILE_ENTRY_PATHS.document,
+      encodeCanonicalJson(legacy),
+    );
+
+    const decoded = decodeProjectFileEnvelope(envelope);
+    if (!decoded.ok) {
+      throw new Error(`Legacy button decoding failed: ${decoded.error.message}`);
+    }
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toMatchObject({
+      controlType: CONTROL_TYPES.button,
+      controlVersion: button.fileVersion,
+      properties: { iconId: null, text: 'Legacy action' },
+    });
+  });
+
   it('round-trips a validated project document without assets', () => {
     const document = createAssetFreeProjectDocument();
     const encoded = encodeFixture(document);

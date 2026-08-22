@@ -1,4 +1,6 @@
 import { getControlSpec, type ElementNode, type WorldRect } from '../../domain';
+import { DESIGN_TOKENS } from '../../shared/design-tokens';
+import { getIconDefinition } from '../../shared/icons/icon-catalog';
 import {
   calculateControlTextAutoSize,
   type ControlTextMeasurementService,
@@ -31,12 +33,19 @@ export const calculateControlAutoSizeFrame = (
     mode: text.mode,
     text: value,
   });
+  const iconId = element.properties.iconId;
+  const iconWidth =
+    definition.capabilities.icon &&
+    typeof iconId === 'string' &&
+    getIconDefinition(iconId)?.id === iconId
+      ? DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1]
+      : 0;
   const size = calculateControlTextAutoSize({
     axis: policy.axis,
     currentSize: element.frame,
     insets: policy.insets,
     ...(definition.maximumSize === null ? {} : { maximumSize: definition.maximumSize }),
-    measurement,
+    measurement: Object.freeze({ ...measurement, width: measurement.width + iconWidth }),
     minimumSize: definition.minimumSize,
   });
   return Object.freeze({ ...element.frame, ...size });

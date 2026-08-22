@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } from 'react';
 
 import type { BoardId, ElementLink, ProjectDocument } from '../../domain';
+import { CatalogSceneIcon } from '../controls/CatalogIcon';
 import { getBrowserControlTextMeasurementService } from '../controls/control-text-measurement';
 import { Icon } from '../shell/Icon';
 import { createBoardPresentationProjection } from './board-presentation-projection';
@@ -278,6 +279,7 @@ export const PresentationView = ({
                       vectorEffect="non-scaling-stroke"
                     />
                   ) : null}
+                  {item.icon === undefined ? null : <CatalogSceneIcon projection={item.icon} />}
                   {item.textLayout === undefined ? null : (
                     <text
                       className="scene-control__text"

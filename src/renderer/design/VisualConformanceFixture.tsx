@@ -177,7 +177,7 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: { x: 28, y: 172, width: 128, height: 44 },
         locked: false,
-        properties: { text: 'Continue' },
+        properties: { iconId: 'arrow-right', text: 'Continue' },
         childIds: [],
         assetIds: [],
         link: null,
@@ -260,7 +260,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
         locked: false,
-        properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
+        properties: { iconId: 'arrow-right', text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
         childIds: [],
         assetIds: [],
         link: { kind: 'board', boardId },
@@ -1048,6 +1048,18 @@ const AlphaInspectorFixture = () => {
   );
 };
 
+const IconPickerInspectorFixture = () => {
+  useEffect(() => {
+    queueMicrotask(() => {
+      const trigger = globalThis.document.querySelector<HTMLButtonElement>(
+        '.app-icon-popover__trigger',
+      );
+      trigger?.click();
+    });
+  }, []);
+  return <AlphaInspectorFixture />;
+};
+
 const RegistryControlInspectorFixture = () => {
   const [fixture] = useState(createRegistryControlFixtureDocument);
   const [selection] = useState(() => {
@@ -1142,21 +1154,27 @@ export const VisualConformanceFixture = ({
                                       navigator: <AlphaNavigatorFixture />,
                                       shelf: <ControlShelf onInsert={() => false} />,
                                     }
-                                  : fixture === 'registryControl'
+                                  : fixture === 'iconPicker'
                                     ? {
-                                        canvas: <SceneFixture state="registryControl" />,
-                                        inspector: <RegistryControlInspectorFixture />,
+                                        canvas: <SceneFixture state="alpha" />,
+                                        inspector: <IconPickerInspectorFixture />,
                                         shelf: <ControlShelf onInsert={() => false} />,
                                       }
-                                    : fixture === 'controls'
-                                      ? { inspector: <ControlStates /> }
-                                      : fixture === 'feedback'
-                                        ? { canvas: <StaticRegionFailure /> }
-                                        : fixture === 'tooltip'
-                                          ? { canvas: <TooltipFixture /> }
-                                          : fixture === 'popover'
-                                            ? { canvas: <PopoverFixture /> }
-                                            : undefined;
+                                    : fixture === 'registryControl'
+                                      ? {
+                                          canvas: <SceneFixture state="registryControl" />,
+                                          inspector: <RegistryControlInspectorFixture />,
+                                          shelf: <ControlShelf onInsert={() => false} />,
+                                        }
+                                      : fixture === 'controls'
+                                        ? { inspector: <ControlStates /> }
+                                        : fixture === 'feedback'
+                                          ? { canvas: <StaticRegionFailure /> }
+                                          : fixture === 'tooltip'
+                                            ? { canvas: <TooltipFixture /> }
+                                            : fixture === 'popover'
+                                              ? { canvas: <PopoverFixture /> }
+                                              : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -1177,7 +1195,7 @@ export const VisualConformanceFixture = ({
       <ViewportZoomFixture platform={platform} withSelection />
     ) : undefined;
   const inspectorControlType =
-    fixture === 'mvpAlpha'
+    fixture === 'mvpAlpha' || fixture === 'iconPicker'
       ? CONTROL_TYPES.button
       : fixture === 'registryControl'
         ? CONTROL_TYPES.checkbox

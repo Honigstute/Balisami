@@ -227,12 +227,12 @@ describe('alpha control authoring UI', () => {
     fireEvent.blur(width);
     expect(screen.getByText('Minimum 48.')).toBeInTheDocument();
 
-    const content = screen.getByRole('textbox', { name: 'Content' });
+    const content = screen.getByRole('textbox', { name: 'Text' });
     fireEvent.change(content, { target: { value: 'Continue' } });
     fireEvent.blur(content);
     expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
       elementId,
-      properties: { text: 'Continue' },
+      properties: { iconId: null, text: 'Continue' },
     });
   });
 
@@ -274,6 +274,39 @@ describe('alpha control authoring UI', () => {
     });
   });
 
+  it('searches the portalled catalog and emits one canonical icon property update', async () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.button);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Icon' }));
+    const search = await screen.findByRole('textbox', { name: 'Search icons' });
+    fireEvent.change(search, { target: { value: 'trash' } });
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    expect(screen.getByRole('button', { name: 'Trash' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Trash' }));
+
+    expect(onSetProperties).toHaveBeenCalledWith([
+      {
+        elementId,
+        properties: { iconId: 'trash', text: 'Button' },
+      },
+    ]);
+    expect(screen.queryByRole('dialog', { name: 'Icon library' })).not.toBeInTheDocument();
+  });
+
   it('shows mixed values and emits one complete batch for shared multi-selection edits', () => {
     const first = createControlDocument(CONTROL_TYPES.button);
     const secondId = ElementIdSchema.parse('element_controlui_batch_second');
@@ -293,7 +326,7 @@ describe('alpha control authoring UI', () => {
     const edited = dispatchDocumentCommand(inserted.document, {
       type: DOCUMENT_COMMAND_TYPES.setElementProperties,
       elementId: secondId,
-      properties: { text: 'Secondary' },
+      properties: { iconId: null, text: 'Secondary' },
     });
     if (!edited.ok || !edited.changed) {
       throw new Error('Multi-inspector fixture control could not be edited.');
@@ -321,7 +354,7 @@ describe('alpha control authoring UI', () => {
     );
 
     const x = screen.getByRole('spinbutton', { name: /X\s*Mixed/u });
-    const content = screen.getByRole('textbox', { name: /Content\s*Mixed/u });
+    const content = screen.getByRole('textbox', { name: /Text\s*Mixed/u });
     expect(x).toHaveValue(null);
     expect(content).toHaveValue('');
     fireEvent.blur(x);
@@ -342,11 +375,11 @@ describe('alpha control authoring UI', () => {
     expect(propertyUpdates).toHaveLength(2);
     expect(propertyUpdates?.[0]).toMatchObject({
       elementId: first.elementId,
-      properties: { text: 'Shared' },
+      properties: { iconId: null, text: 'Shared' },
     });
     expect(propertyUpdates?.[1]).toMatchObject({
       elementId: secondId,
-      properties: { text: 'Shared' },
+      properties: { iconId: null, text: 'Shared' },
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Link type' }));

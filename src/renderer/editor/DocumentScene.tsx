@@ -9,13 +9,13 @@ import {
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import {
-  createControlSceneMarkPath,
   createControlSceneOutlinePath,
   controlSceneHasFill,
   controlSceneHasOutline,
-  getControlScenePrimitiveBounds,
 } from '../controls/control-scene-geometry';
-import { calculateControlSceneTextLayout } from '../controls/control-scene-text-layout';
+import { createControlSceneProjection } from '../controls/control-scene-projection';
+import { syncControlSceneIconElement } from '../controls/control-scene-icon';
+import type { ControlSceneTextLayout } from '../controls/control-scene-text-layout';
 import {
   getBrowserControlTextMeasurementService,
   type ControlTextMeasurementService,
@@ -119,7 +119,7 @@ class DocumentScenePresenter {
     this.#cameraZoom = zoom;
     for (const [id, item] of this.#canonicalItemsById) {
       const element = this.#elementsById.get(id);
-      const hint = element?.children[5];
+      const hint = element?.children[6];
       if (hint?.localName === 'g') {
         this.#updateElementLinkHint(hint as SVGGElement, item.bounds, item);
       }
@@ -145,9 +145,8 @@ class DocumentScenePresenter {
     this.#textMeasurementService = service;
     for (const [id, item] of this.#canonicalItemsById) {
       const element = this.#elementsById.get(id);
-      const text = element?.children[4];
-      if (text?.localName === 'text') {
-        this.#updateElementText(text as SVGTextElement, item.bounds, item);
+      if (element !== undefined) {
+        this.#updateElementGeometry(element, item.bounds, item.path, item.properties, item);
       }
     }
     this.#applyResizePreview();
@@ -241,6 +240,7 @@ class DocumentScenePresenter {
     const image = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'image');
     const outline = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const mark = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
+    const catalogIcon = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const text = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'text');
     const linkHint = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const linkHintBackground = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'circle');
@@ -250,12 +250,13 @@ class DocumentScenePresenter {
     image.setAttribute('class', 'scene-control__image');
     outline.setAttribute('class', 'scene-control__outline');
     mark.setAttribute('class', 'scene-control__mark');
+    catalogIcon.setAttribute('class', 'scene-control__catalog-icon');
     text.setAttribute('class', 'scene-control__text');
     linkHint.setAttribute('class', 'scene-control__link-hint');
     linkHintBackground.setAttribute('class', 'scene-control__link-hint-background');
     linkHintGlyph.setAttribute('class', 'scene-control__link-hint-glyph');
     linkHint.append(linkHintBackground, linkHintGlyph);
-    element.append(fill, image, outline, mark, text, linkHint);
+    element.append(fill, image, outline, mark, catalogIcon, text, linkHint);
     this.#elementsById.set(id, element);
     return element;
   }
@@ -290,13 +291,15 @@ class DocumentScenePresenter {
     const image = element.children[1];
     const outline = element.children[2];
     const mark = element.children[3];
-    const text = element.children[4];
-    const linkHint = element.children[5];
+    const catalogIcon = element.children[4];
+    const text = element.children[5];
+    const linkHint = element.children[6];
     if (
       fill?.localName !== 'rect' ||
       image?.localName !== 'image' ||
       outline?.localName !== 'path' ||
       mark?.localName !== 'path' ||
+      catalogIcon?.localName !== 'g' ||
       text?.localName !== 'text' ||
       linkHint?.localName !== 'g'
     ) {
@@ -306,25 +309,31 @@ class DocumentScenePresenter {
     const imageElement = image as SVGImageElement;
     const outlineElement = outline as SVGPathElement;
     const markElement = mark as SVGPathElement;
+    const catalogIconElement = catalogIcon as SVGGElement;
     const textElement = text as SVGTextElement;
     const linkHintElement = linkHint as SVGGElement;
-    const primitiveBounds = getControlScenePrimitiveBounds(item.controlType, bounds);
+    const spec = getControlSpec(item.controlType);
+    if (spec === undefined) {
+      throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
+    }
+    const projection = createControlSceneProjection({
+      bounds,
+      definition: spec,
+      identity: item.id,
+      properties,
+      textMeasurementService: this.#textMeasurementService,
+    });
+    const primitiveBounds = projection.primitiveBounds;
     fillElement.setAttribute('x', String(primitiveBounds.x));
     fillElement.setAttribute('y', String(primitiveBounds.y));
     fillElement.setAttribute('width', String(primitiveBounds.width));
     fillElement.setAttribute('height', String(primitiveBounds.height));
     outlineElement.setAttribute('d', path);
     const hasImage = this.#updateElementImage(imageElement, bounds, item);
-    const markPath = hasImage
-      ? ''
-      : createControlSceneMarkPath(item.controlType, bounds, item.id, properties);
+    const markPath = hasImage ? '' : projection.markPath;
     markElement.setAttribute('d', markPath);
     markElement.setAttribute('display', markPath.length === 0 ? 'none' : 'inline');
 
-    const spec = getControlSpec(item.controlType);
-    if (spec === undefined) {
-      throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
-    }
     fillElement.setAttribute(
       'display',
       controlSceneHasFill(spec) && !(spec.scene.kind === 'image' && hasImage) ? 'inline' : 'none',
@@ -368,7 +377,8 @@ class DocumentScenePresenter {
       delete element.dataset.controlShowBorder;
     }
 
-    this.#updateElementText(textElement, bounds, item);
+    syncControlSceneIconElement(catalogIconElement, projection.icon);
+    this.#updateElementText(textElement, projection.textLayout);
     this.#updateElementLinkHint(linkHintElement, bounds, item);
   }
 
@@ -441,18 +451,8 @@ class DocumentScenePresenter {
 
   #updateElementText(
     textElement: SVGTextElement,
-    bounds: DocumentSceneItem['bounds'],
-    item: DocumentSceneItem,
+    layout: ControlSceneTextLayout | undefined,
   ): void {
-    const spec = getControlSpec(item.controlType);
-    if (spec === undefined) {
-      throw new Error(`Document scene presenter received unknown control '${item.controlType}'.`);
-    }
-    const service = this.#textMeasurementService;
-    const layout =
-      service === undefined
-        ? undefined
-        : calculateControlSceneTextLayout(spec, bounds, item.properties, service);
     if (layout === undefined) {
       textElement.setAttribute('display', 'none');
       textElement.replaceChildren();

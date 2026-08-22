@@ -85,4 +85,27 @@ describe('registry-driven control auto-size', () => {
     });
     expect(calculateControlAutoSizeFrame(rectangle, measurement)).toBeUndefined();
   });
+
+  it('reserves the tokenized icon size and gap when a button icon is present', () => {
+    const element = createElement();
+    if (element === undefined) {
+      throw new Error('Icon auto-size fixture element is missing.');
+    }
+    const withIcon = {
+      ...element,
+      properties: { ...element.properties, iconId: 'arrow-right' },
+    };
+    const measurement = {
+      measure: () => ({
+        baselineOffsets: [12],
+        height: 22,
+        lineCount: 1,
+        lineHeight: 22,
+        lines: ['Button'],
+        width: 83.125,
+      }),
+    };
+
+    expect(calculateControlAutoSizeFrame(withIcon, measurement)?.width).toBe(119.125);
+  });
 });

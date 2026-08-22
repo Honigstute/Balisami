@@ -6,7 +6,7 @@ import {
   type ProjectDocument,
 } from '../../domain';
 
-export type InspectorPrimitive = boolean | number | string;
+export type InspectorPrimitive = boolean | number | string | null;
 
 export interface InspectorValue<T extends InspectorPrimitive> {
   readonly mixed: boolean;
@@ -91,9 +91,10 @@ const readPrimitiveProperty = (
     (field.kind === 'number' && typeof value === 'number') ||
     ((field.kind === 'choice' ||
       field.kind === 'color' ||
+      field.kind === 'icon' ||
       field.kind === 'select' ||
       field.kind === 'text') &&
-      typeof value === 'string')
+      (typeof value === 'string' || (field.kind === 'icon' && value === null)))
   ) {
     return value;
   }

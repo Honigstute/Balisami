@@ -42,8 +42,7 @@ describe('control definition registry', () => {
       'Arrow',
     ]);
     for (const definition of listControlSpecs()) {
-      expect(definition.fileVersion).toBe(1);
-      expect(definition.migrations).toEqual([]);
+      expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
       expect(['none', 'scene']).toContain(definition.thumbnail.kind);
       expect(['scene', 'transparent-container']).toContain(definition.export.kind);
       expect(definition.propertiesSchema.safeParse(definition.defaultProperties).success).toBe(
@@ -58,6 +57,19 @@ describe('control definition registry', () => {
         expect(definition.defaultProperties).toHaveProperty(property);
       }
     }
+    expect(getControlSpec(CONTROL_TYPES.button)).toMatchObject({
+      defaultProperties: { iconId: null, text: 'Button' },
+      fileVersion: 2,
+      inspector: [
+        {
+          fields: [
+            { kind: 'text', label: 'Text', property: 'text' },
+            { kind: 'icon', label: 'Icon', property: 'iconId' },
+          ],
+        },
+      ],
+      scene: { propertyKeys: ['iconId', 'text'] },
+    });
     expect(getControlSpec(CONTROL_TYPES.checkbox)).toMatchObject({
       accessibility: {
         checkedProperty: 'checked',

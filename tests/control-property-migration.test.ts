@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 
 import {
+  CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
   ProjectDocumentShapeSchema,
   getControlSpec,
@@ -32,6 +33,23 @@ const createVersionTwoRectangle = (): ControlDefinition => {
 };
 
 describe('control property migrations', () => {
+  it('migrates legacy buttons to the canonical nullable icon contract', () => {
+    const button = getControlSpec(CONTROL_TYPES.button);
+    if (button === undefined) {
+      throw new Error('Button definition is missing.');
+    }
+    expect(migrateControlProperties(button, 1, { text: 'Legacy button' })).toEqual({
+      ok: true,
+      properties: { iconId: null, text: 'Legacy button' },
+    });
+    expect(button.propertiesSchema.safeParse({ iconId: 'trash', text: 'Delete' }).success).toBe(
+      true,
+    );
+    expect(button.propertiesSchema.safeParse({ iconId: 'trash-2', text: 'Alias' }).success).toBe(
+      false,
+    );
+  });
+
   it('runs a complete pure chain and validates the current property schema', () => {
     const definition = createVersionTwoRectangle();
     const source = Object.freeze({ legacy: 'ready' });

@@ -120,17 +120,33 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Insert Text Input' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Scene' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('heading', { name: 'Button' })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue('Alpha button');
+    expect(screen.getByRole('textbox', { name: 'Text' })).toHaveValue('Alpha button');
+    expect(screen.getByRole('button', { name: 'Icon' })).toHaveTextContent('Arrow Right');
     await waitFor(() => {
       expect(view.container.querySelector('[data-control-visual="text"]')).not.toBeNull();
       expect(view.container.querySelector('[data-control-visual="input"]')).not.toBeNull();
       expect(view.container.querySelector('[data-control-visual="button"]')).not.toBeNull();
+      expect(
+        view.container.querySelector('.scene-control__catalog-icon[data-icon-id="arrow-right"]'),
+      ).not.toBeNull();
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',
       '1',
     );
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders the searchable icon picker as a portal without replacing shell regions', async () => {
+    const view = renderFixture('iconPicker');
+
+    expect(await screen.findByRole('dialog', { name: 'Icon library' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search icons' })).toHaveFocus();
+    expect(document.querySelectorAll('.app-icon-popover__option')).toHaveLength(72);
+    expect(view.container.querySelector('[data-shell-region="root"]')).toBeInTheDocument();
+    expect(document.querySelector('.app-popover')?.parentElement).not.toBe(
+      view.container.querySelector('[data-shell-region="inspector"]'),
+    );
   });
 
   it('renders the registry-backed checkbox scene and inspector schema', async () => {

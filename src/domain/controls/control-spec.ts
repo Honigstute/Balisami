@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
+import { getIconDefinition } from '../../shared/icons/icon-catalog';
 import {
   ControlTypeIdSchema,
   ElementPropertiesSchema,
@@ -41,6 +42,19 @@ export const FOUNDATION_CONTROL_TYPES = Object.freeze({
 
 const textPropertiesSchema = z
   .strictObject({ text: z.string().max(CONTROL_TEXT_POLICY.maximumLength) })
+  .readonly();
+const canonicalBundledIconIdSchema = z
+  .string()
+  .max(128)
+  .refine(
+    (iconId) => getIconDefinition(iconId)?.id === iconId,
+    'Unknown or non-canonical icon ID.',
+  );
+const buttonPropertiesSchema = z
+  .strictObject({
+    iconId: canonicalBundledIconIdSchema.nullable(),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
   .readonly();
 const checkboxPropertiesSchema = z
   .strictObject({
@@ -145,7 +159,9 @@ const createDefinition = (input: {
   defaultSize: ControlSize;
   export: ControlExportDefinition;
   inspector?: readonly ControlInspectorSection[];
+  fileVersion?: number;
   maximumSize: ControlSize | null;
+  migrations?: ControlDefinition['migrations'];
   minimumSize: ControlSize;
   palette: ControlPaletteMetadata | null;
   propertiesSchema: ControlDefinition['propertiesSchema'];
@@ -161,11 +177,11 @@ const createDefinition = (input: {
     defaultProperties: Object.freeze(input.defaultProperties),
     defaultSize: input.defaultSize,
     export: input.export,
-    fileVersion: 1,
+    fileVersion: input.fileVersion ?? 1,
     inspector: Object.freeze(input.inspector ?? []),
     maximumSize: input.maximumSize,
     minimumSize: input.minimumSize,
-    migrations: Object.freeze([]),
+    migrations: Object.freeze(input.migrations ?? []),
     palette: input.palette,
     propertiesSchema: input.propertiesSchema,
     scene: input.scene,
@@ -277,15 +293,26 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
       },
       createText('center', 16, 8),
     ),
-    defaultProperties: { text: 'Button' },
+    defaultProperties: { iconId: null, text: 'Button' },
     defaultSize: createSize(120, 40),
     export: createExport('scene'),
-    inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
+    fileVersion: 2,
+    inspector: createInspector('Content', [
+      { kind: 'text', label: 'Text', property: 'text' },
+      { kind: 'icon', label: 'Icon', property: 'iconId' },
+    ]),
     minimumSize: createSize(48, 28),
     maximumSize: null,
     palette: createPalette('Button', 'Buttons', 30),
-    propertiesSchema: textPropertiesSchema,
-    scene: createScene('button', ['text']),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) => Object.freeze({ ...properties, iconId: null }),
+        toVersion: 2,
+      },
+    ],
+    propertiesSchema: buttonPropertiesSchema,
+    scene: createScene('button', ['iconId', 'text']),
     tags: ['action'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.button,

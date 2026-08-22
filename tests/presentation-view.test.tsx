@@ -76,7 +76,7 @@ const createPresentationDocument = (): ProjectDocument => {
         controlVersion: button.fileVersion,
         frame: { x: 80, y: 70, width: 180, height: 48 },
         locked: false,
-        properties: { ...button.defaultProperties, text: 'Open details' },
+        properties: { ...button.defaultProperties, iconId: 'arrow-right', text: 'Open details' },
         childIds: [],
         assetIds: [],
         link: { kind: 'board', boardId: DETAILS_ID },
@@ -110,6 +110,7 @@ describe('board presentation', () => {
       versionName: 'Concept',
     });
     expect(projection?.items.map((item) => item.id)).toEqual([HOME_LINK_ID]);
+    expect(projection?.items[0]?.icon?.definition.id).toBe('arrow-right');
   });
 
   it('navigates linked boards, supports back/forward, opens external links, and exits', () => {
@@ -125,6 +126,7 @@ describe('board presentation', () => {
     );
 
     expect(screen.getByText('Home · Concept')).toBeInTheDocument();
+    expect(document.querySelector('[data-icon-id="arrow-right"]')).toBeInTheDocument();
     const homeLink = screen.getByRole('link', { name: 'Open details' });
     const exit = screen.getByRole('button', { name: 'Exit presentation' });
     expect(exit).toHaveFocus();

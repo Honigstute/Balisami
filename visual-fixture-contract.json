@@ -21,6 +21,7 @@
     "viewportZoom",
     "viewportSelectionZoom",
     "mvpAlpha",
+    "iconPicker",
     "presentation",
     "registryControl",
     "controls",

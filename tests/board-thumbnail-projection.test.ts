@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CONTROL_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
   getControlSpec,
@@ -57,6 +58,29 @@ describe('board thumbnail projection', () => {
       items: [],
       viewBox: { x: 0, y: 0, width: 4, height: 3 },
     });
+  });
+
+  it('carries the registry-backed icon projection into navigator thumbnails', () => {
+    const input = createValidProjectDocumentInput();
+    const button = getControlSpec(CONTROL_TYPES.button);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (button === undefined || child === undefined) {
+      throw new Error('Thumbnail icon fixture is incomplete.');
+    }
+    child.controlType = button.type;
+    child.controlVersion = button.fileVersion;
+    child.properties = { iconId: 'arrow-right', text: 'Continue' };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) {
+      throw new Error('Thumbnail icon fixture is invalid.');
+    }
+
+    expect(
+      createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board)?.items[0]?.icon
+        ?.definition.id,
+    ).toBe('arrow-right');
   });
 
   it('bounds SVG complexity while retaining the topmost canonical controls', () => {

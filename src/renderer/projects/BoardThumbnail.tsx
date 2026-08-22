@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import type { BoardId } from '../../domain';
+import { CatalogSceneIcon } from '../controls/CatalogIcon';
 import { BOARD_THUMBNAIL_LOADING, type BoardThumbnailStore } from './board-thumbnail-store';
 
 interface BoardThumbnailProps {
@@ -80,6 +81,7 @@ export const BoardThumbnail = ({ assetUrls = {}, boardId, store }: BoardThumbnai
                   vectorEffect="non-scaling-stroke"
                 />
               ) : null}
+              {item.icon === undefined ? null : <CatalogSceneIcon projection={item.icon} />}
               {item.textLayout === undefined ? null : (
                 <text
                   className="scene-control__text"

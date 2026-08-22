@@ -1,4 +1,5 @@
 import type { ControlDefinition, ElementProperties } from '../../domain';
+import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { WorldRect } from '../editor/viewport-transform';
 import { getControlSceneTextX } from './control-scene-geometry';
 import {
@@ -17,6 +18,7 @@ export interface ControlSceneTextLayout {
   readonly fontSize: number;
   readonly lines: readonly ControlSceneTextLine[];
   readonly textAnchor: 'middle' | 'start';
+  readonly width: number;
 }
 
 /**
@@ -51,7 +53,23 @@ export const calculateControlSceneTextLayout = (
   }
 
   const layoutTop = bounds.y + (bounds.height - measurement.height) / 2;
-  const x = roundControlTextWorldUnit(getControlSceneTextX(definition, bounds, properties));
+  const hasCenteredIcon =
+    definition.capabilities.icon &&
+    text.alignment === 'center' &&
+    typeof properties.iconId === 'string';
+  const iconSize = Math.min(
+    DESIGN_TOKENS.control.iconSize,
+    Math.max(0, bounds.height - DESIGN_TOKENS.space[2] * 2),
+  );
+  const x = roundControlTextWorldUnit(
+    hasCenteredIcon
+      ? bounds.x +
+          (bounds.width - (iconSize + DESIGN_TOKENS.space[1] + measurement.width)) / 2 +
+          iconSize +
+          DESIGN_TOKENS.space[1] +
+          measurement.width / 2
+      : getControlSceneTextX(definition, bounds, properties),
+  );
   return Object.freeze({
     fontSize: text.fontSize,
     lines: Object.freeze(
@@ -66,5 +84,6 @@ export const calculateControlSceneTextLayout = (
       ),
     ),
     textAnchor: text.alignment === 'center' ? 'middle' : 'start',
+    width: measurement.width,
   });
 };
