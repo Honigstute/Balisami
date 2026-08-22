@@ -53,6 +53,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
       CONTROL_TYPES.searchBox,
+      CONTROL_TYPES.textArea,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -99,6 +100,7 @@ describe('control definition registry', () => {
       'Link Bar',
       'Tree Pane',
       'Search Box',
+      'Text Area',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -694,6 +696,58 @@ describe('control definition registry', () => {
       searchBox?.propertiesSchema.safeParse({
         ...searchBox.defaultProperties,
         shape: 'pill',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('owns the exact screenshot-backed Text Area contract without inferred Auto-Size or border mode', () => {
+    const textArea = getControlSpec(CONTROL_TYPES.textArea);
+
+    expect(textArea).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'textbox' },
+      autoSize: null,
+      capabilities: {
+        border: true,
+        fill: true,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+        text: { mode: 'multiline' },
+      },
+      defaultProperties: {
+        borderColor: 'default',
+        color: 'default',
+        opacity: 1,
+        scrollbar: false,
+        state: 'normal',
+        text: '',
+        textAlignment: 'start',
+        textColor: 'default',
+      },
+      defaultSize: { height: 140, width: 200 },
+      export: { kind: 'scene' },
+      scene: { kind: 'input' },
+      thumbnail: { kind: 'scene' },
+    });
+    expect(textArea?.inspector.flatMap((section) => section.fields)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'color', property: 'color' }),
+        expect.objectContaining({ kind: 'color', property: 'borderColor' }),
+        expect.objectContaining({ kind: 'color', property: 'textColor' }),
+        expect.objectContaining({ kind: 'range', property: 'opacity' }),
+        expect.objectContaining({ kind: 'boolean', property: 'scrollbar' }),
+        expect.objectContaining({ kind: 'select', property: 'state' }),
+        expect.objectContaining({ kind: 'choice', property: 'textAlignment' }),
+      ]),
+    );
+    expect(textArea?.inspector.flatMap((section) => section.fields)).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ property: 'borderMode' })]),
+    );
+    expect(textArea?.propertiesSchema.safeParse(textArea.defaultProperties).success).toBe(true);
+    expect(
+      textArea?.propertiesSchema.safeParse({
+        ...textArea.defaultProperties,
+        borderMode: 'full',
       }).success,
     ).toBe(false);
   });

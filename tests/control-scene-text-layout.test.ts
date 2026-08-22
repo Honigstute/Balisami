@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CONTROL_TYPES, getControlSpec, type ControlDefinition } from '../src/domain';
 import { calculateControlSceneTextLayout } from '../src/renderer/controls/control-scene-text-layout';
+import {
+  createControlTextMeasurementService,
+  type ControlTextCanvasContext,
+} from '../src/renderer/controls/control-text-measurement';
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
 
 const requireDefinition = (type: string): ControlDefinition => {
@@ -137,5 +141,44 @@ describe('canonical control scene text layout', () => {
         },
       ),
     ).toThrow('inconsistent line geometry');
+  });
+
+  it('measures Text Area content as canonical multiline text at normal and dense bounds', () => {
+    const context: ControlTextCanvasContext = {
+      font: '',
+      measureText: (text) => ({
+        actualBoundingBoxAscent: 8,
+        actualBoundingBoxDescent: 2,
+        width: text.length * 5.25,
+      }),
+      textBaseline: 'top',
+    };
+    const service = createControlTextMeasurementService(context);
+    const definition = requireDefinition(CONTROL_TYPES.textArea);
+    const properties = {
+      ...definition.defaultProperties,
+      bold: true,
+      italic: true,
+      text: 'First line\n\nThird line',
+      textAlignment: 'end',
+    };
+
+    for (const bounds of [createWorldRect(10, 20, 200, 140), createWorldRect(10, 20, 72, 40)]) {
+      const layout = calculateControlSceneTextLayout(definition, bounds, properties, service);
+      if (layout === undefined) throw new Error('Text Area multiline layout is missing.');
+      expect(layout.lines.map(({ text }) => text)).toEqual(['First line', '', 'Third line']);
+      expect(
+        layout.lines.every(({ baselineY, x }) => Number.isFinite(baselineY) && Number.isFinite(x)),
+      ).toBe(true);
+      expect(layout.lines.map(({ baselineY }) => baselineY)).toEqual(
+        [...layout.lines.map(({ baselineY }) => baselineY)].sort((left, right) => left - right),
+      );
+      expect(layout).toMatchObject({
+        fontStyle: 'italic',
+        fontWeight: 'bold',
+        textAnchor: 'end',
+      });
+    }
+    expect(context.font).toContain('italic 700 13px');
   });
 });

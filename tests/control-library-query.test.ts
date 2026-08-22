@@ -36,6 +36,7 @@ describe('control library query', () => {
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
       CONTROL_TYPES.searchBox,
+      CONTROL_TYPES.textArea,
     ]);
     expect(queryControlLibrary({ category: 'All' }).map(({ type }) => type)).toEqual([
       CONTROL_TYPES.rectangle,
@@ -75,6 +76,7 @@ describe('control library query', () => {
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
       CONTROL_TYPES.searchBox,
+      CONTROL_TYPES.textArea,
     ]);
   });
 
@@ -86,7 +88,9 @@ describe('control library query', () => {
     expect(queryControlLibrary({ query: '  BROWSER-window ' })[0]?.type).toBe(
       CONTROL_TYPES.browser,
     );
-    expect(queryControlLibrary({ category: 'Forms', query: 'line' })).toEqual([]);
+    expect(
+      queryControlLibrary({ category: 'Forms', query: 'line' }).map(({ type }) => type),
+    ).toEqual([CONTROL_TYPES.textArea]);
     expect(queryControlLibrary({ query: 'does not exist' })).toEqual([]);
   });
 
@@ -101,6 +105,7 @@ describe('control library query', () => {
       CONTROL_TYPES.onOffSwitch,
       CONTROL_TYPES.searchBox,
       `${CONTROL_TYPES.searchBox}:rectangular-microphone`,
+      CONTROL_TYPES.textArea,
     ]);
     expect(queryControlLibraryEntries({ query: 'underline' })[0]).toMatchObject({
       definition: { type: CONTROL_TYPES.textInput },

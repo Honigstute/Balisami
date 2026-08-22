@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   BoardIdSchema,
   CONTROL_TYPES,
+  DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
   createInitialControlRowState,
   createEmptyProjectDocument,
   dispatchDocumentCommand,
+  getControlSpec,
   listPaletteControlSpecs,
 } from '../src/domain';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
@@ -57,7 +59,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(37);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(38);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -98,6 +100,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
       CONTROL_TYPES.searchBox,
+      CONTROL_TYPES.textArea,
     ]);
   });
 
@@ -142,6 +145,64 @@ describe('registry-backed control insertion', () => {
     if (!reopened.ok) throw new Error('Search Box preset did not reopen.');
     expect(reopened.value.document.elementsById[searchId]).toEqual(
       inserted.document.elementsById[searchId],
+    );
+  });
+
+  it('round-trips an edited linked Text Area through the current project format', () => {
+    const boardId = BoardIdSchema.parse('board_textarea_codec');
+    const elementId = ElementIdSchema.parse('element_textarea_codec');
+    const created = createEmptyProjectDocument({
+      boardId,
+      projectId: ProjectIdSchema.parse('project_textarea_codec'),
+    });
+    const definition = getControlSpec(CONTROL_TYPES.textArea);
+    if (!created.ok || definition === undefined) {
+      throw new Error('Text Area codec fixture is incomplete.');
+    }
+    const inserted = dispatchDocumentCommand(
+      created.value,
+      createControlInsertionCommand({
+        boardId,
+        center: createWorldPoint(300, 240),
+        controlType: definition.type,
+        document: created.value,
+        elementId,
+      }),
+    );
+    if (!inserted.ok || !inserted.changed) throw new Error('Text Area did not insert.');
+    const styled = dispatchDocumentCommand(inserted.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId,
+      properties: {
+        ...definition.defaultProperties,
+        bold: true,
+        borderColor: '#112233',
+        color: '#445566',
+        fontSize: 18,
+        italic: true,
+        opacity: 0.65,
+        scrollbar: true,
+        state: 'disabled',
+        text: 'First line\nSecond line',
+        textAlignment: 'end',
+        textColor: '#778899',
+        underline: true,
+      },
+    });
+    if (!styled.ok || !styled.changed) throw new Error('Text Area style did not commit.');
+    const linked = dispatchDocumentCommand(styled.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId,
+      link: { kind: 'external', url: 'https://example.com/notes' },
+    });
+    if (!linked.ok || !linked.changed) throw new Error('Text Area link did not commit.');
+
+    const encoded = encodeProjectFileEnvelope(linked.document, {});
+    if (!encoded.ok) throw new Error('Text Area project did not encode.');
+    const reopened = decodeProjectFileEnvelope(encoded.value);
+    if (!reopened.ok) throw new Error('Text Area project did not reopen.');
+    expect(reopened.value.document.elementsById[elementId]).toEqual(
+      linked.document.elementsById[elementId],
     );
   });
 

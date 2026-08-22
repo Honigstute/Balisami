@@ -174,6 +174,33 @@ describe('control thumbnail projection', () => {
     );
   });
 
+  it('combines Text Area opacity with disabled state and projects its scrollbar generically', () => {
+    const definition = getControlSpec(CONTROL_TYPES.textArea);
+    if (definition === undefined) throw new Error('Text Area definition is missing.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 200, 140),
+      definition,
+      identity: 'text-area-style',
+      properties: {
+        ...definition.defaultProperties,
+        opacity: 0.4,
+        scrollbar: true,
+        state: 'disabled',
+        text: 'First line\nSecond line',
+      },
+      textMeasurementService: measurementService,
+    });
+
+    expect(projection).toMatchObject({
+      borderVisible: true,
+      disabled: true,
+      fillColor: undefined,
+      strokeColor: undefined,
+    });
+    expect(projection.opacity).toBeCloseTo(0.18);
+    expect(projection.markPath).not.toBe('');
+  });
+
   it('projects each static Media control with deterministic definition-owned marks', () => {
     for (const type of [
       CONTROL_TYPES.playback,

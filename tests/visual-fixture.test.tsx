@@ -75,6 +75,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=mvpAlpha')).toBe('mvpAlpha');
     expect(getRequestedVisualFixture('?visualFixture=components')).toBe('components');
     expect(getRequestedVisualFixture('?visualFixture=searchBox')).toBe('searchBox');
+    expect(getRequestedVisualFixture('?visualFixture=textArea')).toBe('textArea');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -332,6 +333,63 @@ describe('visual conformance fixture contract', () => {
           'none',
         );
       }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders the selected Text Area, multiline text, scrollbar, link hint, and exact inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('textArea');
+
+    expect(screen.getByRole('button', { name: 'Insert Text Area' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.text-area"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Text Area' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Border' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Border Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link type' })).toHaveTextContent('Web address');
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
+    expect(
+      screen.getByRole('group', { name: 'Scrollbar' }).querySelector('[aria-pressed="true"]'),
+    ).not.toBeNull();
+
+    await waitFor(() => {
+      const textArea = view.container.querySelector(
+        '[data-scene-element-id="element_registrytextarea"]',
+      );
+      expect(textArea).not.toBeNull();
+      expect(textArea).toHaveAttribute('aria-label', 'First line\nSecond line');
+      expect(textArea).toHaveAttribute('role', 'textbox');
+      if (document.fonts !== undefined) {
+        expect(textArea?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
+      expect(textArea?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(
+        textArea?.querySelector(
+          '.scene-control__link-hint[data-link-target="https://example.com/notes"]',
+        ),
+      ).not.toBeNull();
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

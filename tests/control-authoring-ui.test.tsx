@@ -146,6 +146,7 @@ describe('alpha control authoring UI', () => {
       'Link Bar',
       'Tree Pane',
       'Search Box',
+      'Text Area',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -187,6 +188,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
       CONTROL_TYPES.searchBox,
+      CONTROL_TYPES.textArea,
     ]);
   });
 
@@ -245,6 +247,7 @@ describe('alpha control authoring UI', () => {
       'Insert ON/OFF Switch',
       'Insert Search Box',
       'Insert Search Box (Rectangular + Microphone)',
+      'Insert Text Area',
     ]);
 
     view.rerender(<ControlShelf onInsert={() => true} query="cta" />);
@@ -341,6 +344,52 @@ describe('alpha control authoring UI', () => {
     expect(screen.getByRole('button', { name: 'Link type' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
     expect(screen.queryByRole('textbox', { name: 'Text' })).not.toBeInTheDocument();
+  });
+
+  it('exposes only the screenshot-confirmed Text Area inspector contract', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.textArea);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetLinks={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Border' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Border Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Opacity' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link type' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
+    expect(screen.queryByRole('textbox', { name: 'Text' })).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Scrollbar' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'State' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Disabled' }));
+
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { scrollbar: true },
+    });
+    expect(onSetProperties.mock.calls[1]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { state: 'disabled' },
+    });
   });
 
   it('uses one roving tab stop and reaches either shelf end with the keyboard', () => {

@@ -70,6 +70,7 @@ export const CONTROL_TYPES = Object.freeze({
   linkBar: ControlTypeIdSchema.parse('wireframe.link-bar'),
   treePane: ControlTypeIdSchema.parse('wireframe.tree-pane'),
   searchBox: ControlTypeIdSchema.parse('wireframe.search-box'),
+  textArea: ControlTypeIdSchema.parse('wireframe.text-area'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -233,6 +234,18 @@ const searchBoxPropertiesSchema = z
     microphoneIcon: z.boolean(),
     searchIcon: z.boolean(),
     shape: z.enum(['rounded', 'rectangular']),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const textAreaPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    borderColor: sceneColorSchema,
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
     state: controlStateSchema,
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
     textColor: sceneColorSchema,
@@ -2485,6 +2498,105 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['find', 'form', 'input', 'search'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.searchBox,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Text Area', 'textbox', 'text'),
+    aliases: ['multiline input', 'textarea'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText(
+        'start',
+        13,
+        8,
+        {
+          alignmentProperty: 'textAlignment',
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13, 'start'),
+      borderColor: 'default',
+      color: 'default',
+      opacity: 1,
+      scrollbar: false,
+      state: 'normal',
+      text: '',
+      textColor: 'default',
+    },
+    defaultSize: createSize(200, 140),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    minimumSize: createSize(72, 40),
+    maximumSize: null,
+    palette: createPalette('Text Area', 'Forms', 360),
+    propertiesSchema: textAreaPropertiesSchema,
+    scene: createScene('input', ['state', 'text'], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      scrollbarVisibilityProperty: 'scrollbar',
+      strokeColorProperty: 'borderColor',
+      state: createDisabledState(),
+    }),
+    tags: ['field', 'form', 'input', 'multiline', 'text'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.textArea,
   }),
 ]);
 

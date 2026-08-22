@@ -151,6 +151,70 @@ describe('board thumbnail projection', () => {
     expect(presentation?.markPath).toBe(thumbnail?.markPath);
   });
 
+  it('keeps styled disabled Text Area geometry and accessibility identical across surfaces', () => {
+    const input = createValidProjectDocumentInput();
+    const textArea = getControlSpec(CONTROL_TYPES.textArea);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (textArea === undefined || child === undefined) {
+      throw new Error('Text Area cross-surface fixture is incomplete.');
+    }
+    child.controlType = textArea.type;
+    child.controlVersion = textArea.fileVersion;
+    child.frame = { x: 16, y: 24, width: 200, height: 140 };
+    child.link = { kind: 'external', url: 'https://example.com/details' };
+    child.properties = {
+      ...textArea.defaultProperties,
+      bold: true,
+      borderColor: '#112233',
+      color: '#445566',
+      italic: true,
+      opacity: 0.6,
+      scrollbar: true,
+      state: 'disabled',
+      text: 'First line\nSecond line',
+      textColor: '#778899',
+      underline: true,
+    };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Text Area cross-surface fixture is invalid.');
+
+    const thumbnail = createBoardThumbnailProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+    const presentation = createBoardPresentationProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+    expect(thumbnail).toMatchObject({
+      borderVisible: true,
+      disabled: true,
+      fillColor: '#445566',
+      strokeColor: '#112233',
+      visualKind: 'input',
+    });
+    expect(thumbnail?.opacity).toBeCloseTo(0.27);
+    expect(thumbnail?.markPath).not.toBe('');
+    expect(presentation).toMatchObject({
+      accessibleName: 'First line\nSecond line',
+      disabled: true,
+      fillColor: thumbnail?.fillColor,
+      markPath: thumbnail?.markPath,
+      opacity: thumbnail?.opacity,
+      outlinePath: thumbnail?.outlinePath,
+      role: 'textbox',
+      strokeColor: thumbnail?.strokeColor,
+      textLayout: thumbnail?.textLayout,
+    });
+    expect(parsed.value.elementsById[DOCUMENT_FIXTURE_IDS.child]?.link).toEqual({
+      kind: 'external',
+      url: 'https://example.com/details',
+    });
+  });
+
   it('bounds SVG complexity while retaining the topmost canonical controls', () => {
     const input = createValidProjectDocumentInput();
     const definition = getControlSpec(FOUNDATION_CONTROL_TYPES.rectangle);

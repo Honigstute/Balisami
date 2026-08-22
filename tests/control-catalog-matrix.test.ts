@@ -57,6 +57,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.street-map':
     'common harness; registry visual fixture; deterministic Asset scene geometry',
   'wireframe.text-input': 'common harness; registry visual fixture; control auto-size',
+  'wireframe.text-area':
+    'common harness; exact inspector, multiline, persistence, and cross-surface geometry',
   'wireframe.text-label': 'common harness; registry visual fixture; control auto-size',
   'wireframe.toolbar':
     'common harness; registry visual fixture; deterministic Toolbar scene geometry',
