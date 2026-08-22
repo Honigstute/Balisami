@@ -7,6 +7,7 @@ import {
   type ElementId,
   type ProjectDocument,
 } from '../../domain';
+import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import {
   createControlSceneMarkPath,
   createControlSceneOutlinePath,
@@ -50,6 +51,7 @@ class DocumentScenePresenter {
   readonly #canonicalItemsById = new Map<ElementId, DocumentSceneItem>();
   readonly #elementsById = new Map<ElementId, SVGGElement>();
   readonly #root: SVGGElement;
+  #cameraZoom = 1;
   #keyboardNudgeSnapshot: KeyboardNudgeInteractionSnapshot | undefined;
   #moveSnapshot: MoveInteractionSnapshot | undefined;
   #resizeSnapshot: ResizeInteractionSnapshot | undefined;
@@ -104,6 +106,21 @@ class DocumentScenePresenter {
     this.#keyboardNudgeSnapshot = snapshot;
     this.#clearInactiveTranslationIds(previousIds);
     this.#applyTranslationPreview();
+  }
+
+  setCameraZoom(zoom: number): void {
+    if (this.#cameraZoom === zoom) {
+      return;
+    }
+    this.#cameraZoom = zoom;
+    for (const [id, item] of this.#canonicalItemsById) {
+      const element = this.#elementsById.get(id);
+      const hint = element?.children[4];
+      if (hint?.localName === 'g') {
+        this.#updateElementLinkHint(hint as SVGGElement, item.bounds, item);
+      }
+    }
+    this.#applyResizePreview();
   }
 
   setResizePreview(snapshot: ResizeInteractionSnapshot | undefined): void {
@@ -207,12 +224,19 @@ class DocumentScenePresenter {
     const outline = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const mark = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const text = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'text');
+    const linkHint = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
+    const linkHintBackground = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'circle');
+    const linkHintGlyph = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     element.dataset.sceneElementId = id;
     fill.setAttribute('class', 'scene-control__fill');
     outline.setAttribute('class', 'scene-control__outline');
     mark.setAttribute('class', 'scene-control__mark');
     text.setAttribute('class', 'scene-control__text');
-    element.append(fill, outline, mark, text);
+    linkHint.setAttribute('class', 'scene-control__link-hint');
+    linkHintBackground.setAttribute('class', 'scene-control__link-hint-background');
+    linkHintGlyph.setAttribute('class', 'scene-control__link-hint-glyph');
+    linkHint.append(linkHintBackground, linkHintGlyph);
+    element.append(fill, outline, mark, text, linkHint);
     this.#elementsById.set(id, element);
     return element;
   }
@@ -247,11 +271,13 @@ class DocumentScenePresenter {
     const outline = element.children[1];
     const mark = element.children[2];
     const text = element.children[3];
+    const linkHint = element.children[4];
     if (
       fill?.localName !== 'rect' ||
       outline?.localName !== 'path' ||
       mark?.localName !== 'path' ||
-      text?.localName !== 'text'
+      text?.localName !== 'text' ||
+      linkHint?.localName !== 'g'
     ) {
       throw new Error('Document scene element structure was changed unexpectedly.');
     }
@@ -259,6 +285,7 @@ class DocumentScenePresenter {
     const outlineElement = outline as SVGPathElement;
     const markElement = mark as SVGPathElement;
     const textElement = text as SVGTextElement;
+    const linkHintElement = linkHint as SVGGElement;
     const primitiveBounds = getControlScenePrimitiveBounds(item.controlType, bounds);
     fillElement.setAttribute('x', String(primitiveBounds.x));
     fillElement.setAttribute('y', String(primitiveBounds.y));
@@ -308,6 +335,52 @@ class DocumentScenePresenter {
     }
 
     this.#updateElementText(textElement, bounds, item);
+    this.#updateElementLinkHint(linkHintElement, bounds, item);
+  }
+
+  #updateElementLinkHint(
+    hint: SVGGElement,
+    bounds: DocumentSceneItem['bounds'],
+    item: DocumentSceneItem,
+  ): void {
+    const background = hint.children[0];
+    const glyph = hint.children[1];
+    if (background?.localName !== 'circle' || glyph?.localName !== 'path') {
+      throw new Error('Document scene link hint structure was changed unexpectedly.');
+    }
+    if (item.link === null) {
+      hint.setAttribute('display', 'none');
+      delete hint.dataset.linkKind;
+      delete hint.dataset.linkTarget;
+      return;
+    }
+
+    const size = DESIGN_TOKENS.control.iconSize / this.#cameraZoom;
+    const inset = DESIGN_TOKENS.editor.selectionHandleSize / this.#cameraZoom;
+    const centerX = bounds.x + bounds.width - size / 2 - inset;
+    const centerY = bounds.y + size / 2 + inset;
+    const radius = size / 2;
+    const unit = size / 8;
+    (background as SVGCircleElement).setAttribute('cx', String(centerX));
+    (background as SVGCircleElement).setAttribute('cy', String(centerY));
+    (background as SVGCircleElement).setAttribute('r', String(radius));
+    (glyph as SVGPathElement).setAttribute(
+      'd',
+      [
+        `M ${String(centerX - unit * 2.5)} ${String(centerY + unit * 0.5)}`,
+        `L ${String(centerX - unit)} ${String(centerY + unit * 2)}`,
+        `A ${String(unit * 1.5)} ${String(unit * 1.5)} 0 0 0 ${String(centerX + unit)} ${String(centerY + unit * 2)}`,
+        `L ${String(centerX + unit * 2)} ${String(centerY + unit)}`,
+        `M ${String(centerX + unit * 2.5)} ${String(centerY - unit * 0.5)}`,
+        `L ${String(centerX + unit)} ${String(centerY - unit * 2)}`,
+        `A ${String(unit * 1.5)} ${String(unit * 1.5)} 0 0 0 ${String(centerX - unit)} ${String(centerY - unit * 2)}`,
+        `L ${String(centerX - unit * 2)} ${String(centerY - unit)}`,
+        `M ${String(centerX - unit)} ${String(centerY + unit)} L ${String(centerX + unit)} ${String(centerY - unit)}`,
+      ].join(' '),
+    );
+    hint.dataset.linkKind = item.link.kind;
+    hint.dataset.linkTarget = item.link.kind === 'board' ? item.link.boardId : item.link.url;
+    hint.removeAttribute('display');
   }
 
   #updateElementText(
@@ -369,9 +442,10 @@ export const DocumentScene = ({
   const presenterRef = useRef<DocumentScenePresenter | undefined>(undefined);
 
   const syncVisibleItems = useCallback((): void => {
-    presenterRef.current?.sync(
-      model.queryVisible(camera.getTransformSnapshot(), camera.getViewportSnapshot()),
-    );
+    const presenter = presenterRef.current;
+    const transform = camera.getTransformSnapshot();
+    presenter?.setCameraZoom(transform.zoom);
+    presenter?.sync(model.queryVisible(transform, camera.getViewportSnapshot()));
   }, [camera, model]);
 
   useLayoutEffect(() => {

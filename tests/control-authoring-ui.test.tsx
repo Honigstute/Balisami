@@ -17,6 +17,7 @@ import {
   type ControlInspectorFrameUpdate,
   type ControlInspectorPropertiesUpdate,
 } from '../src/renderer/controls/ControlInspector';
+import type { ControlInspectorLinkUpdate } from '../src/renderer/controls/ControlLinkInspector';
 import { ControlShelf } from '../src/renderer/controls/ControlShelf';
 import { CONTROL_DRAG_MIME_TYPE } from '../src/renderer/controls/control-drag-transfer';
 import { createControlInsertionCommand } from '../src/renderer/controls/control-insertion';
@@ -216,6 +217,44 @@ describe('alpha control authoring UI', () => {
     });
   });
 
+  it('edits capability-backed board and HTTP(S) links through the common inspector module', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.button);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetLinks = vi.fn<(updates: readonly ControlInspectorLinkUpdate[]) => boolean>(
+      () => true,
+    );
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetLinks={onSetLinks}
+        onSetProperties={() => true}
+        selection={selection}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Link type' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Wireframe' }));
+    expect(onSetLinks.mock.calls[0]?.[0]?.[0]).toEqual({
+      elementId,
+      link: { kind: 'board', boardId: document.boardIds[0] },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Link type' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Web address' }));
+    const url = screen.getByRole('textbox', { name: 'Web address' });
+    fireEvent.blur(url);
+    expect(screen.getByText('Enter a complete HTTP or HTTPS address.')).toBeInTheDocument();
+    fireEvent.change(url, { target: { value: 'https://example.com/flow' } });
+    fireEvent.keyDown(url, { key: 'Enter' });
+    expect(onSetLinks.mock.calls[1]?.[0]?.[0]).toEqual({
+      elementId,
+      link: { kind: 'external', url: 'https://example.com/flow' },
+    });
+  });
+
   it('shows mixed values and emits one complete batch for shared multi-selection edits', () => {
     const first = createControlDocument(CONTROL_TYPES.button);
     const secondId = ElementIdSchema.parse('element_controlui_batch_second');
@@ -248,11 +287,15 @@ describe('alpha control authoring UI', () => {
     const onSetProperties = vi.fn<
       (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
     >(() => true);
+    const onSetLinks = vi.fn<(updates: readonly ControlInspectorLinkUpdate[]) => boolean>(
+      () => true,
+    );
     render(
       <ControlInspector
         document={edited.document}
         onAutoSize={() => Promise.resolve(true)}
         onSetFrames={onSetFrames}
+        onSetLinks={onSetLinks}
         onSetProperties={onSetProperties}
         selection={selection}
       />,
@@ -286,6 +329,14 @@ describe('alpha control authoring UI', () => {
       elementId: secondId,
       properties: { text: 'Shared' },
     });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Link type' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Wireframe' }));
+    expect(onSetLinks.mock.calls[0]?.[0]).toHaveLength(2);
+    expect(onSetLinks.mock.calls[0]?.[0].map((update) => update.elementId)).toEqual([
+      first.elementId,
+      secondId,
+    ]);
   });
 
   it('steps numeric drafts predictably and commits or cancels them from the keyboard', () => {

@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, Ref } from 'react';
 
 import { AppField } from './AppField';
 
@@ -7,6 +7,7 @@ interface AppInputProps extends Omit<
   'aria-describedby' | 'aria-invalid' | 'className' | 'id' | 'type'
 > {
   readonly hint?: string;
+  readonly inputRef?: Ref<HTMLInputElement>;
   readonly kind?: 'number' | 'text';
   readonly label: string;
   readonly mixed?: boolean;
@@ -15,6 +16,7 @@ interface AppInputProps extends Omit<
 
 export const AppInput = ({
   hint,
+  inputRef,
   kind = 'text',
   label,
   mixed = false,
@@ -29,6 +31,7 @@ export const AppInput = ({
         aria-invalid={invalid}
         className="app-control app-input"
         id={controlId}
+        ref={inputRef}
         type={kind}
       />
     )}

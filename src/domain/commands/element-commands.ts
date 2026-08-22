@@ -6,7 +6,7 @@ import {
   selectElementLocation,
   selectOwnerChildIds,
 } from '../document/selectors';
-import type { ElementNode, JsonValue } from '../document/schema';
+import type { ElementLink, ElementNode, JsonValue } from '../document/schema';
 import type { ProjectDocument } from '../document/validation';
 import type { CommandApplication, CommandApplicationFailure } from './application';
 import {
@@ -18,6 +18,7 @@ import {
   type ReorderElementCommand,
   type ReorderElementSiblingsCommand,
   type SetElementFrameCommand,
+  type SetElementLinkCommand,
   type SetElementLockedCommand,
   type SetElementPropertiesCommand,
   type UngroupElementCommand,
@@ -30,7 +31,7 @@ const createElementRevision = (
   patch: ElementDocumentPatch,
 ): ProjectDocument => Object.freeze({ ...document, ...patch });
 
-const notFound = (noun: 'Element' | 'Owner', id: string): CommandApplicationFailure => ({
+const notFound = (noun: 'Board' | 'Element' | 'Owner', id: string): CommandApplicationFailure => ({
   ok: false,
   code: 'not-found',
   message: `${noun} '${id}' does not exist.`,
@@ -47,6 +48,14 @@ const areElementIdListsEqual = (left: readonly ElementId[], right: readonly Elem
 
 const areNumbersNearlyEqual = (left: number, right: number): boolean =>
   Math.abs(left - right) <= Number.EPSILON * Math.max(1, Math.abs(left), Math.abs(right)) * 8;
+
+const areElementLinksEqual = (left: ElementLink | null, right: ElementLink | null): boolean =>
+  left === right ||
+  (left?.kind === 'board' && right?.kind === 'board'
+    ? left.boardId === right.boardId
+    : left?.kind === 'external' && right?.kind === 'external'
+      ? left.url === right.url
+      : false);
 
 const isTranslatedFrame = (
   source: ElementNode['frame'],
@@ -641,6 +650,48 @@ const applySetElementFrame = (
   };
 };
 
+const applySetElementLink = (
+  document: ProjectDocument,
+  command: SetElementLinkCommand,
+): CommandApplication => {
+  const element = document.elementsById[command.elementId];
+  if (element === undefined) {
+    return notFound('Element', command.elementId);
+  }
+  const definition = getControlSpec(element.controlType);
+  if (command.link !== null && definition?.capabilities.link !== true) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Control type '${element.controlType}' does not support links.`,
+    };
+  }
+  if (command.link?.kind === 'board' && document.boardsById[command.link.boardId] === undefined) {
+    return notFound('Board', command.link.boardId);
+  }
+  if (areElementLinksEqual(element.link, command.link)) {
+    return { ok: true, changed: false, label: 'Edit element link' };
+  }
+
+  const updatedElement = Object.freeze({ ...element, link: command.link });
+  return {
+    ok: true,
+    changed: true,
+    candidate: createElementRevision(document, {
+      elementsById: Object.freeze({
+        ...document.elementsById,
+        [command.elementId]: updatedElement,
+      }),
+    }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: command.elementId,
+      link: element.link,
+    },
+    label: 'Edit element link',
+  };
+};
+
 const applySetElementLocked = (
   document: ProjectDocument,
   command: SetElementLockedCommand,
@@ -724,6 +775,8 @@ export const applyElementCommand = (
       return applyReorderElementSiblings(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementFrame:
       return applySetElementFrame(document, command);
+    case DOCUMENT_COMMAND_TYPES.setElementLink:
+      return applySetElementLink(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementLocked:
       return applySetElementLocked(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementProperties:

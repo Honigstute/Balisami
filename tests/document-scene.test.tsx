@@ -108,6 +108,71 @@ const parseTextSceneFixture = (): ProjectDocument => {
 };
 
 describe('document SVG scene', () => {
+  it('projects linked-element hints at constant screen size and updates keyed nodes', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const linkedDocument = parseFixture();
+    const model = new DocumentSceneModel();
+    const renderScene = (document: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(linkedDocument));
+    scheduler.flushNext();
+    const sceneElement = view.container.querySelector(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const hint = sceneElement?.querySelector<SVGGElement>('.scene-control__link-hint');
+    const background = hint?.querySelector<SVGCircleElement>(
+      '.scene-control__link-hint-background',
+    );
+    expect(hint).toHaveAttribute('data-link-kind', 'board');
+    expect(hint).toHaveAttribute('data-link-target', DOCUMENT_FIXTURE_IDS.board);
+    expect(background).toHaveAttribute('r', '8');
+
+    camera.scheduleTransform(createViewportTransform({ panX: 0, panY: 0, zoom: 2 }));
+    scheduler.flushNext();
+    expect(background).toHaveAttribute('r', '4');
+
+    const cleared = dispatchDocumentCommand(linkedDocument, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      link: null,
+    });
+    if (!cleared.ok || !cleared.changed) {
+      throw new Error('Linked scene fixture could not be cleared.');
+    }
+    view.rerender(renderScene(cleared.document));
+    expect(view.container.querySelector('.scene-control__link-hint')).toBe(hint);
+    expect(hint).toHaveAttribute('display', 'none');
+    camera.dispose();
+  });
+
   it('updates an existing keyed text node from canonical measured alphabetic baselines', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,

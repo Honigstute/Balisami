@@ -681,6 +681,62 @@ describe('element document commands', () => {
     expect(invalid.error.code).toBe('invalid-command');
   });
 
+  it('sets validated board and HTTP(S) links with exact inverse and capability checks', () => {
+    const document = createTwoBoardDocument();
+    const boardLink = { kind: 'board' as const, boardId: SECONDARY_BOARD_ID };
+    const linkedToBoard = expectApplied(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      link: boardLink,
+    });
+    expect(linkedToBoard.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.link).toEqual(
+      boardLink,
+    );
+    expect(linkedToBoard.document.boardsById).toBe(document.boardsById);
+    expectInverseRestores(document, linkedToBoard);
+
+    const externalLink = { kind: 'external' as const, url: 'https://example.com/checkout' };
+    const linkedExternally = expectApplied(linkedToBoard.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      link: externalLink,
+    });
+    expect(linkedExternally.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.link).toEqual(
+      externalLink,
+    );
+    expectInverseRestores(linkedToBoard.document, linkedExternally);
+
+    const unchanged = expectUnchanged(linkedExternally.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      link: { ...externalLink },
+    });
+    expect(unchanged.document).toBe(linkedExternally.document);
+
+    const unsupported = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: DOCUMENT_FIXTURE_IDS.group,
+      link: boardLink,
+    });
+    expect(unsupported.error).toMatchObject({ code: 'conflict' });
+
+    const missingBoard = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      link: { kind: 'board', boardId: 'board_missing01' },
+    });
+    expect(missingBoard.error).toMatchObject({ code: 'not-found' });
+
+    for (const invalidUrl of ['javascript:alert(1)', 'ftp://example.com', 'not a URL']) {
+      const invalid = expectFailure(document, {
+        type: DOCUMENT_COMMAND_TYPES.setElementLink,
+        elementId: DOCUMENT_FIXTURE_IDS.child,
+        link: { kind: 'external', url: invalidUrl },
+      });
+      expect(invalid.error.code).toBe('invalid-command');
+    }
+  });
+
   it('reorders root and nested siblings without changing element records', () => {
     const document = parseFixture(createValidProjectDocumentInput());
     const rootCreated = expectApplied(document, {

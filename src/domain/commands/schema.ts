@@ -7,6 +7,7 @@ import {
   BoardNoteSchema,
   BoardSchema,
   DocumentTitleSchema,
+  ElementLinkSchema,
   ElementNodeSchema,
   ElementPropertiesSchema,
   WorldRectSchema,
@@ -26,6 +27,7 @@ export const DOCUMENT_COMMAND_TYPES = Object.freeze({
   reorderElement: 'element.reorder',
   reorderElementSiblings: 'element.reorder-siblings',
   setElementFrame: 'element.set-frame',
+  setElementLink: 'element.set-link',
   setElementLocked: 'element.set-locked',
   setElementProperties: 'element.set-properties',
   ungroupElement: 'element.ungroup',
@@ -203,6 +205,14 @@ export const SetElementFrameCommandSchema = z
   })
   .readonly();
 
+export const SetElementLinkCommandSchema = z
+  .strictObject({
+    type: z.literal(DOCUMENT_COMMAND_TYPES.setElementLink),
+    elementId: ElementIdSchema,
+    link: ElementLinkSchema.nullable(),
+  })
+  .readonly();
+
 export const SetElementLockedCommandSchema = z
   .strictObject({
     type: z.literal(DOCUMENT_COMMAND_TYPES.setElementLocked),
@@ -245,6 +255,7 @@ const ELEMENT_COMMAND_SCHEMAS = [
   ReorderElementCommandSchema,
   ReorderElementSiblingsCommandSchema,
   SetElementFrameCommandSchema,
+  SetElementLinkCommandSchema,
   SetElementLockedCommandSchema,
   SetElementPropertiesCommandSchema,
   UngroupElementCommandSchema,
@@ -272,6 +283,7 @@ export type GroupElementsCommand = z.infer<typeof GroupElementsCommandSchema>;
 export type ReorderElementCommand = z.infer<typeof ReorderElementCommandSchema>;
 export type ReorderElementSiblingsCommand = z.infer<typeof ReorderElementSiblingsCommandSchema>;
 export type SetElementFrameCommand = z.infer<typeof SetElementFrameCommandSchema>;
+export type SetElementLinkCommand = z.infer<typeof SetElementLinkCommandSchema>;
 export type SetElementLockedCommand = z.infer<typeof SetElementLockedCommandSchema>;
 export type SetElementPropertiesCommand = z.infer<typeof SetElementPropertiesCommandSchema>;
 export type UngroupElementCommand = z.infer<typeof UngroupElementCommandSchema>;

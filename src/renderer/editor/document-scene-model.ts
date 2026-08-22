@@ -7,6 +7,7 @@ import {
   type ControlTypeId,
   type ControlVisualKind,
   type ElementId,
+  type ElementLink,
   type ElementOwner,
   type ElementProperties,
   type ProjectDocument,
@@ -28,6 +29,7 @@ export interface DocumentSceneItem {
   readonly id: ElementId;
   readonly kind: 'container' | 'object';
   readonly locked: boolean;
+  readonly link: ElementLink | null;
   /** Disposable ownership metadata for sibling-scoped editor geometry. */
   readonly owner: ElementOwner;
   readonly path: string;
@@ -56,6 +58,7 @@ export interface BoardSceneItem {
   readonly id: ElementId;
   readonly kind: 'container' | 'object';
   readonly locked: boolean;
+  readonly link: ElementLink | null;
   readonly owner: ElementOwner;
   readonly properties: ElementProperties;
   readonly visualKind: ControlVisualKind;
@@ -106,7 +109,7 @@ const createItemRevision = (
     ...(spec.accessibility.checkedProperty === null ? [] : [spec.accessibility.checkedProperty]),
   ]);
   const renderProperties = [...presentationPropertyKeys].map((key) => item.properties[key]);
-  return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}`;
+  return `${item.id}|${item.controlType}|${item.kind}|${item.visualKind}|${getOwnerKey(item.owner)}|${String(item.bounds.x)}|${String(item.bounds.y)}|${String(item.bounds.width)}|${String(item.bounds.height)}|${JSON.stringify(renderProperties)}|${JSON.stringify(item.link)}`;
 };
 
 /** Flattens canonical childIds order while accumulating local container origins once. */
@@ -160,6 +163,7 @@ export const createBoardSceneItems = (
         controlType: element.controlType,
         id: element.id,
         kind: spec.scene.kind === 'transparent' ? 'container' : 'object',
+        link: element.link,
         locked: effectivelyLocked,
         owner,
         properties: element.properties,
@@ -301,6 +305,7 @@ export class DocumentSceneModel {
         controlType: derivedItem.controlType,
         id: derivedItem.id,
         kind: derivedItem.kind,
+        link: derivedItem.link,
         locked: derivedItem.locked,
         owner: derivedItem.owner,
         path:

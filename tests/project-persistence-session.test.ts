@@ -59,6 +59,41 @@ const createHistories = (): readonly [DocumentHistoryState, DocumentHistoryState
 };
 
 describe('project persistence session', () => {
+  it('round-trips validated external links through the saved project archive', async () => {
+    const paths = await createSessionPaths();
+    const initial = createDocumentHistory(createAssetFreeProjectDocument(), {
+      initiallySaved: false,
+    });
+    const linked = dispatchHistoryCommand(initial, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      link: { kind: 'external', url: 'https://example.com/presentation' },
+    });
+    if (!linked.ok || !linked.changed) {
+      throw new Error('Expected link round-trip fixture edit to succeed.');
+    }
+    const started = beginDocumentHistorySave(linked.history);
+    if (!started.ok) {
+      throw new Error('Expected link round-trip save to start.');
+    }
+    const session = new ProjectPersistenceSession({
+      projectId: DOCUMENT_FIXTURE_IDS.project,
+      recoveryRoot: paths.recoveryRoot,
+    });
+
+    await expect(session.save(started.snapshot, {}, paths.projectFile)).resolves.toMatchObject({
+      ok: true,
+    });
+    const reopened = await openProjectFile(paths.projectFile);
+    if (!reopened.ok) {
+      throw new Error('Expected linked project archive to reopen.');
+    }
+    expect(reopened.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.link).toEqual({
+      kind: 'external',
+      url: 'https://example.com/presentation',
+    });
+  });
+
   it('flushes the latest scheduled state when retaining recovery on close', async () => {
     const paths = await createSessionPaths();
     const [, edited] = createHistories();

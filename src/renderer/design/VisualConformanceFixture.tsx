@@ -252,7 +252,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
         childIds: [],
         assetIds: [],
-        link: null,
+        link: { kind: 'board', boardId },
       },
       [inputId]: {
         id: inputId,

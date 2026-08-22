@@ -27,6 +27,7 @@ export const applyDocumentCommand = (
     case DOCUMENT_COMMAND_TYPES.reorderElement:
     case DOCUMENT_COMMAND_TYPES.reorderElementSiblings:
     case DOCUMENT_COMMAND_TYPES.setElementFrame:
+    case DOCUMENT_COMMAND_TYPES.setElementLink:
     case DOCUMENT_COMMAND_TYPES.setElementLocked:
     case DOCUMENT_COMMAND_TYPES.setElementProperties:
     case DOCUMENT_COMMAND_TYPES.ungroupElement:

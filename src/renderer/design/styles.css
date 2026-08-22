@@ -1266,6 +1266,26 @@ p {
   user-select: none;
 }
 
+.scene-control__link-hint {
+  pointer-events: none;
+}
+
+.scene-control__link-hint-background {
+  fill: var(--color-accent-strong);
+  stroke: var(--color-canvas);
+  stroke-width: var(--border-width);
+  vector-effect: non-scaling-stroke;
+}
+
+.scene-control__link-hint-glyph {
+  fill: none;
+  stroke: var(--color-canvas);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: calc(var(--border-width) * 1.5);
+  vector-effect: non-scaling-stroke;
+}
+
 [data-control-visual='input'] .scene-control__fill,
 [data-control-thumbnail-visual='input'] .scene-control__fill {
   fill: var(--color-chrome);

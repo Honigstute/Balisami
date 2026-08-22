@@ -1145,6 +1145,19 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     );
                     return result?.ok === true && result.changed;
                   }}
+                  onSetLinks={(updates) => {
+                    const result = session.dispatchTransaction(
+                      updates.map(({ elementId, link }) => ({
+                        type: DOCUMENT_COMMAND_TYPES.setElementLink,
+                        elementId,
+                        link,
+                      })),
+                      {
+                        label: updates.length === 1 ? 'Edit link' : 'Edit control links',
+                      },
+                    );
+                    return result?.ok === true;
+                  }}
                   onSetProperties={(updates) => {
                     const result = session.dispatchTransaction(
                       updates.map(({ elementId, properties }) => ({

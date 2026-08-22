@@ -27,6 +27,7 @@ import {
   type InspectorPrimitive,
   type InspectorValue,
 } from './control-inspector-model';
+import { ControlLinkInspector, type ControlInspectorLinkUpdate } from './ControlLinkInspector';
 
 export interface ControlInspectorFrameUpdate {
   readonly elementId: ElementId;
@@ -43,6 +44,7 @@ interface ControlInspectorProps {
   readonly emptyContent?: ReactNode;
   readonly onAutoSize: (elementId: ElementId) => Promise<boolean>;
   readonly onSetFrames: (updates: readonly ControlInspectorFrameUpdate[]) => boolean;
+  readonly onSetLinks?: (updates: readonly ControlInspectorLinkUpdate[]) => boolean;
   readonly onSetProperties: (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean;
   readonly selection: SelectionStore;
 }
@@ -331,6 +333,7 @@ export const ControlInspector = ({
   emptyContent,
   onAutoSize,
   onSetFrames,
+  onSetLinks = () => false,
   onSetProperties,
   selection,
 }: ControlInspectorProps) => {
@@ -487,6 +490,12 @@ export const ControlInspector = ({
             ) : null}
           </section>
         ))}
+        <ControlLinkInspector
+          document={document}
+          elements={model.elements}
+          onSetLinks={onSetLinks}
+          selectionRevision={selectionSnapshot.revision}
+        />
       </div>
       <InspectorFooter />
     </>
