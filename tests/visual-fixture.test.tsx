@@ -217,6 +217,10 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Insert Image' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Browser Window' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Arrow' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Playback' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Video Player' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Volume Slider' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Webcam' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Checkbox' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Checked' })).toHaveAttribute('aria-pressed', 'true');
     await waitFor(() => {
@@ -224,10 +228,24 @@ describe('visual conformance fixture contract', () => {
       const image = view.container.querySelector('[data-control-visual="image"]');
       const browser = view.container.querySelector('[data-control-visual="browser"]');
       const arrow = view.container.querySelector('[data-control-visual="arrow"]');
+      const playback = view.container.querySelector('[data-control-visual="playback"]');
+      const videoPlayer = view.container.querySelector('[data-control-visual="video-player"]');
+      const volumeSlider = view.container.querySelector('[data-control-visual="volume-slider"]');
+      const webcam = view.container.querySelector('[data-control-visual="webcam"]');
       expect(checkbox).not.toBeNull();
       expect(image).not.toBeNull();
       expect(browser).not.toBeNull();
       expect(arrow).not.toBeNull();
+      expect(playback).not.toBeNull();
+      expect(videoPlayer).not.toBeNull();
+      expect(volumeSlider).not.toBeNull();
+      expect(webcam).not.toBeNull();
+      for (const mediaControl of [playback, videoPlayer, volumeSlider, webcam]) {
+        expect(mediaControl?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+          'display',
+          'none',
+        );
+      }
       expect(arrow).toHaveAttribute('data-control-stroke-style', 'dashed');
       expect(checkbox).toHaveAttribute('aria-checked', 'true');
       expect(checkbox).toHaveAttribute('aria-label', 'Remember me');

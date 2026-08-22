@@ -108,6 +108,234 @@ const createImagePlaceholderMarkPath = (bounds: WorldRect, elementId: string): s
     }),
   ].join(' ');
 
+const createSeededPolylinePath = (
+  points: readonly ReturnType<typeof createWorldPoint>[],
+  elementId: string,
+  salt: string,
+  closed = false,
+): string => {
+  const pathPoints = closed && points.length > 1 ? [...points, points[0]!] : points;
+  return pathPoints
+    .slice(1)
+    .map((end, index) =>
+      createSeededSketchLinePath({
+        end,
+        seed: `${elementId}:${salt}:${String(index)}`,
+        start: pathPoints[index]!,
+      }),
+    )
+    .join(' ');
+};
+
+const createSeededCirclePath = (
+  center: ReturnType<typeof createWorldPoint>,
+  radius: number,
+  elementId: string,
+  salt: string,
+): string => {
+  const segmentCount = 12;
+  return createSeededPolylinePath(
+    Array.from({ length: segmentCount }, (_, index) => {
+      const angle = (index / segmentCount) * Math.PI * 2;
+      return createWorldPoint(
+        center.x + Math.cos(angle) * radius,
+        center.y + Math.sin(angle) * radius,
+      );
+    }),
+    elementId,
+    salt,
+    true,
+  );
+};
+
+const createPlaybackMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const centerY = bounds.y + bounds.height / 2;
+  const radius = Math.min(bounds.height * 0.38, bounds.width * 0.12);
+  const centers = [0.18, 0.5, 0.82].map((x) =>
+    createWorldPoint(bounds.x + bounds.width * x, centerY),
+  );
+  const iconRadius = radius * 0.48;
+  const previous = centers[0]!;
+  const play = centers[1]!;
+  const next = centers[2]!;
+  return [
+    ...centers.map((center, index) =>
+      createSeededCirclePath(center, radius, elementId, `playback-button-${String(index)}`),
+    ),
+    createSeededPolylinePath(
+      [
+        createWorldPoint(play.x - iconRadius * 0.55, play.y - iconRadius),
+        createWorldPoint(play.x + iconRadius, play.y),
+        createWorldPoint(play.x - iconRadius * 0.55, play.y + iconRadius),
+      ],
+      elementId,
+      'playback-play',
+      true,
+    ),
+    ...[-0.45, 0.35].map((offset, index) =>
+      createSeededPolylinePath(
+        [
+          createWorldPoint(
+            previous.x + iconRadius * offset + iconRadius * 0.45,
+            previous.y - iconRadius,
+          ),
+          createWorldPoint(previous.x + iconRadius * offset - iconRadius * 0.55, previous.y),
+          createWorldPoint(
+            previous.x + iconRadius * offset + iconRadius * 0.45,
+            previous.y + iconRadius,
+          ),
+        ],
+        elementId,
+        `playback-previous-${String(index)}`,
+        true,
+      ),
+    ),
+    ...[-0.35, 0.45].map((offset, index) =>
+      createSeededPolylinePath(
+        [
+          createWorldPoint(next.x + iconRadius * offset - iconRadius * 0.45, next.y - iconRadius),
+          createWorldPoint(next.x + iconRadius * offset + iconRadius * 0.55, next.y),
+          createWorldPoint(next.x + iconRadius * offset - iconRadius * 0.45, next.y + iconRadius),
+        ],
+        elementId,
+        `playback-next-${String(index)}`,
+        true,
+      ),
+    ),
+  ].join(' ');
+};
+
+const createVolumeMarkPath = (
+  bounds: WorldRect,
+  elementId: string,
+  saltPrefix: string,
+  sliderStartRatio = 0.28,
+  thumbRatio = 0.62,
+): string => {
+  const centerY = bounds.y + bounds.height / 2;
+  const speakerLeft = bounds.x + bounds.width * 0.04;
+  const speakerRight = bounds.x + bounds.width * 0.21;
+  const sliderStart = bounds.x + bounds.width * sliderStartRatio;
+  const sliderEnd = bounds.x + bounds.width * 0.94;
+  const thumbX = bounds.x + bounds.width * thumbRatio;
+  return [
+    createSeededPolylinePath(
+      [
+        createWorldPoint(speakerLeft, centerY - bounds.height * 0.16),
+        createWorldPoint(speakerLeft + bounds.width * 0.05, centerY - bounds.height * 0.16),
+        createWorldPoint(speakerRight, centerY - bounds.height * 0.34),
+        createWorldPoint(speakerRight, centerY + bounds.height * 0.34),
+        createWorldPoint(speakerLeft + bounds.width * 0.05, centerY + bounds.height * 0.16),
+        createWorldPoint(speakerLeft, centerY + bounds.height * 0.16),
+      ],
+      elementId,
+      `${saltPrefix}-speaker`,
+      true,
+    ),
+    createSeededSketchLinePath({
+      end: createWorldPoint(sliderEnd, centerY),
+      seed: `${elementId}:${saltPrefix}-track`,
+      start: createWorldPoint(sliderStart, centerY),
+    }),
+    createSeededCirclePath(
+      createWorldPoint(thumbX, centerY),
+      Math.max(2, Math.min(bounds.height * 0.28, bounds.width * 0.06)),
+      elementId,
+      `${saltPrefix}-thumb`,
+    ),
+  ].join(' ');
+};
+
+const createVideoPlayerMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const controlsY = bounds.y + bounds.height * 0.82;
+  const playCenter = createWorldPoint(
+    bounds.x + bounds.width * 0.08,
+    controlsY + bounds.height * 0.09,
+  );
+  const playRadius = Math.min(bounds.width * 0.04, bounds.height * 0.07);
+  return [
+    createSeededSketchLinePath({
+      end: createWorldPoint(bounds.x + bounds.width, controlsY),
+      seed: `${elementId}:video-controls-divider`,
+      start: createWorldPoint(bounds.x, controlsY),
+    }),
+    createSeededCirclePath(playCenter, playRadius, elementId, 'video-play-button'),
+    createSeededPolylinePath(
+      [
+        createWorldPoint(playCenter.x - playRadius * 0.32, playCenter.y - playRadius * 0.55),
+        createWorldPoint(playCenter.x + playRadius * 0.58, playCenter.y),
+        createWorldPoint(playCenter.x - playRadius * 0.32, playCenter.y + playRadius * 0.55),
+      ],
+      elementId,
+      'video-play-mark',
+      true,
+    ),
+    createSeededSketchLinePath({
+      end: createWorldPoint(bounds.x + bounds.width * 0.72, playCenter.y),
+      seed: `${elementId}:video-progress-track`,
+      start: createWorldPoint(bounds.x + bounds.width * 0.16, playCenter.y),
+    }),
+    createSeededSketchLinePath({
+      end: createWorldPoint(bounds.x + bounds.width * 0.46, playCenter.y),
+      seed: `${elementId}:video-progress-value`,
+      start: createWorldPoint(bounds.x + bounds.width * 0.16, playCenter.y),
+    }),
+    createVolumeMarkPath(
+      createWorldRect(
+        bounds.x + bounds.width * 0.75,
+        controlsY + bounds.height * 0.025,
+        bounds.width * 0.18,
+        bounds.height * 0.13,
+      ),
+      elementId,
+      'video-volume',
+      0.5,
+      0.72,
+    ),
+  ].join(' ');
+};
+
+const createWebcamMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const centerX = bounds.x + bounds.width / 2;
+  const headCenter = createWorldPoint(centerX, bounds.y + bounds.height * 0.38);
+  const headRadius = Math.min(bounds.width * 0.22, bounds.height * 0.25);
+  return [
+    createSeededCirclePath(headCenter, headRadius, elementId, 'webcam-head'),
+    createSeededCirclePath(
+      createWorldPoint(headCenter.x - headRadius * 0.38, headCenter.y - headRadius * 0.15),
+      Math.max(1, headRadius * 0.06),
+      elementId,
+      'webcam-left-eye',
+    ),
+    createSeededCirclePath(
+      createWorldPoint(headCenter.x + headRadius * 0.38, headCenter.y - headRadius * 0.15),
+      Math.max(1, headRadius * 0.06),
+      elementId,
+      'webcam-right-eye',
+    ),
+    createSeededPolylinePath(
+      [
+        createWorldPoint(headCenter.x - headRadius * 0.45, headCenter.y + headRadius * 0.28),
+        createWorldPoint(headCenter.x, headCenter.y + headRadius * 0.48),
+        createWorldPoint(headCenter.x + headRadius * 0.45, headCenter.y + headRadius * 0.28),
+      ],
+      elementId,
+      'webcam-smile',
+    ),
+    createSeededPolylinePath(
+      [
+        createWorldPoint(bounds.x + bounds.width * 0.16, bounds.y + bounds.height),
+        createWorldPoint(bounds.x + bounds.width * 0.24, bounds.y + bounds.height * 0.72),
+        createWorldPoint(centerX, bounds.y + bounds.height * 0.62),
+        createWorldPoint(bounds.x + bounds.width * 0.76, bounds.y + bounds.height * 0.72),
+        createWorldPoint(bounds.x + bounds.width * 0.84, bounds.y + bounds.height),
+      ],
+      elementId,
+      'webcam-shoulders',
+    ),
+  ].join(' ');
+};
+
 const createBrowserMarkPath = (
   bounds: WorldRect,
   elementId: string,
@@ -200,6 +428,18 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'arrow') {
     return createArrowMarkPath(controlType, bounds, elementId, properties);
+  }
+  if (definition.scene.kind === 'playback') {
+    return createPlaybackMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'video-player') {
+    return createVideoPlayerMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'volume-slider') {
+    return createVolumeMarkPath(bounds, elementId, 'volume-slider');
+  }
+  if (definition.scene.kind === 'webcam') {
+    return createWebcamMarkPath(bounds, elementId);
   }
   if (definition.scene.kind !== 'checkbox' || properties.checked !== true) {
     return '';

@@ -2,7 +2,8 @@ import type { z } from 'zod';
 
 import type { ControlTypeId, ElementProperties, JsonValue } from '../document/schema';
 
-export type ControlCategory = 'Assets' | 'Buttons' | 'Common' | 'Containers' | 'Forms' | 'Text';
+export type ControlCategory =
+  'Assets' | 'Buttons' | 'Common' | 'Containers' | 'Forms' | 'Media' | 'Text';
 export type ControlVisualKind =
   | 'arrow'
   | 'browser'
@@ -10,9 +11,13 @@ export type ControlVisualKind =
   | 'checkbox'
   | 'image'
   | 'input'
+  | 'playback'
   | 'rectangle'
   | 'text'
-  | 'transparent';
+  | 'transparent'
+  | 'video-player'
+  | 'volume-slider'
+  | 'webcam';
 
 export interface ControlSize {
   readonly height: number;

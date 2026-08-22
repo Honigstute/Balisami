@@ -24,6 +24,10 @@ describe('control definition registry', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.playback,
+      CONTROL_TYPES.videoPlayer,
+      CONTROL_TYPES.volumeSlider,
+      CONTROL_TYPES.webcam,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -41,6 +45,10 @@ describe('control definition registry', () => {
       'Image',
       'Browser Window',
       'Arrow',
+      'Playback',
+      'Video Player',
+      'Volume Slider',
+      'Webcam',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -130,6 +138,25 @@ describe('control definition registry', () => {
       scene: { hitShape: { kind: 'line', tolerance: 6 }, kind: 'arrow' },
       palette: { drawShortcut: null },
     });
+    for (const [type, kind, size] of [
+      [CONTROL_TYPES.playback, 'playback', { height: 36, width: 110 }],
+      [CONTROL_TYPES.videoPlayer, 'video-player', { height: 200, width: 300 }],
+      [CONTROL_TYPES.volumeSlider, 'volume-slider', { height: 16, width: 72 }],
+      [CONTROL_TYPES.webcam, 'webcam', { height: 146, width: 177 }],
+    ] as const) {
+      expect(getControlSpec(type)).toMatchObject({
+        accessibility: { role: 'img' },
+        autoSize: null,
+        defaultProperties: {},
+        defaultSize: size,
+        inspector: [],
+        palette: { category: 'Media' },
+        scene: { hitShape: { kind: 'bounds' }, kind, propertyKeys: [] },
+      });
+      expect(getControlSpec(type)?.propertiesSchema.safeParse({ unexpected: true }).success).toBe(
+        false,
+      );
+    }
   });
 
   it('rejects duplicate registrations and definitions with invalid defaults', () => {

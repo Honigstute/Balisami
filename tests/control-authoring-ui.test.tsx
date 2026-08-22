@@ -115,6 +115,10 @@ describe('alpha control authoring UI', () => {
       'Image',
       'Browser Window',
       'Arrow',
+      'Playback',
+      'Video Player',
+      'Volume Slider',
+      'Webcam',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -127,6 +131,10 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.playback,
+      CONTROL_TYPES.videoPlayer,
+      CONTROL_TYPES.volumeSlider,
+      CONTROL_TYPES.webcam,
     ]);
   });
 
@@ -192,7 +200,9 @@ describe('alpha control authoring UI', () => {
     });
     render(<ControlShelf onInsert={() => true} />);
     const items = screen.getAllByRole('button');
-    expect(items.map((item) => item.tabIndex)).toEqual([0, -1, -1, -1, -1, -1, -1, -1]);
+    expect(items.map((item) => item.tabIndex)).toEqual([
+      0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    ]);
 
     items[0]?.focus();
     fireEvent.keyDown(items[0] as HTMLButtonElement, { key: 'ArrowRight' });
@@ -224,6 +234,10 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.playback,
+      CONTROL_TYPES.videoPlayer,
+      CONTROL_TYPES.volumeSlider,
+      CONTROL_TYPES.webcam,
     ]) {
       const thumbnail = document.querySelector(`[data-control-thumbnail='${type}']`);
       expect(thumbnail).toBeInstanceOf(SVGSVGElement);

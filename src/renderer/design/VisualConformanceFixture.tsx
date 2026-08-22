@@ -461,6 +461,10 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   const browserId = ElementIdSchema.parse('element_registrybrowser');
   const imageId = ElementIdSchema.parse('element_registryimage');
   const arrowId = ElementIdSchema.parse('element_registryarrow');
+  const playbackId = ElementIdSchema.parse('element_registryplayback');
+  const videoPlayerId = ElementIdSchema.parse('element_registryvideoplayer');
+  const volumeSliderId = ElementIdSchema.parse('element_registryvolumeslider');
+  const webcamId = ElementIdSchema.parse('element_registrywebcam');
   let document = fixture.document;
   const commands = [
     {
@@ -544,6 +548,70 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         properties: { checked: true, text: 'Remember me' },
       },
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.playback,
+        controlVersion: requireControlVersion(CONTROL_TYPES.playback),
+        frame: { x: 76, y: 360, width: 110, height: 36 },
+        id: playbackId,
+        link: null,
+        locked: false,
+        properties: {},
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 2,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.videoPlayer,
+        controlVersion: requireControlVersion(CONTROL_TYPES.videoPlayer),
+        frame: { x: 202, y: 372, width: 144, height: 96 },
+        id: videoPlayerId,
+        link: null,
+        locked: false,
+        properties: {},
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 3,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.volumeSlider,
+        controlVersion: requireControlVersion(CONTROL_TYPES.volumeSlider),
+        frame: { x: 76, y: 420, width: 96, height: 20 },
+        id: volumeSliderId,
+        link: null,
+        locked: false,
+        properties: {},
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 4,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.webcam,
+        controlVersion: requireControlVersion(CONTROL_TYPES.webcam),
+        frame: { x: 274, y: 286, width: 96, height: 72 },
+        id: webcamId,
+        link: null,
+        locked: false,
+        properties: {},
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 5,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
   ] as const;

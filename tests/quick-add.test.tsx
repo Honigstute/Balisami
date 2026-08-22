@@ -110,10 +110,14 @@ describe('Quick Add', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.playback,
+      CONTROL_TYPES.videoPlayer,
+      CONTROL_TYPES.volumeSlider,
+      CONTROL_TYPES.webcam,
     ]) {
       preferences = recordQuickAddRecent(preferences, type);
     }
     expect(preferences.recent).toHaveLength(MAX_QUICK_ADD_RECENT);
-    expect(preferences.recent[0]).toBe(CONTROL_TYPES.arrow);
+    expect(preferences.recent[0]).toBe(CONTROL_TYPES.webcam);
   });
 });

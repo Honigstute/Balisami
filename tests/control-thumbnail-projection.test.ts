@@ -102,4 +102,38 @@ describe('control thumbnail projection', () => {
       }),
     );
   });
+
+  it('projects each static Media control with deterministic definition-owned marks', () => {
+    for (const type of [
+      CONTROL_TYPES.playback,
+      CONTROL_TYPES.videoPlayer,
+      CONTROL_TYPES.volumeSlider,
+      CONTROL_TYPES.webcam,
+    ]) {
+      const definition = getControlSpec(type);
+      if (definition === undefined) {
+        throw new Error(`Media control '${type}' is missing.`);
+      }
+      const bounds = createWorldRect(
+        0,
+        0,
+        definition.defaultSize.width,
+        definition.defaultSize.height,
+      );
+      const first = createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        `media-seed:${definition.type}`,
+        definition.defaultProperties,
+      );
+      const second = createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        `media-seed:${definition.type}`,
+        definition.defaultProperties,
+      );
+      expect(first).not.toBe('');
+      expect(first).toBe(second);
+    }
+  });
 });
