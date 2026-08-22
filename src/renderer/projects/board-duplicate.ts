@@ -81,9 +81,11 @@ export const planBoardDuplicate = (
 
   const cloneBoard = BoardSchema.safeParse({
     ...sourceBoard,
+    alternateIds: [],
     childIds: [],
     id: cloneBoardId,
     name: getDuplicateName(document, sourceBoard.name),
+    selectedAlternateId: null,
   });
   const createBoard = CreateBoardCommandSchema.safeParse({
     type: DOCUMENT_COMMAND_TYPES.createBoard,

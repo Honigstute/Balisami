@@ -1,6 +1,7 @@
 import { ProjectDocumentV1ShapeSchema } from './schema-v1';
 import type { ProjectDocumentShape } from './schema';
 import { ProjectDocumentV2ShapeSchema, type ProjectDocumentV2Shape } from './schema-v2';
+import { ProjectDocumentV3ShapeSchema, type ProjectDocumentV3Shape } from './schema-v3';
 
 export type ProjectDocumentMigrationResult<Value = ProjectDocumentShape> =
   { readonly ok: true; readonly value: Value } | { readonly ok: false; readonly message: string };
@@ -33,7 +34,9 @@ export const migrateProjectDocumentV1ToV2 = (
 };
 
 /** Adds the durable board-trash partition without changing any existing board ownership. */
-export const migrateProjectDocumentV2ToV3 = (input: unknown): ProjectDocumentMigrationResult => {
+export const migrateProjectDocumentV2ToV3 = (
+  input: unknown,
+): ProjectDocumentMigrationResult<ProjectDocumentV3Shape> => {
   const parsed = ProjectDocumentV2ShapeSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: 'Version 2 project document has an invalid structure.' };
@@ -45,6 +48,36 @@ export const migrateProjectDocumentV2ToV3 = (input: unknown): ProjectDocumentMig
       ...parsed.data,
       schemaVersion: 3,
       trashedBoardIds: Object.freeze([]),
+    }),
+  };
+};
+
+/** Adds explicit empty alternate-family state to every released v3 board record. */
+export const migrateProjectDocumentV3ToV4 = (input: unknown): ProjectDocumentMigrationResult => {
+  const parsed = ProjectDocumentV3ShapeSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: 'Version 3 project document has an invalid structure.' };
+  }
+
+  const boardsById = Object.freeze(
+    Object.fromEntries(
+      Object.entries(parsed.data.boardsById).map(([boardId, board]) => [
+        boardId,
+        Object.freeze({
+          ...board,
+          alternateIds: Object.freeze([]),
+          selectedAlternateId: null,
+        }),
+      ]),
+    ),
+  );
+
+  return {
+    ok: true,
+    value: Object.freeze({
+      ...parsed.data,
+      boardsById,
+      schemaVersion: 4,
     }),
   };
 };

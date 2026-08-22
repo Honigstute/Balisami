@@ -114,12 +114,14 @@ export { createEmptyProjectDocument, type EmptyProjectDocumentInput } from './do
 export {
   migrateProjectDocumentV1ToV2,
   migrateProjectDocumentV2ToV3,
+  migrateProjectDocumentV3ToV4,
   type ProjectDocumentMigrationResult,
 } from './document/migrations';
 export { ElementOwnerSchema, type ElementOwner } from './document/owner';
 export {
   createElementLocationIndex,
   selectBoardElementIds,
+  selectBoardPresentationId,
   selectBoardCommandAvailability,
   selectBoardRootElements,
   selectElementCommandAvailability,
@@ -162,6 +164,7 @@ export {
 } from './document/schema';
 export { ProjectDocumentV1ShapeSchema } from './document/schema-v1';
 export { ProjectDocumentV2ShapeSchema, type ProjectDocumentV2Shape } from './document/schema-v2';
+export { ProjectDocumentV3ShapeSchema, type ProjectDocumentV3Shape } from './document/schema-v3';
 export {
   MAX_DOCUMENT_VALIDATION_ISSUES,
   ProjectDocumentSchema,

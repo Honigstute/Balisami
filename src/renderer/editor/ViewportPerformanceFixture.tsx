@@ -105,6 +105,8 @@ const createPerformanceFixtureDocument = (): PerformanceFixtureDocument => {
         name: '1,000 element scene',
         note: { text: '' },
         childIds,
+        alternateIds: [],
+        selectedAlternateId: null,
       },
     },
     elementsById,

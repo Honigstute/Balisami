@@ -9,12 +9,16 @@ const FIRST_BOARD = BoardSchema.parse({
   name: 'Checkout',
   note: { text: 'Initial decision' },
   childIds: [],
+  alternateIds: [],
+  selectedAlternateId: null,
 });
 const SECOND_BOARD = BoardSchema.parse({
   id: BoardIdSchema.parse('board_notesecond01'),
   name: 'Confirmation',
   note: { text: 'Second note' },
   childIds: [],
+  alternateIds: [],
+  selectedAlternateId: null,
 });
 
 describe('board note editor', () => {

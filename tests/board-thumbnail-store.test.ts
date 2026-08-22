@@ -99,9 +99,13 @@ describe('board thumbnail store', () => {
         name: 'Second',
         note: { text: '' },
         childIds: [],
+        alternateIds: [],
+        selectedAlternateId: null,
       }),
+      alternateIds: [],
       childIds: [],
       note: { text: '' },
+      selectedAlternateId: null,
     };
     const parsed = parseProjectDocument(input);
     if (!parsed.ok) {

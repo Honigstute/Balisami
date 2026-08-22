@@ -86,6 +86,13 @@ const applyDeleteBoard = (
       message: `Board '${command.boardId}' must be empty before it can be deleted.`,
     };
   }
+  if (board.alternateIds.length > 0) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Board '${command.boardId}' must have no alternates before it can be deleted.`,
+    };
+  }
 
   const linkingElement = Object.values(document.elementsById).find(
     (element) => element.link?.kind === 'board' && element.link.boardId === command.boardId,

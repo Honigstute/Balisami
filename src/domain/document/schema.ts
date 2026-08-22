@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { AssetIdSchema, BoardIdSchema, ElementIdSchema, ProjectIdSchema } from './ids';
 
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 3 as const;
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 4 as const;
 
 export const DocumentTitleSchema = z.string().trim().min(1).max(120);
 const PropertyKeySchema = z
@@ -111,6 +111,10 @@ export const BoardSchema = z
     name: DocumentTitleSchema,
     note: BoardNoteSchema,
     childIds: z.array(ElementIdSchema).readonly(),
+    /** Hidden board-shaped version records owned by this canonical board. */
+    alternateIds: z.array(BoardIdSchema).readonly(),
+    /** Null selects Official; non-null selects one ID from alternateIds. */
+    selectedAlternateId: BoardIdSchema.nullable(),
   })
   .readonly();
 

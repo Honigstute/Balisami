@@ -68,7 +68,14 @@ const createHitTestFixture = (elementCount: number) => {
     boardIds: [boardId],
     trashedBoardIds: [],
     boardsById: {
-      [boardId]: { id: boardId, name: 'Dense board', note: { text: '' }, childIds },
+      [boardId]: {
+        id: boardId,
+        name: 'Dense board',
+        note: { text: '' },
+        childIds,
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
     },
     elementsById,
     assetsById: {},

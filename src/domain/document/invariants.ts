@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 
 import { getControlSpec } from '../controls/control-spec';
-import type { ElementId } from './ids';
+import type { BoardId, ElementId } from './ids';
 import type { ProjectDocumentShape } from './schema';
 
 type IssuePath = readonly (number | string)[];
@@ -35,7 +35,8 @@ const validateOrderedBoards = (document: ProjectDocumentShape, addIssue: AddIssu
   reportDuplicates(document.boardIds, ['boardIds'], 'board ID', addIssue);
   reportDuplicates(document.trashedBoardIds, ['trashedBoardIds'], 'trashed board ID', addIssue);
   const activeIds = new Set<string>(document.boardIds);
-  const ownedIds = new Set<string>([...document.boardIds, ...document.trashedBoardIds]);
+  const canonicalIds = new Set<BoardId>([...document.boardIds, ...document.trashedBoardIds]);
+  const alternateOwnerById = new Map<BoardId, BoardId>();
 
   document.boardIds.forEach((boardId, index) => {
     if (!hasOwn(document.boardsById, boardId)) {
@@ -54,6 +55,51 @@ const validateOrderedBoards = (document: ProjectDocumentShape, addIssue: AddIssu
     }
   });
 
+  for (const canonicalId of canonicalIds) {
+    const board = document.boardsById[canonicalId];
+    if (board === undefined) {
+      continue;
+    }
+    reportDuplicates(
+      board.alternateIds,
+      ['boardsById', canonicalId, 'alternateIds'],
+      'alternate ID',
+      addIssue,
+    );
+    board.alternateIds.forEach((alternateId, index) => {
+      if (canonicalIds.has(alternateId)) {
+        addIssue(
+          ['boardsById', canonicalId, 'alternateIds', index],
+          `Alternate '${alternateId}' cannot also be a canonical board.`,
+        );
+      }
+      const existingOwner = alternateOwnerById.get(alternateId);
+      if (existingOwner !== undefined && existingOwner !== canonicalId) {
+        addIssue(
+          ['boardsById', canonicalId, 'alternateIds', index],
+          `Alternate '${alternateId}' is already owned by canonical board '${existingOwner}'.`,
+        );
+      } else {
+        alternateOwnerById.set(alternateId, canonicalId);
+      }
+      if (!hasOwn(document.boardsById, alternateId)) {
+        addIssue(
+          ['boardsById', canonicalId, 'alternateIds', index],
+          `Alternate board '${alternateId}' does not exist in boardsById.`,
+        );
+      }
+    });
+    if (
+      board.selectedAlternateId !== null &&
+      !board.alternateIds.includes(board.selectedAlternateId)
+    ) {
+      addIssue(
+        ['boardsById', canonicalId, 'selectedAlternateId'],
+        `Selected alternate '${board.selectedAlternateId}' is not owned by canonical board '${canonicalId}'.`,
+      );
+    }
+  }
+
   for (const [key, board] of Object.entries(document.boardsById)) {
     if (board.id !== key) {
       addIssue(
@@ -61,11 +107,27 @@ const validateOrderedBoards = (document: ProjectDocumentShape, addIssue: AddIssu
         `Board map key '${key}' does not match record ID '${board.id}'.`,
       );
     }
-    if (!ownedIds.has(key)) {
+    const boardMapId = key as BoardId;
+    const alternateOwner = alternateOwnerById.get(boardMapId);
+    if (!canonicalIds.has(boardMapId) && alternateOwner === undefined) {
       addIssue(
         ['boardsById', key],
-        `Board map key '${key}' is not present in boardIds or trashedBoardIds.`,
+        `Board map key '${key}' is not canonical or owned as an alternate.`,
       );
+    }
+    if (alternateOwner !== undefined) {
+      if (board.alternateIds.length > 0) {
+        addIssue(
+          ['boardsById', key, 'alternateIds'],
+          `Alternate board '${key}' cannot own nested alternates.`,
+        );
+      }
+      if (board.selectedAlternateId !== null) {
+        addIssue(
+          ['boardsById', key, 'selectedAlternateId'],
+          `Alternate board '${key}' cannot select another alternate.`,
+        );
+      }
     }
   }
 };
@@ -91,6 +153,7 @@ const validateMapIdentity = (document: ProjectDocumentShape, addIssue: AddIssue)
 };
 
 const validateElementReferences = (document: ProjectDocumentShape, addIssue: AddIssue): void => {
+  const canonicalBoardIds = new Set<BoardId>([...document.boardIds, ...document.trashedBoardIds]);
   for (const [elementKey, element] of Object.entries(document.elementsById)) {
     reportDuplicates(
       element.childIds,
@@ -123,10 +186,10 @@ const validateElementReferences = (document: ProjectDocumentShape, addIssue: Add
       }
     });
 
-    if (element.link?.kind === 'board' && !hasOwn(document.boardsById, element.link.boardId)) {
+    if (element.link?.kind === 'board' && !canonicalBoardIds.has(element.link.boardId)) {
       addIssue(
         ['elementsById', elementKey, 'link', 'boardId'],
-        `Linked board '${element.link.boardId}' does not exist.`,
+        `Linked canonical board '${element.link.boardId}' does not exist.`,
       );
     }
   }

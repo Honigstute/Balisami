@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BoardIdSchema,
   MAX_DOCUMENT_VALIDATION_ISSUES,
   FOUNDATION_CONTROL_TYPES,
   parseProjectDocument,
@@ -102,6 +103,66 @@ describe('project document schema', () => {
     const missing = createValidProjectDocumentInput();
     missing.trashedBoardIds = ['board_missing01'];
     expect(issuePaths(expectFailure(missing))).toContain('trashedBoardIds.0');
+  });
+
+  it('partitions hidden alternates under exactly one canonical board', () => {
+    const alternateId = BoardIdSchema.parse('board_alternate01');
+    const valid = createValidProjectDocumentInput();
+    const canonical = getBoard(valid, DOCUMENT_FIXTURE_IDS.board);
+    canonical.alternateIds = [alternateId];
+    canonical.selectedAlternateId = alternateId;
+    valid.boardsById[alternateId] = {
+      id: alternateId,
+      name: 'Alternate A',
+      note: { text: 'Try the compact flow.' },
+      childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    expect(parseProjectDocument(valid)).toMatchObject({ ok: true });
+
+    const selectedOutsideFamily = structuredClone(valid);
+    getBoard(selectedOutsideFamily, DOCUMENT_FIXTURE_IDS.board).selectedAlternateId =
+      'board_missing01';
+    expect(issuePaths(expectFailure(selectedOutsideFamily))).toContain(
+      `boardsById.${DOCUMENT_FIXTURE_IDS.board}.selectedAlternateId`,
+    );
+
+    const topLevelAlternate = structuredClone(valid);
+    topLevelAlternate.boardIds.push(alternateId);
+    expect(issuePaths(expectFailure(topLevelAlternate))).toContain(
+      `boardsById.${DOCUMENT_FIXTURE_IDS.board}.alternateIds.0`,
+    );
+
+    const nestedAlternate = structuredClone(valid);
+    getBoard(nestedAlternate, alternateId).alternateIds = ['board_nestedalt01'];
+    expect(issuePaths(expectFailure(nestedAlternate))).toContain(
+      `boardsById.${alternateId}.alternateIds`,
+    );
+
+    const sharedAlternate = structuredClone(valid);
+    const secondCanonicalId = BoardIdSchema.parse('board_altowner002');
+    sharedAlternate.boardIds.push(secondCanonicalId);
+    sharedAlternate.boardsById[secondCanonicalId] = {
+      id: secondCanonicalId,
+      name: 'Second canonical',
+      note: { text: '' },
+      childIds: [],
+      alternateIds: [alternateId],
+      selectedAlternateId: null,
+    };
+    expect(issuePaths(expectFailure(sharedAlternate))).toContain(
+      `boardsById.${secondCanonicalId}.alternateIds.0`,
+    );
+
+    const linkedToAlternate = structuredClone(valid);
+    getElement(linkedToAlternate, DOCUMENT_FIXTURE_IDS.child).link = {
+      kind: 'board',
+      boardId: alternateId,
+    };
+    expect(issuePaths(expectFailure(linkedToAlternate))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.child}.link.boardId`,
+    );
   });
 
   it('rejects unstable IDs, non-finite geometry, unsafe properties, and UI-only fields', () => {

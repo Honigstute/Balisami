@@ -115,6 +115,8 @@ const createSceneFixtureDocument = (): {
         name: 'Scene',
         note: { text: '' },
         childIds: [outerId, groupId],
+        alternateIds: [],
+        selectedAlternateId: null,
       },
     },
     elementsById: {
@@ -218,6 +220,8 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         name: 'Scene',
         note: { text: '' },
         childIds: [rectangleId, titleId, buttonId, inputId],
+        alternateIds: [],
+        selectedAlternateId: null,
       },
     },
     elementsById: {

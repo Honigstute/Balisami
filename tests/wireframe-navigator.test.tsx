@@ -29,6 +29,8 @@ const createTwoBoardDocument = () => {
       id: SECOND_BOARD_ID,
       name: 'Second board',
       note: { text: '' },
+      alternateIds: [],
+      selectedAlternateId: null,
     }),
     index: 1,
   });

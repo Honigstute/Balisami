@@ -24,6 +24,8 @@ const createTwoBoardDocument = (): ProjectDocument => {
     name: 'Second board',
     note: { text: '' },
     childIds: [],
+    alternateIds: [],
+    selectedAlternateId: null,
   };
   const parsed = parseProjectDocument(input);
   if (!parsed.ok) {

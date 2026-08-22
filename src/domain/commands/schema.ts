@@ -36,6 +36,9 @@ export const DOCUMENT_COMMAND_TYPES = Object.freeze({
 const EmptyBoardSchema = BoardSchema.refine((board) => board.childIds.length === 0, {
   message: 'A board.create command can only introduce an empty board.',
   path: ['childIds'],
+}).refine((board) => board.alternateIds.length === 0 && board.selectedAlternateId === null, {
+  message: 'A board.create command cannot introduce alternate-version state.',
+  path: ['alternateIds'],
 });
 
 const EmptyElementSchema = ElementNodeSchema.refine((element) => element.childIds.length === 0, {

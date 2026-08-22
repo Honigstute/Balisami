@@ -46,6 +46,8 @@ const createRecoveryProbeFixture = (): RecoveryProbeFixture => {
         name: 'Recovery proof',
         note: { text: PRIOR_NOTE },
         childIds: [],
+        alternateIds: [],
+        selectedAlternateId: null,
       },
     },
     elementsById: {},

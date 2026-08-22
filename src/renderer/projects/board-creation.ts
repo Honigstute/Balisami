@@ -27,10 +27,12 @@ export const createBoardCreationCommand = (
     return undefined;
   }
   const board = BoardSchema.safeParse({
+    alternateIds: [],
     childIds: [],
     id: boardId,
     name: getNextDefaultBoardName(document),
     note: { text: '' },
+    selectedAlternateId: null,
   });
   return board.success
     ? Object.freeze({

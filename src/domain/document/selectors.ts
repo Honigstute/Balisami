@@ -93,6 +93,24 @@ export const selectOrderedBoards = (document: ProjectDocument): readonly Board[]
     }),
   );
 
+/** Resolves a canonical board to the version currently used by canvas/link/export consumers. */
+export const selectBoardPresentationId = (
+  document: ProjectDocument,
+  canonicalBoardId: BoardId,
+): BoardId | undefined => {
+  if (
+    !document.boardIds.includes(canonicalBoardId) &&
+    !document.trashedBoardIds.includes(canonicalBoardId)
+  ) {
+    return undefined;
+  }
+  const board = document.boardsById[canonicalBoardId];
+  if (board === undefined) {
+    return undefined;
+  }
+  return board.selectedAlternateId ?? board.id;
+};
+
 export const selectOrderedChildren = (
   document: ProjectDocument,
   owner: ElementOwner,
@@ -278,7 +296,7 @@ export const selectBoardCommandAvailability = (
     (element) => element.link?.kind === 'board' && element.link.boardId === boardId,
   );
   return Object.freeze({
-    canDelete: board.childIds.length === 0 && !isLinked,
+    canDelete: board.childIds.length === 0 && board.alternateIds.length === 0 && !isLinked,
     canMoveBackward: index > 0,
     canMoveForward: index < document.boardIds.length - 1,
   });

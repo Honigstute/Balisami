@@ -34,6 +34,7 @@ const NEW_BOARD_ID = BoardIdSchema.parse('board_newboard01');
 const NEW_ELEMENT_ID = ElementIdSchema.parse('element_newnode01');
 const SECOND_NEW_ELEMENT_ID = ElementIdSchema.parse('element_newnode02');
 const MISSING_ELEMENT_ID = ElementIdSchema.parse('element_missing01');
+const ALTERNATE_BOARD_ID = BoardIdSchema.parse('board_alternate01');
 
 const parseFixture = (input: unknown): ProjectDocument => {
   const result = parseProjectDocument(input);
@@ -58,6 +59,8 @@ const createBoard = (id = NEW_BOARD_ID, name = 'New wireframe'): Board =>
     name,
     note: { text: '' },
     childIds: [],
+    alternateIds: [],
+    selectedAlternateId: null,
   });
 
 const createElement = (
@@ -91,6 +94,7 @@ const createTwoBoardDocument = (linkToSecondary = false): ProjectDocument => {
   const secondaryBoard = createBoard(SECONDARY_BOARD_ID, 'Secondary wireframe');
   input.boardsById[SECONDARY_BOARD_ID] = {
     ...secondaryBoard,
+    alternateIds: [...secondaryBoard.alternateIds],
     note: { ...secondaryBoard.note },
     childIds: [...secondaryBoard.childIds],
   };
@@ -179,6 +183,20 @@ describe('document command dispatcher', () => {
     expect(nonEmpty.error.code).toBe('invalid-command');
     expect(nonEmpty.error.issues.map((issue) => issue.path.join('.'))).toContain('board.childIds');
 
+    const withAlternateState = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.createBoard,
+      board: {
+        ...createBoard(),
+        alternateIds: [ALTERNATE_BOARD_ID],
+        selectedAlternateId: ALTERNATE_BOARD_ID,
+      },
+      index: 1,
+    });
+    expect(withAlternateState.error.code).toBe('invalid-command');
+    expect(withAlternateState.error.issues.map((issue) => issue.path.join('.'))).toContain(
+      'board.alternateIds',
+    );
+
     const outOfRange = expectFailure(document, {
       type: DOCUMENT_COMMAND_TYPES.createBoard,
       board: createBoard(),
@@ -186,10 +204,34 @@ describe('document command dispatcher', () => {
     });
     expect(outOfRange.error.code).toBe('out-of-range');
 
-    for (const failure of [duplicate, nonEmpty, outOfRange]) {
+    for (const failure of [duplicate, nonEmpty, withAlternateState, outOfRange]) {
       expect(failure.document).toBe(document);
     }
     expect(JSON.stringify(document)).toBe(originalJson);
+  });
+
+  it('protects canonical boards until their complete alternate family is removed', () => {
+    const input = createValidProjectDocumentInput();
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [];
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.alternateIds = [ALTERNATE_BOARD_ID];
+    input.elementsById = {};
+    input.assetsById = {};
+    input.boardsById[ALTERNATE_BOARD_ID] = {
+      id: ALTERNATE_BOARD_ID,
+      name: 'Alternate',
+      note: { text: '' },
+      childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    const document = parseFixture(input);
+
+    const result = expectFailure(document, {
+      type: DOCUMENT_COMMAND_TYPES.deleteBoard,
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+    });
+    expect(result.error).toMatchObject({ code: 'conflict' });
+    expect(result.error.message).toContain('must have no alternates');
   });
 
   it('renames a board with normalized input, reports no-ops, and restores the prior name', () => {

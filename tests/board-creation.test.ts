@@ -38,10 +38,12 @@ describe('board creation', () => {
     expect(command).toEqual({
       type: DOCUMENT_COMMAND_TYPES.createBoard,
       board: {
+        alternateIds: [],
         childIds: [],
         id: SECOND_BOARD_ID,
         name: 'Wireframe 2',
         note: { text: '' },
+        selectedAlternateId: null,
       },
       index: 1,
     });
@@ -64,6 +66,8 @@ describe('board creation', () => {
         id: SECOND_BOARD_ID,
         name: 'Wireframe 3',
         note: { text: '' },
+        alternateIds: [],
+        selectedAlternateId: null,
       }),
       index: 1,
     });

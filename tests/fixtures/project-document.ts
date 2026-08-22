@@ -63,6 +63,8 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
       name: 'Main wireframe',
       note: { text: 'Fixture board note' },
       childIds: [DOCUMENT_FIXTURE_IDS.group],
+      alternateIds: [],
+      selectedAlternateId: null,
     },
   },
   elementsById: {

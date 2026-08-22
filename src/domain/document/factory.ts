@@ -29,6 +29,8 @@ export const createEmptyProjectDocument = (
         name: boardName,
         note: { text: '' },
         childIds: [],
+        alternateIds: [],
+        selectedAlternateId: null,
       },
     },
     elementsById: {},

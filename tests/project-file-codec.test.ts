@@ -97,6 +97,8 @@ describe('project file codec', () => {
       name: 'Active board',
       note: { text: '' },
       childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
     };
     const asset = input.assetsById[DOCUMENT_FIXTURE_IDS.asset];
     if (asset === undefined) {

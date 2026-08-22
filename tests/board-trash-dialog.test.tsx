@@ -15,6 +15,8 @@ describe('board trash confirmation', () => {
           name: 'Checkout',
           note: { text: '' },
           childIds: [],
+          alternateIds: [],
+          selectedAlternateId: null,
         })}
         onCancel={onCancel}
         onConfirm={onConfirm}
