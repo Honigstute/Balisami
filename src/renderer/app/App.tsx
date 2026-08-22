@@ -517,8 +517,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     );
     const deleteSelectionSource: SelectionDeleteSource = {
       commit(commands) {
+        const deletedElementCount = commands.filter(
+          (command) => command.type === DOCUMENT_COMMAND_TYPES.deleteElement,
+        ).length;
         const result = session.dispatchTransaction(commands, {
-          label: commands.length === 1 ? 'Delete element' : 'Delete elements',
+          label: deletedElementCount === 1 ? 'Delete element' : 'Delete elements',
         });
         return result?.ok === true && result.changed ? result.history.document : undefined;
       },

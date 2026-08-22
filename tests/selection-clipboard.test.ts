@@ -311,6 +311,9 @@ describe('selection clipboard paste', () => {
     ).toBe(true);
     const cutDocument = history.document;
     expect(cutDocument.elementsById[DOCUMENT_FIXTURE_IDS.group]?.childIds).toEqual([SECOND_ID]);
+    expect(cutDocument.assetsById[DOCUMENT_FIXTURE_IDS.asset]).toBe(
+      document.assetsById[DOCUMENT_FIXTURE_IDS.asset],
+    );
     expect(clipboard.getSnapshot().payload?.kind).toBe('cut');
     expect(selection.getSnapshot().selectedIds).toEqual([]);
 

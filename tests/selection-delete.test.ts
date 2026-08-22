@@ -71,6 +71,7 @@ describe('selection delete planning', () => {
       commands: [
         { type: 'element.delete', elementId: DOCUMENT_FIXTURE_IDS.child },
         { type: 'element.delete', elementId: THIRD_ID },
+        { type: 'asset.delete', assetId: DOCUMENT_FIXTURE_IDS.asset },
       ],
       elementIds: [DOCUMENT_FIXTURE_IDS.child, THIRD_ID],
     });
@@ -148,6 +149,7 @@ describe('selection delete planning', () => {
       forwardCommands: [
         { elementId: DOCUMENT_FIXTURE_IDS.child, type: 'element.delete' },
         { elementId: THIRD_ID, type: 'element.delete' },
+        { assetId: DOCUMENT_FIXTURE_IDS.asset, type: 'asset.delete' },
       ],
       label: 'Delete elements',
     });

@@ -15,6 +15,7 @@ import {
   type ProjectDocument,
 } from '../../domain';
 import { planBoardContentClone, planBoardContentDelete } from './board-content-clone';
+import { planCommandsWithUnusedAssetCleanup } from './unused-asset-cleanup';
 
 export const BOARD_ALTERNATE_MERGE_GAP = 80;
 
@@ -153,10 +154,9 @@ export const planBoardAlternatePromote = (
     return undefined;
   }
 
-  return Object.freeze({
-    alternateId,
-    canonicalBoardId,
-    commands: Object.freeze([
+  const commands = planCommandsWithUnusedAssetCleanup(
+    document,
+    Object.freeze([
       createFormerOfficial.data,
       ...cloneFormerOfficial.commands,
       ...deleteOfficial,
@@ -168,6 +168,15 @@ export const planBoardAlternatePromote = (
         alternateId: null,
       },
     ]),
+  );
+  if (commands === undefined) {
+    return undefined;
+  }
+
+  return Object.freeze({
+    alternateId,
+    canonicalBoardId,
+    commands,
     formerOfficialId,
   });
 };
@@ -288,9 +297,16 @@ export const planBoardAlternateDiscard = (
   if (deleteContent === undefined || !deleteAlternate.success) {
     return undefined;
   }
+  const commands = planCommandsWithUnusedAssetCleanup(
+    document,
+    Object.freeze([...deleteContent, deleteAlternate.data]),
+  );
+  if (commands === undefined) {
+    return undefined;
+  }
   return Object.freeze({
     alternateId,
     canonicalBoardId,
-    commands: Object.freeze([...deleteContent, deleteAlternate.data]),
+    commands,
   });
 };

@@ -220,7 +220,9 @@ export const cutSelectedElements = (
   );
   if (
     payload === undefined ||
-    !deleteSelectedElements(document, selection, canonicalElementIds, source)
+    !deleteSelectedElements(document, selection, canonicalElementIds, source, {
+      retainReferencedAssets: true,
+    })
   ) {
     return false;
   }

@@ -271,7 +271,7 @@ describe('application shell', () => {
       });
       expect(fireEvent(viewport, drop)).toBe(false);
 
-      const undo = await screen.findByRole('button', { name: 'Undo Import image' });
+      await screen.findByRole('button', { name: 'Undo Import image' });
       expect(screen.getByRole('heading', { name: 'Image' })).toBeInTheDocument();
       await waitFor(() => {
         expect(
@@ -283,7 +283,24 @@ describe('application shell', () => {
       expect(createObjectUrl).toHaveBeenCalledOnce();
       expect(close).toHaveBeenCalledOnce();
 
-      fireEvent.click(undo);
+      fireEvent.keyDown(viewport, { code: 'Delete' });
+      const undoDelete = await screen.findByRole('button', { name: 'Undo Delete element' });
+      expect(screen.queryByRole('heading', { name: 'Image' })).not.toBeInTheDocument();
+      expect(
+        document.querySelector('[data-control-type="wireframe.image-placeholder"]'),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(undoDelete);
+      await waitFor(() => {
+        expect(
+          document.querySelector(
+            '[data-control-type="wireframe.image-placeholder"] .scene-control__image',
+          ),
+        ).toHaveAttribute('href', 'blob:balsamic-imported-image');
+      });
+      expect(createObjectUrl).toHaveBeenCalledTimes(2);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo Import image' }));
       expect(screen.getByRole('button', { name: 'Redo Import image' })).toBeEnabled();
       expect(screen.queryByRole('heading', { name: 'Image' })).not.toBeInTheDocument();
     } finally {

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BoardIdSchema,
+  DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   createDocumentHistory,
   dispatchHistoryTransaction,
@@ -34,7 +35,7 @@ const CLONE_IDS = [
   ElementIdSchema.parse('element_lifecycle_clone04'),
 ] as const;
 
-const createLifecycleDocument = (): ProjectDocument => {
+const createLifecycleDocument = (alternateOwnsAsset = false): ProjectDocument => {
   const input = createValidProjectDocumentInput();
   const canonicalBoard = input.boardsById[DOCUMENT_FIXTURE_IDS.board];
   const group = input.elementsById[DOCUMENT_FIXTURE_IDS.group];
@@ -43,7 +44,9 @@ const createLifecycleDocument = (): ProjectDocument => {
     throw new Error('Alternate lifecycle fixture is incomplete.');
   }
   child.assetIds = [];
-  input.assetsById = {};
+  if (!alternateOwnsAsset) {
+    input.assetsById = {};
+  }
   canonicalBoard.alternateIds = [ALTERNATE_ID];
   canonicalBoard.selectedAlternateId = ALTERNATE_ID;
   input.boardsById[ALTERNATE_ID] = {
@@ -62,6 +65,7 @@ const createLifecycleDocument = (): ProjectDocument => {
   };
   input.elementsById[ALTERNATE_CHILD_ID] = {
     ...child,
+    assetIds: alternateOwnsAsset ? [DOCUMENT_FIXTURE_IDS.asset] : [],
     id: ALTERNATE_CHILD_ID,
     frame: { x: 20, y: 30, width: 100, height: 40 },
     link: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
@@ -175,6 +179,26 @@ describe('board alternate lifecycle planners', () => {
       selectedAlternateId: null,
     });
     expect(history.undoEntries).toHaveLength(1);
+    expect(undoDocumentHistory(history)).toMatchObject({
+      changed: true,
+      history: { document },
+      ok: true,
+    });
+  });
+
+  it('deletes an asset owned only by discarded alternate content and restores it on undo', () => {
+    const document = createLifecycleDocument(true);
+    const plan = planBoardAlternateDiscard(document, DOCUMENT_FIXTURE_IDS.board, ALTERNATE_ID);
+    if (plan === undefined) {
+      throw new Error('Expected an asset-owning alternate discard plan.');
+    }
+    expect(plan.commands.at(-1)).toEqual({
+      type: DOCUMENT_COMMAND_TYPES.deleteAsset,
+      assetId: DOCUMENT_FIXTURE_IDS.asset,
+    });
+
+    const history = applyTransaction(document, plan.commands);
+    expect(history.document.assetsById[DOCUMENT_FIXTURE_IDS.asset]).toBeUndefined();
     expect(undoDocumentHistory(history)).toMatchObject({
       changed: true,
       history: { document },
