@@ -247,4 +247,110 @@ describe('canonical parsed-row scene projection', () => {
       }
     }
   });
+
+  it('projects Tree Pane hierarchy, syntax adornments, selection, and disabled state once', () => {
+    const definition = getControlSpec(CONTROL_TYPES.treePane);
+    if (definition === undefined) throw new Error('Tree Pane definition is missing.');
+    const properties = Object.freeze({
+      ...definition.defaultProperties,
+      items: [
+        'f Closed',
+        'F Open',
+        '- File',
+        '[+] Plus',
+        '[-] Minus',
+        '[x] Checked',
+        '[ ] Unchecked',
+        '> Closed disclosure',
+        'v Open disclosure',
+        '.._ Custom slot',
+      ].join('\n'),
+      state: 'disabled',
+    });
+    const initial = createInitialControlRowState(definition, ELEMENT_ID, properties);
+    if (initial === undefined) throw new Error('Tree Pane row state is invalid.');
+    const selectedId = initial.rowData.bindings[2]?.id;
+    if (selectedId === undefined) throw new Error('Tree Pane selected row is missing.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(10, 20, 300, 300),
+      definition,
+      identity: ELEMENT_ID,
+      properties: Object.freeze({ ...initial.properties, selectedRowId: selectedId }),
+      rowData: initial.rowData,
+      textMeasurementService: createRealMeasurementService(),
+    });
+
+    expect(projection.disabled).toBe(true);
+    expect(projection.opacity).toBe(0.45);
+    expect(projection.selectedRow?.id).toBe(selectedId);
+    expect(projection.rows).toHaveLength(10);
+    expect(projection.rows.map((row) => row.adornment?.strokePath.length ?? 0)).toEqual([
+      0,
+      0,
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Number),
+      0,
+      0,
+      0,
+    ]);
+    expect(projection.rows.map((row) => row.adornment?.fillPath.length ?? 0)).toEqual([
+      expect.any(Number),
+      expect.any(Number),
+      0,
+      0,
+      0,
+      0,
+      0,
+      expect.any(Number),
+      expect.any(Number),
+      0,
+    ]);
+    expect(projection.rows[9]!.labelX - projection.rows[0]!.labelX).toBe(40);
+    expect(projection.textLayout?.lines.map((line) => line.text)).toEqual([
+      'Closed',
+      'Open',
+      'File',
+      'Plus',
+      'Minus',
+      'Checked',
+      'Unchecked',
+      'Closed disclosure',
+      'Open disclosure',
+      'Custom slot',
+    ]);
+  });
+
+  it('keeps dense deep Tree Pane adornment geometry finite at minimum height', () => {
+    const definition = getControlSpec(CONTROL_TYPES.treePane);
+    if (definition === undefined || definition.rows === null) {
+      throw new Error('Tree Pane definition is missing.');
+    }
+    const properties = Object.freeze({
+      ...definition.defaultProperties,
+      items: Array.from(
+        { length: definition.rows.maximum },
+        (_, index) => `${'.'.repeat(32)}f Row ${String(index + 1)}`,
+      ).join('\n'),
+    });
+    const initial = createInitialControlRowState(definition, ELEMENT_ID, properties);
+    if (initial === undefined) throw new Error('Dense Tree Pane row state is invalid.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, definition.minimumSize.width, definition.minimumSize.height),
+      definition,
+      identity: ELEMENT_ID,
+      properties: initial.properties,
+      rowData: initial.rowData,
+      textMeasurementService: createRealMeasurementService(),
+    });
+
+    expect(projection.rows).toHaveLength(definition.rows.maximum);
+    for (const row of projection.rows) {
+      expect(row.bounds.height).toBeGreaterThanOrEqual(0);
+      expect(row.labelX).toBeGreaterThanOrEqual(row.bounds.x);
+      expect(row.adornment?.fillPath).not.toMatch(/NaN|Infinity|A -/u);
+    }
+  });
 });

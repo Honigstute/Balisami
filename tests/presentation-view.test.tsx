@@ -289,6 +289,62 @@ const createMarkerRowPresentationDocument = (): ProjectDocument => {
   return parsed.value;
 };
 
+const createTreeRowPresentationDocument = (
+  state: 'disabled' | 'normal' = 'normal',
+): ProjectDocument => {
+  const treePane = getControlSpec(CONTROL_TYPES.treePane);
+  if (treePane === undefined) throw new Error('Tree Pane definition is missing.');
+  const initial = createInitialControlRowState(treePane, ROW_LINK_ID, treePane.defaultProperties);
+  if (initial === undefined) throw new Error('Tree Pane rows could not be created.');
+  const selectedRowId = initial.rowData.bindings[8]?.id;
+  if (selectedRowId === undefined) throw new Error('Tree Pane selected row is missing.');
+  const parsed = parseProjectDocument({
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
+    id: ProjectIdSchema.parse('project_treepresentation'),
+    name: 'Tree Pane presentation fixture',
+    boardIds: [HOME_ID],
+    componentIds: [],
+    trashedBoardIds: [],
+    boardsById: {
+      [HOME_ID]: {
+        id: HOME_ID,
+        name: 'Home',
+        note: { text: '' },
+        childIds: [ROW_LINK_ID],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+    },
+    componentsById: {},
+    elementsById: {
+      [ROW_LINK_ID]: {
+        id: ROW_LINK_ID,
+        controlType: treePane.type,
+        controlVersion: treePane.fileVersion,
+        frame: { x: 30, y: 30, width: 300, height: 285 },
+        locked: false,
+        properties: { ...initial.properties, selectedRowId, state },
+        childIds: [],
+        assetIds: [],
+        link: null,
+        rowData: {
+          ...initial.rowData,
+          bindings: initial.rowData.bindings.map((binding, index) => ({
+            ...binding,
+            link:
+              index === 8
+                ? { kind: 'external' as const, url: 'https://example.com/tree-file' }
+                : null,
+          })),
+        },
+      },
+    },
+    assetsById: {},
+  });
+  if (!parsed.ok) throw new Error('Tree Pane presentation fixture is invalid.');
+  return parsed.value;
+};
+
 const rowTextMeasurementService: ControlTextMeasurementService = {
   measure: ({ fontSize, text }) => ({
     baselineOffsets: [fontSize],
@@ -331,6 +387,44 @@ describe('board presentation', () => {
       item?.rows.filter(({ disabled }) => !disabled).map(({ id }) => id),
     );
     expect(document.elementsById[ROW_LINK_ID]?.rowData.bindings[3]?.link).not.toBeNull();
+  });
+
+  it('shares Tree Pane adornments, current-row accessibility, and disabled activation rules', () => {
+    const normal = createTreeRowPresentationDocument();
+    const projection = createBoardPresentationProjection(
+      normal,
+      HOME_ID,
+      rowTextMeasurementService,
+    );
+    expect(projection?.items[0]?.rows[0]?.adornment?.fillPath).not.toBe('');
+    expect(projection?.items[0]?.rows[8]?.adornment?.strokePath).not.toBe('');
+
+    const onOpenExternal = vi.fn().mockResolvedValue(true);
+    const view = render(
+      <PresentationView
+        document={normal}
+        initialBoardId={HOME_ID}
+        onExit={vi.fn()}
+        onOpenExternal={onOpenExternal}
+        textMeasurementService={rowTextMeasurementService}
+      />,
+    );
+    const linkedFile = screen.getByRole('link', { name: 'Use - for a file icon' });
+    expect(linkedFile).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(linkedFile);
+    expect(onOpenExternal).toHaveBeenCalledWith('https://example.com/tree-file');
+
+    view.rerender(
+      <PresentationView
+        document={createTreeRowPresentationDocument('disabled')}
+        initialBoardId={HOME_ID}
+        onExit={vi.fn()}
+        onOpenExternal={onOpenExternal}
+        textMeasurementService={rowTextMeasurementService}
+      />,
+    );
+    expect(screen.queryByRole('link', { name: 'Use - for a file icon' })).not.toBeInTheDocument();
+    expect(normal.elementsById[ROW_LINK_ID]?.rowData.bindings[8]?.link).not.toBeNull();
   });
 
   it('navigates linked boards, supports back/forward, opens external links, and exits', () => {

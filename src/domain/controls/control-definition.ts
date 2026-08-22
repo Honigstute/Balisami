@@ -192,6 +192,11 @@ export interface ControlInspectorSection {
  * stable identities and first-class links for those parsed rows.
  */
 export interface ControlRowsDefinition {
+  /** Optional syntax-backed hierarchy/adornment grammar for tree rows. */
+  readonly adornment: Readonly<{
+    readonly defaultKind: 'folder-closed';
+    readonly kind: 'tree';
+  }> | null;
   /** Source paints delimiter syntax; labels paints only parsed labels in their row geometry. */
   readonly display: 'labels' | 'source';
   /** Inline rows use measured spans; segments use cells; stack owns one row per line. */
@@ -395,13 +400,20 @@ export const assertControlDefinitionsConform = (
         typeof rows.links !== 'boolean' ||
         !['labels', 'source'].includes(rows.display) ||
         !['inline', 'segments', 'stack'].includes(rows.layout) ||
+        (rows.adornment !== null &&
+          (rows.layout !== 'stack' ||
+            rows.display !== 'labels' ||
+            rows.separator !== '\n' ||
+            rows.adornment.kind !== 'tree' ||
+            rows.adornment.defaultKind !== 'folder-closed')) ||
         (rows.marker !== null &&
           (rows.layout !== 'stack' ||
             rows.display !== 'labels' ||
             rows.separator !== '\n' ||
             !['checkbox', 'radio'].includes(rows.marker.kind) ||
             rows.marker.defaultState !== 'unchecked')) ||
-        (rows.layout === 'stack' && rows.marker === null) ||
+        (rows.marker !== null && rows.adornment !== null) ||
+        (rows.layout === 'stack' && rows.marker === null && rows.adornment === null) ||
         (rows.selection !== null &&
           (rows.selection.property.trim().length === 0 ||
             !['fill', 'text'].includes(rows.selection.appearance.kind) ||
@@ -414,7 +426,9 @@ export const assertControlDefinitionsConform = (
       ) {
         throw new Error(`Control '${definition.type}' has invalid parsed-row metadata.`);
       }
-      const defaultRows = defaultRowSource.split(rows.separator).map((label) => label.trim());
+      const defaultRows = defaultRowSource
+        .split(rows.separator)
+        .map((label) => (rows.adornment?.kind === 'tree' ? label.trimEnd() : label.trim()));
       if (
         defaultRows.length < rows.minimum ||
         defaultRows.length > rows.maximum ||

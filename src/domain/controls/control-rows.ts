@@ -12,14 +12,31 @@ import type { ControlDefinition, ControlRowsDefinition } from './control-definit
 
 /** Individual parsed labels stay bounded even when the owning text property is multiline. */
 export const MAX_CONTROL_ROW_LABEL_LENGTH = Math.min(2_048, CONTROL_TEXT_POLICY.maximumLength);
+/** Bounds syntax-owned hierarchy so loaded source cannot project unbounded geometry. */
+export const MAX_CONTROL_ROW_DEPTH = 32;
 
 export interface ParsedControlRow {
+  readonly adornment:
+    | 'checkbox-checked'
+    | 'checkbox-unchecked'
+    | 'disclosure-closed'
+    | 'disclosure-open'
+    | 'file'
+    | 'folder-closed'
+    | 'folder-open'
+    | 'minus'
+    | 'plus'
+    | 'spacer'
+    | null;
+  readonly depth: number;
   readonly disabled: boolean;
   readonly label: string;
   readonly marker: 'indeterminate' | 'selected' | 'unchecked' | null;
 }
 
 export interface ControlRowEdit {
+  readonly adornment: ParsedControlRow['adornment'];
+  readonly depth: number;
   readonly disabled: boolean;
   readonly generation: number;
   readonly id: ElementRowId;
@@ -54,11 +71,69 @@ const parseMarkerToken = (
   return undefined;
 };
 
+const TREE_ADORNMENT_BY_TOKEN = Object.freeze({
+  F: 'folder-open',
+  '[ ]': 'checkbox-unchecked',
+  '[+]': 'plus',
+  '[-]': 'minus',
+  '[x]': 'checkbox-checked',
+  _: 'spacer',
+  f: 'folder-closed',
+  '-': 'file',
+  '>': 'disclosure-closed',
+  v: 'disclosure-open',
+} as const);
+
+const TREE_TOKEN_BY_ADORNMENT: Readonly<
+  Record<Exclude<ParsedControlRow['adornment'], null>, string>
+> = Object.freeze({
+  'checkbox-checked': '[x]',
+  'checkbox-unchecked': '[ ]',
+  'disclosure-closed': '>',
+  'disclosure-open': 'v',
+  file: '-',
+  'folder-closed': 'f',
+  'folder-open': 'F',
+  minus: '[-]',
+  plus: '[+]',
+  spacer: '_',
+});
+
+const parseTreeRowSource = (source: string): ParsedControlRow | undefined => {
+  if (source.length > 0 && /^\s$/u.test(source[0]!) && source[0] !== ' ') return undefined;
+  const indentationUnit = source[0] === '.' || source[0] === ' ' ? source[0] : undefined;
+  let depth = 0;
+  while (indentationUnit !== undefined && source[depth] === indentationUnit) depth += 1;
+  // Public examples use either dots (`..f Child`) or spaces (`  f Child`)
+  // as one unit per level. Mixing both is ambiguous and would over-indent.
+  if (
+    depth > MAX_CONTROL_ROW_DEPTH ||
+    source[depth] === '.' ||
+    source[depth] === ' ' ||
+    (source[depth] !== undefined && /^\s$/u.test(source[depth]!))
+  ) {
+    return undefined;
+  }
+  let remaining = source.slice(depth);
+  let adornment: ParsedControlRow['adornment'] = null;
+  for (const token of ['[ ]', '[+]', '[-]', '[x]', 'F', 'f', '-', '>', 'v', '_'] as const) {
+    if (remaining.startsWith(`${token} `)) {
+      adornment = TREE_ADORNMENT_BY_TOKEN[token];
+      remaining = remaining.slice(token.length + 1);
+      break;
+    }
+  }
+  const label = remaining.trim();
+  if (label.length === 0 || label.length > MAX_CONTROL_ROW_LABEL_LENGTH) return undefined;
+  return Object.freeze({ adornment, depth, disabled: false, label, marker: null });
+};
+
 /** Parses one row using only the definition-owned marker grammar. */
 export const parseControlRowSource = (
   rows: ControlRowsDefinition,
   source: string,
 ): ParsedControlRow | undefined => {
+  if (rows.adornment?.kind === 'tree') return parseTreeRowSource(source);
   let remaining = source.trim();
   let marker: ParsedControlRow['marker'] = null;
   if (rows.marker !== null) {
@@ -89,14 +164,18 @@ export const parseControlRowSource = (
     return undefined;
   }
   if (remaining.length === 0 || remaining.length > MAX_CONTROL_ROW_LABEL_LENGTH) return undefined;
-  return Object.freeze({ disabled, label: remaining, marker });
+  return Object.freeze({ adornment: null, depth: 0, disabled, label: remaining, marker });
 };
 
 /** Canonicalizes marker syntax while keeping the visible label free of delimiters. */
 export const formatControlRowSource = (
   rows: ControlRowsDefinition,
-  row: Pick<ParsedControlRow, 'disabled' | 'label' | 'marker'>,
+  row: Pick<ParsedControlRow, 'adornment' | 'depth' | 'disabled' | 'label' | 'marker'>,
 ): string => {
+  if (rows.adornment?.kind === 'tree') {
+    const token = row.adornment === null ? '' : `${TREE_TOKEN_BY_ADORNMENT[row.adornment]} `;
+    return `${'.'.repeat(row.depth)}${token}${row.label.trim()}`;
+  }
   const prefix =
     rows.marker === null || row.marker === null
       ? ''
@@ -121,7 +200,11 @@ export const parseControlRows = (
 ): readonly ParsedControlRow[] | undefined => {
   const source = properties[rows.property];
   if (typeof source !== 'string') return undefined;
-  const sources = source.split(rows.separator).map((part) => part.trim());
+  // Tree indentation is syntax, so only non-hierarchical row families trim
+  // each source line before parsing.
+  const sources = source
+    .split(rows.separator)
+    .map((part) => (rows.adornment?.kind === 'tree' ? part.trimEnd() : part.trim()));
   if (
     sources.length < rows.minimum ||
     sources.length > rows.maximum ||
@@ -239,6 +322,8 @@ export const createControlRowEdits = (
       const binding = element.rowData.bindings[index]!;
       return Object.freeze({
         ...binding,
+        adornment: row.adornment,
+        depth: row.depth,
         disabled: row.disabled,
         label: row.label,
         marker: row.marker,
@@ -273,6 +358,12 @@ export const createControlRowsUpdate = (
         edit.label.length > MAX_CONTROL_ROW_LABEL_LENGTH ||
         edit.generation >= nextId ||
         edit.id !== createElementRowId(element.id, edit.generation) ||
+        !Number.isSafeInteger(edit.depth) ||
+        edit.depth < 0 ||
+        edit.depth > MAX_CONTROL_ROW_DEPTH ||
+        (rows.adornment === null && (edit.adornment !== null || edit.depth !== 0)) ||
+        (edit.adornment !== null && TREE_TOKEN_BY_ADORNMENT[edit.adornment] === undefined) ||
+        (rows.adornment !== null && (edit.marker !== null || edit.disabled)) ||
         (rows.marker === null && (edit.marker !== null || edit.disabled)) ||
         (rows.marker !== null &&
           edit.marker !== null &&
@@ -373,6 +464,8 @@ export const appendControlRowEdit = (
     edits: Object.freeze([
       ...edits,
       Object.freeze({
+        adornment: definition.rows?.adornment?.defaultKind ?? null,
+        depth: 0,
         disabled: false,
         generation,
         id: createElementRowId(element.id, generation),

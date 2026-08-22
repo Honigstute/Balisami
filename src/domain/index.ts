@@ -152,6 +152,7 @@ export {
   createElementRowId,
   createInitialControlRowState,
   formatControlRowSource,
+  MAX_CONTROL_ROW_DEPTH,
   parseControlRowSource,
   parseControlRows,
   rekeyControlRowState,

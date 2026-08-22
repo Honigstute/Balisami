@@ -85,6 +85,32 @@ describe('registry-driven control auto-size', () => {
     expect(measure).toHaveBeenCalledTimes(7);
   });
 
+  it('includes hierarchy depth, adornment slot, and the longest label in Tree Pane width', () => {
+    const definition = getControlSpec(CONTROL_TYPES.treePane);
+    const inserted = createElement(CONTROL_TYPES.treePane);
+    if (definition === undefined || inserted === undefined) {
+      throw new Error('Tree Pane fixture is missing.');
+    }
+    const element = Object.freeze({
+      ...inserted,
+      properties: Object.freeze({
+        ...definition.defaultProperties,
+        items: 'f Root\n...- A deeply nested long leaf',
+      }),
+    });
+    const measure = vi.fn((request: { text: string }) => ({
+      baselineOffsets: [10],
+      height: 16,
+      lineCount: 1,
+      lineHeight: 16,
+      lines: [request.text],
+      width: request.text === 'A deeply nested long leaf' ? 120 : 30,
+    }));
+
+    // 120 label + 3 hierarchy slots + 1 adornment slot + 8 outer insets.
+    expect(calculateControlAutoSizeFrame(element, { measure })?.width).toBe(208);
+  });
+
   it('measures registered text and projects the frame without changing its origin', () => {
     const element = createElement();
     if (element === undefined) {

@@ -144,6 +144,7 @@ describe('alpha control authoring UI', () => {
       'Breadcrumbs',
       'Button Bar',
       'Link Bar',
+      'Tree Pane',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -183,6 +184,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.breadcrumbs,
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
+      CONTROL_TYPES.treePane,
     ]);
   });
 
@@ -637,6 +639,49 @@ describe('alpha control authoring UI', () => {
     expect(update?.properties.items).toContain('[x] -Renamed and disabled-');
     expect(screen.getByRole('heading', { name: 'Color' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+  });
+
+  it('edits Tree Pane hierarchy syntax and optional stable selection through the generic inspector', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.treePane);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    const labels = screen.getAllByRole<HTMLInputElement>('textbox', { name: 'Label' });
+    expect(labels[0]).toHaveValue('f Use f for closed folders');
+    fireEvent.change(labels[0]!, { target: { value: '..- Nested file' } });
+    fireEvent.blur(labels[0]!);
+    expect(onSetProperties).toHaveBeenCalledOnce();
+    const firstUpdate = onSetProperties.mock.calls[0]?.[0]?.[0];
+    expect(firstUpdate).toMatchObject({
+      elementId,
+      rowData: document.elementsById[elementId]?.rowData,
+    });
+    expect(firstUpdate?.properties.items).toContain('..- Nested file');
+    fireEvent.click(screen.getByRole('button', { name: 'Selection' }));
+    expect(screen.getByRole('option', { name: 'None' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Show Border' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      within(screen.getByRole('group', { name: 'Scrollbar' })).getByRole('button', {
+        name: 'Unchecked',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
   });
 
   it('edits stable row selection generically and exposes None only when the registry allows it', () => {

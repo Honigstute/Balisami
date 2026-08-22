@@ -440,19 +440,21 @@ class DocumentScenePresenter {
   #updateElementRowMarkers(layer: SVGGElement, projection: ControlSceneProjection): void {
     layer.replaceChildren();
     for (const row of projection.rows) {
-      if (row.marker === null) continue;
+      const decoration = row.marker ?? row.adornment;
+      if (decoration === null) continue;
       const marker = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
       const stroke = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
-      marker.dataset.controlRowMarker = row.id;
+      if (row.marker !== null) marker.dataset.controlRowMarker = row.id;
+      if (row.adornment !== null) marker.dataset.controlRowAdornment = row.id;
       if (row.disabled) marker.setAttribute('opacity', String(DESIGN_TOKENS.opacity.disabled));
       stroke.setAttribute('class', 'scene-control__row-marker-stroke');
-      stroke.setAttribute('d', row.marker.strokePath);
+      stroke.setAttribute('d', decoration.strokePath);
       if (projection.strokeColor !== undefined) stroke.style.stroke = projection.strokeColor;
       marker.append(stroke);
-      if (row.marker.fillPath.length > 0) {
+      if (decoration.fillPath.length > 0) {
         const fill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
         fill.setAttribute('class', 'scene-control__row-marker-fill');
-        fill.setAttribute('d', row.marker.fillPath);
+        fill.setAttribute('d', decoration.fillPath);
         if (projection.strokeColor !== undefined) fill.style.fill = projection.strokeColor;
         marker.append(fill);
       }

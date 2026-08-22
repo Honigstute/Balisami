@@ -51,6 +51,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.breadcrumbs,
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
+      CONTROL_TYPES.treePane,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -95,6 +96,7 @@ describe('control definition registry', () => {
       'Breadcrumbs',
       'Button Bar',
       'Link Bar',
+      'Tree Pane',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -623,6 +625,21 @@ describe('control definition registry', () => {
         },
       ]),
     ).toThrow(/default parsed rows/u);
+    const treePane = getControlSpec(CONTROL_TYPES.treePane);
+    if (treePane?.rows === null || treePane?.rows === undefined) {
+      throw new Error('Tree Pane definition is missing.');
+    }
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...treePane,
+          rows: {
+            ...treePane.rows,
+            adornment: { kind: 'tree', defaultKind: 'folder-open' },
+          } as unknown as typeof treePane.rows,
+        },
+      ]),
+    ).toThrow(/parsed-row metadata/u);
   });
 
   it('owns child-container capability and rejects unknown control types', () => {

@@ -253,4 +253,49 @@ describe('board thumbnail projection', () => {
     expect(item?.rows[3]?.disabled).toBe(true);
     expect(item?.textLayout?.lines[3]?.opacity).toBe(0.48);
   });
+
+  it('carries Tree Pane hierarchy adornments and selection through navigator thumbnails', () => {
+    const input = createValidProjectDocumentInput();
+    const treePane = getControlSpec(CONTROL_TYPES.treePane);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (treePane === undefined || child === undefined) {
+      throw new Error('Tree Pane thumbnail fixture is incomplete.');
+    }
+    const initial = createInitialControlRowState(
+      treePane,
+      DOCUMENT_FIXTURE_IDS.child,
+      treePane.defaultProperties,
+    );
+    if (initial === undefined) throw new Error('Tree Pane row state is invalid.');
+    const selectedRowId = initial.rowData.bindings[2]?.id;
+    if (selectedRowId === undefined) throw new Error('Tree Pane selected row is missing.');
+    child.controlType = treePane.type;
+    child.controlVersion = treePane.fileVersion;
+    child.frame = { x: 0, y: 0, width: 300, height: 285 };
+    child.properties = {
+      ...structuredClone(initial.properties),
+      selectedRowId,
+    };
+    child.rowData = structuredClone(initial.rowData) as unknown as typeof child.rowData;
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Tree Pane thumbnail fixture is invalid.');
+    const item = createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board, {
+      measure: ({ fontSize, text }) => ({
+        baselineOffsets: text.split('\n').map((_, index) => fontSize * (index + 1)),
+        height: text.split('\n').length * fontSize * 1.2,
+        lineCount: text.split('\n').length,
+        lineHeight: fontSize * 1.2,
+        lines: text.split('\n'),
+        width: Math.max(...text.split('\n').map((line) => line.length * fontSize * 0.5)),
+      }),
+    })?.items[0];
+
+    expect(item?.rows).toHaveLength(initial.rowData.bindings.length);
+    expect(item?.rows[0]?.adornment?.fillPath).not.toBe('');
+    expect(item?.rows[1]?.adornment?.fillPath).not.toBe('');
+    expect(item?.rows[2]?.adornment?.strokePath).not.toBe('');
+    expect(item?.selectedRow).toMatchObject({ id: selectedRowId, appearance: 'fill' });
+  });
 });

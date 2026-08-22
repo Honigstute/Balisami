@@ -72,6 +72,7 @@ describe('control library query', () => {
       CONTROL_TYPES.breadcrumbs,
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
+      CONTROL_TYPES.treePane,
     ]);
   });
 

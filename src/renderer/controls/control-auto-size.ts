@@ -71,10 +71,7 @@ export const calculateControlAutoSizeFrame = (
           if (first === undefined)
             return measurementService.measure({ ...measurementRequest, text: '' });
           if (definition.rows.layout === 'stack') {
-            const markerWidth =
-              definition.rows.marker === null
-                ? 0
-                : DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1];
+            const decorationWidth = DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1];
             return Object.freeze({
               ...first,
               height:
@@ -83,8 +80,13 @@ export const calculateControlAutoSizeFrame = (
                   DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1],
                 ) * labels.length,
               width: Math.max(
-                ...labels.map((label, index) =>
-                  parsedRows[index]?.marker === null ? label.width : label.width + markerWidth,
+                ...labels.map(
+                  (label, index) =>
+                    label.width +
+                    (parsedRows[index]?.depth ?? 0) * decorationWidth +
+                    (parsedRows[index]?.marker === null && parsedRows[index]?.adornment === null
+                      ? 0
+                      : decorationWidth),
                 ),
               ),
             });

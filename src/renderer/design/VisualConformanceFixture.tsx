@@ -501,7 +501,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   const fixture = createAlphaFixtureDocument();
   const breadcrumbsId = ElementIdSchema.parse('element_registrybreadcrumbs');
   const buttonBarId = ElementIdSchema.parse('element_registrybuttonbar');
-  const checkboxGroupId = ElementIdSchema.parse('element_registrycheckboxgroup');
+  const treePaneId = ElementIdSchema.parse('element_registrytreepane');
   const checkboxId = ElementIdSchema.parse('element_registrycheckbox');
   const browserId = ElementIdSchema.parse('element_registrybrowser');
   const imageId = ElementIdSchema.parse('element_registryimage');
@@ -532,17 +532,17 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
   if (buttonBarInitial === undefined) {
     throw new Error('The deterministic Button Bar row fixture is invalid.');
   }
-  const checkboxGroupDefinition = getControlSpec(CONTROL_TYPES.checkboxGroup);
-  const checkboxGroupInitial =
-    checkboxGroupDefinition === undefined
+  const treePaneDefinition = getControlSpec(CONTROL_TYPES.treePane);
+  const treePaneInitial =
+    treePaneDefinition === undefined
       ? undefined
       : createInitialControlRowState(
-          checkboxGroupDefinition,
-          checkboxGroupId,
-          requireControlProperties(CONTROL_TYPES.checkboxGroup),
+          treePaneDefinition,
+          treePaneId,
+          requireControlProperties(CONTROL_TYPES.treePane),
         );
-  if (checkboxGroupInitial === undefined) {
-    throw new Error('The deterministic Checkbox Group row fixture is invalid.');
+  if (treePaneInitial === undefined) {
+    throw new Error('The deterministic Tree Pane row fixture is invalid.');
   }
   const buttonBarRowData = Object.freeze({
     ...buttonBarInitial.rowData,
@@ -575,17 +575,17 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       ),
     ),
   });
-  const checkboxGroupRowData = Object.freeze({
-    ...checkboxGroupInitial.rowData,
+  const treePaneRowData = Object.freeze({
+    ...treePaneInitial.rowData,
     bindings: Object.freeze(
-      checkboxGroupInitial.rowData.bindings.map((binding, index) =>
+      treePaneInitial.rowData.bindings.map((binding, index) =>
         Object.freeze({
           ...binding,
           link:
-            index === 0
+            index === 8
               ? Object.freeze({
                   kind: 'external' as const,
-                  url: 'https://example.com/not-selected',
+                  url: 'https://example.com/tree-file',
                 })
               : null,
         }),
@@ -793,14 +793,17 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       element: {
         assetIds: [],
         childIds: [],
-        controlType: CONTROL_TYPES.checkboxGroup,
-        controlVersion: requireControlVersion(CONTROL_TYPES.checkboxGroup),
-        frame: { x: 388, y: 286, width: 165, height: 181 },
-        id: checkboxGroupId,
+        controlType: CONTROL_TYPES.treePane,
+        controlVersion: requireControlVersion(CONTROL_TYPES.treePane),
+        frame: { x: 330, y: 286, width: 255, height: 181 },
+        id: treePaneId,
         link: null,
-        rowData: checkboxGroupRowData,
+        rowData: treePaneRowData,
         locked: false,
-        properties: checkboxGroupInitial.properties,
+        properties: {
+          ...treePaneInitial.properties,
+          selectedRowId: treePaneInitial.rowData.bindings[8]?.id ?? null,
+        },
       },
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 7,
       owner: { boardId: fixture.boardId, kind: 'board' },
@@ -813,7 +816,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
     }
     document = result.document;
   }
-  return Object.freeze({ ...fixture, document, selectedId: checkboxGroupId });
+  return Object.freeze({ ...fixture, document, selectedId: treePaneId });
 };
 
 const createGroupSelectionFixtureDocument = (
@@ -1734,7 +1737,7 @@ export const VisualConformanceFixture = ({
     fixture === 'mvpAlpha' || fixture === 'iconPicker'
       ? CONTROL_TYPES.button
       : fixture === 'registryControl'
-        ? CONTROL_TYPES.checkboxGroup
+        ? CONTROL_TYPES.treePane
         : undefined;
   const inspectorTitle =
     fixture === 'components'

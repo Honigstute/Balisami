@@ -58,6 +58,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.text-label': 'common harness; registry visual fixture; control auto-size',
   'wireframe.toolbar':
     'common harness; registry visual fixture; deterministic Toolbar scene geometry',
+  'wireframe.tree-pane':
+    'common harness; exact hierarchy grammar, stable row selection, inspector, and stacked adornment geometry',
   'wireframe.video-player':
     'common harness; registry visual fixture; deterministic Media scene geometry',
   'wireframe.volume-slider':

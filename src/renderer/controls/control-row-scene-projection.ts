@@ -3,6 +3,7 @@ import {
   type ControlDefinition,
   type ElementProperties,
   type ElementRowData,
+  type ParsedControlRow,
 } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import { createWorldRect, type WorldRect } from '../editor/viewport-transform';
@@ -13,6 +14,10 @@ import {
 } from './control-text-measurement';
 
 export interface ControlRowSceneProjection {
+  readonly adornment: Readonly<{
+    readonly fillPath: string;
+    readonly strokePath: string;
+  }> | null;
   readonly bounds: WorldRect;
   readonly id: string;
   readonly label: string;
@@ -38,12 +43,13 @@ const createRowMarkerProjection = (
   kind: 'checkbox' | 'radio',
   state: 'indeterminate' | 'selected' | 'unchecked',
   rowBounds: WorldRect,
+  offset = 0,
 ): NonNullable<ControlRowSceneProjection['marker']> => {
   const size = Math.max(
     0,
     Math.min(DESIGN_TOKENS.control.iconSize, rowBounds.height - DESIGN_TOKENS.space[1]),
   );
-  const left = roundControlTextWorldUnit(rowBounds.x + DESIGN_TOKENS.space[1]);
+  const left = roundControlTextWorldUnit(rowBounds.x + DESIGN_TOKENS.space[1] + offset);
   const top = roundControlTextWorldUnit(rowBounds.y + (rowBounds.height - size) / 2);
   const right = roundControlTextWorldUnit(left + size);
   const bottom = roundControlTextWorldUnit(top + size);
@@ -66,6 +72,66 @@ const createRowMarkerProjection = (
         ? createCirclePath(centerX, centerY, roundControlTextWorldUnit(size * 0.24))
         : '',
     strokePath: [outline, stateStroke].filter((path) => path.length > 0).join(' '),
+  });
+};
+
+const createTreeAdornmentProjection = (
+  kind: Exclude<ParsedControlRow['adornment'], null>,
+  rowBounds: WorldRect,
+  depth: number,
+): NonNullable<ControlRowSceneProjection['adornment']> => {
+  const size = Math.max(
+    0,
+    Math.min(DESIGN_TOKENS.control.iconSize, rowBounds.height - DESIGN_TOKENS.space[1]),
+  );
+  const indentation = depth * (DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1]);
+  const left = roundControlTextWorldUnit(rowBounds.x + DESIGN_TOKENS.space[1] + indentation);
+  const top = roundControlTextWorldUnit(rowBounds.y + (rowBounds.height - size) / 2);
+  const right = roundControlTextWorldUnit(left + size);
+  const bottom = roundControlTextWorldUnit(top + size);
+  const centerX = roundControlTextWorldUnit((left + right) / 2);
+  const centerY = roundControlTextWorldUnit((top + bottom) / 2);
+  const quarter = size * 0.25;
+  if (kind === 'spacer') return Object.freeze({ fillPath: '', strokePath: '' });
+  if (kind === 'disclosure-closed') {
+    return Object.freeze({
+      fillPath: `M ${String(left + quarter)} ${String(top)} L ${String(right - quarter)} ${String(centerY)} L ${String(left + quarter)} ${String(bottom)} Z`,
+      strokePath: '',
+    });
+  }
+  if (kind === 'disclosure-open') {
+    return Object.freeze({
+      fillPath: `M ${String(left)} ${String(top + quarter)} L ${String(centerX)} ${String(bottom - quarter)} L ${String(right)} ${String(top + quarter)} Z`,
+      strokePath: '',
+    });
+  }
+  if (kind === 'folder-closed' || kind === 'folder-open') {
+    const folderTop = top + size * 0.25;
+    const flapRight = left + size * 0.48;
+    const fillPath =
+      kind === 'folder-closed'
+        ? `M ${String(left)} ${String(folderTop)} L ${String(left + size * 0.35)} ${String(folderTop)} L ${String(flapRight)} ${String(top + size * 0.42)} H ${String(right)} V ${String(bottom)} H ${String(left)} Z`
+        : `M ${String(left)} ${String(folderTop)} L ${String(left + size * 0.35)} ${String(folderTop)} L ${String(flapRight)} ${String(top + size * 0.42)} H ${String(right)} L ${String(right - size * 0.18)} ${String(bottom)} H ${String(left)} Z`;
+    return Object.freeze({ fillPath, strokePath: '' });
+  }
+  const outline = `M ${String(left)} ${String(top)} H ${String(right)} V ${String(bottom)} H ${String(left)} Z`;
+  if (kind === 'file') {
+    return Object.freeze({
+      fillPath: '',
+      strokePath: `${outline} M ${String(left + size * 0.25)} ${String(top + size * 0.35)} H ${String(right - size * 0.2)} M ${String(left + size * 0.25)} ${String(centerY)} H ${String(right - size * 0.2)} M ${String(left + size * 0.25)} ${String(top + size * 0.65)} H ${String(right - size * 0.2)}`,
+    });
+  }
+  const horizontal = `M ${String(left + quarter)} ${String(centerY)} H ${String(right - quarter)}`;
+  const vertical = `M ${String(centerX)} ${String(top + quarter)} V ${String(bottom - quarter)}`;
+  const check = `M ${String(left + size * 0.18)} ${String(centerY)} L ${String(left + size * 0.42)} ${String(bottom - size * 0.18)} L ${String(right - size * 0.12)} ${String(top + size * 0.16)}`;
+  return Object.freeze({
+    fillPath: '',
+    strokePath: [
+      outline,
+      ...(kind === 'plus' ? [horizontal, vertical] : []),
+      ...(kind === 'minus' ? [horizontal] : []),
+      ...(kind === 'checkbox-checked' ? [check] : []),
+    ].join(' '),
   });
 };
 
@@ -112,12 +178,20 @@ export const createControlRowSceneProjections = (
             : roundControlTextWorldUnit(bounds.y + rowHeight * (index + 1));
         const rowBounds = createWorldRect(bounds.x, rowTop, bounds.width, rowBottom - rowTop);
         const labelMeasurement = textMeasurementService.measure({ ...request, text: row.label });
+        const indentation = row.depth * (DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1]);
         const labelX = roundControlTextWorldUnit(
           bounds.x +
             DESIGN_TOKENS.space[1] +
-            (row.marker === null ? 0 : DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1]),
+            indentation +
+            (row.marker === null && row.adornment === null
+              ? 0
+              : DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1]),
         );
         return Object.freeze({
+          adornment:
+            row.adornment === null
+              ? null
+              : createTreeAdornmentProjection(row.adornment, rowBounds, row.depth),
           baselineY: roundControlTextWorldUnit(
             rowTop +
               (rowBottom - rowTop - labelMeasurement.height) / 2 +
@@ -151,6 +225,7 @@ export const createControlRowSceneProjections = (
             : roundControlTextWorldUnit(bounds.x + cellWidth * (index + 1));
         const labelX = roundControlTextWorldUnit((cellX + cellRight) / 2);
         return Object.freeze({
+          adornment: null,
           bounds: createWorldRect(cellX, bounds.y, cellRight - cellX, bounds.height),
           id: binding.id,
           label: row.label,
@@ -193,6 +268,7 @@ export const createControlRowSceneProjections = (
       bounds.height,
     );
     return Object.freeze({
+      adornment: null,
       bounds: labelBounds,
       id: binding.id,
       label: row.label,

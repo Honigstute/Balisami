@@ -68,6 +68,7 @@ export const CONTROL_TYPES = Object.freeze({
   breadcrumbs: ControlTypeIdSchema.parse('wireframe.breadcrumbs'),
   buttonBar: ControlTypeIdSchema.parse('wireframe.button-bar'),
   linkBar: ControlTypeIdSchema.parse('wireframe.link-bar'),
+  treePane: ControlTypeIdSchema.parse('wireframe.tree-pane'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -211,6 +212,18 @@ const linkBarPropertiesSchema = z
     selectedColor: sceneColorSchema,
     selectedRowId: ElementRowIdSchema.nullable(),
     textColor: sceneColorSchema,
+  })
+  .readonly();
+const treePanePropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+    selectedRowId: ElementRowIdSchema.nullable(),
+    showBorder: z.boolean(),
+    state: controlStateSchema,
   })
   .readonly();
 
@@ -1071,6 +1084,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     palette: createPalette('Checkbox Group', 'Forms', 51),
     propertiesSchema: markerGroupPropertiesSchema,
     rows: Object.freeze({
+      adornment: null,
       display: 'labels',
       layout: 'stack',
       links: true,
@@ -1144,6 +1158,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     palette: createPalette('Radio Button Group', 'Forms', 52),
     propertiesSchema: markerGroupPropertiesSchema,
     rows: Object.freeze({
+      adornment: null,
       display: 'labels',
       layout: 'stack',
       links: true,
@@ -2074,6 +2089,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     palette: createPalette('Breadcrumbs', 'Common', 310),
     propertiesSchema: breadcrumbsPropertiesSchema,
     rows: Object.freeze({
+      adornment: null,
       display: 'source',
       layout: 'inline',
       links: true,
@@ -2129,6 +2145,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     palette: createPalette('Button Bar', 'Buttons', 320),
     propertiesSchema: buttonBarPropertiesSchema,
     rows: Object.freeze({
+      adornment: null,
       display: 'labels',
       layout: 'segments',
       links: true,
@@ -2201,6 +2218,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     palette: createPalette('Link Bar', 'Common', 330),
     propertiesSchema: linkBarPropertiesSchema,
     rows: Object.freeze({
+      adornment: null,
       display: 'source',
       layout: 'inline',
       links: true,
@@ -2220,6 +2238,138 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['bar', 'links', 'navigation', 'selection'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.linkBar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Tree Pane', 'group'),
+    aliases: ['file tree', 'folder tree', 'hierarchy', 'tree view'],
+    autoSize: createAutoSize('both', 4, 4, 4, 4),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText(
+        'start',
+        13,
+        4,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      items: [
+        'f Use f for closed folders',
+        'F Use F for open folders',
+        '[+] You may also use this',
+        '[-] and this',
+        '[x] or this',
+        '[ ] and this',
+        '> or even this',
+        'v and this',
+        '- Use - for a file icon',
+        '_ or _ to leave a space for your own icon',
+        'f use spaces or dots for hierarchy',
+        '.v just like',
+        '..- this',
+      ].join('\n'),
+      opacity: 1,
+      scrollbar: false,
+      selectedRowId: null,
+      showBorder: true,
+      state: 'normal',
+    },
+    defaultSize: createSize(300, 285),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(120, 80),
+    maximumSize: null,
+    palette: createPalette('Tree Pane', 'Containers', 340),
+    propertiesSchema: treePanePropertiesSchema,
+    rows: Object.freeze({
+      adornment: Object.freeze({ defaultKind: 'folder-closed', kind: 'tree' }),
+      display: 'labels',
+      layout: 'stack',
+      links: true,
+      marker: null,
+      maximum: 64,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'none',
+        property: 'selectedRowId',
+      }),
+      separator: '\n',
+    }),
+    scene: createScene('rectangle', ['items'], undefined, undefined, 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: 'showBorder',
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      scrollbarVisibilityProperty: 'scrollbar',
+      strokeColorProperty: null,
+      state: createDisabledState(),
+    }),
+    tags: ['disclosure', 'file', 'folder', 'hierarchy', 'navigation', 'tree'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.treePane,
   }),
 ]);
 

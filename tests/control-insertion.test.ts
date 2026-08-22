@@ -56,7 +56,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(35);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(36);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -95,6 +95,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.breadcrumbs,
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
+      CONTROL_TYPES.treePane,
     ]);
   });
 

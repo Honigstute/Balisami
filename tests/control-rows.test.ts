@@ -17,8 +17,10 @@ import {
   dispatchHistoryCommand,
   getControlSpec,
   listElementLinkReferences,
+  MAX_CONTROL_ROW_DEPTH,
   formatControlRowSource,
   parseControlRowSource,
+  parseControlRows,
   parseProjectDocument,
   rekeyControlRowState,
   redoDocumentHistory,
@@ -103,16 +105,22 @@ describe('registry parsed-row identity contract', () => {
     }
 
     expect(parseControlRowSource(checkbox.rows, '[x] -disabled selected-')).toEqual({
+      adornment: null,
+      depth: 0,
       disabled: true,
       label: 'disabled selected',
       marker: 'selected',
     });
     expect(parseControlRowSource(radio.rows, '(o) -option 5-')).toEqual({
+      adornment: null,
+      depth: 0,
       disabled: true,
       label: 'option 5',
       marker: 'selected',
     });
     expect(parseControlRowSource(checkbox.rows, 'Plain text row')).toEqual({
+      adornment: null,
+      depth: 0,
       disabled: false,
       label: 'Plain text row',
       marker: null,
@@ -124,11 +132,50 @@ describe('registry parsed-row identity contract', () => {
     expect(parseControlRowSource(checkbox.rows, '-[x] wrong disabled location-')).toBeUndefined();
     expect(
       formatControlRowSource(checkbox.rows, {
+        adornment: null,
+        depth: 0,
         disabled: true,
         label: 'disabled selected',
         marker: 'selected',
       }),
     ).toBe('[x] -disabled selected-');
+  });
+
+  it('parses exact tree adornments and preserves documented dot or space indentation', () => {
+    const tree = getControlSpec(CONTROL_TYPES.treePane);
+    if (tree?.rows === null || tree?.rows === undefined) {
+      throw new Error('Tree Pane rows are missing.');
+    }
+    expect(parseControlRows(tree.rows, { items: '..f Dot child\n  F Space child' })).toEqual([
+      {
+        adornment: 'folder-closed',
+        depth: 2,
+        disabled: false,
+        label: 'Dot child',
+        marker: null,
+      },
+      {
+        adornment: 'folder-open',
+        depth: 2,
+        disabled: false,
+        label: 'Space child',
+        marker: null,
+      },
+    ]);
+    expect(parseControlRowSource(tree.rows, '. f Ambiguous')).toBeUndefined();
+    expect(
+      parseControlRowSource(tree.rows, `${'.'.repeat(MAX_CONTROL_ROW_DEPTH + 1)}f Too deep`),
+    ).toBeUndefined();
+    expect(parseControlRows(tree.rows, { items: '\tf Becomes root' })).toBeUndefined();
+    expect(
+      formatControlRowSource(tree.rows, {
+        adornment: 'file',
+        depth: 2,
+        disabled: false,
+        label: 'Leaf',
+        marker: null,
+      }),
+    ).toBe('..- Leaf');
   });
 
   it('preserves marker and disabled state through atomic edits, reorder, append, undo, and redo', () => {
@@ -354,6 +401,68 @@ describe('registry parsed-row identity contract', () => {
     expect(decoded.value.document.elementsById[ELEMENT_ID]?.properties.selectedRowId).toBe(
       createElementRowId(ELEMENT_ID, 0),
     );
+  });
+
+  it('round-trips Tree Pane hierarchy, adornments, links, and stable selection', () => {
+    const { definition, document, element } = createSelectionFixture(CONTROL_TYPES.treePane);
+    const edits = createControlRowEdits(definition, element);
+    if (edits === undefined) throw new Error('Tree Pane rows did not parse.');
+    const selectedRowId = edits[2]?.id;
+    if (selectedRowId === undefined) throw new Error('Tree Pane selection fixture is incomplete.');
+    const update = createControlRowsUpdate(
+      definition,
+      element,
+      edits.map((edit, index) =>
+        index === 2
+          ? Object.freeze({
+              ...edit,
+              adornment: 'file' as const,
+              depth: 3,
+              label: 'Nested archive leaf',
+              link: Object.freeze({ kind: 'external' as const, url: 'https://example.com/tree' }),
+            })
+          : edit,
+      ),
+      element.rowData.nextId,
+    );
+    if (update === undefined) throw new Error('Tree Pane row update is invalid.');
+    const selected = createControlRowSelectionUpdate(
+      definition,
+      {
+        ...element,
+        properties: update.properties,
+        rowData: update.rowData,
+      },
+      selectedRowId,
+    );
+    if (selected === undefined) throw new Error('Tree Pane selection update is invalid.');
+    const committed = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: ELEMENT_ID,
+      properties: selected.properties,
+      rowData: update.rowData,
+    });
+    if (!committed.ok || !committed.changed) throw new Error('Tree Pane update did not commit.');
+
+    const encoded = encodeProjectFileEnvelope(committed.document, {});
+    if (!encoded.ok) throw new Error('Tree Pane document could not be encoded.');
+    const decoded = decodeProjectFileEnvelope(encoded.value);
+    if (!decoded.ok) throw new Error('Tree Pane document could not be reopened.');
+    const reopened = decoded.value.document.elementsById[ELEMENT_ID];
+    expect(reopened?.properties.selectedRowId).toBe(selectedRowId);
+    expect(reopened?.properties.items).toContain('...- Nested archive leaf');
+    expect(reopened?.rowData.bindings[2]).toMatchObject({
+      id: selectedRowId,
+      link: { kind: 'external', url: 'https://example.com/tree' },
+    });
+    if (reopened === undefined) throw new Error('Reopened Tree Pane is missing.');
+    const reopenedEdits = createControlRowEdits(definition, reopened);
+    if (reopenedEdits === undefined) throw new Error('Reopened Tree Pane rows did not parse.');
+    expect(reopenedEdits[2]).toMatchObject({
+      adornment: 'file',
+      depth: 3,
+      label: 'Nested archive leaf',
+    });
   });
 
   it('allocates deterministic initial identities and exposes whole-control plus row links', () => {
