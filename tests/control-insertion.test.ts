@@ -87,6 +87,29 @@ describe('registry-backed control insertion', () => {
     ]);
   });
 
+  it('applies a preset through the shared schema without changing persisted control type', () => {
+    const boardId = BoardIdSchema.parse('board_controlpreset');
+    const created = createEmptyProjectDocument({
+      boardId,
+      projectId: ProjectIdSchema.parse('project_controlpreset'),
+    });
+    if (!created.ok) throw new Error('Preset insertion fixture is invalid.');
+    const request = {
+      boardId,
+      center: createWorldPoint(200, 160),
+      controlType: CONTROL_TYPES.textInput,
+      document: created.value,
+      elementId: ElementIdSchema.parse('element_controlpreset'),
+    } as const;
+
+    const command = createControlInsertionCommand({ ...request, presetId: 'underline' });
+    expect(command?.element).toMatchObject({
+      controlType: CONTROL_TYPES.textInput,
+      properties: { borderMode: 'underline' },
+    });
+    expect(createControlInsertionCommand({ ...request, presetId: 'unknown' })).toBeUndefined();
+  });
+
   it('centers exact drag placement without the click-insertion cascade', () => {
     const boardId = BoardIdSchema.parse('board_controldrag');
     const created = createEmptyProjectDocument({

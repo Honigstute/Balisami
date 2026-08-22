@@ -15,7 +15,7 @@ import {
 import { createQuickAddResults, type QuickAddResult } from './quick-add-results';
 
 interface QuickAddProps {
-  readonly onInsert: (controlType: ControlTypeId) => boolean;
+  readonly onInsert: (controlType: ControlTypeId, presetId?: string) => boolean;
   readonly shortcutLabel: string;
   readonly storage?: QuickAddPreferenceStorage;
 }
@@ -34,10 +34,10 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
   const storageRef = useRef<QuickAddPreferenceStorage | undefined>(storage ?? getBrowserStorage());
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [activeType, setActiveType] = useState<ControlTypeId | undefined>();
+  const [activeId, setActiveId] = useState<string>();
   const [preferences, setPreferences] = useState(() => loadQuickAddPreferences(storageRef.current));
   const results = createQuickAddResults(query, preferences);
-  const foundActiveIndex = results.findIndex(({ definition }) => definition.type === activeType);
+  const foundActiveIndex = results.findIndex(({ entry }) => entry.id === activeId);
   const activeIndex = foundActiveIndex < 0 ? 0 : foundActiveIndex;
   const activeResult = results[activeIndex];
 
@@ -50,7 +50,7 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
     setOpen(nextOpen);
     if (!nextOpen) {
       setQuery('');
-      setActiveType(undefined);
+      setActiveId(undefined);
     }
   }, []);
 
@@ -71,11 +71,14 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
     }
   }, [open]);
 
-  const insert = (controlType: ControlTypeId): void => {
-    if (!onInsert(controlType)) {
+  const insert = (result: QuickAddResult): void => {
+    const { definition, presetId } = result.entry;
+    const inserted =
+      presetId === null ? onInsert(definition.type) : onInsert(definition.type, presetId);
+    if (!inserted) {
       return;
     }
-    replacePreferences(recordQuickAddRecent(preferences, controlType));
+    replacePreferences(recordQuickAddRecent(preferences, result.entry.id));
     changeOpen(false);
   };
 
@@ -84,10 +87,8 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
     if (result === undefined) {
       return;
     }
-    setActiveType(result.definition.type);
-    document
-      .getElementById(`${listId}-${result.definition.type}`)
-      ?.scrollIntoView?.({ block: 'nearest' });
+    setActiveId(result.entry.id);
+    document.getElementById(`${listId}-${result.entry.id}`)?.scrollIntoView?.({ block: 'nearest' });
   };
 
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -102,7 +103,7 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
       nextIndex = results.length - 1;
     } else if (event.key === 'Enter' && activeResult !== undefined) {
       event.preventDefault();
-      insert(activeResult.definition.type);
+      insert(activeResult);
       return;
     }
     if (nextIndex !== undefined && nextIndex !== activeIndex) {
@@ -130,7 +131,7 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
           <Icon name="search" />
           <input
             aria-activedescendant={
-              activeResult === undefined ? undefined : `${listId}-${activeResult.definition.type}`
+              activeResult === undefined ? undefined : `${listId}-${activeResult.entry.id}`
             }
             aria-controls={listId}
             aria-expanded="true"
@@ -138,7 +139,7 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
             autoComplete="off"
             onChange={(event) => {
               setQuery(event.currentTarget.value);
-              setActiveType(undefined);
+              setActiveId(undefined);
             }}
             onKeyDown={handleSearchKeyDown}
             placeholder="Find a control…"
@@ -161,41 +162,39 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
             </div>
           ) : null}
           {results.map((result, index) => {
-            const palette = result.definition.palette;
+            const palette = result.entry.definition.palette;
             if (palette === null) {
               return null;
             }
             const showSection = priorSection !== result.section;
             priorSection = result.section;
             return (
-              <div
-                className="quick-add-menu__group"
-                key={result.definition.type}
-                role="presentation"
-              >
+              <div className="quick-add-menu__group" key={result.entry.id} role="presentation">
                 {showSection ? (
                   <span className="quick-add-menu__section" role="presentation">
                     {result.section}
                   </span>
                 ) : null}
                 <button
-                  aria-label={`Insert ${palette.label}`}
+                  aria-label={`Insert ${result.entry.label}`}
                   aria-selected={index === activeIndex}
                   className="quick-add-menu__result"
-                  id={`${listId}-${result.definition.type}`}
-                  onClick={() => insert(result.definition.type)}
-                  onMouseEnter={() => setActiveType(result.definition.type)}
+                  id={`${listId}-${result.entry.id}`}
+                  onClick={() => insert(result)}
+                  onMouseEnter={() => setActiveId(result.entry.id)}
                   role="option"
                   type="button"
                 >
                   <span className="quick-add-menu__preview">
                     <ControlThumbnail
-                      definition={result.definition}
+                      definition={result.entry.definition}
+                      identity={result.entry.id}
+                      properties={result.entry.properties}
                       textMeasurementService={undefined}
                     />
                   </span>
                   <span className="quick-add-menu__copy">
-                    <strong>{palette.label}</strong>
+                    <strong>{result.entry.label}</strong>
                     <span>{palette.category}</span>
                   </span>
                 </button>
@@ -204,21 +203,17 @@ export const QuickAdd = ({ onInsert, shortcutLabel, storage }: QuickAddProps) =>
           })}
         </div>
         <div className="quick-add-menu__hint">
-          {activeResult?.definition.palette === null || activeResult === undefined ? null : (
+          {activeResult?.entry.definition.palette === null || activeResult === undefined ? null : (
             <button
-              aria-label={`${preferences.favorites.includes(activeResult.definition.type) ? 'Remove' : 'Add'} ${activeResult.definition.palette.label} ${preferences.favorites.includes(activeResult.definition.type) ? 'from' : 'to'} favorites`}
-              aria-pressed={preferences.favorites.includes(activeResult.definition.type)}
+              aria-label={`${preferences.favorites.includes(activeResult.entry.id) ? 'Remove' : 'Add'} ${activeResult.entry.label} ${preferences.favorites.includes(activeResult.entry.id) ? 'from' : 'to'} favorites`}
+              aria-pressed={preferences.favorites.includes(activeResult.entry.id)}
               className="quick-add-menu__favorite"
               onClick={() =>
-                replacePreferences(
-                  toggleQuickAddFavorite(preferences, activeResult.definition.type),
-                )
+                replacePreferences(toggleQuickAddFavorite(preferences, activeResult.entry.id))
               }
               type="button"
             >
-              {preferences.favorites.includes(activeResult.definition.type)
-                ? 'Favorited'
-                : 'Favorite'}
+              {preferences.favorites.includes(activeResult.entry.id) ? 'Favorited' : 'Favorite'}
             </button>
           )}
           <span>↑↓ Navigate · Enter Add · Esc Close</span>

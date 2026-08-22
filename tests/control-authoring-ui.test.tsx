@@ -188,7 +188,9 @@ describe('alpha control authoring UI', () => {
     fireEvent.dragStart(button, { dataTransfer });
 
     expect(dataTransfer.effectAllowed).toBe('copy');
-    expect(data.get(CONTROL_DRAG_MIME_TYPE)).toBe(CONTROL_TYPES.button);
+    expect(data.get(CONTROL_DRAG_MIME_TYPE)).toBe(
+      JSON.stringify({ controlType: CONTROL_TYPES.button, presetId: null }),
+    );
     for (const shelfItem of screen.getAllByRole('button')) {
       expect(shelfItem).toHaveAttribute('draggable', 'true');
     }
@@ -220,6 +222,7 @@ describe('alpha control authoring UI', () => {
       screen.getAllByRole('button').map((button) => button.getAttribute('aria-label')),
     ).toEqual([
       'Insert Text Input',
+      'Insert Text Input (Underline)',
       'Insert Checkbox',
       'Insert Color Picker',
       'Insert ON/OFF Switch',
@@ -232,6 +235,16 @@ describe('alpha control authoring UI', () => {
     view.rerender(<ControlShelf onInsert={() => true} query="missing-control" />);
     expect(screen.queryAllByRole('button')).toEqual([]);
     expect(screen.getByRole('status')).toHaveTextContent('No matching controls');
+  });
+
+  it('inserts a shared-schema preset with its stable authoring identity', () => {
+    const onInsert = vi.fn<(controlType: ControlTypeId, presetId?: string) => boolean>(() => true);
+    render(<ControlShelf category="Forms" onInsert={onInsert} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert Text Input (Underline)' }));
+
+    expect(onInsert).toHaveBeenCalledOnce();
+    expect(onInsert).toHaveBeenCalledWith(CONTROL_TYPES.textInput, 'underline');
   });
 
   it('uses one roving tab stop and reaches either shelf end with the keyboard', () => {
@@ -305,7 +318,7 @@ describe('alpha control authoring UI', () => {
     expect(document.querySelector('[data-control-preview]')).toBeNull();
     expect(screen.getByText('Text label', { selector: 'tspan' })).toBeInTheDocument();
     expect(screen.getByText('Button', { selector: 'tspan' })).toBeInTheDocument();
-    expect(screen.getByText('Text input', { selector: 'tspan' })).toBeInTheDocument();
+    expect(screen.getAllByText('Text input', { selector: 'tspan' })).toHaveLength(2);
     expect(screen.getByText('Checkbox', { selector: 'tspan' })).toBeInTheDocument();
     expect(
       document.querySelector(

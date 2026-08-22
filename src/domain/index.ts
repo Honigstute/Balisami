@@ -129,6 +129,7 @@ export {
   type ControlPropertyMigration,
   type ControlResizeAxes,
   type ControlPaletteMetadata,
+  type ControlPalettePreset,
   type ControlSceneDefinition,
   type ControlSize,
   type ControlTextCapability,
@@ -140,8 +141,12 @@ export {
   FOUNDATION_CONTROL_TYPES,
   getControlSpec,
   getControlSpecByDrawShortcut,
+  getControlPaletteEntry,
+  getControlPaletteEntryById,
+  listControlPaletteEntries,
   listPaletteControlSpecs,
   listControlSpecs,
+  type ControlPaletteEntry,
 } from './controls/control-spec';
 export {
   AssetIdSchema,

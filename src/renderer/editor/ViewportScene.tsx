@@ -5,7 +5,7 @@ import {
   COMPONENT_DRAG_MIME_TYPE,
   CONTROL_DRAG_MIME_TYPE,
   parseDraggedComponentId,
-  parseDraggedControlType,
+  parseDraggedControlEntry,
 } from '../controls/control-drag-transfer';
 
 import type { ControlDrawInteraction } from './control-draw-interaction';
@@ -40,7 +40,11 @@ interface ViewportSceneProps {
   readonly onDuplicateSelection?: () => boolean;
   readonly onGroupSelection?: () => boolean;
   readonly onImportImageAt?: (file: File, point: WorldPoint) => void;
-  readonly onInsertControlAt?: (controlType: ControlTypeId, point: WorldPoint) => boolean;
+  readonly onInsertControlAt?: (
+    controlType: ControlTypeId,
+    point: WorldPoint,
+    presetId?: string,
+  ) => boolean;
   readonly onInsertComponentAt?: (componentId: ComponentId, point: WorldPoint) => boolean;
   readonly onLockSelection?: () => boolean;
   readonly onPasteSelection?: () => boolean;
@@ -241,17 +245,19 @@ export const ViewportScene = ({
 
   const handleControlDrop = (event: DragEvent<HTMLDivElement>): void => {
     const root = rootRef.current;
-    const controlType = parseDraggedControlType(event.dataTransfer.getData(CONTROL_DRAG_MIME_TYPE));
+    const controlEntry = parseDraggedControlEntry(
+      event.dataTransfer.getData(CONTROL_DRAG_MIME_TYPE),
+    );
     const componentId = parseDraggedComponentId(
       event.dataTransfer.getData(COMPONENT_DRAG_MIME_TYPE),
     );
     const file = event.dataTransfer.files?.item(0) ?? undefined;
     if (
       root === null ||
-      (controlType === undefined && componentId === undefined && file === undefined) ||
-      (controlType !== undefined && onInsertControlAt === undefined) ||
+      (controlEntry === undefined && componentId === undefined && file === undefined) ||
+      (controlEntry !== undefined && onInsertControlAt === undefined) ||
       (componentId !== undefined && onInsertComponentAt === undefined) ||
-      (controlType === undefined && componentId === undefined && onImportImageAt === undefined)
+      (controlEntry === undefined && componentId === undefined && onImportImageAt === undefined)
     ) {
       return;
     }
@@ -268,8 +274,12 @@ export const ViewportScene = ({
     );
     event.preventDefault();
     const worldPoint = viewportPointToWorld(viewportPoint, camera.getTransformSnapshot());
-    if (controlType !== undefined) {
-      onInsertControlAt?.(controlType, worldPoint);
+    if (controlEntry !== undefined) {
+      if (controlEntry.presetId === undefined) {
+        onInsertControlAt?.(controlEntry.controlType, worldPoint);
+      } else {
+        onInsertControlAt?.(controlEntry.controlType, worldPoint, controlEntry.presetId);
+      }
     } else if (componentId !== undefined) {
       onInsertComponentAt?.(componentId, worldPoint);
     } else if (file !== undefined) {

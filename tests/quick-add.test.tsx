@@ -5,6 +5,7 @@ import { CONTROL_TYPES, type ControlTypeId } from '../src/domain';
 import { QuickAdd } from '../src/renderer/controls/QuickAdd';
 import {
   DEFAULT_QUICK_ADD_PREFERENCES,
+  LEGACY_QUICK_ADD_PREFERENCES_STORAGE_KEY,
   MAX_QUICK_ADD_RECENT,
   QUICK_ADD_PREFERENCES_STORAGE_KEY,
   loadQuickAddPreferences,
@@ -16,7 +17,7 @@ import { createQuickAddResults } from '../src/renderer/controls/quick-add-result
 const QuickAddFixture = ({
   onInsert = () => true,
 }: {
-  readonly onInsert?: (controlType: ControlTypeId) => boolean;
+  readonly onInsert?: (controlType: ControlTypeId, presetId?: string) => boolean;
 }) => (
   <>
     <div id="overlay-root" />
@@ -67,20 +68,55 @@ describe('Quick Add', () => {
     expect(loadQuickAddPreferences(window.localStorage).recent).toEqual([]);
   });
 
+  it('inserts and reloads a preset as an independent recent palette entry', () => {
+    const onInsert = vi.fn<(controlType: ControlTypeId, presetId?: string) => boolean>(() => true);
+    const { unmount } = render(<QuickAddFixture onInsert={onInsert} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Quick add' }));
+    const search = screen.getByRole('combobox', { name: 'Find a control' });
+    fireEvent.change(search, { target: { value: 'underline' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    expect(onInsert).toHaveBeenCalledWith(CONTROL_TYPES.textInput, 'underline');
+    expect(loadQuickAddPreferences(window.localStorage).recent).toEqual([
+      `${CONTROL_TYPES.textInput}:underline`,
+    ]);
+
+    unmount();
+    render(<QuickAddFixture onInsert={onInsert} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Quick add' }));
+    expect(screen.getByText('Recent')).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: 'Insert Text Input (Underline)' }),
+    ).toBeInTheDocument();
+  });
+
   it('promotes bounded favorites and recent controls without duplicating registry results', () => {
     const favorite = toggleQuickAddFavorite(DEFAULT_QUICK_ADD_PREFERENCES, CONTROL_TYPES.checkbox);
     const recent = recordQuickAddRecent(favorite, CONTROL_TYPES.button);
     const results = createQuickAddResults('', recent);
 
     expect(results[0]).toMatchObject({
-      definition: { type: CONTROL_TYPES.checkbox },
+      entry: { definition: { type: CONTROL_TYPES.checkbox } },
       section: 'Favorites',
     });
     expect(results[1]).toMatchObject({
-      definition: { type: CONTROL_TYPES.button },
+      entry: { definition: { type: CONTROL_TYPES.button } },
       section: 'Recent',
     });
-    expect(new Set(results.map(({ definition }) => definition.type)).size).toBe(results.length);
+    expect(new Set(results.map(({ entry }) => entry.id)).size).toBe(results.length);
+  });
+
+  it('ranks base and preset recents and favorites independently', () => {
+    const presetId = `${CONTROL_TYPES.textInput}:underline`;
+    let preferences = recordQuickAddRecent(DEFAULT_QUICK_ADD_PREFERENCES, CONTROL_TYPES.textInput);
+    preferences = recordQuickAddRecent(preferences, presetId);
+    preferences = toggleQuickAddFavorite(preferences, CONTROL_TYPES.textInput);
+    const results = createQuickAddResults('', preferences);
+
+    expect(results.slice(0, 2)).toMatchObject([
+      { entry: { id: CONTROL_TYPES.textInput }, section: 'Favorites' },
+      { entry: { id: presetId }, section: 'Recent' },
+    ]);
   });
 
   it('persists favorite toggles and rejects malformed or oversized preference data', () => {
@@ -137,5 +173,45 @@ describe('Quick Add', () => {
     }
     expect(preferences.recent).toHaveLength(MAX_QUICK_ADD_RECENT);
     expect(preferences.recent[0]).toBe(CONTROL_TYPES.onOffSwitch);
+  });
+
+  it('favorites a preset without changing the base entry and migrates legacy type preferences', () => {
+    render(<QuickAddFixture />);
+    fireEvent.click(screen.getByRole('button', { name: 'Quick add' }));
+    const search = screen.getByRole('combobox', { name: 'Find a control' });
+    fireEvent.change(search, { target: { value: 'underline' } });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Add Text Input (Underline) to favorites' }),
+    );
+
+    expect(loadQuickAddPreferences(window.localStorage).favorites).toEqual([
+      `${CONTROL_TYPES.textInput}:underline`,
+    ]);
+    expect(
+      screen.getByRole('button', { name: 'Remove Text Input (Underline) from favorites' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.change(search, { target: { value: 'Text Input' } });
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Insert Text Input' }));
+    expect(screen.getByRole('button', { name: 'Add Text Input to favorites' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+
+    window.localStorage.clear();
+    window.localStorage.setItem(
+      LEGACY_QUICK_ADD_PREFERENCES_STORAGE_KEY,
+      JSON.stringify({
+        favorites: [CONTROL_TYPES.checkbox],
+        formatVersion: 1,
+        recent: [CONTROL_TYPES.textInput],
+      }),
+    );
+    expect(loadQuickAddPreferences(window.localStorage)).toEqual({
+      favorites: [CONTROL_TYPES.checkbox],
+      formatVersion: 2,
+      recent: [CONTROL_TYPES.textInput],
+    });
+    expect(window.localStorage.getItem(QUICK_ADD_PREFERENCES_STORAGE_KEY)).not.toBeNull();
   });
 });

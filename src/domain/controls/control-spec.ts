@@ -21,6 +21,7 @@ import {
   type ControlImageCapability,
   type ControlInspectorSection,
   type ControlPaletteMetadata,
+  type ControlPalettePreset,
   type ControlSceneDefinition,
   type ControlSize,
   type ControlTextCapability,
@@ -204,7 +205,19 @@ const createPalette = (
   category: ControlPaletteMetadata['category'],
   order: number,
   drawShortcut: string | null = null,
-): ControlPaletteMetadata => Object.freeze({ category, drawShortcut, label, order });
+  presets: readonly ControlPalettePreset[] = [],
+): ControlPaletteMetadata =>
+  Object.freeze({
+    category,
+    drawShortcut,
+    label,
+    order,
+    presets: Object.freeze(
+      presets.map((preset) =>
+        Object.freeze({ ...preset, properties: Object.freeze(preset.properties) }),
+      ),
+    ),
+  });
 
 const createTextStyleDefaults = (fontSize: number, alignment?: 'center' | 'start') =>
   Object.freeze({
@@ -807,7 +820,14 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ]),
     minimumSize: createSize(72, 28),
     maximumSize: null,
-    palette: createPalette('Text Input', 'Forms', 40),
+    palette: createPalette('Text Input', 'Forms', 40, null, [
+      {
+        id: 'underline',
+        label: 'Text Input (Underline)',
+        order: 41,
+        properties: { borderMode: 'underline' },
+      },
+    ]),
     migrations: [
       {
         fromVersion: 1,
@@ -1845,3 +1865,57 @@ export const listPaletteControlSpecs = (): readonly ControlDefinition[] =>
       (first, second) => (first.palette?.order ?? 0) - (second.palette?.order ?? 0),
     ),
   );
+
+export interface ControlPaletteEntry {
+  readonly definition: ControlDefinition;
+  /** Stable authoring identity; presets never create a second persisted control type. */
+  readonly id: string;
+  readonly label: string;
+  readonly order: number;
+  readonly presetId: string | null;
+  readonly properties: ElementProperties;
+}
+
+const CONTROL_PALETTE_ENTRIES: readonly ControlPaletteEntry[] = Object.freeze(
+  CONTROL_DEFINITIONS.flatMap((definition) => {
+    const palette = definition.palette;
+    if (palette === null) return [];
+    return [
+      Object.freeze({
+        definition,
+        id: definition.type,
+        label: palette.label,
+        order: palette.order,
+        presetId: null,
+        properties: definition.defaultProperties,
+      }),
+      ...palette.presets.map((preset) =>
+        Object.freeze({
+          definition,
+          id: `${definition.type}:${preset.id}`,
+          label: preset.label,
+          order: preset.order,
+          presetId: preset.id,
+          properties: Object.freeze({ ...definition.defaultProperties, ...preset.properties }),
+        }),
+      ),
+    ];
+  }).sort(
+    (first, second) =>
+      first.order - second.order || (first.id < second.id ? -1 : first.id > second.id ? 1 : 0),
+  ),
+);
+
+export const listControlPaletteEntries = (): readonly ControlPaletteEntry[] =>
+  CONTROL_PALETTE_ENTRIES;
+
+export const getControlPaletteEntry = (
+  controlType: string,
+  presetId: string | null = null,
+): ControlPaletteEntry | undefined =>
+  CONTROL_PALETTE_ENTRIES.find(
+    (entry) => entry.definition.type === controlType && entry.presetId === presetId,
+  );
+
+export const getControlPaletteEntryById = (entryId: string): ControlPaletteEntry | undefined =>
+  CONTROL_PALETTE_ENTRIES.find((entry) => entry.id === entryId);

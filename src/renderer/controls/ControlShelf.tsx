@@ -13,7 +13,7 @@ import { ComponentShelfItem } from './ComponentShelfItem';
 import { CONTROL_DRAG_MIME_TYPE } from './control-drag-transfer';
 import {
   normalizeControlLibrarySearchText,
-  queryControlLibrary,
+  queryControlLibraryEntries,
   type ControlLibraryCategory,
 } from './control-library-query';
 import {
@@ -29,7 +29,7 @@ interface ControlShelfProps {
   readonly onImportImage?: (file: File) => void;
   readonly onDeleteComponent?: (componentId: ComponentId) => boolean;
   readonly onDuplicateComponent?: (componentId: ComponentId) => boolean;
-  readonly onInsert: (controlType: ControlTypeId) => boolean;
+  readonly onInsert: (controlType: ControlTypeId, presetId?: string) => boolean;
   readonly onInsertComponent?: (componentId: ComponentId) => boolean;
   readonly onRenameComponent?: (componentId: ComponentId, name: string) => boolean;
   readonly onReorderComponent?: (componentId: ComponentId, toIndex: number) => boolean;
@@ -82,7 +82,7 @@ export const ControlShelf = ({
   }, [textMeasurementService]);
 
   const measurementService = textMeasurementService ?? browserMeasurementService;
-  const definitions = queryControlLibrary({ category, query });
+  const entries = queryControlLibraryEntries({ category, query });
   const normalizedQuery = normalizeControlLibrarySearchText(query);
   const matchingComponents =
     category !== 'All' && category !== 'Components'
@@ -95,7 +95,7 @@ export const ControlShelf = ({
   const availableComponents =
     projectDocument === undefined || onInsertComponent === undefined ? [] : matchingComponents;
   const itemKeys = [
-    ...definitions.map((definition) => `control:${definition.type}`),
+    ...entries.map((entry) => `control:${entry.id}`),
     ...availableComponents.map((component) => `component:${component.id}`),
   ];
   const focusedIndex = itemKeys.indexOf(focusedKey ?? '');
@@ -150,45 +150,54 @@ export const ControlShelf = ({
           No matching controls
         </div>
       ) : null}
-      {definitions.map((spec, index) => {
+      {entries.map((entry, index) => {
+        const spec = entry.definition;
         const palette = spec.palette;
         if (palette === null) {
           return null;
         }
         return (
           <button
-            aria-label={`Insert ${palette.label}`}
+            aria-label={`Insert ${entry.label}`}
             className="control-library__item"
-            data-control-library-key={`control:${spec.type}`}
+            data-control-library-key={`control:${entry.id}`}
             data-control-library-type={spec.type}
             draggable
-            key={spec.type}
+            key={entry.id}
             onDragStart={(event: DragEvent<HTMLButtonElement>) => {
               event.dataTransfer.effectAllowed = 'copy';
-              event.dataTransfer.setData(CONTROL_DRAG_MIME_TYPE, spec.type);
+              event.dataTransfer.setData(
+                CONTROL_DRAG_MIME_TYPE,
+                JSON.stringify({ controlType: spec.type, presetId: entry.presetId }),
+              );
             }}
-            onFocus={() => setFocusedKey(`control:${spec.type}`)}
+            onFocus={() => setFocusedKey(`control:${entry.id}`)}
             onKeyDown={(event) => handleItemKeyDown(event, index)}
             onClick={() => {
               if (spec.type === CONTROL_TYPES.imagePlaceholder && onImportImage !== undefined) {
                 imageInputRef.current?.click();
               } else {
-                onInsert(spec.type);
+                onInsert(spec.type, entry.presetId ?? undefined);
               }
             }}
             tabIndex={index === activeIndex ? 0 : -1}
-            title={`Insert ${palette.label}`}
+            title={`Insert ${entry.label}`}
             type="button"
           >
-            <ControlThumbnail definition={spec} textMeasurementService={measurementService} />
-            <span className="control-library__label">{palette.label}</span>
+            <ControlThumbnail
+              definition={spec}
+              identity={entry.id}
+              properties={entry.properties}
+              textMeasurementService={measurementService}
+            />
+            <span className="control-library__label">{entry.label}</span>
           </button>
         );
       })}
       {projectDocument === undefined || onInsertComponent === undefined
         ? null
         : availableComponents.map((component, componentIndex) => {
-            const index = definitions.length + componentIndex;
+            const index = entries.length + componentIndex;
             const componentPosition = projectDocument.componentIds.indexOf(component.id);
             const referenceCount = Object.values(projectDocument.elementsById).filter((element) => {
               if (element.controlType !== CONTROL_TYPES.componentInstance) return false;

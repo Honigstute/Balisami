@@ -1,16 +1,16 @@
-import { getControlSpec, type ControlDefinition, type ControlTypeId } from '../../domain';
-import { queryControlLibrary } from './control-library-query';
+import { getControlPaletteEntryById, type ControlPaletteEntry } from '../../domain';
+import { queryControlLibraryEntries } from './control-library-query';
 import type { QuickAddPreferences } from './quick-add-preferences';
 
 export interface QuickAddResult {
-  readonly definition: ControlDefinition;
+  readonly entry: ControlPaletteEntry;
   readonly section: 'Controls' | 'Favorites' | 'Recent';
 }
 
-const getStoredDefinitions = (types: readonly ControlTypeId[]): readonly ControlDefinition[] =>
-  types.flatMap((type) => {
-    const definition = getControlSpec(type);
-    return definition?.palette === null || definition === undefined ? [] : [definition];
+const getStoredEntries = (entryIds: readonly string[]): readonly ControlPaletteEntry[] =>
+  entryIds.flatMap((entryId) => {
+    const entry = getControlPaletteEntryById(entryId);
+    return entry === undefined ? [] : [entry];
   });
 
 /**
@@ -23,22 +23,20 @@ export const createQuickAddResults = (
 ): readonly QuickAddResult[] => {
   if (query.trim().length > 0) {
     return Object.freeze(
-      queryControlLibrary({ query }).map((definition) => ({
-        definition,
+      queryControlLibraryEntries({ query }).map((entry) => ({
+        entry,
         section: 'Controls' as const,
       })),
     );
   }
-  const favorites = getStoredDefinitions(preferences.favorites);
-  const favoriteTypes = new Set(favorites.map(({ type }) => type));
-  const recent = getStoredDefinitions(preferences.recent).filter(
-    ({ type }) => !favoriteTypes.has(type),
-  );
-  const promotedTypes = new Set([...favoriteTypes, ...recent.map(({ type }) => type)]);
-  const controls = queryControlLibrary().filter(({ type }) => !promotedTypes.has(type));
+  const favorites = getStoredEntries(preferences.favorites);
+  const favoriteIds = new Set(favorites.map(({ id }) => id));
+  const recent = getStoredEntries(preferences.recent).filter(({ id }) => !favoriteIds.has(id));
+  const promotedIds = new Set([...favoriteIds, ...recent.map(({ id }) => id)]);
+  const controls = queryControlLibraryEntries().filter(({ id }) => !promotedIds.has(id));
   return Object.freeze([
-    ...favorites.map((definition) => ({ definition, section: 'Favorites' as const })),
-    ...recent.map((definition) => ({ definition, section: 'Recent' as const })),
-    ...controls.map((definition) => ({ definition, section: 'Controls' as const })),
+    ...favorites.map((entry) => ({ entry, section: 'Favorites' as const })),
+    ...recent.map((entry) => ({ entry, section: 'Recent' as const })),
+    ...controls.map((entry) => ({ entry, section: 'Controls' as const })),
   ]);
 };

@@ -73,6 +73,16 @@ export interface ControlPaletteMetadata {
   readonly drawShortcut: string | null;
   readonly label: string;
   readonly order: number;
+  /** Additional entries that insert this same schema with explicit property overrides. */
+  readonly presets: readonly ControlPalettePreset[];
+}
+
+export interface ControlPalettePreset {
+  /** Stable within the owning definition; not part of persisted document state. */
+  readonly id: string;
+  readonly label: string;
+  readonly order: number;
+  readonly properties: ElementProperties;
 }
 
 export interface ControlTextCapability {
@@ -568,6 +578,25 @@ export const assertControlDefinitionsConform = (
         throw new Error(`Control '${definition.type}' has invalid palette metadata.`);
       }
       paletteOrders.add(definition.palette.order);
+      const presetIds = new Set<string>();
+      for (const preset of definition.palette.presets) {
+        const presetProperties = definition.propertiesSchema.safeParse({
+          ...definition.defaultProperties,
+          ...preset.properties,
+        });
+        if (
+          preset.id.trim().length === 0 ||
+          preset.label.trim().length === 0 ||
+          !Number.isSafeInteger(preset.order) ||
+          paletteOrders.has(preset.order) ||
+          presetIds.has(preset.id) ||
+          !presetProperties.success
+        ) {
+          throw new Error(`Control '${definition.type}' has invalid palette preset metadata.`);
+        }
+        presetIds.add(preset.id);
+        paletteOrders.add(preset.order);
+      }
       if (drawShortcut !== null) {
         drawShortcuts.add(drawShortcut);
       }

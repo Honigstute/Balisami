@@ -1,5 +1,6 @@
 import {
   DOCUMENT_COMMAND_TYPES,
+  getControlPaletteEntry,
   getControlSpec,
   type AssetId,
   type BoardId,
@@ -21,6 +22,7 @@ export interface ControlInsertionRequest {
   /** Exact registry-constrained frame supplied by a completed draw gesture. */
   readonly frame?: WorldRect;
   readonly placement?: 'cascade' | 'exact';
+  readonly presetId?: string;
 }
 
 /**
@@ -32,7 +34,13 @@ export const createControlInsertionCommand = (
 ): CreateElementCommand | undefined => {
   const board = request.document.boardsById[request.boardId];
   const spec = getControlSpec(request.controlType);
-  if (board === undefined || spec?.palette === null || spec === undefined) {
+  const paletteEntry = getControlPaletteEntry(request.controlType, request.presetId ?? null);
+  if (
+    board === undefined ||
+    spec?.palette === null ||
+    spec === undefined ||
+    paletteEntry === undefined
+  ) {
     return undefined;
   }
   const maximumSize = spec.maximumSize;
@@ -67,7 +75,7 @@ export const createControlInsertionCommand = (
       id: request.elementId,
       link: null,
       locked: false,
-      properties: spec.defaultProperties,
+      properties: paletteEntry.properties,
     }),
     index: board.childIds.length,
     owner: Object.freeze({ boardId: board.id, kind: 'board' }),

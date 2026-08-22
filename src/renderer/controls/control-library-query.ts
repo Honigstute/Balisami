@@ -1,7 +1,9 @@
 import {
+  listControlPaletteEntries,
   listPaletteControlSpecs,
   type ControlCategory,
   type ControlDefinition,
+  type ControlPaletteEntry,
 } from '../../domain';
 
 export type ControlLibraryCategory = 'All' | 'Components' | ControlCategory;
@@ -13,6 +15,11 @@ export interface ControlLibraryQuery {
 
 interface RankedDefinition {
   readonly definition: ControlDefinition;
+  readonly score: number;
+}
+
+interface RankedEntry {
+  readonly entry: ControlPaletteEntry;
   readonly score: number;
 }
 
@@ -79,6 +86,32 @@ const rankDefinition = (
   return score;
 };
 
+const rankEntry = (entry: ControlPaletteEntry, normalizedQuery: string): number | undefined => {
+  if (normalizedQuery.length === 0) return 0;
+  const tokens = normalizedQuery.split(' ');
+  const sources = [
+    { value: normalizeControlLibrarySearchText(entry.label), weight: 0 },
+    ...entry.definition.search.aliases.map((value) => ({
+      value: normalizeControlLibrarySearchText(value),
+      weight: 5,
+    })),
+    ...entry.definition.search.tags.map((value) => ({
+      value: normalizeControlLibrarySearchText(value),
+      weight: 10,
+    })),
+  ];
+  let score = 0;
+  for (const token of tokens) {
+    const tokenScores = sources.flatMap((source) => {
+      const tokenScore = scoreToken(token, source.value, source.weight);
+      return tokenScore === undefined ? [] : [tokenScore];
+    });
+    if (tokenScores.length === 0) return undefined;
+    score += Math.min(...tokenScores);
+  }
+  return score;
+};
+
 /**
  * Registry-backed category inventory. New registered categories appear without
  * a parallel shell list; code-point ordering is deterministic across locales.
@@ -124,4 +157,26 @@ export const queryControlLibrary = (
       compareCodePoints(first.definition.type, second.definition.type),
   );
   return Object.freeze(ranked.map(({ definition }) => definition));
+};
+
+/** Palette-entry query includes shared-schema presets without duplicating definitions. */
+export const queryControlLibraryEntries = (
+  input: ControlLibraryQuery = {},
+): readonly ControlPaletteEntry[] => {
+  const category = input.category ?? 'All';
+  const normalizedQuery = normalizeControlLibrarySearchText(input.query ?? '');
+  const ranked: RankedEntry[] = [];
+  for (const entry of listControlPaletteEntries()) {
+    const palette = entry.definition.palette;
+    if (palette === null || (category !== 'All' && palette.category !== category)) continue;
+    const score = rankEntry(entry, normalizedQuery);
+    if (score !== undefined) ranked.push({ entry, score });
+  }
+  ranked.sort(
+    (first, second) =>
+      first.score - second.score ||
+      first.entry.order - second.entry.order ||
+      compareCodePoints(first.entry.id, second.entry.id),
+  );
+  return Object.freeze(ranked.map(({ entry }) => entry));
 };

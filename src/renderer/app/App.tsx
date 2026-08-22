@@ -9,6 +9,7 @@ import {
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
+  getControlPaletteEntry,
   getControlSpec,
   getControlAccessibleName,
   selectBoardPresentationId,
@@ -234,6 +235,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         center: WorldPoint;
         frame?: WorldRect;
         placement?: 'cascade' | 'exact';
+        presetId?: string;
         verb: 'Draw' | 'Insert';
       }>,
     ) => {
@@ -253,6 +255,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         controlType,
         document: currentDocument,
         elementId,
+        ...(input.presetId === undefined ? {} : { presetId: input.presetId }),
         ...(input.frame === undefined ? {} : { frame: input.frame }),
         ...(input.placement === undefined ? {} : { placement: input.placement }),
       });
@@ -260,7 +263,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         return undefined;
       }
       const result = session.dispatch(command, {
-        label: `${input.verb} ${getControlSpec(controlType)?.palette?.label ?? 'control'}`,
+        label: `${input.verb} ${getControlPaletteEntry(controlType, input.presetId ?? null)?.label ?? 'control'}`,
       });
       if (
         result?.ok !== true ||
@@ -279,7 +282,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         placement: 'exact',
         verb: 'Draw',
       });
-    const insertControl = (controlType: ControlTypeId, requestedCenter?: WorldPoint) => {
+    const insertControl = (
+      controlType: ControlTypeId,
+      requestedCenter?: WorldPoint,
+      presetId?: string,
+    ) => {
       const viewport = camera.getViewportSnapshot();
       const center =
         requestedCenter ??
@@ -289,6 +296,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         );
       return commitControlInsertion(controlType, {
         center,
+        ...(presetId === undefined ? {} : { presetId }),
         ...(requestedCenter === undefined ? {} : { placement: 'exact' }),
         verb: 'Insert',
       });
@@ -1536,7 +1544,9 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       quickAddShortcut={quickAddShortcut}
       quickAdd={
         <QuickAdd
-          onInsert={(controlType) => editor.insertControl(controlType) !== undefined}
+          onInsert={(controlType, presetId) =>
+            editor.insertControl(controlType, undefined, presetId) !== undefined
+          }
           shortcutLabel={quickAddShortcut}
         />
       }
@@ -1579,8 +1589,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   onImportImageAt: (file: File, point: WorldPoint) => {
                     void editor.importImage(file, point);
                   },
-                  onInsertControlAt: (controlType: ControlTypeId, point: WorldPoint) =>
-                    editor.insertControl(controlType, point) !== undefined,
+                  onInsertControlAt: (
+                    controlType: ControlTypeId,
+                    point: WorldPoint,
+                    presetId?: string,
+                  ) => editor.insertControl(controlType, point, presetId) !== undefined,
                   onInsertComponentAt: editor.insertComponent,
                   onLockSelection: editor.lockSelection,
                   onPasteSelection: editor.pasteSelection,
@@ -1784,7 +1797,9 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                     );
                     void editor.importImage(file, center);
                   }}
-                  onInsert={(controlType) => editor.insertControl(controlType) !== undefined}
+                  onInsert={(controlType, presetId) =>
+                    editor.insertControl(controlType, undefined, presetId) !== undefined
+                  }
                   onInsertComponent={editor.insertComponent}
                   onRenameComponent={renameComponent}
                   onReorderComponent={reorderComponent}

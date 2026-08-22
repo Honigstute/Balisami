@@ -6,6 +6,7 @@ import { CONTROL_TYPES } from '../src/domain';
 import {
   listControlLibraryCategories,
   queryControlLibrary,
+  queryControlLibraryEntries,
 } from '../src/renderer/controls/control-library-query';
 
 describe('control library query', () => {
@@ -77,5 +78,19 @@ describe('control library query', () => {
     );
     expect(queryControlLibrary({ category: 'Forms', query: 'line' })).toEqual([]);
     expect(queryControlLibrary({ query: 'does not exist' })).toEqual([]);
+  });
+
+  it('keeps shared-schema presets independently searchable and ordered', () => {
+    expect(queryControlLibraryEntries({ category: 'Forms' }).map(({ id }) => id)).toEqual([
+      CONTROL_TYPES.textInput,
+      `${CONTROL_TYPES.textInput}:underline`,
+      CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.colorPicker,
+      CONTROL_TYPES.onOffSwitch,
+    ]);
+    expect(queryControlLibraryEntries({ query: 'underline' })[0]).toMatchObject({
+      definition: { type: CONTROL_TYPES.textInput },
+      presetId: 'underline',
+    });
   });
 });

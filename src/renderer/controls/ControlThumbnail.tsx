@@ -1,22 +1,34 @@
-import type { ControlDefinition } from '../../domain';
+import type { ControlDefinition, ElementProperties } from '../../domain';
 import { controlSceneHasFill } from './control-scene-geometry';
 import type { ControlTextMeasurementService } from './control-text-measurement';
 import { createControlThumbnailProjection } from './control-thumbnail-projection';
 
 interface ControlThumbnailProps {
   readonly definition: ControlDefinition;
+  readonly identity?: string;
+  readonly properties?: ElementProperties;
   readonly textMeasurementService: ControlTextMeasurementService | undefined;
 }
 
 /** SVG preview of the same deterministic projection used by the document scene. */
-export const ControlThumbnail = ({ definition, textMeasurementService }: ControlThumbnailProps) => {
-  const projection = createControlThumbnailProjection(definition, textMeasurementService);
+export const ControlThumbnail = ({
+  definition,
+  identity,
+  properties,
+  textMeasurementService,
+}: ControlThumbnailProps) => {
+  const projection = createControlThumbnailProjection(
+    definition,
+    textMeasurementService,
+    properties,
+    identity,
+  );
   if (projection === undefined) {
     return null;
   }
   const viewBox = projection.viewBox;
   const hasFill = controlSceneHasFill(definition);
-  const strokeStyle = definition.defaultProperties.strokeStyle;
+  const strokeStyle = (properties ?? definition.defaultProperties).strokeStyle;
   return (
     <svg
       aria-hidden="true"

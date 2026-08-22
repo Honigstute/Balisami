@@ -1,4 +1,4 @@
-import type { ControlDefinition } from '../../domain';
+import type { ControlDefinition, ElementProperties } from '../../domain';
 import { createWorldRect, type WorldRect } from '../editor/viewport-transform';
 import {
   createControlSceneProjection,
@@ -22,6 +22,8 @@ export interface ControlThumbnailProjection extends ControlSceneProjection {
 export const createControlThumbnailProjection = (
   definition: ControlDefinition,
   textMeasurementService?: ControlTextMeasurementService,
+  properties: ElementProperties = definition.defaultProperties,
+  identity: string = definition.type,
 ): ControlThumbnailProjection | undefined => {
   if (definition.thumbnail.kind === 'none') {
     return undefined;
@@ -33,8 +35,8 @@ export const createControlThumbnailProjection = (
   const scene = createControlSceneProjection({
     bounds,
     definition,
-    identity: `control-thumbnail:${definition.type}`,
-    properties: definition.defaultProperties,
+    identity: `control-thumbnail:${identity}`,
+    properties,
     textMeasurementService,
   });
   return Object.freeze({

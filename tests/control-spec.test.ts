@@ -540,6 +540,33 @@ describe('control definition registry', () => {
     expect(() =>
       assertControlDefinitionsConform([
         {
+          ...checkbox,
+          palette: {
+            ...(checkbox.palette as NonNullable<typeof checkbox.palette>),
+            presets: [
+              { id: 'invalid', label: 'Invalid', order: 10_000, properties: { checked: 'yes' } },
+            ],
+          },
+        },
+      ]),
+    ).toThrow(/palette preset metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          palette: {
+            ...(checkbox.palette as NonNullable<typeof checkbox.palette>),
+            presets: [
+              { id: 'same', label: 'One', order: 10_000, properties: {} },
+              { id: 'same', label: 'Two', order: 10_001, properties: {} },
+            ],
+          },
+        },
+      ]),
+    ).toThrow(/palette preset metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
           ...arrow,
           inspector: arrow.inspector.map((section) => ({
             ...section,
