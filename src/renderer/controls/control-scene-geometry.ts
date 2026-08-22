@@ -225,6 +225,49 @@ const createChartBarMarkPath = (bounds: WorldRect, elementId: string): string =>
     )
     .join(' ');
 
+const createCalendarMarkPath = (bounds: WorldRect, elementId: string): string => {
+  const marks: string[] = [];
+  const headerRatios = [0.12, 0.24];
+  for (const [index, ratio] of headerRatios.entries()) {
+    marks.push(
+      createSeededSketchLinePath({
+        end: createWorldPoint(bounds.x + bounds.width, bounds.y + bounds.height * ratio),
+        seed: `${elementId}:calendar-header:${String(index)}`,
+        start: createWorldPoint(bounds.x, bounds.y + bounds.height * ratio),
+      }),
+    );
+  }
+  for (let column = 1; column < 7; column += 1) {
+    const x = bounds.x + (bounds.width * column) / 7;
+    marks.push(
+      createSeededSketchLinePath({
+        end: createWorldPoint(x, bounds.y + bounds.height),
+        seed: `${elementId}:calendar-column:${String(column)}`,
+        start: createWorldPoint(x, bounds.y + bounds.height * 0.12),
+      }),
+    );
+  }
+  for (let row = 1; row < 6; row += 1) {
+    const y = bounds.y + bounds.height * (0.24 + (row * 0.76) / 6);
+    marks.push(
+      createSeededSketchLinePath({
+        end: createWorldPoint(bounds.x + bounds.width, y),
+        seed: `${elementId}:calendar-row:${String(row)}`,
+        start: createWorldPoint(bounds.x, y),
+      }),
+    );
+  }
+  marks.push(
+    createSeededCirclePath(
+      createWorldPoint(bounds.x + bounds.width * 0.89, bounds.y + bounds.height * 0.57),
+      Math.min(bounds.width / 14, bounds.height / 12) * 0.45,
+      elementId,
+      'calendar-selected-date',
+    ),
+  );
+  return marks.join(' ');
+};
+
 const createChartLineMarkPath = (bounds: WorldRect, elementId: string): string => {
   const point = (x: number, y: number) =>
     createWorldPoint(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
@@ -496,6 +539,9 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'chart-bar') {
     return createChartBarMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'calendar') {
+    return createCalendarMarkPath(bounds, elementId);
   }
   if (definition.scene.kind === 'chart-line') {
     return createChartLineMarkPath(bounds, elementId);

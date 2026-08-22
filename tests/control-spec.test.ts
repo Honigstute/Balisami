@@ -24,6 +24,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
+      CONTROL_TYPES.calendar,
       CONTROL_TYPES.chartBar,
       CONTROL_TYPES.chartLine,
       CONTROL_TYPES.chartPie,
@@ -48,6 +49,7 @@ describe('control definition registry', () => {
       'Image',
       'Browser Window',
       'Arrow',
+      'Calendar',
       'Chart: Bar',
       'Chart: Line',
       'Chart: Pie',
@@ -158,6 +160,14 @@ describe('control definition registry', () => {
         scene: { hitShape: { kind: 'bounds' }, kind, propertyKeys: [] },
       });
     }
+    expect(getControlSpec(CONTROL_TYPES.calendar)).toMatchObject({
+      accessibility: { role: 'img' },
+      autoSize: null,
+      defaultProperties: {},
+      inspector: [],
+      palette: { category: 'Common' },
+      scene: { hitShape: { kind: 'bounds' }, kind: 'calendar', propertyKeys: [] },
+    });
     for (const [type, kind, size] of [
       [CONTROL_TYPES.playback, 'playback', { height: 36, width: 110 }],
       [CONTROL_TYPES.videoPlayer, 'video-player', { height: 200, width: 300 }],

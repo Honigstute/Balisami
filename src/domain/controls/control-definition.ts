@@ -8,6 +8,7 @@ export type ControlVisualKind =
   | 'arrow'
   | 'browser'
   | 'button'
+  | 'calendar'
   | 'chart-bar'
   | 'chart-line'
   | 'chart-pie'

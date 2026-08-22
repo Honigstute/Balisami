@@ -166,4 +166,32 @@ describe('control thumbnail projection', () => {
       );
     }
   });
+
+  it('projects the static Calendar with deterministic definition-owned marks', () => {
+    const definition = getControlSpec(CONTROL_TYPES.calendar);
+    if (definition === undefined) {
+      throw new Error('Calendar control is missing.');
+    }
+    const bounds = createWorldRect(
+      0,
+      0,
+      definition.defaultSize.width,
+      definition.defaultSize.height,
+    );
+    const first = createControlSceneMarkPath(
+      definition.type,
+      bounds,
+      'calendar-seed',
+      definition.defaultProperties,
+    );
+    expect(first).not.toBe('');
+    expect(first).toBe(
+      createControlSceneMarkPath(
+        definition.type,
+        bounds,
+        'calendar-seed',
+        definition.defaultProperties,
+      ),
+    );
+  });
 });
