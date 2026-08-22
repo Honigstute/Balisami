@@ -12,7 +12,10 @@ interface WireframeNavigatorProps {
   readonly onCreateAlternate: (boardId: BoardId) => boolean;
   readonly onDuplicateBoard: (boardId: BoardId) => boolean;
   readonly onDuplicateAlternate: (boardId: BoardId) => boolean;
+  readonly onMergeAlternate: (boardId: BoardId, alternateId: BoardId) => boolean;
+  readonly onPromoteAlternate: (boardId: BoardId, alternateId: BoardId) => boolean;
   readonly onRenameAlternate: (boardId: BoardId, name: string) => boolean;
+  readonly onRequestDiscardAlternate: (boardId: BoardId, alternateId: BoardId) => void;
   readonly onRenameBoard: (boardId: BoardId, name: string) => boolean;
   readonly onRequestTrashBoard: (boardId: BoardId) => void;
   readonly onReorderBoard: (boardId: BoardId, toIndex: number) => boolean;
@@ -29,7 +32,10 @@ export const WireframeNavigator = ({
   onCreateAlternate,
   onDuplicateBoard,
   onDuplicateAlternate,
+  onMergeAlternate,
+  onPromoteAlternate,
   onRenameAlternate,
+  onRequestDiscardAlternate,
   onRenameBoard,
   onRequestTrashBoard,
   onReorderBoard,
@@ -254,7 +260,10 @@ export const WireframeNavigator = ({
           document={document}
           onCreateAlternate={onCreateAlternate}
           onDuplicateAlternate={onDuplicateAlternate}
+          onMergeAlternate={onMergeAlternate}
+          onPromoteAlternate={onPromoteAlternate}
           onRenameAlternate={onRenameAlternate}
+          onRequestDiscardAlternate={onRequestDiscardAlternate}
           onSelectVersion={onSelectVersion}
         />
       )}

@@ -17,7 +17,10 @@ const ALTERNATE_BOARD_ID = BoardIdSchema.parse('board_navigator_alt');
 const VERSION_PROPS = {
   onCreateAlternate: () => true,
   onDuplicateAlternate: () => true,
+  onMergeAlternate: () => true,
+  onPromoteAlternate: () => true,
   onRenameAlternate: () => true,
+  onRequestDiscardAlternate: () => undefined,
   onSelectVersion: () => true,
 } as const;
 
@@ -242,7 +245,10 @@ describe('wireframe navigator', () => {
   it('selects, creates, duplicates, and renames versions from the active board panel', () => {
     const onCreateAlternate = vi.fn(() => true);
     const onDuplicateAlternate = vi.fn(() => true);
+    const onMergeAlternate = vi.fn(() => true);
+    const onPromoteAlternate = vi.fn(() => true);
     const onRenameAlternate = vi.fn(() => true);
+    const onRequestDiscardAlternate = vi.fn();
     const onSelectVersion = vi.fn(() => true);
     render(
       <WireframeNavigator
@@ -251,10 +257,13 @@ describe('wireframe navigator', () => {
         onCreateAlternate={onCreateAlternate}
         onDuplicateAlternate={onDuplicateAlternate}
         onDuplicateBoard={() => true}
+        onMergeAlternate={onMergeAlternate}
+        onPromoteAlternate={onPromoteAlternate}
         onRenameAlternate={onRenameAlternate}
         onRenameBoard={() => true}
         onRequestTrashBoard={() => undefined}
         onReorderBoard={() => true}
+        onRequestDiscardAlternate={onRequestDiscardAlternate}
         onRestoreBoard={() => true}
         onSelectBoard={() => undefined}
         onSelectVersion={onSelectVersion}
@@ -270,6 +279,13 @@ describe('wireframe navigator', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate Version' }));
     expect(onCreateAlternate).toHaveBeenCalledWith(FIRST_BOARD_ID);
     expect(onDuplicateAlternate).toHaveBeenCalledWith(FIRST_BOARD_ID);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Promote to Official' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Merge into Official' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard Alternate' }));
+    expect(onPromoteAlternate).toHaveBeenCalledWith(FIRST_BOARD_ID, ALTERNATE_BOARD_ID);
+    expect(onMergeAlternate).toHaveBeenCalledWith(FIRST_BOARD_ID, ALTERNATE_BOARD_ID);
+    expect(onRequestDiscardAlternate).toHaveBeenCalledWith(FIRST_BOARD_ID, ALTERNATE_BOARD_ID);
 
     const rename = screen.getByRole('textbox', { name: 'Alternate name' });
     fireEvent.change(rename, { target: { value: '  Final review  ' } });

@@ -1008,10 +1008,13 @@ const AlphaNavigatorFixture = () => {
       onCreateAlternate={() => true}
       onDuplicateBoard={() => true}
       onDuplicateAlternate={() => true}
+      onMergeAlternate={() => true}
+      onPromoteAlternate={() => true}
       onRenameAlternate={() => true}
       onRenameBoard={() => true}
       onRequestTrashBoard={() => undefined}
       onReorderBoard={() => true}
+      onRequestDiscardAlternate={() => undefined}
       onRestoreBoard={() => true}
       onSelectBoard={() => undefined}
       onSelectVersion={() => true}

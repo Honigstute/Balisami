@@ -39,10 +39,16 @@ import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { ProjectHome } from '../projects/ProjectHome';
 import { BoardTrashDialog } from '../projects/BoardTrashDialog';
+import { BoardAlternateDiscardDialog } from '../projects/BoardAlternateDiscardDialog';
 import { BoardNoteEditor } from '../projects/BoardNoteEditor';
 import { ActiveBoardStore } from '../projects/active-board-store';
 import { createBoardCreationCommand } from '../projects/board-creation';
 import { planBoardAlternateClone } from '../projects/board-alternate';
+import {
+  planBoardAlternateDiscard,
+  planBoardAlternateMerge,
+  planBoardAlternatePromote,
+} from '../projects/board-alternate-lifecycle';
 import { planBoardDuplicate } from '../projects/board-duplicate';
 import {
   createBoardRestoreCommand,
@@ -170,6 +176,9 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     ...(packagedRecoveryRestore ? { packagedRecoveryRestore: true } : {}),
   });
   const { session, view } = project;
+  const [pendingAlternateDiscard, setPendingAlternateDiscard] = useState<
+    Readonly<{ alternateId: BoardId; canonicalBoardId: BoardId }> | undefined
+  >();
   const [pendingTrashBoardId, setPendingTrashBoardId] = useState<BoardId>();
   const packagedProbeStarted = useRef(false);
   const packagedProbeProjectStarted = useRef(false);
@@ -782,6 +791,92 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     },
     [resetElementInteraction, session],
   );
+  const promoteBoardAlternate = useCallback(
+    (canonicalBoardId: BoardId, alternateId: BoardId): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const formerOfficialId = allocateEditorBoardId();
+      if (currentDocument === undefined || formerOfficialId === undefined) {
+        return false;
+      }
+      const plan = planBoardAlternatePromote(
+        currentDocument,
+        canonicalBoardId,
+        alternateId,
+        formerOfficialId,
+        () => allocateEditorElementId(),
+      );
+      if (plan === undefined) {
+        return false;
+      }
+      const result = session.dispatchTransaction(plan.commands, { label: 'Promote alternate' });
+      if (result?.ok !== true || !result.changed) {
+        return false;
+      }
+      resetElementInteraction();
+      return true;
+    },
+    [resetElementInteraction, session],
+  );
+  const mergeBoardAlternate = useCallback(
+    (canonicalBoardId: BoardId, alternateId: BoardId): boolean => {
+      const currentDocument = session.getSnapshot().history?.document;
+      if (currentDocument === undefined) {
+        return false;
+      }
+      const plan = planBoardAlternateMerge(currentDocument, canonicalBoardId, alternateId, () =>
+        allocateEditorElementId(),
+      );
+      if (plan === undefined) {
+        return false;
+      }
+      const result = session.dispatchTransaction(plan.commands, {
+        label: 'Merge alternate into Official',
+      });
+      if (result?.ok !== true || !result.changed) {
+        return false;
+      }
+      resetElementInteraction();
+      return true;
+    },
+    [resetElementInteraction, session],
+  );
+  const requestAlternateDiscard = useCallback(
+    (canonicalBoardId: BoardId, alternateId: BoardId): void => {
+      const currentDocument = session.getSnapshot().history?.document;
+      if (
+        currentDocument !== undefined &&
+        planBoardAlternateDiscard(currentDocument, canonicalBoardId, alternateId) !== undefined
+      ) {
+        setPendingAlternateDiscard(Object.freeze({ alternateId, canonicalBoardId }));
+      }
+    },
+    [session],
+  );
+  const confirmAlternateDiscard = useCallback((): boolean => {
+    if (pendingAlternateDiscard === undefined) {
+      return false;
+    }
+    const currentDocument = session.getSnapshot().history?.document;
+    const plan =
+      currentDocument === undefined
+        ? undefined
+        : planBoardAlternateDiscard(
+            currentDocument,
+            pendingAlternateDiscard.canonicalBoardId,
+            pendingAlternateDiscard.alternateId,
+          );
+    if (plan === undefined) {
+      setPendingAlternateDiscard(undefined);
+      return false;
+    }
+    const result = session.dispatchTransaction(plan.commands, { label: 'Discard alternate' });
+    if (result?.ok !== true || !result.changed) {
+      return false;
+    }
+    setPendingAlternateDiscard(undefined);
+    resetElementInteraction();
+    return true;
+  }, [pendingAlternateDiscard, resetElementInteraction, session]);
   const requestTrashBoard = useCallback(
     (boardId: BoardId): void => {
       const currentDocument = session.getSnapshot().history?.document;
@@ -871,6 +966,16 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       setPendingTrashBoardId(undefined);
     }
   }, [document, pendingTrashBoardId, view.dialog]);
+  useEffect(() => {
+    if (
+      pendingAlternateDiscard !== undefined &&
+      (view.dialog !== undefined ||
+        document?.boardsById[pendingAlternateDiscard.canonicalBoardId]?.selectedAlternateId !==
+          pendingAlternateDiscard.alternateId)
+    ) {
+      setPendingAlternateDiscard(undefined);
+    }
+  }, [document, pendingAlternateDiscard, view.dialog]);
   useEffect(() => {
     if (
       packagedProbeProjectStarted.current ||
@@ -1036,6 +1141,20 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         }}
       />
     );
+  const pendingDiscardAlternate =
+    pendingAlternateDiscard === undefined
+      ? undefined
+      : document?.boardsById[pendingAlternateDiscard.alternateId];
+  const alternateDiscardOverlay =
+    pendingDiscardAlternate === undefined ? undefined : (
+      <BoardAlternateDiscardDialog
+        alternate={pendingDiscardAlternate}
+        onCancel={() => setPendingAlternateDiscard(undefined)}
+        onConfirm={() => {
+          confirmAlternateDiscard();
+        }}
+      />
+    );
 
   if (document === undefined) {
     return (
@@ -1087,7 +1206,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       }
       navigatorControls={{ onCreateBoard: createBoard }}
       projectName={view.displayName}
-      projectOverlay={projectDecisionOverlay ?? boardTrashOverlay}
+      projectOverlay={projectDecisionOverlay ?? boardTrashOverlay ?? alternateDiscardOverlay}
       {...(packagedRecoveryRestore
         ? {
             projectProbeState: {
@@ -1270,8 +1389,11 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                   onCreateAlternate={(boardId) => cloneBoardAlternate(boardId, 'create')}
                   onDuplicateBoard={duplicateBoard}
                   onDuplicateAlternate={(boardId) => cloneBoardAlternate(boardId, 'duplicate')}
+                  onMergeAlternate={mergeBoardAlternate}
+                  onPromoteAlternate={promoteBoardAlternate}
                   onRenameBoard={renameBoard}
                   onRenameAlternate={renameBoard}
+                  onRequestDiscardAlternate={requestAlternateDiscard}
                   onRequestTrashBoard={requestTrashBoard}
                   onReorderBoard={reorderBoard}
                   onRestoreBoard={restoreBoard}

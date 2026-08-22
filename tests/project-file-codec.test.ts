@@ -127,6 +127,44 @@ describe('project file codec', () => {
     });
   });
 
+  it('round-trips a selected alternate family without changing canonical board links', () => {
+    const input = createValidProjectDocumentInput();
+    const alternateId = 'board_codec_alternate';
+    const canonicalBoard = input.boardsById[DOCUMENT_FIXTURE_IDS.board];
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (canonicalBoard === undefined || child === undefined) {
+      throw new Error('Alternate codec fixture is incomplete.');
+    }
+    child.assetIds = [];
+    input.assetsById = {};
+    canonicalBoard.childIds = [];
+    canonicalBoard.alternateIds = [alternateId];
+    canonicalBoard.selectedAlternateId = alternateId;
+    input.boardsById[alternateId] = {
+      id: alternateId,
+      name: 'Selected alternate',
+      note: { text: 'Persisted alternate note' },
+      childIds: [DOCUMENT_FIXTURE_IDS.group],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    const document = parseProjectFileFixture(input);
+    const decoded = decodeProjectFileEnvelope(encodeFixture(document));
+
+    expect(decoded).toMatchObject({ ok: true });
+    if (!decoded.ok) {
+      throw new Error('Expected alternate family round-trip to succeed.');
+    }
+    expect(decoded.value.document).toEqual(document);
+    expect(decoded.value.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.selectedAlternateId).toBe(
+      alternateId,
+    );
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.link).toEqual({
+      kind: 'board',
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+    });
+  });
+
   it('stores referenced asset bytes by digest and verifies them on round-trip', () => {
     const document = createProjectDocumentWithAsset();
     const encoded = encodeFixture(document, {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/renderer/app/App';
@@ -285,6 +285,19 @@ describe('application shell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Current' }));
     fireEvent.click(screen.getByRole('option', { name: 'Alternate 1' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Alternate 1' })).toHaveValue(
+      'Alternate-only decision',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard Alternate' }));
+    const discard = screen.getByRole('alertdialog', { name: 'Discard “Alternate 1”?' });
+    expect(within(discard).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    fireEvent.click(within(discard).getByRole('button', { name: 'Discard Alternate' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Main wireframe' })).toHaveValue(
+      'Fixture board note',
+    );
+    const undoDiscard = screen.getByRole('button', { name: 'Undo Discard alternate' });
+    fireEvent.click(undoDiscard);
     expect(await screen.findByRole('textbox', { name: 'Notes for Alternate 1' })).toHaveValue(
       'Alternate-only decision',
     );

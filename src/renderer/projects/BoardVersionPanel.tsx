@@ -12,7 +12,10 @@ interface BoardVersionPanelProps {
   readonly document: ProjectDocument;
   readonly onCreateAlternate: (canonicalBoardId: BoardId) => boolean;
   readonly onDuplicateAlternate: (canonicalBoardId: BoardId) => boolean;
+  readonly onMergeAlternate: (canonicalBoardId: BoardId, alternateId: BoardId) => boolean;
+  readonly onPromoteAlternate: (canonicalBoardId: BoardId, alternateId: BoardId) => boolean;
   readonly onRenameAlternate: (alternateId: BoardId, name: string) => boolean;
+  readonly onRequestDiscardAlternate: (canonicalBoardId: BoardId, alternateId: BoardId) => void;
   readonly onSelectVersion: (canonicalBoardId: BoardId, alternateId: BoardId | null) => boolean;
 }
 
@@ -22,7 +25,10 @@ export const BoardVersionPanel = ({
   document,
   onCreateAlternate,
   onDuplicateAlternate,
+  onMergeAlternate,
+  onPromoteAlternate,
   onRenameAlternate,
+  onRequestDiscardAlternate,
   onSelectVersion,
 }: BoardVersionPanelProps) => {
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +118,22 @@ export const BoardVersionPanel = ({
         <AppButton onClick={() => onDuplicateAlternate(canonicalBoard.id)}>
           Duplicate Version
         </AppButton>
+        {selectedAlternate === undefined ? null : (
+          <>
+            <AppButton onClick={() => onPromoteAlternate(canonicalBoard.id, selectedAlternate.id)}>
+              Promote to Official
+            </AppButton>
+            <AppButton onClick={() => onMergeAlternate(canonicalBoard.id, selectedAlternate.id)}>
+              Merge into Official
+            </AppButton>
+            <AppButton
+              onClick={() => onRequestDiscardAlternate(canonicalBoard.id, selectedAlternate.id)}
+              tone="danger"
+            >
+              Discard Alternate
+            </AppButton>
+          </>
+        )}
       </div>
     </section>
   );

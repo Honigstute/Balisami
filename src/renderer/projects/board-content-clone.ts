@@ -1,5 +1,6 @@
 import {
   CreateElementCommandSchema,
+  DeleteElementCommandSchema,
   DOCUMENT_COMMAND_TYPES,
   createElementLocationIndex,
   selectBoardElementIds,
@@ -25,6 +26,8 @@ export interface BoardContentClonePlan {
 
 export interface BoardContentCloneOptions {
   readonly remapBoardLink?: (boardId: BoardId) => BoardId;
+  /** Appends source roots after existing target roots without changing nested child order. */
+  readonly targetRootIndexOffset?: number;
 }
 
 /**
@@ -102,7 +105,10 @@ export const planBoardContentClone = (
         link,
       },
       owner,
-      index: location.index,
+      index:
+        location.owner.kind === 'board'
+          ? location.index + (options.targetRootIndexOffset ?? 0)
+          : location.index,
     });
     if (!createElement.success) {
       return undefined;
@@ -117,4 +123,27 @@ export const planBoardContentClone = (
     sourceElementIds,
     targetBoardId,
   });
+};
+
+/** Deletes one board's tree child-first so every ordinary delete command remains valid. */
+export const planBoardContentDelete = (
+  document: ProjectDocument,
+  boardId: BoardId,
+): readonly DocumentCommand[] | undefined => {
+  const elementIds = selectBoardElementIds(document, boardId);
+  if (elementIds === undefined) {
+    return undefined;
+  }
+  const commands: DocumentCommand[] = [];
+  for (const elementId of [...elementIds].reverse()) {
+    const command = DeleteElementCommandSchema.safeParse({
+      type: DOCUMENT_COMMAND_TYPES.deleteElement,
+      elementId,
+    });
+    if (!command.success) {
+      return undefined;
+    }
+    commands.push(command.data);
+  }
+  return Object.freeze(commands);
 };
