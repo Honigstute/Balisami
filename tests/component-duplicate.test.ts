@@ -11,6 +11,7 @@ import {
 } from '../src/domain';
 import { planComponentDuplicate } from '../src/renderer/controls/component-duplicate';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   getFixtureControlProperties,
   getFixtureControlVersion,
@@ -41,6 +42,7 @@ const createFixture = (): ProjectDocument => {
         childIds: [SOURCE_CHILD_ID],
         assetIds: [],
         link: null,
+        rowData: createEmptyElementRowDataInput(),
       },
       {
         id: SOURCE_CHILD_ID,
@@ -52,6 +54,7 @@ const createFixture = (): ProjectDocument => {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: createEmptyElementRowDataInput(),
       },
     ],
     index: 0,

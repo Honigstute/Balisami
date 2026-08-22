@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   BoardIdSchema,
   CONTROL_TYPES,
+  EMPTY_ELEMENT_ROW_DATA,
   ElementIdSchema,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
   ProjectIdSchema,
@@ -73,6 +74,7 @@ const createPresentationDocument = (
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [HOME_LINK_ID]: {
         id: HOME_LINK_ID,
@@ -93,6 +95,7 @@ const createPresentationDocument = (
         childIds: [],
         assetIds: [],
         link: { kind: 'board', boardId: DETAILS_ID },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [EXTERNAL_LINK_ID]: {
         id: EXTERNAL_LINK_ID,
@@ -104,6 +107,7 @@ const createPresentationDocument = (
         childIds: [],
         assetIds: [],
         link: { kind: 'external', url: 'https://example.com/demo' },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
     },
     assetsById: {},

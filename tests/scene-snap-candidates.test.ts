@@ -11,6 +11,7 @@ import {
   createWorldVector,
 } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlProperties,
@@ -111,6 +112,7 @@ describe('scene snap candidate adapter', () => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     });
     input.elementsById[beforeId] = createRectangle(beforeId, 0);
     input.elementsById[movingId] = createRectangle(movingId, 58);

@@ -34,6 +34,7 @@ import {
   createWorldPoint,
 } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlVersion,
@@ -92,6 +93,7 @@ const parseMovePreviewFixture = (): ProjectDocument => {
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   const result = parseProjectDocument(input);
   if (!result.ok) {

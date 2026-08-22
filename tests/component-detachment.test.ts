@@ -16,6 +16,7 @@ import {
 import { planComponentDetachment } from '../src/renderer/controls/component-detachment';
 import { createBoardSceneItems } from '../src/renderer/editor/document-scene-model';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlProperties,
@@ -61,6 +62,7 @@ const createComponentDocument = (locked = false): ProjectDocument => {
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   const parsed = parseProjectDocument(input);
   if (!parsed.ok) {

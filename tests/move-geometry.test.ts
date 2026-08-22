@@ -10,6 +10,7 @@ import {
 } from '../src/renderer/editor/move-geometry';
 import { createWorldPoint, createWorldVector } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlProperties,
@@ -99,6 +100,7 @@ describe('move geometry', () => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     };
     input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.push(rootId);
     const parsed = parseProjectDocument(input);

@@ -15,10 +15,12 @@ export const ProjectIdSchema = createStableIdSchema<'ProjectId'>('project');
 export const BoardIdSchema = createStableIdSchema<'BoardId'>('board');
 export const ComponentIdSchema = createStableIdSchema<'ComponentId'>('component');
 export const ElementIdSchema = createStableIdSchema<'ElementId'>('element');
+export const ElementRowIdSchema = createStableIdSchema<'ElementRowId'>('row');
 export const AssetIdSchema = createStableIdSchema<'AssetId'>('asset');
 
 export type ProjectId = z.infer<typeof ProjectIdSchema>;
 export type BoardId = z.infer<typeof BoardIdSchema>;
 export type ComponentId = z.infer<typeof ComponentIdSchema>;
 export type ElementId = z.infer<typeof ElementIdSchema>;
+export type ElementRowId = z.infer<typeof ElementRowIdSchema>;
 export type AssetId = z.infer<typeof AssetIdSchema>;

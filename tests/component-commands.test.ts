@@ -12,6 +12,7 @@ import {
   type ProjectDocument,
 } from '../src/domain';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlProperties,
@@ -46,6 +47,7 @@ const createComponentCommand = (
       childIds: Object.freeze([childId]),
       assetIds: Object.freeze([]),
       link: null,
+      rowData: Object.freeze(createEmptyElementRowDataInput()),
     }),
     Object.freeze({
       id: childId,
@@ -60,6 +62,7 @@ const createComponentCommand = (
       childIds: Object.freeze([]),
       assetIds: Object.freeze([]),
       link: null,
+      rowData: Object.freeze(createEmptyElementRowDataInput()),
     }),
   ]);
   return Object.freeze({
@@ -134,6 +137,7 @@ describe('component commands', () => {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: createEmptyElementRowDataInput(),
       },
       owner: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
       index: 1,
@@ -186,6 +190,7 @@ describe('component commands', () => {
           childIds: [instanceId],
           assetIds: [],
           link: null,
+          rowData: createEmptyElementRowDataInput(),
         },
         {
           id: instanceId,
@@ -197,6 +202,7 @@ describe('component commands', () => {
           childIds: [],
           assetIds: [],
           link: null,
+          rowData: createEmptyElementRowDataInput(),
         },
       ],
       index: 0,

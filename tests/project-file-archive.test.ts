@@ -43,11 +43,15 @@ const PROJECT_FILE_V4_GOLDEN_BASE64 = readFileSync(
   path.join(process.cwd(), 'tests', 'fixtures', 'project-file-v4.golden.base64'),
   'utf8',
 ).trim();
-const PROJECT_FILE_V5_GOLDEN_PATH = path.join(
+const PROJECT_FILE_V5_GOLDEN_BASE64 = readFileSync(
+  path.join(process.cwd(), 'tests', 'fixtures', 'project-file-v5.golden.base64'),
+  'utf8',
+).trim();
+const PROJECT_FILE_V6_GOLDEN_PATH = path.join(
   process.cwd(),
   'tests',
   'fixtures',
-  'project-file-v5.golden.base64',
+  'project-file-v6.golden.base64',
 );
 
 const expectArchiveError = async (input: unknown): Promise<ProjectFileOperationError> => {
@@ -73,9 +77,9 @@ describe('physical project file archive', () => {
     expect(Array.from(left.value)).toEqual(Array.from(right.value));
     const actualBase64 = Buffer.from(left.value).toString('base64');
     if (process.env.BALSAMIC_UPDATE_PROJECT_GOLDEN === '1') {
-      writeFileSync(PROJECT_FILE_V5_GOLDEN_PATH, `${actualBase64}\n`, 'utf8');
+      writeFileSync(PROJECT_FILE_V6_GOLDEN_PATH, `${actualBase64}\n`, 'utf8');
     } else {
-      expect(actualBase64).toBe(readFileSync(PROJECT_FILE_V5_GOLDEN_PATH, 'utf8').trim());
+      expect(actualBase64).toBe(readFileSync(PROJECT_FILE_V6_GOLDEN_PATH, 'utf8').trim());
     }
     expect(Array.from(left.value.slice(0, 4))).toEqual([0x50, 0x4b, 0x03, 0x04]);
     expect(Object.keys(unzipSync(left.value)).sort()).toEqual(
@@ -91,12 +95,13 @@ describe('physical project file archive', () => {
     expect(decoded.value.assetsById).toEqual({});
   });
 
-  it('migrates immutable v1 through v4 goldens to v5 without data loss', async () => {
+  it('migrates immutable v1 through v5 goldens to v6 without data loss', async () => {
     for (const [version, base64] of [
       [1, PROJECT_FILE_V1_GOLDEN_BASE64],
       [2, PROJECT_FILE_V2_GOLDEN_BASE64],
       [3, PROJECT_FILE_V3_GOLDEN_BASE64],
       [4, PROJECT_FILE_V4_GOLDEN_BASE64],
+      [5, PROJECT_FILE_V5_GOLDEN_BASE64],
     ] as const) {
       const source = Uint8Array.from(Buffer.from(base64, 'base64'));
       const decoded = await decodeProjectFileArchive(source);
@@ -107,7 +112,7 @@ describe('physical project file archive', () => {
         );
       }
       expect(decoded.value.document).toEqual(createAssetFreeProjectDocument());
-      expect(decoded.value.document.schemaVersion).toBe(5);
+      expect(decoded.value.document.schemaVersion).toBe(6);
       expect(decoded.value.document.componentIds).toEqual([]);
       expect(decoded.value.document.componentsById).toEqual({});
       expect(decoded.value.document.trashedBoardIds).toEqual([]);
@@ -117,6 +122,7 @@ describe('physical project file archive', () => {
       });
       for (const element of Object.values(decoded.value.document.elementsById)) {
         expect(element.controlVersion).toBe(getControlSpec(element.controlType)?.fileVersion);
+        expect(element.rowData).toEqual({ version: 1, bindings: [] });
       }
     }
   });

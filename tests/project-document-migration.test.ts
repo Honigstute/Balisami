@@ -5,6 +5,7 @@ import {
   migrateProjectDocumentV2ToV3,
   migrateProjectDocumentV3ToV4,
   migrateProjectDocumentV4ToV5,
+  migrateProjectDocumentV5ToV6,
 } from '../src/domain';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
@@ -21,6 +22,17 @@ describe('project document migrations', () => {
       }),
     );
 
+  const withoutRowData = (
+    elementsById: ReturnType<typeof createValidProjectDocumentInput>['elementsById'],
+  ) =>
+    Object.fromEntries(
+      Object.entries(elementsById).map(([elementId, value]) => {
+        const { rowData, ...releasedElement } = value;
+        void rowData;
+        return [elementId, releasedElement];
+      }),
+    );
+
   it('adds durable source control versions without mutating released v1 input', () => {
     const current = createValidProjectDocumentInput();
     const { componentIds, componentsById, trashedBoardIds, ...v2Fields } = current;
@@ -33,8 +45,9 @@ describe('project document migrations', () => {
       schemaVersion: 1,
       elementsById: Object.fromEntries(
         Object.entries(current.elementsById).map(([elementId, value]) => {
-          const { controlVersion, ...element } = value;
+          const { controlVersion, rowData, ...element } = value;
           void controlVersion;
+          void rowData;
           return [elementId, element];
         }),
       ),
@@ -62,6 +75,7 @@ describe('project document migrations', () => {
       ...v2Fields,
       boardsById: withoutAlternateFields(current.boardsById),
       schemaVersion: 2,
+      elementsById: withoutRowData(current.elementsById),
     };
     const before = structuredClone(released);
     const migrated = migrateProjectDocumentV2ToV3(released);
@@ -85,6 +99,7 @@ describe('project document migrations', () => {
       ...v4Fields,
       boardsById: withoutAlternateFields(current.boardsById),
       schemaVersion: 3,
+      elementsById: withoutRowData(current.elementsById),
     };
     const before = structuredClone(released);
     const migrated = migrateProjectDocumentV3ToV4(released);
@@ -109,7 +124,11 @@ describe('project document migrations', () => {
     const { componentIds, componentsById, ...v4Fields } = current;
     void componentIds;
     void componentsById;
-    const released = { ...v4Fields, schemaVersion: 4 };
+    const released = {
+      ...v4Fields,
+      elementsById: withoutRowData(current.elementsById),
+      schemaVersion: 4,
+    };
     const before = structuredClone(released);
     const migrated = migrateProjectDocumentV4ToV5(released);
 
@@ -122,6 +141,26 @@ describe('project document migrations', () => {
     expect(migrated.value.componentsById).toEqual({});
     expect(Object.isFrozen(migrated.value.componentIds)).toBe(true);
     expect(Object.isFrozen(migrated.value.componentsById)).toBe(true);
+    expect(released).toEqual(before);
+  });
+
+  it('adds exact empty row bindings without mutating released v5 input', () => {
+    const current = createValidProjectDocumentInput();
+    const released = {
+      ...current,
+      elementsById: withoutRowData(current.elementsById),
+      schemaVersion: 5,
+    };
+    const before = structuredClone(released);
+    const migrated = migrateProjectDocumentV5ToV6(released);
+
+    expect(migrated).toMatchObject({ ok: true });
+    if (!migrated.ok) throw new Error(migrated.message);
+    expect(migrated.value.schemaVersion).toBe(6);
+    for (const element of Object.values(migrated.value.elementsById)) {
+      expect(element.rowData).toEqual({ version: 1, bindings: [] });
+      expect(Object.isFrozen(element.rowData)).toBe(true);
+    }
     expect(released).toEqual(before);
   });
 
@@ -141,6 +180,10 @@ describe('project document migrations', () => {
     expect(migrateProjectDocumentV4ToV5({ schemaVersion: 4 })).toEqual({
       ok: false,
       message: 'Version 4 project document has an invalid structure.',
+    });
+    expect(migrateProjectDocumentV5ToV6({ schemaVersion: 5 })).toEqual({
+      ok: false,
+      message: 'Version 5 project document has an invalid structure.',
     });
   });
 });

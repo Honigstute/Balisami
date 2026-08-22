@@ -6,6 +6,7 @@ import {
   ComponentIdSchema,
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
+  EMPTY_ELEMENT_ROW_DATA,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
@@ -154,6 +155,7 @@ const createSceneFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [groupId]: {
         id: groupId,
@@ -165,6 +167,7 @@ const createSceneFixtureDocument = (): {
         childIds: [titleId, fieldId, buttonId, sideId],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [titleId]: {
         id: titleId,
@@ -176,6 +179,7 @@ const createSceneFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [fieldId]: {
         id: fieldId,
@@ -189,6 +193,7 @@ const createSceneFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [buttonId]: {
         id: buttonId,
@@ -203,6 +208,7 @@ const createSceneFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [sideId]: {
         id: sideId,
@@ -214,6 +220,7 @@ const createSceneFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
     },
     assetsById: {},
@@ -275,6 +282,7 @@ const createComponentFixtureDocument = (): {
         childIds: [titleId, buttonId],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [titleId]: {
         id: titleId,
@@ -286,6 +294,7 @@ const createComponentFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [buttonId]: {
         id: buttonId,
@@ -300,6 +309,7 @@ const createComponentFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [selectedId]: {
         id: selectedId,
@@ -314,6 +324,7 @@ const createComponentFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [secondInstanceId]: {
         id: secondInstanceId,
@@ -325,6 +336,7 @@ const createComponentFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
     },
     assetsById: {},
@@ -371,6 +383,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [titleId]: {
         id: titleId,
@@ -382,6 +395,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [buttonId]: {
         id: buttonId,
@@ -396,6 +410,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         childIds: [],
         assetIds: [],
         link: { kind: 'board', boardId },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [inputId]: {
         id: inputId,
@@ -409,6 +424,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
     },
     assetsById: {},
@@ -512,6 +528,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 390, y: 50, width: 160, height: 220 },
         id: browserId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: { borderMode: 'visual-1', color: 'default', scrollbar: true },
       },
@@ -528,6 +545,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 12, y: 64, width: 56, height: 56 },
         id: imageId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: requireControlProperties(CONTROL_TYPES.imagePlaceholder, {
           showBorder: true,
@@ -546,6 +564,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 82, y: 72, width: 64, height: 72 },
         id: arrowId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: {
           color: 'default',
@@ -571,6 +590,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 76, y: 312, width: 180, height: 32 },
         id: checkboxId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: requireControlProperties(CONTROL_TYPES.checkbox, {
           checked: true,
@@ -590,6 +610,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 76, y: 360, width: 110, height: 36 },
         id: playbackId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: {},
       },
@@ -606,6 +627,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 202, y: 372, width: 144, height: 96 },
         id: videoPlayerId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: {},
       },
@@ -622,6 +644,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 76, y: 420, width: 96, height: 20 },
         id: volumeSliderId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: {},
       },
@@ -638,6 +661,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 274, y: 286, width: 96, height: 72 },
         id: webcamId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: {},
       },

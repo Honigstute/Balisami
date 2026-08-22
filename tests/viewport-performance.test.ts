@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BoardIdSchema,
   ElementIdSchema,
+  EMPTY_ELEMENT_ROW_DATA,
   FOUNDATION_CONTROL_TYPES,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
   parseProjectDocument,
@@ -59,6 +60,7 @@ const createHitTestFixture = (elementCount: number) => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: EMPTY_ELEMENT_ROW_DATA,
     };
   }
   const parsed = parseProjectDocument({

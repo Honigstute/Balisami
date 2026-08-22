@@ -3,6 +3,7 @@ import type { ProjectDocumentShape } from './schema';
 import { ProjectDocumentV2ShapeSchema, type ProjectDocumentV2Shape } from './schema-v2';
 import { ProjectDocumentV3ShapeSchema, type ProjectDocumentV3Shape } from './schema-v3';
 import { ProjectDocumentV4ShapeSchema, type ProjectDocumentV4Shape } from './schema-v4';
+import { ProjectDocumentV5ShapeSchema, type ProjectDocumentV5Shape } from './schema-v5';
 
 export type ProjectDocumentMigrationResult<Value = ProjectDocumentShape> =
   { readonly ok: true; readonly value: Value } | { readonly ok: false; readonly message: string };
@@ -86,7 +87,9 @@ export const migrateProjectDocumentV3ToV4 = (
 };
 
 /** Adds an empty ordered component library while preserving every released v4 record. */
-export const migrateProjectDocumentV4ToV5 = (input: unknown): ProjectDocumentMigrationResult => {
+export const migrateProjectDocumentV4ToV5 = (
+  input: unknown,
+): ProjectDocumentMigrationResult<ProjectDocumentV5Shape> => {
   const parsed = ProjectDocumentV4ShapeSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: 'Version 4 project document has an invalid structure.' };
@@ -99,5 +102,28 @@ export const migrateProjectDocumentV4ToV5 = (input: unknown): ProjectDocumentMig
       componentsById: Object.freeze({}),
       schemaVersion: 5,
     }),
+  };
+};
+
+/** Adds the canonical empty parsed-row owner to every released v5 element. */
+export const migrateProjectDocumentV5ToV6 = (input: unknown): ProjectDocumentMigrationResult => {
+  const parsed = ProjectDocumentV5ShapeSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: 'Version 5 project document has an invalid structure.' };
+  }
+  const elementsById = Object.freeze(
+    Object.fromEntries(
+      Object.entries(parsed.data.elementsById).map(([elementId, element]) => [
+        elementId,
+        Object.freeze({
+          ...element,
+          rowData: Object.freeze({ bindings: Object.freeze([]), version: 1 as const }),
+        }),
+      ]),
+    ),
+  );
+  return {
+    ok: true,
+    value: Object.freeze({ ...parsed.data, elementsById, schemaVersion: 6 }),
   };
 };

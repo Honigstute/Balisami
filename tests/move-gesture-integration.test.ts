@@ -26,6 +26,7 @@ import {
   createWorldPoint,
 } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlProperties,
@@ -206,6 +207,7 @@ describe('move gesture integration', () => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     });
     input.elementsById[beforeId] = createRectangle(beforeId, 0, 40);
     input.elementsById[movingId] = createRectangle(movingId, 200, 20);

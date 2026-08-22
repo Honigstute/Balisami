@@ -1,6 +1,7 @@
 import {
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
+  EMPTY_ELEMENT_ROW_DATA,
   getControlSpec,
   type BoardId,
   type ComponentId,
@@ -48,6 +49,7 @@ export const createComponentInstanceInsertionCommand = (
       link: null,
       locked: false,
       properties: Object.freeze({ componentId, overrides: Object.freeze({}) }),
+      rowData: EMPTY_ELEMENT_ROW_DATA,
     }),
     index: board.childIds.length,
     owner: Object.freeze({ boardId: board.id, kind: 'board' }),

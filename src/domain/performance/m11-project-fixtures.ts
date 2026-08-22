@@ -5,7 +5,7 @@ import {
   ElementIdSchema,
   ProjectIdSchema,
 } from '../document/ids';
-import { PROJECT_DOCUMENT_SCHEMA_VERSION } from '../document/schema';
+import { EMPTY_ELEMENT_ROW_DATA, PROJECT_DOCUMENT_SCHEMA_VERSION } from '../document/schema';
 import { parseProjectDocument, type ProjectDocument } from '../document/validation';
 import { CONTROL_TYPES, FOUNDATION_CONTROL_TYPES, getControlSpec } from '../controls/control-spec';
 
@@ -113,6 +113,7 @@ export const createM11AssetHeavyFixture = (): M11ProjectPerformanceFixture => {
       childIds: [],
       assetIds: [assetId],
       link: null,
+      rowData: EMPTY_ELEMENT_ROW_DATA,
     };
   }
 
@@ -175,6 +176,7 @@ export const createM11ComponentHeavyFixture = (): M11ProjectPerformanceFixture =
       childIds: sourceChildIds,
       assetIds: [],
       link: null,
+      rowData: EMPTY_ELEMENT_ROW_DATA,
     };
     sourceChildIds.forEach((id, childIndex) => {
       elementsById[id] = {
@@ -192,6 +194,7 @@ export const createM11ComponentHeavyFixture = (): M11ProjectPerformanceFixture =
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       };
     });
 
@@ -216,6 +219,7 @@ export const createM11ComponentHeavyFixture = (): M11ProjectPerformanceFixture =
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       };
     }
   }

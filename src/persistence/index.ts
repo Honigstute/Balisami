@@ -46,11 +46,13 @@ export {
   PROJECT_FILE_MANIFEST_V3,
   PROJECT_FILE_MANIFEST_V4,
   PROJECT_FILE_MANIFEST_V5,
+  PROJECT_FILE_MANIFEST_V6,
   ProjectFileManifestV1Schema,
   ProjectFileManifestV2Schema,
   ProjectFileManifestV3Schema,
   ProjectFileManifestV4Schema,
   ProjectFileManifestV5Schema,
+  ProjectFileManifestV6Schema,
   getProjectAssetEntryPath,
   isProjectAssetEntryPath,
   type ProjectFileManifestV1,
@@ -58,6 +60,7 @@ export {
   type ProjectFileManifestV3,
   type ProjectFileManifestV4,
   type ProjectFileManifestV5,
+  type ProjectFileManifestV6,
 } from './project-file/manifest';
 export {
   routeProjectFileVersion,

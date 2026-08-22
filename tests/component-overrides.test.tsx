@@ -22,6 +22,7 @@ import {
 import { createBoardSceneItems } from '../src/renderer/editor/document-scene-model';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlProperties,
@@ -70,6 +71,7 @@ const createComponentDocument = (
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   if (includeSecondInstance) {
     board.childIds.push(SECOND_INSTANCE_ID);

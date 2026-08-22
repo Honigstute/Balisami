@@ -16,6 +16,7 @@ import {
   type ProjectDocument,
 } from '../src/domain';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlProperties,
@@ -83,6 +84,7 @@ const createElement = (
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   });
 
 const getFixtureElement = (input: ProjectDocumentInputFixture) => {

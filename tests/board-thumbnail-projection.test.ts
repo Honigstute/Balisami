@@ -15,6 +15,7 @@ import {
   createBoardThumbnailProjection,
 } from '../src/renderer/projects/board-thumbnail-projection';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlProperties,
@@ -134,6 +135,7 @@ describe('board thumbnail projection', () => {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: createEmptyElementRowDataInput(),
       };
     });
     const parsed = parseProjectDocument(input);

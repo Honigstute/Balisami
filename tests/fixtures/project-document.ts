@@ -52,6 +52,11 @@ export const getFixtureControlProperties = (type: string): MutableInput<ElementP
   return structuredClone(definition.defaultProperties) as MutableInput<ElementProperties>;
 };
 
+export const createEmptyElementRowDataInput = () => ({
+  version: 1 as const,
+  bindings: [],
+});
+
 export const DOCUMENT_FIXTURE_IDS = {
   asset: AssetIdSchema.parse('asset_image0001'),
   board: BoardIdSchema.parse('board_primary01'),
@@ -89,6 +94,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
       childIds: [DOCUMENT_FIXTURE_IDS.child],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     },
     [DOCUMENT_FIXTURE_IDS.child]: {
       id: DOCUMENT_FIXTURE_IDS.child,
@@ -103,6 +109,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
       childIds: [],
       assetIds: [DOCUMENT_FIXTURE_IDS.asset],
       link: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      rowData: createEmptyElementRowDataInput(),
     },
   },
   assetsById: {

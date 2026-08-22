@@ -5,10 +5,11 @@ import {
   BoardIdSchema,
   ComponentIdSchema,
   ElementIdSchema,
+  ElementRowIdSchema,
   ProjectIdSchema,
 } from './ids';
 
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 5 as const;
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 6 as const;
 
 export const DocumentTitleSchema = z.string().trim().min(1).max(120);
 const PropertyKeySchema = z
@@ -80,6 +81,37 @@ export const ElementLinkSchema = z.discriminatedUnion('kind', [
     .readonly(),
 ]);
 
+export const ELEMENT_ROW_DATA_VERSION = 1 as const;
+export const MAX_ELEMENT_ROW_BINDINGS = 512;
+
+export const ElementRowBindingSchema = z
+  .strictObject({
+    id: ElementRowIdSchema,
+    link: ElementLinkSchema.nullable(),
+  })
+  .readonly();
+
+export const ElementRowDataSchema = z
+  .strictObject({
+    version: z.literal(ELEMENT_ROW_DATA_VERSION),
+    bindings: z
+      .array(ElementRowBindingSchema)
+      .max(MAX_ELEMENT_ROW_BINDINGS)
+      .refine(
+        (bindings) => new Set(bindings.map((binding) => binding.id)).size === bindings.length,
+        {
+          message: 'Element row IDs must be unique within their owning element.',
+        },
+      )
+      .readonly(),
+  })
+  .readonly();
+
+export const EMPTY_ELEMENT_ROW_DATA = ElementRowDataSchema.parse({
+  version: ELEMENT_ROW_DATA_VERSION,
+  bindings: [],
+});
+
 export const AssetReferenceSchema = z
   .strictObject({
     id: AssetIdSchema,
@@ -107,6 +139,8 @@ const ElementNodeObjectSchema = z.strictObject({
   childIds: z.array(ElementIdSchema).readonly(),
   assetIds: z.array(AssetIdSchema).readonly(),
   link: ElementLinkSchema.nullable(),
+  /** Versioned stable identity and first-class links for registry-parsed rows. */
+  rowData: ElementRowDataSchema,
 });
 
 export const ElementNodeSchema = ElementNodeObjectSchema.readonly();
@@ -150,6 +184,8 @@ export const ProjectDocumentShapeSchema = z
 export type WorldRect = z.infer<typeof WorldRectSchema>;
 export type BoardNote = z.infer<typeof BoardNoteSchema>;
 export type ElementLink = z.infer<typeof ElementLinkSchema>;
+export type ElementRowBinding = z.infer<typeof ElementRowBindingSchema>;
+export type ElementRowData = z.infer<typeof ElementRowDataSchema>;
 export type AssetReference = z.infer<typeof AssetReferenceSchema>;
 export type ControlTypeId = z.infer<typeof ControlTypeIdSchema>;
 export type ElementProperties = z.infer<typeof ElementPropertiesSchema>;

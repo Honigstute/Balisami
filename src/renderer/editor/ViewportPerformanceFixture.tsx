@@ -3,6 +3,7 @@ import { Profiler, useEffect, useRef, useState } from 'react';
 import viewportPerformanceContract from '../../../viewport-performance-contract.json';
 import {
   BoardIdSchema,
+  EMPTY_ELEMENT_ROW_DATA,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
@@ -90,6 +91,7 @@ const createPerformanceFixtureDocument = (): PerformanceFixtureDocument => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: EMPTY_ELEMENT_ROW_DATA,
     };
   }
 
@@ -111,6 +113,7 @@ const createPerformanceFixtureDocument = (): PerformanceFixtureDocument => {
       },
     },
     elementsById,
+    componentsById: {},
     assetsById: {},
   });
   if (!parsed.ok) {

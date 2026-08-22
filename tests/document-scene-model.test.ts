@@ -24,6 +24,7 @@ import {
   createWorldRect,
 } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlVersion,
@@ -55,6 +56,7 @@ const createTwoRectangleDocument = (rootX = 200, rootY = 100): ProjectDocument =
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
   return parseFixture(input);
@@ -72,6 +74,7 @@ const createOverlappingRectangleDocument = (topLocked = false): ProjectDocument 
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.locked = topLocked;
   input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
@@ -92,6 +95,7 @@ const createArrowDocument = (routing: 'visual-1' | 'visual-2' = 'visual-1'): Pro
     frame: { height: 100, width: 100, x: 200, y: 100 },
     id: ROOT_ID,
     link: null,
+    rowData: createEmptyElementRowDataInput(),
     locked: false,
     properties: {
       color: 'default',
@@ -147,6 +151,7 @@ const createComponentInstanceDocument = (
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   return parseFixture(input);
 };
@@ -314,6 +319,7 @@ describe('document scene model', () => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     };
     reorderedInput.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [
       DOCUMENT_FIXTURE_IDS.group,
@@ -501,6 +507,7 @@ describe('document scene model', () => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     };
     input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.unshift(ROOT_ID);
     const document = parseFixture(input);

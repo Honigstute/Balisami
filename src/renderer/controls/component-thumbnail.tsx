@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import {
   CONTROL_TYPES,
+  EMPTY_ELEMENT_ROW_DATA,
   getControlSpec,
   type BoardId,
   type ComponentDefinition,
@@ -59,6 +60,7 @@ const createProjection = (
         link: null,
         locked: false,
         properties: Object.freeze({ componentId: component.id, overrides: Object.freeze({}) }),
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       }),
     }),
   }) as ProjectDocument;

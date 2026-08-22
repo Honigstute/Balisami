@@ -2,32 +2,48 @@ import { z } from 'zod';
 
 import { AssetIdSchema, BoardIdSchema, ElementIdSchema, ProjectIdSchema } from './ids';
 import {
-  AssetReferenceSchema,
-  BoardNoteSchema,
-  DocumentTitleSchema,
-  ElementNodeSchema,
-} from './schema';
+  V1AssetReferenceSchema,
+  V1ControlTypeIdSchema,
+  V1ElementLinkSchema,
+  V1JsonValueSchema,
+  V1PropertyKeySchema,
+  V1WorldRectSchema,
+} from './schema-v1';
+
+/** Released v2 element record shared unchanged through v5. */
+export const ProjectDocumentV2ElementSchema = z
+  .strictObject({
+    id: ElementIdSchema,
+    controlType: V1ControlTypeIdSchema,
+    controlVersion: z.number().int().positive(),
+    frame: V1WorldRectSchema,
+    locked: z.boolean(),
+    properties: z.record(V1PropertyKeySchema, V1JsonValueSchema).readonly(),
+    childIds: z.array(ElementIdSchema).readonly(),
+    assetIds: z.array(AssetIdSchema).readonly(),
+    link: V1ElementLinkSchema.nullable(),
+  })
+  .readonly();
 
 /** Released board record shared by v2 and v3; never widen this with current fields. */
 export const ProjectDocumentV2BoardSchema = z
   .strictObject({
     id: BoardIdSchema,
-    name: DocumentTitleSchema,
-    note: BoardNoteSchema,
+    name: z.string().trim().min(1).max(120),
+    note: z.strictObject({ text: z.string().max(100_000) }).readonly(),
     childIds: z.array(ElementIdSchema).readonly(),
   })
   .readonly();
 
-/** Released v2 shape, retained solely as the exact input contract for v2 -> v3 migration. */
 export const ProjectDocumentV2ShapeSchema = z
   .strictObject({
     schemaVersion: z.literal(2),
     id: ProjectIdSchema,
-    name: DocumentTitleSchema,
+    name: z.string().trim().min(1).max(120),
     boardIds: z.array(BoardIdSchema).readonly(),
     boardsById: z.record(BoardIdSchema, ProjectDocumentV2BoardSchema).readonly(),
-    elementsById: z.record(ElementIdSchema, ElementNodeSchema).readonly(),
-    assetsById: z.record(AssetIdSchema, AssetReferenceSchema).readonly(),
+    elementsById: z.record(ElementIdSchema, ProjectDocumentV2ElementSchema).readonly(),
+    assetsById: z.record(AssetIdSchema, V1AssetReferenceSchema).readonly(),
   })
   .readonly();
 

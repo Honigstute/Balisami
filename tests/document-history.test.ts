@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  EMPTY_ELEMENT_ROW_DATA,
   BoardIdSchema,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
@@ -392,6 +393,7 @@ const createHistoryElement = () =>
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: EMPTY_ELEMENT_ROW_DATA,
   });
 
 it('undoes and redoes a deterministic randomized sequence of 10,000 valid commands exactly', () => {

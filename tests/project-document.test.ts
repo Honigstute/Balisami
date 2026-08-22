@@ -5,7 +5,9 @@ import {
   ComponentIdSchema,
   CONTROL_TYPES,
   ElementIdSchema,
+  ElementRowIdSchema,
   MAX_DOCUMENT_VALIDATION_ISSUES,
+  MAX_ELEMENT_ROW_BINDINGS,
   FOUNDATION_CONTROL_TYPES,
   createCustomIconReference,
   getControlSpec,
@@ -17,6 +19,7 @@ import {
   type ProjectDocumentParseResult,
 } from '../src/domain';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   type ProjectDocumentInputFixture,
@@ -96,6 +99,30 @@ describe('project document schema', () => {
     input.assetsById = {};
 
     expect(parseProjectDocument(input)).toMatchObject({ ok: true });
+  });
+
+  it('requires current row data and enforces the explicit collection bound', () => {
+    const missing = structuredClone(createValidProjectDocumentInput()) as unknown as {
+      elementsById: Record<string, Record<string, unknown>>;
+    };
+    const missingChild = missing.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (missingChild === undefined) throw new Error('Missing-row fixture child is absent.');
+    delete missingChild.rowData;
+    expect(issuePaths(expectFailure(missing))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.child}.rowData`,
+    );
+
+    const overLimit = createValidProjectDocumentInput();
+    getElement(overLimit, DOCUMENT_FIXTURE_IDS.child).rowData.bindings = Array.from(
+      { length: MAX_ELEMENT_ROW_BINDINGS + 1 },
+      (_, index) => ({
+        id: ElementRowIdSchema.parse(`row_binding${String(index).padStart(6, '0')}`),
+        link: null,
+      }),
+    );
+    expect(issuePaths(expectFailure(overLimit))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.child}.rowData.bindings`,
+    );
   });
 
   it('partitions every board between active order and durable trash', () => {
@@ -297,6 +324,7 @@ describe('project document schema', () => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     };
 
     expect(parseProjectDocument(input)).toMatchObject({ ok: true });
@@ -362,6 +390,7 @@ describe('project document schema', () => {
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     };
 
     const result = expectFailure(input);
