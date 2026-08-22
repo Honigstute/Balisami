@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createCustomIconReference,
   CONTROL_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
@@ -78,9 +79,30 @@ describe('board thumbnail projection', () => {
     }
 
     expect(
-      createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board)?.items[0]?.icon
-        ?.definition.id,
-    ).toBe('arrow-right');
+      createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board)?.items[0]?.icon,
+    ).toMatchObject({ definition: { id: 'arrow-right' }, kind: 'catalog' });
+  });
+
+  it('carries a project-image icon reference into the shared thumbnail projection', () => {
+    const input = createValidProjectDocumentInput();
+    const button = getControlSpec(CONTROL_TYPES.button);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (button === undefined || child === undefined) {
+      throw new Error('Custom thumbnail icon fixture is incomplete.');
+    }
+    child.controlType = button.type;
+    child.controlVersion = button.fileVersion;
+    child.properties = {
+      iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
+      text: 'Continue',
+    };
+    child.assetIds = [DOCUMENT_FIXTURE_IDS.asset];
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Custom thumbnail icon fixture is invalid.');
+
+    expect(
+      createBoardThumbnailProjection(parsed.value, DOCUMENT_FIXTURE_IDS.board)?.items[0]?.icon,
+    ).toMatchObject({ assetId: DOCUMENT_FIXTURE_IDS.asset, kind: 'asset' });
   });
 
   it('bounds SVG complexity while retaining the topmost canonical controls', () => {

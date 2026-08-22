@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
 import { getIconDefinition } from '../../shared/icons/icon-catalog';
+import { CustomIconReferenceSchema } from './custom-icon-reference';
 import {
   ControlTypeIdSchema,
   ElementPropertiesSchema,
@@ -50,9 +51,10 @@ const canonicalBundledIconIdSchema = z
     (iconId) => getIconDefinition(iconId)?.id === iconId,
     'Unknown or non-canonical icon ID.',
   );
+const controlIconIdSchema = z.union([canonicalBundledIconIdSchema, CustomIconReferenceSchema]);
 const buttonPropertiesSchema = z
   .strictObject({
-    iconId: canonicalBundledIconIdSchema.nullable(),
+    iconId: controlIconIdSchema.nullable(),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
@@ -296,7 +298,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     defaultProperties: { iconId: null, text: 'Button' },
     defaultSize: createSize(120, 40),
     export: createExport('scene'),
-    fileVersion: 2,
+    fileVersion: 3,
     inspector: createInspector('Content', [
       { kind: 'text', label: 'Text', property: 'text' },
       { kind: 'icon', label: 'Icon', property: 'iconId' },
@@ -309,6 +311,11 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         fromVersion: 1,
         migrate: (properties) => Object.freeze({ ...properties, iconId: null }),
         toVersion: 2,
+      },
+      {
+        fromVersion: 2,
+        migrate: (properties) => Object.freeze({ ...properties }),
+        toVersion: 3,
       },
     ],
     propertiesSchema: buttonPropertiesSchema,

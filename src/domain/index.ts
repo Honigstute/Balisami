@@ -81,6 +81,12 @@ export {
   type ProjectControlMigrationResult,
 } from './controls/control-property-migration';
 export {
+  CUSTOM_ICON_REFERENCE_PREFIX,
+  CustomIconReferenceSchema,
+  createCustomIconReference,
+  parseCustomIconReference,
+} from './controls/custom-icon-reference';
+export {
   assertControlDefinitionsConform,
   type ControlAccessibilityDefinition,
   type ControlAccessibilityRole,

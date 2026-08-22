@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BoardIdSchema,
+  CONTROL_TYPES,
   MAX_DOCUMENT_VALIDATION_ISSUES,
   FOUNDATION_CONTROL_TYPES,
+  createCustomIconReference,
+  getControlSpec,
   parseProjectDocument,
   type AssetId,
   type BoardId,
@@ -306,6 +309,23 @@ describe('project document schema', () => {
 
     expect(paths).toContain(`elementsById.${DOCUMENT_FIXTURE_IDS.child}.assetIds.0`);
     expect(paths).toContain(`elementsById.${DOCUMENT_FIXTURE_IDS.child}.link.boardId`);
+  });
+
+  it('requires a custom icon image to remain in the element asset reachability list', () => {
+    const input = createValidProjectDocumentInput();
+    const button = getControlSpec(CONTROL_TYPES.button);
+    const child = getElement(input, DOCUMENT_FIXTURE_IDS.child);
+    if (button === undefined) throw new Error('Button definition is missing.');
+    child.controlType = button.type;
+    child.controlVersion = button.fileVersion;
+    child.properties = {
+      iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
+      text: 'Brand',
+    };
+    child.assetIds = [];
+
+    const result = expectFailure(input);
+    expect(issuePaths(result)).toContain(`elementsById.${DOCUMENT_FIXTURE_IDS.child}.assetIds`);
   });
 
   it('permits only HTTP(S) external links', () => {

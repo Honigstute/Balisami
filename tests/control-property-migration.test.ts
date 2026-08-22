@@ -2,9 +2,11 @@ import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 
 import {
+  AssetIdSchema,
   CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
   ProjectDocumentShapeSchema,
+  createCustomIconReference,
   getControlSpec,
   migrateControlProperties,
   migrateProjectControlProperties,
@@ -48,6 +50,17 @@ describe('control property migrations', () => {
     expect(button.propertiesSchema.safeParse({ iconId: 'trash-2', text: 'Alias' }).success).toBe(
       false,
     );
+    const assetId = AssetIdSchema.parse('asset_customicon');
+    expect(
+      button.propertiesSchema.safeParse({
+        iconId: createCustomIconReference(assetId),
+        text: 'Brand',
+      }).success,
+    ).toBe(true);
+    expect(
+      button.propertiesSchema.safeParse({ iconId: 'project-image:not-an-asset', text: 'Bad' })
+        .success,
+    ).toBe(false);
   });
 
   it('runs a complete pure chain and validates the current property schema', () => {

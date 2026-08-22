@@ -8,6 +8,7 @@ import {
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
+  createCustomIconReference,
   dispatchDocumentCommand,
   getControlSpec,
   parseProjectDocument,
@@ -517,6 +518,7 @@ const createAlignedSelectionFixtureDocument = (
 type SceneFixtureState =
   | 'alpha'
   | 'alignSelection'
+  | 'customIcon'
   | 'delete'
   | 'duplicate'
   | 'equalGaps'
@@ -544,13 +546,52 @@ const SceneFixture = ({
   // native canvas without changing document geometry or shell tracks.
   const camera = useViewportCameraStore(state === 'registryControl' ? 0.8 : 1);
   const [fixture] = useState(() =>
-    state === 'alpha'
+    state === 'alpha' || state === 'customIcon'
       ? createAlphaFixtureDocument()
       : state === 'registryControl'
         ? createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
+    if (state === 'customIcon') {
+      const withAsset = dispatchDocumentCommand(fixture.document, {
+        type: DOCUMENT_COMMAND_TYPES.createAsset,
+        asset: {
+          id: REGISTRY_IMAGE_ASSET_ID,
+          sha256: 'c'.repeat(64),
+          mediaType: 'image/svg+xml',
+          byteLength: REGISTRY_IMAGE_DATA_URL.length,
+          originalName: 'Imported brand mark',
+        },
+      });
+      if (!withAsset.ok || !withAsset.changed) {
+        throw new Error('The custom-icon visual fixture asset could not be created.');
+      }
+      const withOwnership = dispatchDocumentCommand(withAsset.document, {
+        type: DOCUMENT_COMMAND_TYPES.setElementAssets,
+        elementId: fixture.selectedId,
+        assetIds: [REGISTRY_IMAGE_ASSET_ID],
+      });
+      if (!withOwnership.ok || !withOwnership.changed) {
+        throw new Error('The custom-icon visual fixture ownership could not be created.');
+      }
+      const element = withOwnership.document.elementsById[fixture.selectedId];
+      const withIcon =
+        element === undefined
+          ? undefined
+          : dispatchDocumentCommand(withOwnership.document, {
+              type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+              elementId: element.id,
+              properties: {
+                ...element.properties,
+                iconId: createCustomIconReference(REGISTRY_IMAGE_ASSET_ID),
+              },
+            });
+      if (withIcon === undefined || !withIcon.ok || !withIcon.changed) {
+        throw new Error('The custom-icon visual fixture property could not be created.');
+      }
+      return withIcon.document;
+    }
     if (state === 'alignSelection') {
       return createAlignedSelectionFixtureDocument(fixture);
     }
@@ -610,6 +651,7 @@ const SceneFixture = ({
     } else if (
       state === 'selection' ||
       state === 'alpha' ||
+      state === 'customIcon' ||
       state === 'move' ||
       state === 'smartGuides' ||
       state === 'equalGaps' ||
@@ -795,6 +837,7 @@ const SceneFixture = ({
       camera={camera}
       {...(state === 'selection' ||
       state === 'alpha' ||
+      state === 'customIcon' ||
       state === 'move' ||
       state === 'smartGuides' ||
       state === 'equalGaps' ||
@@ -849,7 +892,7 @@ const SceneFixture = ({
       worldChildren={
         <DocumentScene
           activeBoardId={fixture.boardId}
-          {...(state === 'registryControl'
+          {...(state === 'registryControl' || state === 'customIcon'
             ? { assetUrls: { [REGISTRY_IMAGE_ASSET_ID]: REGISTRY_IMAGE_DATA_URL } }
             : {})}
           camera={camera}
@@ -1030,7 +1073,11 @@ const ModalFixture = () => (
   </AppModal>
 );
 
-const AlphaInspectorFixture = () => {
+const AlphaInspectorFixture = ({
+  showProjectImage = false,
+}: {
+  readonly showProjectImage?: boolean;
+}) => {
   const [fixture] = useState(createAlphaFixtureDocument);
   const [selection] = useState(() => {
     const store = new SelectionStore();
@@ -1039,6 +1086,17 @@ const AlphaInspectorFixture = () => {
   });
   return (
     <ControlInspector
+      customIcons={
+        showProjectImage
+          ? [
+              {
+                assetId: REGISTRY_IMAGE_ASSET_ID,
+                label: 'Imported brand mark',
+                url: REGISTRY_IMAGE_DATA_URL,
+              },
+            ]
+          : []
+      }
       document={fixture.document}
       onAutoSize={() => Promise.resolve(false)}
       onSetFrames={() => false}
@@ -1057,7 +1115,7 @@ const IconPickerInspectorFixture = () => {
       trigger?.click();
     });
   }, []);
-  return <AlphaInspectorFixture />;
+  return <AlphaInspectorFixture showProjectImage />;
 };
 
 const RegistryControlInspectorFixture = () => {
@@ -1156,7 +1214,7 @@ export const VisualConformanceFixture = ({
                                     }
                                   : fixture === 'iconPicker'
                                     ? {
-                                        canvas: <SceneFixture state="alpha" />,
+                                        canvas: <SceneFixture state="customIcon" />,
                                         inspector: <IconPickerInspectorFixture />,
                                         shelf: <ControlShelf onInsert={() => false} />,
                                       }

@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  AssetIdSchema,
   BoardIdSchema,
   CONTROL_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
   createEmptyProjectDocument,
+  createCustomIconReference,
   dispatchDocumentCommand,
 } from '../src/domain';
 import { calculateControlAutoSizeFrame } from '../src/renderer/controls/control-auto-size';
@@ -107,5 +109,17 @@ describe('registry-driven control auto-size', () => {
     };
 
     expect(calculateControlAutoSizeFrame(withIcon, measurement)?.width).toBe(119.125);
+    expect(
+      calculateControlAutoSizeFrame(
+        {
+          ...element,
+          properties: {
+            ...element.properties,
+            iconId: createCustomIconReference(AssetIdSchema.parse('asset_autosize_icon')),
+          },
+        },
+        measurement,
+      )?.width,
+    ).toBe(119.125);
   });
 });

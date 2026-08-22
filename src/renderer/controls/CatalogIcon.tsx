@@ -36,16 +36,35 @@ export const CatalogIconPreview = ({
   );
 };
 
-export const CatalogSceneIcon = ({
+export const ControlSceneIcon = ({
+  assetUrls = {},
   projection,
 }: {
+  readonly assetUrls?: Readonly<Record<string, string>>;
   readonly projection: ControlSceneIconProjection;
-}) => (
-  <g
-    className="scene-control__catalog-icon"
-    data-icon-id={projection.definition.id}
-    transform={projection.transform}
-  >
-    <CatalogIconNodes definition={projection.definition} />
-  </g>
-);
+}) => {
+  const customUrl = projection.kind === 'asset' ? assetUrls[projection.assetId] : undefined;
+  if (projection.kind === 'asset' && customUrl === undefined) {
+    return null;
+  }
+  return (
+    <g
+      className="scene-control__catalog-icon"
+      data-icon-id={projection.id}
+      transform={projection.transform}
+    >
+      {projection.kind === 'catalog' ? (
+        <CatalogIconNodes definition={projection.definition} />
+      ) : (
+        <image
+          height="24"
+          href={customUrl}
+          preserveAspectRatio="xMidYMid meet"
+          width="24"
+          x="0"
+          y="0"
+        />
+      )}
+    </g>
+  );
+};

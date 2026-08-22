@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { CONTROL_TYPES, getControlSpec, type ProjectDocument } from '../src/domain';
+import {
+  CONTROL_TYPES,
+  createCustomIconReference,
+  getControlSpec,
+  type ProjectDocument,
+} from '../src/domain';
 import {
   MAX_PROJECT_FILE_ENTRY_COUNT,
   MAX_PROJECT_JSON_DEPTH,
@@ -214,6 +219,44 @@ describe('project file codec', () => {
     if (!decoded.ok) {
       throw new Error('Expected project file decoding to succeed.');
     }
+    expect(Array.from(decoded.value.assetsById[DOCUMENT_FIXTURE_IDS.asset] ?? [])).toEqual(
+      Array.from(PROJECT_FILE_FIXTURE_ASSET_BYTES),
+    );
+  });
+
+  it('round-trips a custom icon as a content-addressed project image reference', () => {
+    const input = createValidProjectDocumentInput();
+    const button = getControlSpec(CONTROL_TYPES.button);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    const asset = input.assetsById[DOCUMENT_FIXTURE_IDS.asset];
+    if (button === undefined || child === undefined || asset === undefined) {
+      throw new Error('Custom-icon project fixture is incomplete.');
+    }
+    asset.sha256 = PROJECT_FILE_FIXTURE_ASSET_SHA_256;
+    asset.byteLength = PROJECT_FILE_FIXTURE_ASSET_BYTES.byteLength;
+    child.controlType = button.type;
+    child.controlVersion = button.fileVersion;
+    child.properties = {
+      iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
+      text: 'Brand',
+    };
+    child.assetIds = [DOCUMENT_FIXTURE_IDS.asset];
+    const document = parseProjectFileFixture(input);
+    const decoded = decodeProjectFileEnvelope(
+      encodeFixture(document, {
+        [DOCUMENT_FIXTURE_IDS.asset]: PROJECT_FILE_FIXTURE_ASSET_BYTES,
+      }),
+    );
+
+    expect(decoded).toMatchObject({ ok: true });
+    if (!decoded.ok) throw new Error('Expected custom-icon project decoding to succeed.');
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toMatchObject({
+      assetIds: [DOCUMENT_FIXTURE_IDS.asset],
+      properties: {
+        iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
+        text: 'Brand',
+      },
+    });
     expect(Array.from(decoded.value.assetsById[DOCUMENT_FIXTURE_IDS.asset] ?? [])).toEqual(
       Array.from(PROJECT_FILE_FIXTURE_ASSET_BYTES),
     );

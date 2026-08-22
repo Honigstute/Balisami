@@ -2175,6 +2175,13 @@ p {
   white-space: nowrap;
 }
 
+.app-icon-popover__image {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
 .app-icon-popover__search {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2198,6 +2205,16 @@ p {
   gap: var(--space-1);
 }
 
+.app-icon-popover__custom {
+  margin-bottom: var(--space-3);
+}
+
+.app-icon-popover__custom > p {
+  margin: 0 0 var(--space-1);
+  color: var(--color-muted-ink);
+  font-size: var(--font-size-caption);
+}
+
 .app-icon-popover__option {
   display: grid;
   min-width: 0;
@@ -2207,6 +2224,12 @@ p {
   background: transparent;
   border: var(--border-width) solid transparent;
   border-radius: var(--radius-compact);
+}
+
+.app-icon-popover__option--image > img {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  object-fit: contain;
 }
 
 .app-icon-popover__option:hover,

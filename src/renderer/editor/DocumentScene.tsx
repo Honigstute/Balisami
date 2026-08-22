@@ -377,7 +377,7 @@ class DocumentScenePresenter {
       delete element.dataset.controlShowBorder;
     }
 
-    syncControlSceneIconElement(catalogIconElement, projection.icon);
+    syncControlSceneIconElement(catalogIconElement, projection.icon, this.#assetUrls);
     this.#updateElementText(textElement, projection.textLayout);
     this.#updateElementLinkHint(linkHintElement, bounds, item);
   }

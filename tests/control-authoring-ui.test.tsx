@@ -2,11 +2,13 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  AssetIdSchema,
   BoardIdSchema,
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
+  createCustomIconReference,
   createEmptyProjectDocument,
   dispatchDocumentCommand,
   type ControlTypeId,
@@ -15,6 +17,7 @@ import {
   ControlInspector,
   ControlInspectorTitle,
   type ControlInspectorFrameUpdate,
+  type ControlInspectorIconUpdate,
   type ControlInspectorPropertiesUpdate,
 } from '../src/renderer/controls/ControlInspector';
 import type { ControlInspectorLinkUpdate } from '../src/renderer/controls/ControlLinkInspector';
@@ -305,6 +308,35 @@ describe('alpha control authoring UI', () => {
       },
     ]);
     expect(screen.queryByRole('dialog', { name: 'Icon library' })).not.toBeInTheDocument();
+  });
+
+  it('offers imported project images and emits one asset-aware icon update', async () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.button);
+    const selection = new SelectionStore();
+    const assetId = AssetIdSchema.parse('asset_controlui_icon');
+    selection.selectOnly(elementId);
+    const onSetIcons = vi.fn<(updates: readonly ControlInspectorIconUpdate[]) => boolean>(
+      () => true,
+    );
+    render(
+      <ControlInspector
+        customIcons={[{ assetId, label: 'brand-mark.png', url: 'blob:project-image-icon' }]}
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetIcons={onSetIcons}
+        onSetProperties={() => true}
+        selection={selection}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Icon' }));
+    expect(await screen.findByText('Project images')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'brand-mark.png' }));
+
+    expect(onSetIcons).toHaveBeenCalledWith([
+      { elementId, iconId: createCustomIconReference(assetId), property: 'iconId' },
+    ]);
   });
 
   it('shows mixed values and emits one complete batch for shared multi-selection edits', () => {

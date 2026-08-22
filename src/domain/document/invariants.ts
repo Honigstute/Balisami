@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 
 import { getControlSpec } from '../controls/control-spec';
+import { parseCustomIconReference } from '../controls/custom-icon-reference';
 import type { BoardId, ElementId } from './ids';
 import type { ProjectDocumentShape } from './schema';
 
@@ -227,6 +228,36 @@ const validateControlCapabilities = (document: ProjectDocumentShape, addIssue: A
           ['elementsById', elementKey, 'properties', ...issue.path.map(String)],
           issue.message,
         );
+      }
+    }
+
+    for (const section of spec.inspector) {
+      for (const field of section.fields) {
+        if (field.kind !== 'icon') {
+          continue;
+        }
+        const customAssetId = parseCustomIconReference(element.properties[field.property]);
+        if (customAssetId === undefined) {
+          continue;
+        }
+        const asset = document.assetsById[customAssetId];
+        if (asset === undefined) {
+          addIssue(
+            ['elementsById', elementKey, 'properties', field.property],
+            `Custom icon asset '${customAssetId}' does not exist.`,
+          );
+        } else if (!asset.mediaType.startsWith('image/')) {
+          addIssue(
+            ['elementsById', elementKey, 'properties', field.property],
+            `Custom icon asset '${customAssetId}' is not an image.`,
+          );
+        }
+        if (!element.assetIds.includes(customAssetId)) {
+          addIssue(
+            ['elementsById', elementKey, 'assetIds'],
+            `Custom icon asset '${customAssetId}' must be owned by the element.`,
+          );
+        }
       }
     }
   }

@@ -138,11 +138,31 @@ describe('visual conformance fixture contract', () => {
   });
 
   it('renders the searchable icon picker as a portal without replacing shell regions', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
     const view = renderFixture('iconPicker');
 
     expect(await screen.findByRole('dialog', { name: 'Icon library' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Search icons' })).toHaveFocus();
-    expect(document.querySelectorAll('.app-icon-popover__option')).toHaveLength(72);
+    expect(screen.getByText('Project images')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Imported brand mark' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.app-icon-popover__option')).toHaveLength(73);
+    await waitFor(() => {
+      expect(
+        [...view.container.querySelectorAll<SVGGElement>('[data-icon-id]')].map(
+          (element) => element.dataset.iconId,
+        ),
+      ).toContain(`project-image:asset_registryimage`);
+    });
     expect(view.container.querySelector('[data-shell-region="root"]')).toBeInTheDocument();
     expect(document.querySelector('.app-popover')?.parentElement).not.toBe(
       view.container.querySelector('[data-shell-region="inspector"]'),

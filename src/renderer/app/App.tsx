@@ -27,6 +27,7 @@ import { VisualConformanceFixture } from '../design/VisualConformanceFixture';
 import { NoticeCenterStore } from '../design/notice-center';
 import { ControlInspector, ControlInspectorTitle } from '../controls/ControlInspector';
 import { calculateControlAutoSizeFrame } from '../controls/control-auto-size';
+import { planControlIconUpdates } from '../controls/control-icon-update';
 import { ControlShelf } from '../controls/ControlShelf';
 import { QuickAdd } from '../controls/QuickAdd';
 import {
@@ -707,6 +708,24 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   });
   const document = view.history?.document;
   const assetUrls = useProjectAssetUrls(session, document);
+  const assetsById = document?.assetsById;
+  const projectImageIcons = useMemo(
+    () =>
+      Object.freeze(
+        Object.values(assetsById ?? {}).flatMap((asset) => {
+          const url = assetUrls[asset.id];
+          if (!asset.mediaType.startsWith('image/') || url === undefined) return [];
+          return [
+            Object.freeze({
+              assetId: asset.id,
+              label: asset.originalName ?? 'Project image',
+              url,
+            }),
+          ];
+        }),
+      ),
+    [assetUrls, assetsById],
+  );
   const selectedBoardId = useSyncExternalStore(
     editor.activeBoard.subscribe,
     editor.activeBoard.getSnapshot,
@@ -1453,6 +1472,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           : {
               inspector: (
                 <ControlInspector
+                  customIcons={projectImageIcons}
                   document={document}
                   emptyContent={
                     activeVersionBoard === undefined ? undefined : (
@@ -1493,6 +1513,18 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
                         label: updates.length === 1 ? 'Edit geometry' : 'Edit control geometry',
                       },
                     );
+                    return result?.ok === true && result.changed;
+                  }}
+                  onSetIcons={(updates) => {
+                    const currentDocument = session.getSnapshot().history?.document;
+                    const commands =
+                      currentDocument === undefined
+                        ? undefined
+                        : planControlIconUpdates(currentDocument, updates);
+                    if (commands === undefined) return false;
+                    const result = session.dispatchTransaction(commands, {
+                      label: updates.length === 1 ? 'Change icon' : 'Change control icons',
+                    });
                     return result?.ok === true && result.changed;
                   }}
                   onSetLinks={(updates) => {

@@ -20,7 +20,7 @@ import { AppChoicePopover } from '../design/AppChoicePopover';
 import { AppColorPopover } from '../design/AppColorPopover';
 import { AppButton } from '../design/AppButton';
 import { AppInput } from '../design/AppInput';
-import { AppIconPopover } from '../design/AppIconPopover';
+import { AppIconPopover, type ProjectImageIconOption } from '../design/AppIconPopover';
 import { AppSegmentedControl } from '../design/AppSegmentedControl';
 import type { SelectionStore } from '../editor/selection-store';
 import {
@@ -40,11 +40,19 @@ export interface ControlInspectorPropertiesUpdate {
   readonly properties: ElementProperties;
 }
 
+export interface ControlInspectorIconUpdate {
+  readonly elementId: ElementId;
+  readonly iconId: string | null;
+  readonly property: string;
+}
+
 interface ControlInspectorProps {
+  readonly customIcons?: readonly ProjectImageIconOption[];
   readonly document: ProjectDocument;
   readonly emptyContent?: ReactNode;
   readonly onAutoSize: (elementId: ElementId) => Promise<boolean>;
   readonly onSetFrames: (updates: readonly ControlInspectorFrameUpdate[]) => boolean;
+  readonly onSetIcons?: (updates: readonly ControlInspectorIconUpdate[]) => boolean;
   readonly onSetLinks?: (updates: readonly ControlInspectorLinkUpdate[]) => boolean;
   readonly onSetProperties: (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean;
   readonly selection: SelectionStore;
@@ -225,13 +233,21 @@ const InspectorTextInput = ({ label, onCommit, value }: InspectorTextInputProps)
 };
 
 interface InspectorPropertyFieldProps {
+  readonly customIcons: readonly ProjectImageIconOption[];
   readonly field: ControlInspectorPropertyField;
   readonly onCommit: (property: string, value: boolean | number | string | null) => boolean;
+  readonly onCommitIcon: (property: string, value: string | null) => boolean;
   readonly value: InspectorValue<InspectorPrimitive>;
 }
 
 /** Property field kinds are registry vocabulary, not control-type branches. */
-const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFieldProps) => {
+const InspectorPropertyField = ({
+  customIcons,
+  field,
+  onCommit,
+  onCommitIcon,
+  value,
+}: InspectorPropertyFieldProps) => {
   if (field.kind === 'boolean' && (typeof value.value === 'boolean' || value.mixed)) {
     return (
       <AppSegmentedControl
@@ -271,9 +287,10 @@ const InspectorPropertyField = ({ field, onCommit, value }: InspectorPropertyFie
   ) {
     return (
       <AppIconPopover
+        customIcons={customIcons}
         label={field.label}
         mixed={value.mixed}
-        onChange={(nextValue) => onCommit(field.property, nextValue)}
+        onChange={(nextValue) => onCommitIcon(field.property, nextValue)}
         value={value.value as string | null | undefined}
       />
     );
@@ -343,10 +360,12 @@ export const ControlInspectorTitle = ({
 };
 
 export const ControlInspector = ({
+  customIcons = [],
   document,
   emptyContent,
   onAutoSize,
   onSetFrames,
+  onSetIcons,
   onSetLinks = () => false,
   onSetProperties,
   selection,
@@ -478,6 +497,7 @@ export const ControlInspector = ({
             {section.fields.map((field) => {
               return (
                 <InspectorPropertyField
+                  customIcons={customIcons}
                   field={field.field}
                   key={`${String(selectionSnapshot.revision)}-${section.label}-${field.field.property}`}
                   onCommit={(property, nextValue) =>
@@ -493,6 +513,24 @@ export const ControlInspector = ({
                       ),
                     )
                   }
+                  onCommitIcon={(property, iconId) => {
+                    const updates = model.elements.map((selectedElement) =>
+                      Object.freeze({ elementId: selectedElement.id, iconId, property }),
+                    );
+                    return onSetIcons === undefined
+                      ? onSetProperties(
+                          model.elements.map((selectedElement) =>
+                            Object.freeze({
+                              elementId: selectedElement.id,
+                              properties: Object.freeze({
+                                ...selectedElement.properties,
+                                [property]: iconId,
+                              }),
+                            }),
+                          ),
+                        )
+                      : onSetIcons(updates);
+                  }}
                   value={field}
                 />
               );

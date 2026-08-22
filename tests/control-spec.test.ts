@@ -59,7 +59,7 @@ describe('control definition registry', () => {
     }
     expect(getControlSpec(CONTROL_TYPES.button)).toMatchObject({
       defaultProperties: { iconId: null, text: 'Button' },
-      fileVersion: 2,
+      fileVersion: 3,
       inspector: [
         {
           fields: [

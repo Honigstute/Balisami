@@ -110,7 +110,10 @@ describe('board presentation', () => {
       versionName: 'Concept',
     });
     expect(projection?.items.map((item) => item.id)).toEqual([HOME_LINK_ID]);
-    expect(projection?.items[0]?.icon?.definition.id).toBe('arrow-right');
+    expect(projection?.items[0]?.icon).toMatchObject({
+      definition: { id: 'arrow-right' },
+      kind: 'catalog',
+    });
   });
 
   it('navigates linked boards, supports back/forward, opens external links, and exits', () => {

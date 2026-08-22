@@ -1,4 +1,9 @@
-import { getControlSpec, type ElementNode, type WorldRect } from '../../domain';
+import {
+  getControlSpec,
+  parseCustomIconReference,
+  type ElementNode,
+  type WorldRect,
+} from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import { getIconDefinition } from '../../shared/icons/icon-catalog';
 import {
@@ -37,7 +42,7 @@ export const calculateControlAutoSizeFrame = (
   const iconWidth =
     definition.capabilities.icon &&
     typeof iconId === 'string' &&
-    getIconDefinition(iconId)?.id === iconId
+    (getIconDefinition(iconId)?.id === iconId || parseCustomIconReference(iconId) !== undefined)
       ? DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1]
       : 0;
   const size = calculateControlTextAutoSize({
