@@ -556,6 +556,17 @@ describe('control definition registry', () => {
           ...checkbox,
           palette: {
             ...(checkbox.palette as NonNullable<typeof checkbox.palette>),
+            presets: [{ id: 'Invalid preset!', label: 'Invalid', order: 10_000, properties: {} }],
+          },
+        },
+      ]),
+    ).toThrow(/palette preset metadata/u);
+    expect(() =>
+      assertControlDefinitionsConform([
+        {
+          ...checkbox,
+          palette: {
+            ...(checkbox.palette as NonNullable<typeof checkbox.palette>),
             presets: [
               { id: 'same', label: 'One', order: 10_000, properties: {} },
               { id: 'same', label: 'Two', order: 10_001, properties: {} },

@@ -585,7 +585,7 @@ export const assertControlDefinitionsConform = (
           ...preset.properties,
         });
         if (
-          preset.id.trim().length === 0 ||
+          !/^[a-z][a-z0-9-]{0,63}$/u.test(preset.id) ||
           preset.label.trim().length === 0 ||
           !Number.isSafeInteger(preset.order) ||
           paletteOrders.has(preset.order) ||
