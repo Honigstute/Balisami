@@ -123,10 +123,12 @@ export {
 export {
   AssetIdSchema,
   BoardIdSchema,
+  ComponentIdSchema,
   ElementIdSchema,
   ProjectIdSchema,
   type AssetId,
   type BoardId,
+  type ComponentId,
   type ElementId,
   type ProjectId,
 } from './document/ids';
@@ -135,6 +137,7 @@ export {
   migrateProjectDocumentV1ToV2,
   migrateProjectDocumentV2ToV3,
   migrateProjectDocumentV3ToV4,
+  migrateProjectDocumentV4ToV5,
   type ProjectDocumentMigrationResult,
 } from './document/migrations';
 export { ElementOwnerSchema, type ElementOwner } from './document/owner';
@@ -162,6 +165,7 @@ export {
   AssetReferenceSchema,
   BoardNoteSchema,
   BoardSchema,
+  ComponentDefinitionSchema,
   ControlTypeIdSchema,
   DocumentTitleSchema,
   ElementLinkSchema,
@@ -174,6 +178,7 @@ export {
   type AssetReference,
   type Board,
   type BoardNote,
+  type ComponentDefinition,
   type ControlTypeId,
   type ElementLink,
   type ElementNode,
@@ -185,6 +190,7 @@ export {
 export { ProjectDocumentV1ShapeSchema } from './document/schema-v1';
 export { ProjectDocumentV2ShapeSchema, type ProjectDocumentV2Shape } from './document/schema-v2';
 export { ProjectDocumentV3ShapeSchema, type ProjectDocumentV3Shape } from './document/schema-v3';
+export { ProjectDocumentV4ShapeSchema, type ProjectDocumentV4Shape } from './document/schema-v4';
 export {
   MAX_DOCUMENT_VALIDATION_ISSUES,
   ProjectDocumentSchema,

@@ -720,6 +720,7 @@ A feature is done only when:
 | D-015 | Renderer-owned project history with opaque validated IPC   | Keep one live document authority while main exclusively owns paths, dialogs, durability, recovery, and native close   | Accepted                                  |
 | D-016 | Hidden board-shaped records for alternate versions         | Preserve canonical board/link identity while reusing validated board ownership, notes, elements, assets, and commands | Accepted                                  |
 | D-017 | Custom icons reference ordinary content-addressed assets   | Keep one authenticated byte, reachability, cleanup, undo, persistence, and rendering authority for images and icons   | Accepted                                  |
+| D-018 | Component definitions own hidden canonical element roots   | Reuse canonical geometry, controls, assets, ownership, migration, and rendering while instances stay lightweight      | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 

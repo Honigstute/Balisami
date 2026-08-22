@@ -2,7 +2,7 @@ import type { z } from 'zod';
 
 import { getControlSpec } from '../controls/control-spec';
 import { parseCustomIconReference } from '../controls/custom-icon-reference';
-import type { BoardId, ElementId } from './ids';
+import type { BoardId, ComponentId, ElementId } from './ids';
 import type { ProjectDocumentShape } from './schema';
 
 type IssuePath = readonly (number | string)[];
@@ -129,6 +129,50 @@ const validateOrderedBoards = (document: ProjectDocumentShape, addIssue: AddIssu
           `Alternate board '${key}' cannot select another alternate.`,
         );
       }
+    }
+  }
+};
+
+const validateOrderedComponents = (document: ProjectDocumentShape, addIssue: AddIssue): void => {
+  reportDuplicates(document.componentIds, ['componentIds'], 'component ID', addIssue);
+  const orderedIds = new Set<ComponentId>(document.componentIds);
+
+  document.componentIds.forEach((componentId, index) => {
+    if (!hasOwn(document.componentsById, componentId)) {
+      addIssue(
+        ['componentIds', index],
+        `Component '${componentId}' does not exist in componentsById.`,
+      );
+    }
+  });
+
+  for (const [key, component] of Object.entries(document.componentsById)) {
+    if (component.id !== key) {
+      addIssue(
+        ['componentsById', key, 'id'],
+        `Component map key '${key}' does not match record ID '${component.id}'.`,
+      );
+    }
+    if (!orderedIds.has(key as ComponentId)) {
+      addIssue(
+        ['componentsById', key],
+        `Component map key '${key}' is not listed in componentIds.`,
+      );
+    }
+
+    const root = document.elementsById[component.rootElementId];
+    if (root === undefined) {
+      addIssue(
+        ['componentsById', key, 'rootElementId'],
+        `Component root '${component.rootElementId}' does not exist.`,
+      );
+      continue;
+    }
+    if (getControlSpec(root.controlType)?.capabilities.grouping !== 'container') {
+      addIssue(
+        ['componentsById', key, 'rootElementId'],
+        `Component root '${component.rootElementId}' must be a container.`,
+      );
     }
   }
 };
@@ -289,6 +333,12 @@ const validateOwnership = (document: ProjectDocumentShape, addIssue: AddIssue): 
     }
   }
 
+  for (const component of Object.values(document.componentsById)) {
+    if (hasOwn(document.elementsById, component.rootElementId)) {
+      addOwner(component.rootElementId, `component '${component.id}'`);
+    }
+  }
+
   for (const element of Object.values(document.elementsById)) {
     for (const childId of new Set(element.childIds)) {
       if (hasOwn(document.elementsById, childId)) {
@@ -300,10 +350,7 @@ const validateOwnership = (document: ProjectDocumentShape, addIssue: AddIssue): 
   for (const [elementKey, element] of Object.entries(document.elementsById)) {
     const owners = ownersByElement.get(element.id) ?? [];
     if (owners.length === 0) {
-      addIssue(
-        ['elementsById', elementKey],
-        `Element '${element.id}' has no board or element owner.`,
-      );
+      addIssue(['elementsById', elementKey], `Element '${element.id}' has no canonical owner.`);
     } else if (owners.length > 1) {
       addIssue(
         ['elementsById', elementKey],
@@ -357,6 +404,7 @@ export const addProjectDocumentInvariantIssues = (
   };
 
   validateOrderedBoards(document, addIssue);
+  validateOrderedComponents(document, addIssue);
   validateMapIdentity(document, addIssue);
   validateControlCapabilities(document, addIssue);
   validateElementReferences(document, addIssue);

@@ -116,6 +116,7 @@ const createSceneFixtureDocument = (): {
     id: projectId,
     name: 'Scene visual fixture',
     boardIds: [boardId],
+    componentIds: [],
     trashedBoardIds: [],
     boardsById: {
       [boardId]: {
@@ -127,6 +128,7 @@ const createSceneFixtureDocument = (): {
         selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById: {
       [outerId]: {
         id: outerId,
@@ -221,6 +223,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
     id: projectId,
     name: 'Alpha visual fixture',
     boardIds: [boardId],
+    componentIds: [],
     trashedBoardIds: [],
     boardsById: {
       [boardId]: {
@@ -232,6 +235,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById: {
       [rectangleId]: {
         id: rectangleId,
@@ -332,6 +336,7 @@ const createPresentationFixtureDocument = (): Readonly<{
         selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById: {
       ...fixture.document.elementsById,
       [fixture.selectedId]: {

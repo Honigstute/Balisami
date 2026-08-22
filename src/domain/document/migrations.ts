@@ -2,6 +2,7 @@ import { ProjectDocumentV1ShapeSchema } from './schema-v1';
 import type { ProjectDocumentShape } from './schema';
 import { ProjectDocumentV2ShapeSchema, type ProjectDocumentV2Shape } from './schema-v2';
 import { ProjectDocumentV3ShapeSchema, type ProjectDocumentV3Shape } from './schema-v3';
+import { ProjectDocumentV4ShapeSchema, type ProjectDocumentV4Shape } from './schema-v4';
 
 export type ProjectDocumentMigrationResult<Value = ProjectDocumentShape> =
   { readonly ok: true; readonly value: Value } | { readonly ok: false; readonly message: string };
@@ -53,7 +54,9 @@ export const migrateProjectDocumentV2ToV3 = (
 };
 
 /** Adds explicit empty alternate-family state to every released v3 board record. */
-export const migrateProjectDocumentV3ToV4 = (input: unknown): ProjectDocumentMigrationResult => {
+export const migrateProjectDocumentV3ToV4 = (
+  input: unknown,
+): ProjectDocumentMigrationResult<ProjectDocumentV4Shape> => {
   const parsed = ProjectDocumentV3ShapeSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: 'Version 3 project document has an invalid structure.' };
@@ -78,6 +81,23 @@ export const migrateProjectDocumentV3ToV4 = (input: unknown): ProjectDocumentMig
       ...parsed.data,
       boardsById,
       schemaVersion: 4,
+    }),
+  };
+};
+
+/** Adds an empty ordered component library while preserving every released v4 record. */
+export const migrateProjectDocumentV4ToV5 = (input: unknown): ProjectDocumentMigrationResult => {
+  const parsed = ProjectDocumentV4ShapeSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: 'Version 4 project document has an invalid structure.' };
+  }
+  return {
+    ok: true,
+    value: Object.freeze({
+      ...parsed.data,
+      componentIds: Object.freeze([]),
+      componentsById: Object.freeze({}),
+      schemaVersion: 5,
     }),
   };
 };

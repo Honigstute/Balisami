@@ -39,6 +39,7 @@ const createRecoveryProbeFixture = (): RecoveryProbeFixture => {
     id: PROBE_PROJECT_ID,
     name: 'Packaged recovery probe',
     boardIds: [PROBE_BOARD_ID],
+    componentIds: [],
     trashedBoardIds: [],
     boardsById: {
       [PROBE_BOARD_ID]: {
@@ -50,6 +51,7 @@ const createRecoveryProbeFixture = (): RecoveryProbeFixture => {
         selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById: {},
     assetsById: {},
   });

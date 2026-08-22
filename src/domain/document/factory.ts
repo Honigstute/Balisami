@@ -22,6 +22,7 @@ export const createEmptyProjectDocument = (
     id: input.projectId,
     name: projectName,
     boardIds: [input.boardId],
+    componentIds: [],
     trashedBoardIds: [],
     boardsById: {
       [String(input.boardId)]: {
@@ -33,6 +34,7 @@ export const createEmptyProjectDocument = (
         selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById: {},
     assetsById: {},
   });

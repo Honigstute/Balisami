@@ -4,6 +4,7 @@ import {
   migrateProjectDocumentV1ToV2,
   migrateProjectDocumentV2ToV3,
   migrateProjectDocumentV3ToV4,
+  migrateProjectDocumentV4ToV5,
 } from '../src/domain';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
 
@@ -22,7 +23,9 @@ describe('project document migrations', () => {
 
   it('adds durable source control versions without mutating released v1 input', () => {
     const current = createValidProjectDocumentInput();
-    const { trashedBoardIds, ...v2Fields } = current;
+    const { componentIds, componentsById, trashedBoardIds, ...v2Fields } = current;
+    void componentIds;
+    void componentsById;
     void trashedBoardIds;
     const legacy = {
       ...v2Fields,
@@ -51,7 +54,9 @@ describe('project document migrations', () => {
 
   it('adds an empty durable trash partition without mutating released v2 input', () => {
     const current = createValidProjectDocumentInput();
-    const { trashedBoardIds, ...v2Fields } = current;
+    const { componentIds, componentsById, trashedBoardIds, ...v2Fields } = current;
+    void componentIds;
+    void componentsById;
     void trashedBoardIds;
     const released = {
       ...v2Fields,
@@ -73,8 +78,11 @@ describe('project document migrations', () => {
 
   it('adds empty alternate families without mutating released v3 input', () => {
     const current = createValidProjectDocumentInput();
+    const { componentIds, componentsById, ...v4Fields } = current;
+    void componentIds;
+    void componentsById;
     const released = {
-      ...current,
+      ...v4Fields,
       boardsById: withoutAlternateFields(current.boardsById),
       schemaVersion: 3,
     };
@@ -96,6 +104,27 @@ describe('project document migrations', () => {
     expect(released).toEqual(before);
   });
 
+  it('adds an empty ordered component library without mutating released v4 input', () => {
+    const current = createValidProjectDocumentInput();
+    const { componentIds, componentsById, ...v4Fields } = current;
+    void componentIds;
+    void componentsById;
+    const released = { ...v4Fields, schemaVersion: 4 };
+    const before = structuredClone(released);
+    const migrated = migrateProjectDocumentV4ToV5(released);
+
+    expect(migrated).toMatchObject({ ok: true });
+    if (!migrated.ok) {
+      throw new Error(migrated.message);
+    }
+    expect(migrated.value.schemaVersion).toBe(5);
+    expect(migrated.value.componentIds).toEqual([]);
+    expect(migrated.value.componentsById).toEqual({});
+    expect(Object.isFrozen(migrated.value.componentIds)).toBe(true);
+    expect(Object.isFrozen(migrated.value.componentsById)).toBe(true);
+    expect(released).toEqual(before);
+  });
+
   it('rejects malformed legacy input instead of guessing a migration', () => {
     expect(migrateProjectDocumentV1ToV2({ schemaVersion: 1 })).toEqual({
       ok: false,
@@ -108,6 +137,10 @@ describe('project document migrations', () => {
     expect(migrateProjectDocumentV3ToV4({ schemaVersion: 3 })).toEqual({
       ok: false,
       message: 'Version 3 project document has an invalid structure.',
+    });
+    expect(migrateProjectDocumentV4ToV5({ schemaVersion: 4 })).toEqual({
+      ok: false,
+      message: 'Version 4 project document has an invalid structure.',
     });
   });
 });

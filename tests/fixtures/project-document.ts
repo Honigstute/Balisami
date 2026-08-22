@@ -8,6 +8,7 @@ import {
   getControlSpec,
   type AssetReference,
   type Board,
+  type ComponentDefinition,
   type ElementNode,
   type ProjectDocument,
 } from '../../src/domain';
@@ -36,10 +37,11 @@ type MutableInput<T> = T extends string
 
 export type ProjectDocumentInputFixture = Omit<
   MutableInput<ProjectDocument>,
-  'assetsById' | 'boardsById' | 'elementsById'
+  'assetsById' | 'boardsById' | 'componentsById' | 'elementsById'
 > & {
   assetsById: Record<string, MutableInput<AssetReference>>;
   boardsById: Record<string, MutableInput<Board>>;
+  componentsById: Record<string, MutableInput<ComponentDefinition>>;
   elementsById: Record<string, MutableInput<ElementNode>>;
 };
 
@@ -56,6 +58,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
   id: DOCUMENT_FIXTURE_IDS.project,
   name: 'Foundation fixture',
   boardIds: [DOCUMENT_FIXTURE_IDS.board],
+  componentIds: [],
   trashedBoardIds: [],
   boardsById: {
     [DOCUMENT_FIXTURE_IDS.board]: {
@@ -67,6 +70,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
       selectedAlternateId: null,
     },
   },
+  componentsById: {},
   elementsById: {
     [DOCUMENT_FIXTURE_IDS.group]: {
       id: DOCUMENT_FIXTURE_IDS.group,

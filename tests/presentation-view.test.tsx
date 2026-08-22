@@ -31,6 +31,7 @@ const createPresentationDocument = (): ProjectDocument => {
     id: ProjectIdSchema.parse('project_presentation'),
     name: 'Presentation fixture',
     boardIds: [HOME_ID, DETAILS_ID],
+    componentIds: [],
     trashedBoardIds: [],
     boardsById: {
       [HOME_ID]: {
@@ -58,6 +59,7 @@ const createPresentationDocument = (): ProjectDocument => {
         selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById: {
       [OFFICIAL_ELEMENT_ID]: {
         id: OFFICIAL_ELEMENT_ID,

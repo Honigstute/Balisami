@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BoardIdSchema,
+  ComponentIdSchema,
   CONTROL_TYPES,
   MAX_DOCUMENT_VALIDATION_ISSUES,
   FOUNDATION_CONTROL_TYPES,
@@ -10,6 +11,7 @@ import {
   parseProjectDocument,
   type AssetId,
   type BoardId,
+  type ComponentId,
   type ElementId,
   type ProjectDocumentParseResult,
 } from '../src/domain';
@@ -55,6 +57,14 @@ const getAsset = (input: ProjectDocumentInputFixture, id: AssetId) => {
     throw new Error(`Fixture asset '${id}' is missing.`);
   }
   return asset;
+};
+
+const getComponent = (input: ProjectDocumentInputFixture, id: ComponentId) => {
+  const component = input.componentsById[id];
+  if (component === undefined) {
+    throw new Error(`Fixture component '${id}' is missing.`);
+  }
+  return component;
 };
 
 describe('project document schema', () => {
@@ -199,6 +209,53 @@ describe('project document schema', () => {
     expect(paths).toContain('boardIds.0');
     expect(paths).toContain(`boardsById.${mismatchedBoardKey}.id`);
     expect(paths).toContain(`boardsById.${mismatchedBoardKey}`);
+  });
+
+  it('owns component definition trees through an exact ordered component library', () => {
+    const componentId = ComponentIdSchema.parse('component_primary01');
+    const valid = createValidProjectDocumentInput();
+    valid.componentIds = [componentId];
+    valid.componentsById[componentId] = {
+      id: componentId,
+      name: 'Primary action',
+      rootElementId: DOCUMENT_FIXTURE_IDS.group,
+    };
+    getBoard(valid, DOCUMENT_FIXTURE_IDS.board).childIds = [];
+
+    expect(parseProjectDocument(valid)).toMatchObject({ ok: true });
+
+    const missingRecord = structuredClone(valid);
+    missingRecord.componentsById = {};
+    expect(issuePaths(expectFailure(missingRecord))).toContain('componentIds.0');
+
+    const unorderedRecord = structuredClone(valid);
+    unorderedRecord.componentIds = [];
+    expect(issuePaths(expectFailure(unorderedRecord))).toContain(`componentsById.${componentId}`);
+
+    const mismatchedRecord = structuredClone(valid);
+    getComponent(mismatchedRecord, componentId).id = 'component_secondary1';
+    expect(issuePaths(expectFailure(mismatchedRecord))).toContain(
+      `componentsById.${componentId}.id`,
+    );
+
+    const missingRoot = structuredClone(valid);
+    getComponent(missingRoot, componentId).rootElementId = 'element_missing01';
+    expect(issuePaths(expectFailure(missingRoot))).toContain(
+      `componentsById.${componentId}.rootElementId`,
+    );
+
+    const leafRoot = structuredClone(valid);
+    getComponent(leafRoot, componentId).rootElementId = DOCUMENT_FIXTURE_IDS.child;
+    getElement(leafRoot, DOCUMENT_FIXTURE_IDS.group).childIds = [];
+    expect(issuePaths(expectFailure(leafRoot))).toContain(
+      `componentsById.${componentId}.rootElementId`,
+    );
+
+    const multiplyOwnedRoot = structuredClone(valid);
+    getBoard(multiplyOwnedRoot, DOCUMENT_FIXTURE_IDS.board).childIds = [DOCUMENT_FIXTURE_IDS.group];
+    expect(issuePaths(expectFailure(multiplyOwnedRoot))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.group}`,
+    );
   });
 
   it('rejects element and asset records stored under competing IDs', () => {

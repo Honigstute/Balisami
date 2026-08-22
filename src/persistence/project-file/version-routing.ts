@@ -2,6 +2,7 @@ import {
   migrateProjectDocumentV1ToV2,
   migrateProjectDocumentV2ToV3,
   migrateProjectDocumentV3ToV4,
+  migrateProjectDocumentV4ToV5,
   type ProjectDocumentMigrationResult,
 } from '../../domain';
 
@@ -47,6 +48,11 @@ const PROJECT_FILE_MIGRATION_STEPS: readonly ProjectFileMigrationStep[] = Object
     fromVersion: 3,
     migrateDocument: migrateProjectDocumentV3ToV4,
     toVersion: 4,
+  }),
+  Object.freeze({
+    fromVersion: 4,
+    migrateDocument: migrateProjectDocumentV4ToV5,
+    toVersion: 5,
   }),
 ]);
 

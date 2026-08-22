@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ComponentIdSchema,
   CONTROL_TYPES,
   createCustomIconReference,
   getControlSpec,
@@ -119,6 +120,34 @@ describe('project file codec', () => {
     expect(decoded.value.assetsById).toEqual({});
     expect(Object.isFrozen(decoded.value.document)).toBe(true);
     expect(Object.isFrozen(decoded.value.assetsById)).toBe(true);
+  });
+
+  it('round-trips hidden reusable-component definition trees', () => {
+    const input = createValidProjectDocumentInput();
+    const componentId = ComponentIdSchema.parse('component_codec0001');
+    const board = input.boardsById[DOCUMENT_FIXTURE_IDS.board];
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (board === undefined || child === undefined) {
+      throw new Error('Component codec fixture is incomplete.');
+    }
+    board.childIds = [];
+    child.assetIds = [];
+    input.assetsById = {};
+    input.componentIds = [componentId];
+    input.componentsById[componentId] = {
+      id: componentId,
+      name: 'Reusable card',
+      rootElementId: DOCUMENT_FIXTURE_IDS.group,
+    };
+    const document = parseProjectFileFixture(input);
+
+    const decoded = decodeProjectFileEnvelope(encodeFixture(document));
+
+    expect(decoded).toMatchObject({ ok: true });
+    if (!decoded.ok) {
+      throw new Error(`Component round trip failed: ${decoded.error.message}`);
+    }
+    expect(decoded.value.document).toEqual(document);
   });
 
   it('round-trips complete trashed boards without dropping their owned content or links', () => {

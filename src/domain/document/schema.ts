@@ -1,8 +1,14 @@
 import { z } from 'zod';
 
-import { AssetIdSchema, BoardIdSchema, ElementIdSchema, ProjectIdSchema } from './ids';
+import {
+  AssetIdSchema,
+  BoardIdSchema,
+  ComponentIdSchema,
+  ElementIdSchema,
+  ProjectIdSchema,
+} from './ids';
 
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 4 as const;
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 5 as const;
 
 export const DocumentTitleSchema = z.string().trim().min(1).max(120);
 const PropertyKeySchema = z
@@ -118,14 +124,24 @@ export const BoardSchema = z
   })
   .readonly();
 
+export const ComponentDefinitionSchema = z
+  .strictObject({
+    id: ComponentIdSchema,
+    name: DocumentTitleSchema,
+    rootElementId: ElementIdSchema,
+  })
+  .readonly();
+
 export const ProjectDocumentShapeSchema = z
   .strictObject({
     schemaVersion: z.literal(PROJECT_DOCUMENT_SCHEMA_VERSION),
     id: ProjectIdSchema,
     name: DocumentTitleSchema,
     boardIds: z.array(BoardIdSchema).readonly(),
+    componentIds: z.array(ComponentIdSchema).readonly(),
     trashedBoardIds: z.array(BoardIdSchema).readonly(),
     boardsById: z.record(BoardIdSchema, BoardSchema).readonly(),
+    componentsById: z.record(ComponentIdSchema, ComponentDefinitionSchema).readonly(),
     elementsById: z.record(ElementIdSchema, ElementNodeSchema).readonly(),
     assetsById: z.record(AssetIdSchema, AssetReferenceSchema).readonly(),
   })
@@ -139,4 +155,5 @@ export type ControlTypeId = z.infer<typeof ControlTypeIdSchema>;
 export type ElementProperties = z.infer<typeof ElementPropertiesSchema>;
 export type ElementNode = z.infer<typeof ElementNodeSchema>;
 export type Board = z.infer<typeof BoardSchema>;
+export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>;
 export type ProjectDocumentShape = z.infer<typeof ProjectDocumentShapeSchema>;
