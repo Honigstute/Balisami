@@ -40,6 +40,8 @@ export interface ControlSceneProjection {
   readonly fillRadiusY: number | undefined;
   readonly icon: ControlSceneIconProjection | undefined;
   readonly markPath: string;
+  readonly markFillColor: string | undefined;
+  readonly markStrokeColor: string | undefined;
   readonly outlinePath: string;
   readonly primitiveBounds: WorldRect;
   /** Canonical measured row geometry shared by every presentation surface. */
@@ -100,7 +102,10 @@ export const createControlSceneProjection = ({
     style?.scrollbarVisibilityProperty !== undefined &&
     properties[style.scrollbarVisibilityProperty] === true;
   const primitiveBounds = getControlScenePrimitiveBounds(definition.type, bounds);
-  const contentBounds = definition.scene.kind === 'circle-button' ? primitiveBounds : bounds;
+  const contentBounds =
+    definition.scene.kind === 'circle-button' || definition.scene.kind === 'comment'
+      ? primitiveBounds
+      : bounds;
   const fillRadii =
     definition.scene.kind === 'multiline-button'
       ? Object.freeze({ x: Math.min(14, bounds.width / 2), y: Math.min(14, bounds.height / 2) })
@@ -197,6 +202,8 @@ export const createControlSceneProjection = ({
     ]
       .filter((path) => path.length > 0)
       .join(' '),
+    markFillColor: definition.scene.markStyle?.fillColor ?? undefined,
+    markStrokeColor: definition.scene.markStyle?.strokeColor ?? undefined,
     outlinePath: createControlSceneOutlinePath(
       definition.type,
       bounds,

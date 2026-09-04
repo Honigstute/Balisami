@@ -371,12 +371,15 @@ class DocumentScenePresenter {
 
     fillElement.style.removeProperty('fill');
     outlineElement.style.removeProperty('stroke');
+    markElement.style.removeProperty('fill');
     markElement.style.removeProperty('stroke');
     if (projection.fillColor !== undefined) fillElement.style.fill = projection.fillColor;
     if (projection.strokeColor !== undefined) {
       outlineElement.style.stroke = projection.strokeColor;
-      markElement.style.stroke = projection.strokeColor;
     }
+    if (projection.markFillColor !== undefined) markElement.style.fill = projection.markFillColor;
+    const markStrokeColor = projection.markStrokeColor ?? projection.strokeColor;
+    if (markStrokeColor !== undefined) markElement.style.stroke = markStrokeColor;
     element.style.opacity = projection.opacity === undefined ? '' : String(projection.opacity);
     const strokeStyle = properties.strokeStyle;
     if (typeof strokeStyle === 'string') {

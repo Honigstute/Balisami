@@ -31,6 +31,15 @@ export const getControlScenePrimitiveBounds = (
       size,
     );
   }
+  if (definition.scene.kind === 'comment') {
+    const tapeInset = Math.min(12, bounds.height * 0.1);
+    return createWorldRect(
+      bounds.x,
+      bounds.y + tapeInset,
+      bounds.width,
+      Math.max(0, bounds.height - tapeInset),
+    );
+  }
   if (definition.scene.kind !== 'checkbox') {
     return bounds;
   }
@@ -80,7 +89,11 @@ export const createControlSceneOutlinePath = (
   legend?: Readonly<{ fontSize: number; textWidth: number; x: number }>,
 ): string => {
   const definition = requireDefinition(controlType);
-  if (definition.scene.kind === 'text' || definition.scene.kind === 'transparent') {
+  if (
+    definition.scene.kind === 'comment' ||
+    definition.scene.kind === 'text' ||
+    definition.scene.kind === 'transparent'
+  ) {
     return '';
   }
   if (definition.scene.kind === 'arrow') {
@@ -963,6 +976,19 @@ export const createControlSceneMarkPath = (
   properties: ElementProperties,
 ): string => {
   const definition = requireDefinition(controlType);
+  if (definition.scene.kind === 'comment') {
+    const left = bounds.x + bounds.width * 0.28;
+    const right = bounds.x + bounds.width * 0.72;
+    const top = bounds.y + bounds.height * 0.02;
+    const bottom = bounds.y + bounds.height * 0.17;
+    return [
+      `M ${String(left)} ${String(top + 2)}`,
+      `L ${String(right)} ${String(top)}`,
+      `L ${String(right - 1)} ${String(bottom)}`,
+      `L ${String(left + 2)} ${String(bottom + 1)}`,
+      'Z',
+    ].join(' ');
+  }
   if (definition.scene.kind === 'image') {
     return createImagePlaceholderMarkPath(bounds, elementId);
   }
@@ -1059,6 +1085,6 @@ export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
   );
 
 export const controlSceneHasOutline = (definition: ControlDefinition): boolean =>
-  !['red-x', 'scratch-out', 'squiggly-block', 'text', 'transparent'].includes(
+  !['comment', 'red-x', 'scratch-out', 'squiggly-block', 'text', 'transparent'].includes(
     definition.scene.kind,
   );

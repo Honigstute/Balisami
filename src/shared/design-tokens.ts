@@ -21,6 +21,8 @@ export const DESIGN_TOKENS = {
     danger: '#B63831',
     warning: '#8A5D00',
     success: '#2D7A4C',
+    wireframeCommentFill: '#F8D568',
+    wireframeCommentTape: '#E84C3D',
     onDarkStrong: 'rgba(255, 255, 255, 0.88)',
     onDark: '#FFFFFF',
     onDarkMuted: 'rgba(255, 255, 255, 0.62)',

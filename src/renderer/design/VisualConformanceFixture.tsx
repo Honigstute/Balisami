@@ -93,6 +93,8 @@ const REGISTRY_CIRCLE_BUTTON_DEFAULT_ID = ElementIdSchema.parse(
 const REGISTRY_CIRCLE_BUTTON_BELOW_ID = ElementIdSchema.parse('element_registrycirclebuttonbelow');
 const REGISTRY_CIRCLE_BUTTON_LEFT_ID = ElementIdSchema.parse('element_registrycirclebuttonleft');
 const REGISTRY_CIRCLE_BUTTON_RIGHT_ID = ElementIdSchema.parse('element_registrycirclebuttonright');
+const REGISTRY_COMMENT_DEFAULT_ID = ElementIdSchema.parse('element_registrycommentdefault');
+const REGISTRY_COMMENT_EDITED_ID = ElementIdSchema.parse('element_registrycommentedited');
 const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
 const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
@@ -1001,6 +1003,45 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 16,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.comment,
+        controlVersion: requireControlVersion(CONTROL_TYPES.comment),
+        frame: { x: 800, y: 226, width: 109, height: 123 },
+        id: REGISTRY_COMMENT_DEFAULT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.comment),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 17,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.comment,
+        controlVersion: requireControlVersion(CONTROL_TYPES.comment),
+        frame: { x: 920, y: 226, width: 109, height: 123 },
+        id: REGISTRY_COMMENT_EDITED_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.comment, {
+          bold: true,
+          color: DESIGN_TOKENS.color.canvasGrid,
+          text: 'Review this\nflow',
+          textAlignment: 'center',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 18,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
   ] as const;
   for (const command of commands) {
     const result = dispatchDocumentCommand(document, command);
@@ -1034,6 +1075,12 @@ const createCircleButtonFixtureDocument = (): ReturnType<typeof createSceneFixtu
   Object.freeze({
     ...createRegistryControlFixtureDocument(),
     selectedId: REGISTRY_CIRCLE_BUTTON_RIGHT_ID,
+  });
+
+const createCommentFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_COMMENT_EDITED_ID,
   });
 
 const createGroupSelectionFixtureDocument = (
@@ -1121,6 +1168,7 @@ type SceneFixtureState =
   | 'textArea'
   | 'textHeadings'
   | 'circleButton'
+  | 'comment'
   | 'resize'
   | 'selection'
   | 'smartGuides'
@@ -1141,7 +1189,8 @@ const SceneFixture = ({
     state === 'searchBox' ||
     state === 'textArea' ||
     state === 'textHeadings' ||
-    state === 'circleButton';
+    state === 'circleButton' ||
+    state === 'comment';
   const camera = useViewportCameraStore(isRegistryFixture ? 0.8 : 1);
   const [fixture] = useState(() =>
     state === 'alpha' || state === 'customIcon'
@@ -1155,7 +1204,9 @@ const SceneFixture = ({
               ? createTextHeadingsFixtureDocument()
               : state === 'circleButton'
                 ? createCircleButtonFixtureDocument()
-                : createRegistryControlFixtureDocument()
+                : state === 'comment'
+                  ? createCommentFixtureDocument()
+                  : createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
@@ -1921,6 +1972,24 @@ const CircleButtonInspectorFixture = () => {
   );
 };
 
+const CommentInspectorFixture = () => {
+  const [fixture] = useState(createCommentFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
   const [thumbnailStore] = useState(
@@ -2060,15 +2129,26 @@ export const VisualConformanceFixture = ({
                                                       />
                                                     ),
                                                   }
-                                                : fixture === 'controls'
-                                                  ? { inspector: <ControlStates /> }
-                                                  : fixture === 'feedback'
-                                                    ? { canvas: <StaticRegionFailure /> }
-                                                    : fixture === 'tooltip'
-                                                      ? { canvas: <TooltipFixture /> }
-                                                      : fixture === 'popover'
-                                                        ? { canvas: <PopoverFixture /> }
-                                                        : undefined;
+                                                : fixture === 'comment'
+                                                  ? {
+                                                      canvas: <SceneFixture state="comment" />,
+                                                      inspector: <CommentInspectorFixture />,
+                                                      shelf: (
+                                                        <ControlShelf
+                                                          category="Markup"
+                                                          onInsert={() => false}
+                                                        />
+                                                      ),
+                                                    }
+                                                  : fixture === 'controls'
+                                                    ? { inspector: <ControlStates /> }
+                                                    : fixture === 'feedback'
+                                                      ? { canvas: <StaticRegionFailure /> }
+                                                      : fixture === 'tooltip'
+                                                        ? { canvas: <TooltipFixture /> }
+                                                        : fixture === 'popover'
+                                                          ? { canvas: <PopoverFixture /> }
+                                                          : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -2101,7 +2181,9 @@ export const VisualConformanceFixture = ({
               ? CONTROL_TYPES.textTitle
               : fixture === 'circleButton'
                 ? CONTROL_TYPES.circleButton
-                : undefined;
+                : fixture === 'comment'
+                  ? CONTROL_TYPES.comment
+                  : undefined;
   const inspectorTitle =
     fixture === 'components'
       ? 'Reusable Card'

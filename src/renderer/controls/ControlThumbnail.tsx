@@ -72,9 +72,12 @@ export const ControlThumbnail = ({
         <path
           className="scene-control__mark"
           d={projection.markPath}
-          style={
-            projection.strokeColor === undefined ? undefined : { stroke: projection.strokeColor }
-          }
+          style={{
+            ...(projection.markFillColor === undefined ? {} : { fill: projection.markFillColor }),
+            ...(projection.markStrokeColor === undefined && projection.strokeColor === undefined
+              ? {}
+              : { stroke: projection.markStrokeColor ?? projection.strokeColor }),
+          }}
         />
       )}
       <ControlRowMarkers rows={projection.rows} strokeColor={projection.strokeColor} />

@@ -23,6 +23,7 @@ export type ControlVisualKind =
   | 'chart-line'
   | 'chart-pie'
   | 'circle-button'
+  | 'comment'
   | 'checkbox'
   | 'color-picker'
   | 'field-set'
@@ -235,6 +236,11 @@ export interface ControlSceneDefinition {
   readonly kind: ControlVisualKind;
   /** Registry-owned destination for a non-default `color` property. */
   readonly colorTarget: 'fill' | 'stroke';
+  /** Optional fixed treatment for definition-owned decorative mark geometry. */
+  readonly markStyle?: Readonly<{
+    readonly fillColor: string | null;
+    readonly strokeColor: string | null;
+  }>;
   /** Optional persisted style bindings used by every scene projection surface. */
   readonly style?: Readonly<{
     readonly borderHiddenValues: readonly string[];

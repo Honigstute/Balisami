@@ -8,6 +8,7 @@ import {
   listControlSpecs,
   listPaletteControlSpecs,
 } from '../src/domain';
+import { DESIGN_TOKENS } from '../src/shared/design-tokens';
 
 describe('control definition registry', () => {
   it('registers one immutable definition per supported control type', () => {
@@ -60,6 +61,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.link,
       CONTROL_TYPES.multilineButton,
       CONTROL_TYPES.circleButton,
+      CONTROL_TYPES.comment,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -113,6 +115,7 @@ describe('control definition registry', () => {
       'Link',
       'Multiline Button',
       'Circle Button',
+      'Comment',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -1006,5 +1009,47 @@ describe('control definition registry', () => {
         { label: 'XXL', value: 'xxl' },
       ],
     });
+  });
+
+  it('owns the official Comment sticky-note default without unsupported controls', () => {
+    const comment = getControlSpec(CONTROL_TYPES.comment);
+
+    expect(comment).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'img' },
+      autoSize: null,
+      capabilities: {
+        border: false,
+        fill: true,
+        icon: false,
+        link: false,
+        state: false,
+      },
+      defaultProperties: {
+        bold: false,
+        color: DESIGN_TOKENS.color.wireframeCommentFill,
+        fontSize: 13,
+        italic: false,
+        text: 'A comment',
+        textAlignment: 'start',
+        underline: false,
+      },
+      defaultSize: { height: 123, width: 109 },
+      scene: {
+        kind: 'comment',
+        markStyle: {
+          fillColor: DESIGN_TOKENS.color.wireframeCommentTape,
+          strokeColor: DESIGN_TOKENS.color.wireframeCommentTape,
+        },
+      },
+    });
+    expect(comment?.inspector.flatMap((section) => section.fields)).toEqual([
+      expect.objectContaining({ kind: 'color', property: 'color' }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'choice', property: 'textAlignment' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(comment?.propertiesSchema.safeParse(comment.defaultProperties).success).toBe(true);
   });
 });

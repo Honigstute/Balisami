@@ -185,9 +185,11 @@ export const calculateControlSceneTextLayout = (
   const layoutTop =
     definition.scene.kind === 'field-set'
       ? bounds.y
-      : circleLabelPosition === 'below'
-        ? bounds.y + bounds.height - measurement.height - DESIGN_TOKENS.space[2]
-        : bounds.y + (bounds.height - measurement.height) / 2;
+      : definition.scene.kind === 'comment'
+        ? bounds.y + text.inset
+        : circleLabelPosition === 'below'
+          ? bounds.y + bounds.height - measurement.height - DESIGN_TOKENS.space[2]
+          : bounds.y + (bounds.height - measurement.height) / 2;
   const hasCenteredIcon =
     definition.capabilities.icon && alignment === 'center' && typeof properties.iconId === 'string';
   const iconSize = resolveControlSceneIconSize(definition, bounds, properties);

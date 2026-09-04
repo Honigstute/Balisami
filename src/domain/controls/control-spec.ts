@@ -77,6 +77,7 @@ export const CONTROL_TYPES = Object.freeze({
   link: ControlTypeIdSchema.parse('wireframe.link'),
   multilineButton: ControlTypeIdSchema.parse('wireframe.multiline-button'),
   circleButton: ControlTypeIdSchema.parse('wireframe.circle-button'),
+  comment: ControlTypeIdSchema.parse('wireframe.comment'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -301,6 +302,13 @@ const circleButtonPropertiesSchema = z
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
+const commentPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    color: sceneColorSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
 
 const createSize = (width: number, height: number): ControlSize => Object.freeze({ height, width });
 
@@ -441,12 +449,14 @@ const createScene = (
   hitShape: ControlSceneDefinition['hitShape'] = Object.freeze({ kind: 'bounds' }),
   colorTarget: ControlSceneDefinition['colorTarget'] = 'stroke',
   style?: ControlSceneDefinition['style'],
+  markStyle?: ControlSceneDefinition['markStyle'],
 ): ControlSceneDefinition =>
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
     colorTarget,
     hitShape: Object.freeze(hitShape),
     kind,
+    ...(markStyle === undefined ? {} : { markStyle: Object.freeze(markStyle) }),
     propertyKeys: Object.freeze([...new Set(propertyKeys)]),
     ...(style === undefined ? {} : { style: Object.freeze(style) }),
   });
@@ -3049,6 +3059,76 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['action', 'button', 'circle', 'fab', 'floating'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.circleButton,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Comment', 'img', 'text'),
+    aliases: ['note', 'sticky', 'sticky note'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        8,
+        {
+          alignmentProperty: 'textAlignment',
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13, 'start'),
+      color: DESIGN_TOKENS.color.wireframeCommentFill,
+      text: 'A comment',
+    },
+    defaultSize: createSize(109, 123),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([{ kind: 'color', label: 'Color', property: 'color' }]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(48, 48),
+    palette: createPalette('Comment', 'Markup', 410),
+    propertiesSchema: commentPropertiesSchema,
+    scene: createScene(
+      'comment',
+      ['text'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: 'color',
+        opacityProperty: null,
+        strokeColorProperty: null,
+      },
+      {
+        fillColor: DESIGN_TOKENS.color.wireframeCommentTape,
+        strokeColor: DESIGN_TOKENS.color.wireframeCommentTape,
+      },
+    ),
+    tags: ['annotation', 'comment', 'note', 'sticky'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.comment,
   }),
 ]);
 

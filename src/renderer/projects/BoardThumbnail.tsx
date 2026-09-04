@@ -85,7 +85,12 @@ export const ThumbnailSceneSvg = ({
               className="scene-control__mark"
               d={item.markPath}
               vectorEffect="non-scaling-stroke"
-              style={item.strokeColor === undefined ? undefined : { stroke: item.strokeColor }}
+              style={{
+                ...(item.markFillColor === undefined ? {} : { fill: item.markFillColor }),
+                ...(item.markStrokeColor === undefined && item.strokeColor === undefined
+                  ? {}
+                  : { stroke: item.markStrokeColor ?? item.strokeColor }),
+              }}
             />
           ) : null}
           <ControlRowMarkers rows={item.rows} strokeColor={item.strokeColor} />
