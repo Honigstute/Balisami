@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import visualFixtureContract from '../visual-fixture-contract.json';
@@ -86,6 +86,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=catalogCurlyBraces')).toBe(
       'catalogCurlyBraces',
     );
+    expect(getRequestedVisualFixture('?visualFixture=catalogTabs')).toBe('catalogTabs');
     expect(getRequestedVisualFixture('?visualFixture=radioButton')).toBe('radioButton');
     expect(getRequestedVisualFixture('?visualFixture=dateChooser')).toBe('dateChooser');
     expect(getRequestedVisualFixture('?visualFixture=numericStepper')).toBe('numericStepper');
@@ -737,6 +738,66 @@ describe('visual conformance fixture contract', () => {
       });
       if (document.fonts !== undefined) {
         expect(selected?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders both tab orientations, selected seams, border modes, and exact inspector fields', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogTabs');
+
+    expect(screen.getByRole('button', { name: 'Insert Tab Bar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert V.Tabs' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.v-tabs"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'V.Tabs' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Show Border' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Right' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Scrollbar' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="tabs"]');
+      expect(controls).toHaveLength(4);
+      const selected = view.container.querySelector(
+        '[data-scene-element-id="element_registryvtabsright"]',
+      );
+      expect(selected?.querySelector('.scene-control__fill')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.accent,
+      });
+      expect(selected?.querySelector('.scene-control__outline')).toHaveAttribute('d');
+      if (document.fonts !== undefined) {
+        const selectedRow = selected?.querySelector<SVGRectElement>(
+          '.scene-control__row-selection',
+        );
+        expect(selectedRow).toHaveAttribute('display', 'inline');
+        expect(selectedRow).toHaveStyle({ fill: DESIGN_TOKENS.color.canvas });
+        expect(selectedRow?.style.fillOpacity).toBe('1');
+        expect(selected?.querySelectorAll('.scene-control__text tspan')).toHaveLength(4);
       }
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(

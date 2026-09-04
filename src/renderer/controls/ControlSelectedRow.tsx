@@ -12,7 +12,10 @@ export const ControlSelectedRowFill = ({ projection }: ControlSelectedRowProps) 
     <rect
       className="scene-control__row-selection"
       height={projection.bounds.height}
-      style={projection.color === undefined ? undefined : { fill: projection.color }}
+      style={{
+        ...(projection.color === undefined ? {} : { fill: projection.color }),
+        ...(projection.fillOpacity === undefined ? {} : { fillOpacity: projection.fillOpacity }),
+      }}
       width={projection.bounds.width}
       x={projection.bounds.x}
       y={projection.bounds.y}

@@ -74,6 +74,8 @@ export const CONTROL_TYPES = Object.freeze({
   buttonBar: ControlTypeIdSchema.parse('wireframe.button-bar'),
   linkBar: ControlTypeIdSchema.parse('wireframe.link-bar'),
   treePane: ControlTypeIdSchema.parse('wireframe.tree-pane'),
+  tabBar: ControlTypeIdSchema.parse('wireframe.tab-bar'),
+  verticalTabs: ControlTypeIdSchema.parse('wireframe.v-tabs'),
   searchBox: ControlTypeIdSchema.parse('wireframe.search-box'),
   textArea: ControlTypeIdSchema.parse('wireframe.text-area'),
   fieldSet: ControlTypeIdSchema.parse('wireframe.field-set'),
@@ -273,6 +275,31 @@ const treePanePropertiesSchema = z
     selectedRowId: ElementRowIdSchema.nullable(),
     showBorder: z.boolean(),
     state: controlStateSchema,
+  })
+  .readonly();
+const tabBarPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+    selectedRowId: ElementRowIdSchema.nullable(),
+    showBorder: z.boolean(),
+    tabsAlignment: z.enum(['start', 'center', 'end']),
+    tabsPosition: z.enum(['top', 'bottom']),
+  })
+  .readonly();
+const verticalTabsPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+    selectedRowId: ElementRowIdSchema.nullable(),
+    showBorder: z.boolean(),
+    tabsPosition: z.enum(['left', 'right']),
   })
   .readonly();
 const searchBoxPropertiesSchema = z
@@ -534,6 +561,7 @@ const createScene = (
     curlyBrace?: ControlSceneDefinition['curlyBrace'];
     iconInset?: number;
     radio?: ControlSceneDefinition['radio'];
+    tabs?: ControlSceneDefinition['tabs'];
     trailingAdornment?: ControlSceneDefinition['trailingAdornment'];
   }> = Object.freeze({}),
 ): ControlSceneDefinition =>
@@ -546,6 +574,7 @@ const createScene = (
     kind,
     ...(markStyle === undefined ? {} : { markStyle: Object.freeze(markStyle) }),
     ...(extras.radio === undefined ? {} : { radio: Object.freeze(extras.radio) }),
+    ...(extras.tabs === undefined ? {} : { tabs: Object.freeze(extras.tabs) }),
     propertyKeys: Object.freeze([...new Set(propertyKeys)]),
     ...(style === undefined ? {} : { style: Object.freeze(style) }),
     ...(extras.trailingAdornment === undefined
@@ -577,9 +606,15 @@ const createPresentationPropertyKeys = (
           ]),
       ...(style === undefined
         ? []
-        : Object.values(style).filter(
-            (property): property is string => typeof property === 'string',
-          )),
+        : [
+            style.borderModeProperty,
+            style.borderVisibilityProperty,
+            style.fillColorProperty,
+            style.iconSizeProperty,
+            style.opacityProperty,
+            style.scrollbarVisibilityProperty,
+            style.strokeColorProperty,
+          ].filter((property): property is string => typeof property === 'string')),
       ...(style?.state === undefined ? [] : [style.state.property]),
     ]),
   ]);
@@ -2904,6 +2939,272 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['disclosure', 'file', 'folder', 'hierarchy', 'navigation', 'tree'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.treePane,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Tab Bar', 'group'),
+    aliases: ['horizontal tabs', 'tab group'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        4,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      items: 'One, Two, Three, Four',
+      opacity: 1,
+      scrollbar: false,
+      selectedRowId: null,
+      showBorder: true,
+      tabsAlignment: 'start',
+      tabsPosition: 'top',
+    },
+    defaultSize: createSize(254, 100),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+          {
+            kind: 'choice',
+            label: 'Tabs Position',
+            options: Object.freeze([
+              Object.freeze({ label: 'Top', value: 'top' }),
+              Object.freeze({ label: 'Bottom', value: 'bottom' }),
+            ]),
+            property: 'tabsPosition',
+          },
+          {
+            kind: 'choice',
+            label: 'Tabs Alignment',
+            options: Object.freeze([
+              Object.freeze({ label: 'Left', value: 'start' }),
+              Object.freeze({ label: 'Center', value: 'center' }),
+              Object.freeze({ label: 'Right', value: 'end' }),
+            ]),
+            property: 'tabsAlignment',
+          },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(120, 48),
+    maximumSize: null,
+    palette: createPalette('Tab Bar', 'Layout', 470),
+    propertiesSchema: tabBarPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      layout: 'segments',
+      links: true,
+      marker: null,
+      maximum: 32,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'none',
+        property: 'selectedRowId',
+      }),
+      separator: ',',
+    }),
+    scene: createScene(
+      'tabs',
+      ['items', 'showBorder', 'tabsAlignment', 'tabsPosition'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: 'showBorder',
+        defaultFillColor: DESIGN_TOKENS.color.panel,
+        fillColorProperty: 'color',
+        opacityProperty: 'opacity',
+        scrollbarVisibilityProperty: 'scrollbar',
+        strokeColorProperty: null,
+      },
+      undefined,
+      {
+        tabs: Object.freeze({
+          alignmentProperty: 'tabsAlignment',
+          orientation: 'horizontal',
+          positionProperty: 'tabsPosition',
+        }),
+      },
+    ),
+    tags: ['container', 'horizontal', 'navigation', 'tabs'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.tabBar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('V.Tabs', 'group'),
+    aliases: ['vertical tabs', 'side tabs'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        8,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      items: 'First Tab\nSecond Tab\nThird Tab\nFourth Tab',
+      opacity: 1,
+      scrollbar: false,
+      selectedRowId: null,
+      showBorder: true,
+      tabsPosition: 'left',
+    },
+    defaultSize: createSize(200, 194),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+          {
+            kind: 'choice',
+            label: 'Tabs Position',
+            options: Object.freeze([
+              Object.freeze({ label: 'Left', value: 'left' }),
+              Object.freeze({ label: 'Right', value: 'right' }),
+            ]),
+            property: 'tabsPosition',
+          },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(120, 80),
+    maximumSize: null,
+    palette: createPalette('V.Tabs', 'Layout', 480),
+    propertiesSchema: verticalTabsPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      layout: 'stack',
+      links: true,
+      marker: null,
+      maximum: 32,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'none',
+        property: 'selectedRowId',
+      }),
+      separator: '\n',
+    }),
+    scene: createScene(
+      'tabs',
+      ['items', 'showBorder', 'tabsPosition'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: 'showBorder',
+        defaultFillColor: DESIGN_TOKENS.color.panel,
+        fillColorProperty: 'color',
+        opacityProperty: 'opacity',
+        scrollbarVisibilityProperty: 'scrollbar',
+        strokeColorProperty: null,
+      },
+      undefined,
+      {
+        tabs: Object.freeze({
+          alignmentProperty: null,
+          orientation: 'vertical',
+          positionProperty: 'tabsPosition',
+        }),
+      },
+    ),
+    tags: ['container', 'navigation', 'side', 'tabs', 'vertical'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.verticalTabs,
   }),
   createDefinition({
     accessibility: createAccessibility('Search Box', 'textbox', 'text'),

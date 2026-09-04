@@ -122,7 +122,7 @@ class DocumentScenePresenter {
       // Only a whole-control badge has constant-screen sizing.
       if (item.link === null) continue;
       const element = this.#elementsById.get(id);
-      const hint = element?.children[9];
+      const hint = element?.children[10];
       if (hint?.localName === 'g') {
         this.#updateElementLinkBadge(hint as SVGGElement, item.bounds, item);
       }
@@ -229,6 +229,7 @@ class DocumentScenePresenter {
   #createElement(id: ElementId): SVGGElement {
     const element = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const fill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
+    const fillPath = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     const image = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'image');
     const rowSelection = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'g');
     const rowSelectionFill = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
@@ -243,6 +244,7 @@ class DocumentScenePresenter {
     const linkHintGlyph = this.#root.ownerDocument.createElementNS(SVG_NAMESPACE, 'path');
     element.dataset.sceneElementId = id;
     fill.setAttribute('class', 'scene-control__fill');
+    fillPath.setAttribute('class', 'scene-control__fill');
     image.setAttribute('class', 'scene-control__image');
     rowSelection.setAttribute('class', 'scene-control__row-selection-layer');
     rowSelectionFill.setAttribute('class', 'scene-control__row-selection');
@@ -259,6 +261,7 @@ class DocumentScenePresenter {
     linkHint.append(linkHintBackground, linkHintGlyph);
     element.append(
       fill,
+      fillPath,
       image,
       rowSelection,
       outline,
@@ -299,17 +302,19 @@ class DocumentScenePresenter {
     item: DocumentSceneItem,
   ): void {
     const fill = element.children[0];
-    const image = element.children[1];
-    const rowSelection = element.children[2];
-    const outline = element.children[3];
-    const mark = element.children[4];
-    const rowMarkers = element.children[5];
-    const catalogIcon = element.children[6];
-    const text = element.children[7];
-    const selectedRowText = element.children[8];
-    const linkHint = element.children[9];
+    const fillPath = element.children[1];
+    const image = element.children[2];
+    const rowSelection = element.children[3];
+    const outline = element.children[4];
+    const mark = element.children[5];
+    const rowMarkers = element.children[6];
+    const catalogIcon = element.children[7];
+    const text = element.children[8];
+    const selectedRowText = element.children[9];
+    const linkHint = element.children[10];
     if (
       fill?.localName !== 'rect' ||
+      fillPath?.localName !== 'path' ||
       image?.localName !== 'image' ||
       rowSelection?.localName !== 'g' ||
       outline?.localName !== 'path' ||
@@ -323,6 +328,7 @@ class DocumentScenePresenter {
       throw new Error('Document scene element structure was changed unexpectedly.');
     }
     const fillElement = fill as SVGRectElement;
+    const fillPathElement = fillPath as SVGPathElement;
     const imageElement = image as SVGImageElement;
     const rowSelectionElement = rowSelection as SVGGElement;
     const outlineElement = outline as SVGPathElement;
@@ -355,15 +361,21 @@ class DocumentScenePresenter {
     else fillElement.setAttribute('rx', String(projection.fillRadiusX));
     if (projection.fillRadiusY === undefined) fillElement.removeAttribute('ry');
     else fillElement.setAttribute('ry', String(projection.fillRadiusY));
+    fillPathElement.setAttribute('d', projection.fillPath);
     outlineElement.setAttribute('d', projection.outlinePath);
     const hasImage = this.#updateElementImage(imageElement, bounds, item);
     const markPath = hasImage ? '' : projection.markPath;
     markElement.setAttribute('d', markPath);
     markElement.setAttribute('display', markPath.length === 0 ? 'none' : 'inline');
 
+    const showFill = controlSceneHasFill(spec) && !(spec.scene.kind === 'image' && hasImage);
     fillElement.setAttribute(
       'display',
-      controlSceneHasFill(spec) && !(spec.scene.kind === 'image' && hasImage) ? 'inline' : 'none',
+      showFill && projection.fillPath.length === 0 ? 'inline' : 'none',
+    );
+    fillPathElement.setAttribute(
+      'display',
+      showFill && projection.fillPath.length > 0 ? 'inline' : 'none',
     );
     outlineElement.setAttribute(
       'display',
@@ -371,10 +383,14 @@ class DocumentScenePresenter {
     );
 
     fillElement.style.removeProperty('fill');
+    fillPathElement.style.removeProperty('fill');
     outlineElement.style.removeProperty('stroke');
     markElement.style.removeProperty('fill');
     markElement.style.removeProperty('stroke');
-    if (projection.fillColor !== undefined) fillElement.style.fill = projection.fillColor;
+    if (projection.fillColor !== undefined) {
+      fillElement.style.fill = projection.fillColor;
+      fillPathElement.style.fill = projection.fillColor;
+    }
     if (projection.strokeColor !== undefined) {
       outlineElement.style.stroke = projection.strokeColor;
     }
@@ -420,12 +436,16 @@ class DocumentScenePresenter {
     const showFill = selected?.appearance === 'fill';
     fillElement.setAttribute('display', showFill ? 'inline' : 'none');
     fillElement.style.removeProperty('fill');
+    fillElement.style.removeProperty('fill-opacity');
     if (showFill && selected !== undefined) {
       fillElement.setAttribute('x', String(selected.bounds.x));
       fillElement.setAttribute('y', String(selected.bounds.y));
       fillElement.setAttribute('width', String(selected.bounds.width));
       fillElement.setAttribute('height', String(selected.bounds.height));
       if (selected.color !== undefined) fillElement.style.fill = selected.color;
+      if (selected.fillOpacity !== undefined) {
+        fillElement.style.fillOpacity = String(selected.fillOpacity);
+      }
     }
 
     const textLayout = projection.textLayout;

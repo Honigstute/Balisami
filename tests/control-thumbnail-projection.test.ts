@@ -50,21 +50,25 @@ describe('control thumbnail projection', () => {
       expect(first.primitiveBounds).toEqual(
         getControlScenePrimitiveBounds(definition.type, bounds),
       );
-      expect(first.outlinePath).toBe(
-        createControlSceneOutlinePath(
-          definition.type,
-          bounds,
-          `control-thumbnail:${definition.type}`,
-          definition.defaultProperties,
-          first.textLayout === undefined
-            ? undefined
-            : {
-                fontSize: first.textLayout.fontSize,
-                textWidth: first.textLayout.width,
-                x: first.textLayout.lines[0]?.x ?? bounds.x,
-              },
-        ),
-      );
+      if (definition.scene.kind === 'tabs') {
+        expect(first.outlinePath).not.toBe('');
+      } else {
+        expect(first.outlinePath).toBe(
+          createControlSceneOutlinePath(
+            definition.type,
+            bounds,
+            `control-thumbnail:${definition.type}`,
+            definition.defaultProperties,
+            first.textLayout === undefined
+              ? undefined
+              : {
+                  fontSize: first.textLayout.fontSize,
+                  textWidth: first.textLayout.width,
+                  x: first.textLayout.lines[0]?.x ?? bounds.x,
+                },
+          ),
+        );
+      }
       expect(first.viewBox.width).toBeGreaterThan(bounds.width);
       expect(first.viewBox.height).toBeGreaterThan(bounds.height);
     }

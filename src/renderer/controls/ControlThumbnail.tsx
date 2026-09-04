@@ -4,6 +4,7 @@ import type { ControlTextMeasurementService } from './control-text-measurement';
 import { createControlThumbnailProjection } from './control-thumbnail-projection';
 import { ControlSelectedRowFill, ControlSelectedRowText } from './ControlSelectedRow';
 import { ControlRowMarkers } from './ControlRowMarkers';
+import { ControlSceneFill } from './ControlSceneFill';
 
 interface ControlThumbnailProps {
   readonly definition: ControlDefinition;
@@ -43,18 +44,7 @@ export const ControlThumbnail = ({
       style={projection.opacity === undefined ? undefined : { opacity: projection.opacity }}
       viewBox={`${String(viewBox.x)} ${String(viewBox.y)} ${String(viewBox.width)} ${String(viewBox.height)}`}
     >
-      {hasFill ? (
-        <rect
-          className="scene-control__fill"
-          height={projection.primitiveBounds.height}
-          rx={projection.fillRadiusX}
-          ry={projection.fillRadiusY}
-          width={projection.primitiveBounds.width}
-          x={projection.primitiveBounds.x}
-          y={projection.primitiveBounds.y}
-          style={projection.fillColor === undefined ? undefined : { fill: projection.fillColor }}
-        />
-      ) : null}
+      {hasFill ? <ControlSceneFill projection={projection} /> : null}
       <ControlSelectedRowFill
         projection={projection.selectedRow}
         textLayout={projection.textLayout}

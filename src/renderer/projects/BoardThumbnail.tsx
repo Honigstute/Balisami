@@ -4,6 +4,7 @@ import type { BoardId } from '../../domain';
 import { ControlSceneIcon } from '../controls/CatalogIcon';
 import { ControlSelectedRowFill, ControlSelectedRowText } from '../controls/ControlSelectedRow';
 import { ControlRowMarkers } from '../controls/ControlRowMarkers';
+import { ControlSceneFill } from '../controls/ControlSceneFill';
 import { BOARD_THUMBNAIL_LOADING, type BoardThumbnailStore } from './board-thumbnail-store';
 import type { BoardThumbnailItem } from './board-thumbnail-projection';
 import type { WorldRect } from '../editor/viewport-transform';
@@ -48,18 +49,7 @@ export const ThumbnailSceneSvg = ({
           key={item.id}
           opacity={item.opacity}
         >
-          {item.hasFill ? (
-            <rect
-              className="scene-control__fill"
-              height={item.primitiveBounds.height}
-              rx={item.fillRadiusX}
-              ry={item.fillRadiusY}
-              width={item.primitiveBounds.width}
-              x={item.primitiveBounds.x}
-              y={item.primitiveBounds.y}
-              style={item.fillColor === undefined ? undefined : { fill: item.fillColor }}
-            />
-          ) : null}
+          {item.hasFill ? <ControlSceneFill projection={item} /> : null}
           <ControlSelectedRowFill projection={item.selectedRow} textLayout={item.textLayout} />
           {imageUrl === undefined ? null : (
             <image

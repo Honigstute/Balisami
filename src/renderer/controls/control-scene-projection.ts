@@ -25,10 +25,12 @@ import {
   createControlRowSceneProjections,
   type ControlRowSceneProjection,
 } from './control-row-scene-projection';
+import { createControlTabsFillPath, createControlTabsOutlinePath } from './control-tabs-scene';
 
 export interface ControlSelectedRowProjection extends ControlRowSceneProjection {
   readonly appearance: 'fill' | 'text';
   readonly color: string | undefined;
+  readonly fillOpacity: number | undefined;
 }
 
 export interface ControlSceneProjection {
@@ -36,6 +38,8 @@ export interface ControlSceneProjection {
   readonly bounds: WorldRect;
   readonly disabled: boolean;
   readonly fillColor: string | undefined;
+  /** Optional non-rectangular fill silhouette rendered before row selection. */
+  readonly fillPath: string;
   readonly fillRadiusX: number | undefined;
   readonly fillRadiusY: number | undefined;
   readonly icon: ControlSceneIconProjection | undefined;
@@ -174,7 +178,7 @@ export const createControlSceneProjection = ({
       ? undefined
       : rowProjections.find((row) => row.id === selectedValue);
   const rowSeparatorPath =
-    definition.rows?.layout !== 'segments'
+    definition.rows?.layout !== 'segments' || definition.scene.kind === 'tabs'
       ? ''
       : rowProjections
           .slice(0, -1)
@@ -188,7 +192,22 @@ export const createControlSceneProjection = ({
       ? definition.scene.colorTarget === 'fill'
         ? fallbackColor
         : undefined
-      : resolveColor(style.fillColorProperty);
+      : (resolveColor(style.fillColorProperty) ?? style.defaultFillColor ?? undefined);
+  const tabsFillPath =
+    definition.scene.kind === 'tabs'
+      ? createControlTabsFillPath(definition, bounds, properties, rowProjections)
+      : '';
+  const tabsOutlinePath =
+    definition.scene.kind === 'tabs'
+      ? createControlTabsOutlinePath(
+          definition,
+          bounds,
+          identity,
+          properties,
+          rowProjections,
+          selectedRow?.id,
+        )
+      : undefined;
   return Object.freeze({
     borderVisible:
       borderVisibility === false ||
@@ -198,12 +217,20 @@ export const createControlSceneProjection = ({
     bounds,
     disabled,
     fillColor,
+    fillPath: tabsFillPath,
     fillRadiusX: fillRadii?.x,
     fillRadiusY: fillRadii?.y,
     icon: createControlSceneIconProjection(definition, contentBounds, properties, textLayout),
     markPath: [
       createControlSceneMarkPath(definition.type, bounds, identity, properties),
-      ...(scrollbarVisible ? [createControlSceneScrollbarPath(bounds, identity)] : []),
+      ...(scrollbarVisible
+        ? [
+            createControlSceneScrollbarPath(
+              definition.scene.kind === 'tabs' ? primitiveBounds : bounds,
+              identity,
+            ),
+          ]
+        : []),
       rowSeparatorPath,
     ]
       .filter((path) => path.length > 0)
@@ -213,19 +240,21 @@ export const createControlSceneProjection = ({
         ? undefined
         : (definition.scene.markStyle.fillColor ?? fillColor),
     markStrokeColor: definition.scene.markStyle?.strokeColor ?? undefined,
-    outlinePath: createControlSceneOutlinePath(
-      definition.type,
-      bounds,
-      identity,
-      properties,
-      sourceTextLayout === undefined
-        ? undefined
-        : {
-            fontSize: sourceTextLayout.fontSize,
-            textWidth: sourceTextLayout.width,
-            x: sourceTextLayout.lines[0]?.x ?? bounds.x,
-          },
-    ),
+    outlinePath:
+      tabsOutlinePath ??
+      createControlSceneOutlinePath(
+        definition.type,
+        bounds,
+        identity,
+        properties,
+        sourceTextLayout === undefined
+          ? undefined
+          : {
+              fontSize: sourceTextLayout.fontSize,
+              textWidth: sourceTextLayout.width,
+              x: sourceTextLayout.lines[0]?.x ?? bounds.x,
+            },
+      ),
     opacity:
       typeof opacityValue === 'number'
         ? opacityValue * (disabled ? (style?.state?.disabledOpacity ?? 1) : 1)
@@ -241,7 +270,11 @@ export const createControlSceneProjection = ({
         : Object.freeze({
             ...selectedRow,
             appearance: rowSelection.appearance.kind,
-            color: resolveColor(rowSelection.appearance.colorProperty),
+            color:
+              definition.scene.kind === 'tabs'
+                ? DESIGN_TOKENS.color.canvas
+                : resolveColor(rowSelection.appearance.colorProperty),
+            fillOpacity: definition.scene.kind === 'tabs' ? 1 : undefined,
           }),
     strokeColor:
       style === undefined
