@@ -119,6 +119,24 @@ export const createControlSceneOutlinePath = (
       `Q ${String(left)} ${String(top)} ${String(left + radius)} ${String(top)}`,
     ].join(' ');
   }
+  if (definition.scene.kind === 'multiline-button') {
+    const radius = Math.max(0, Math.min(14, bounds.height / 2, bounds.width / 2));
+    const left = bounds.x;
+    const right = bounds.x + bounds.width;
+    const top = bounds.y;
+    const bottom = bounds.y + bounds.height;
+    return [
+      `M ${String(left + radius)} ${String(top)}`,
+      `L ${String(right - radius)} ${String(top)}`,
+      `Q ${String(right)} ${String(top)} ${String(right)} ${String(top + radius)}`,
+      `L ${String(right)} ${String(bottom - radius)}`,
+      `Q ${String(right)} ${String(bottom)} ${String(right - radius)} ${String(bottom)}`,
+      `L ${String(left + radius)} ${String(bottom)}`,
+      `Q ${String(left)} ${String(bottom)} ${String(left)} ${String(bottom - radius)}`,
+      `L ${String(left)} ${String(top + radius)}`,
+      `Q ${String(left)} ${String(top)} ${String(left + radius)} ${String(top)}`,
+    ].join(' ');
+  }
   if (definition.scene.kind === 'h-rule' || definition.scene.kind === 'v-rule') {
     const horizontal = definition.scene.kind === 'h-rule';
     return createSeededSketchLinePath({

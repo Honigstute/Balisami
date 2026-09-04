@@ -90,6 +90,8 @@ export const ControlThumbnail = ({
           {projection.textLayout.lines.map((line, index) => (
             <tspan
               key={`${String(index)}:${line.text}`}
+              fontSize={line.fontSize}
+              fontWeight={line.fontWeight}
               opacity={line.opacity}
               x={line.x}
               y={line.baselineY}

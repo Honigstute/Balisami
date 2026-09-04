@@ -33,6 +33,7 @@ export type ControlVisualKind =
   | 'ios-picker'
   | 'playback'
   | 'modal-screen'
+  | 'multiline-button'
   | 'on-off-switch'
   | 'rectangle'
   | 'red-x'

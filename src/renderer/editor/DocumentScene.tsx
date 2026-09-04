@@ -595,6 +595,10 @@ class DocumentScenePresenter {
       }
       span.setAttribute('x', String(line.x));
       span.setAttribute('y', String(line.baselineY));
+      if (line.fontSize === undefined) span.removeAttribute('font-size');
+      else span.setAttribute('font-size', String(line.fontSize));
+      if (line.fontWeight === undefined) span.removeAttribute('font-weight');
+      else span.setAttribute('font-weight', line.fontWeight);
       if (line.opacity === undefined) span.removeAttribute('opacity');
       else span.setAttribute('opacity', String(line.opacity));
       span.textContent = line.text;
