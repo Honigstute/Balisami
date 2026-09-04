@@ -15,6 +15,7 @@ export type ControlCategory =
   | 'Text'
   | 'iOS';
 export type ControlVisualKind =
+  | 'accordion'
   | 'arrow'
   | 'browser'
   | 'button'
@@ -74,8 +75,8 @@ export interface ControlAutoSizeInsets {
 
 export interface ControlAutoSizePolicy {
   readonly axis: ControlAutoSizeAxis;
-  /** Text measures bundled-font content; intrinsic restores the registered default extent. */
-  readonly basis: 'intrinsic' | 'text';
+  /** Accordion measures visible rows/pane; text measures bundled-font content; intrinsic restores defaults. */
+  readonly basis: 'accordion' | 'intrinsic' | 'text';
   readonly insets: ControlAutoSizeInsets;
 }
 
@@ -213,6 +214,11 @@ export interface ControlRowsDefinition {
   }> | null;
   /** Source paints delimiter syntax; labels paints only parsed labels in their row geometry. */
   readonly display: 'labels' | 'source';
+  /** Optional definition-owned parent/child grammar for accordion rows. */
+  readonly hierarchy?: Readonly<{
+    readonly childPrefix: '-';
+    readonly kind: 'accordion';
+  }> | null;
   /** Inline rows use measured spans; segments use cells; stack owns one row per line. */
   readonly layout: 'inline' | 'segments' | 'stack';
   readonly links: boolean;
@@ -471,7 +477,18 @@ export const assertControlDefinitionsConform = (
         (rows.layout === 'stack' &&
           rows.marker === null &&
           rows.adornment === null &&
+          rows.hierarchy?.kind !== 'accordion' &&
           definition.scene.tabs?.orientation !== 'vertical') ||
+        (rows.hierarchy !== null &&
+          rows.hierarchy !== undefined &&
+          (rows.layout !== 'stack' ||
+            rows.display !== 'labels' ||
+            rows.separator !== '\n' ||
+            rows.hierarchy.kind !== 'accordion' ||
+            rows.hierarchy.childPrefix !== '-' ||
+            rows.marker !== null ||
+            rows.adornment !== null ||
+            definition.scene.kind !== 'accordion')) ||
         (rows.selection !== null &&
           (rows.selection.property.trim().length === 0 ||
             !['fill', 'text'].includes(rows.selection.appearance.kind) ||
@@ -604,8 +621,8 @@ export const assertControlDefinitionsConform = (
     }
     if (
       definition.autoSize !== null &&
-      ((definition.autoSize.basis === 'text' && text === null) ||
-        !['intrinsic', 'text'].includes(definition.autoSize.basis) ||
+      ((definition.autoSize.basis !== 'intrinsic' && text === null) ||
+        !['accordion', 'intrinsic', 'text'].includes(definition.autoSize.basis) ||
         !['both', 'horizontal', 'vertical'].includes(definition.autoSize.axis) ||
         [
           definition.autoSize.insets.bottom,

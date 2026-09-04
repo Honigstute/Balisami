@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { listPaletteControlSpecs, type ControlDefinition } from '../src/domain';
 
 const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
+  'wireframe.accordion':
+    'common harness; exact hierarchy grammar, open-parent selection, auto-size, and scene geometry',
   'foundation.rectangle': 'common harness; registry visual fixture; control hit-shape',
   'wireframe.arrow': 'common harness; registry visual fixture; line hit-shape and scene geometry',
   'wireframe.browser':

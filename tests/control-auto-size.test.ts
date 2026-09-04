@@ -111,6 +111,26 @@ describe('registry-driven control auto-size', () => {
     expect(calculateControlAutoSizeFrame(element, { measure })?.width).toBe(208);
   });
 
+  it('restores the evidence-backed Accordion headers and pane extent', () => {
+    const element = createElement(CONTROL_TYPES.accordion);
+    if (element === undefined) throw new Error('Accordion fixture is missing.');
+    const measure = vi.fn((request: { text: string }) => ({
+      baselineOffsets: [10],
+      height: 16,
+      lineCount: 1,
+      lineHeight: 16,
+      lines: [request.text],
+      width: 48,
+    }));
+
+    expect(calculateControlAutoSizeFrame(element, { measure })).toEqual({
+      ...element.frame,
+      height: 186,
+      width: 150,
+    });
+    expect(measure).toHaveBeenCalledTimes(4);
+  });
+
   it('measures registered text and projects the frame without changing its origin', () => {
     const element = createElement();
     if (element === undefined) {

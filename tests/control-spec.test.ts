@@ -60,6 +60,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.treePane,
       CONTROL_TYPES.tabBar,
       CONTROL_TYPES.verticalTabs,
+      CONTROL_TYPES.accordion,
       CONTROL_TYPES.searchBox,
       CONTROL_TYPES.textArea,
       CONTROL_TYPES.fieldSet,
@@ -136,6 +137,7 @@ describe('control definition registry', () => {
       'V.Curly Brace',
       'Tab Bar',
       'V.Tabs',
+      'Accordion',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -817,6 +819,37 @@ describe('control definition registry', () => {
       capabilities: { grouping: 'leaf', resizeAxes: 'both' },
     });
     expect(getControlSpec('foundation.unknown')).toBeUndefined();
+  });
+
+  it('owns the exact Accordion grammar, dimensions, inspector, and open-first selection', () => {
+    expect(getControlSpec(CONTROL_TYPES.accordion)).toMatchObject({
+      accessibility: { fallbackLabel: 'Accordion', role: 'group' },
+      autoSize: { axis: 'both', basis: 'accordion' },
+      capabilities: { grouping: 'leaf', link: false, resizeAxes: 'both' },
+      defaultProperties: {
+        items: 'Item One\nItem Two\nItem Three\nItem Four',
+        scrollbar: false,
+        selectedRowId: null,
+      },
+      defaultSize: { height: 186, width: 150 },
+      minimumSize: { height: 27, width: 80 },
+      palette: { category: 'Layout', label: 'Accordion', order: 490 },
+      rows: {
+        hierarchy: { childPrefix: '-', kind: 'accordion' },
+        links: true,
+        selection: { allowNone: true, default: 'first', property: 'selectedRowId' },
+      },
+      scene: { kind: 'accordion' },
+    });
+    expect(
+      getControlSpec(CONTROL_TYPES.accordion)?.inspector.flatMap((section) => section.fields),
+    ).toEqual([
+      expect.objectContaining({ kind: 'boolean', property: 'scrollbar' }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
   });
 
   it('owns the complete Search Box schema and its alternate palette identity', () => {
