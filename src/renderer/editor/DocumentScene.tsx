@@ -350,6 +350,10 @@ class DocumentScenePresenter {
     fillElement.setAttribute('y', String(primitiveBounds.y));
     fillElement.setAttribute('width', String(primitiveBounds.width));
     fillElement.setAttribute('height', String(primitiveBounds.height));
+    if (projection.fillRadiusX === undefined) fillElement.removeAttribute('rx');
+    else fillElement.setAttribute('rx', String(projection.fillRadiusX));
+    if (projection.fillRadiusY === undefined) fillElement.removeAttribute('ry');
+    else fillElement.setAttribute('ry', String(projection.fillRadiusY));
     outlineElement.setAttribute('d', projection.outlinePath);
     const hasImage = this.#updateElementImage(imageElement, bounds, item);
     const markPath = hasImage ? '' : projection.markPath;

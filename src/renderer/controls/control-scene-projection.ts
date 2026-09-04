@@ -36,6 +36,8 @@ export interface ControlSceneProjection {
   readonly bounds: WorldRect;
   readonly disabled: boolean;
   readonly fillColor: string | undefined;
+  readonly fillRadiusX: number | undefined;
+  readonly fillRadiusY: number | undefined;
   readonly icon: ControlSceneIconProjection | undefined;
   readonly markPath: string;
   readonly outlinePath: string;
@@ -97,6 +99,16 @@ export const createControlSceneProjection = ({
     style?.scrollbarVisibilityProperty !== null &&
     style?.scrollbarVisibilityProperty !== undefined &&
     properties[style.scrollbarVisibilityProperty] === true;
+  const primitiveBounds = getControlScenePrimitiveBounds(definition.type, bounds);
+  const contentBounds = definition.scene.kind === 'circle-button' ? primitiveBounds : bounds;
+  const fillRadii =
+    definition.scene.kind === 'multiline-button'
+      ? Object.freeze({ x: Math.min(14, bounds.width / 2), y: Math.min(14, bounds.height / 2) })
+      : definition.scene.kind === 'search-box' && properties.shape === 'rounded'
+        ? Object.freeze({ x: bounds.height / 2, y: bounds.height / 2 })
+        : definition.scene.kind === 'circle-button'
+          ? Object.freeze({ x: primitiveBounds.width / 2, y: primitiveBounds.height / 2 })
+          : undefined;
   const parsedRows =
     definition.rows === null ? undefined : parseControlRows(definition.rows, properties);
   const displayText =
@@ -108,7 +120,7 @@ export const createControlSceneProjection = ({
       ? undefined
       : calculateControlSceneTextLayout(
           definition,
-          bounds,
+          contentBounds,
           properties,
           textMeasurementService,
           displayText,
@@ -175,7 +187,9 @@ export const createControlSceneProjection = ({
           ? fallbackColor
           : undefined
         : resolveColor(style.fillColorProperty),
-    icon: createControlSceneIconProjection(definition, bounds, properties, textLayout),
+    fillRadiusX: fillRadii?.x,
+    fillRadiusY: fillRadii?.y,
+    icon: createControlSceneIconProjection(definition, contentBounds, properties, textLayout),
     markPath: [
       createControlSceneMarkPath(definition.type, bounds, identity, properties),
       ...(scrollbarVisible ? [createControlSceneScrollbarPath(bounds, identity)] : []),
@@ -202,7 +216,7 @@ export const createControlSceneProjection = ({
         : disabled
           ? style?.state?.disabledOpacity
           : undefined,
-    primitiveBounds: getControlScenePrimitiveBounds(definition.type, bounds),
+    primitiveBounds,
     rows: rowProjections,
     rowSeparatorPath,
     selectedRow:

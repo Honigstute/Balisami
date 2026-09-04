@@ -257,6 +257,8 @@ export const PresentationView = ({
                     <rect
                       className="scene-control__fill"
                       height={item.primitiveBounds.height}
+                      rx={item.fillRadiusX}
+                      ry={item.fillRadiusY}
                       style={item.fillColor === undefined ? undefined : { fill: item.fillColor }}
                       width={item.primitiveBounds.width}
                       x={item.primitiveBounds.x}

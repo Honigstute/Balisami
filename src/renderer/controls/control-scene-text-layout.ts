@@ -2,6 +2,7 @@ import type { ControlDefinition, ElementProperties } from '../../domain';
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import type { WorldRect } from '../editor/viewport-transform';
 import { getControlSceneTextX } from './control-scene-geometry';
+import { resolveControlSceneIconSize } from './control-scene-icon-size';
 import {
   roundControlTextWorldUnit,
   type ControlTextMeasurement,
@@ -179,24 +180,31 @@ export const calculateControlSceneTextLayout = (
 
   // Field-set legends live on the frame's top edge. Every other text-bearing
   // primitive retains the shared vertically centered layout.
+  const circleLabelPosition =
+    definition.scene.kind === 'circle-button' ? properties.labelPosition : undefined;
   const layoutTop =
     definition.scene.kind === 'field-set'
       ? bounds.y
-      : bounds.y + (bounds.height - measurement.height) / 2;
+      : circleLabelPosition === 'below'
+        ? bounds.y + bounds.height - measurement.height - DESIGN_TOKENS.space[2]
+        : bounds.y + (bounds.height - measurement.height) / 2;
   const hasCenteredIcon =
     definition.capabilities.icon && alignment === 'center' && typeof properties.iconId === 'string';
-  const iconSize = Math.min(
-    DESIGN_TOKENS.control.iconSize,
-    Math.max(0, bounds.height - DESIGN_TOKENS.space[2] * 2),
-  );
+  const iconSize = resolveControlSceneIconSize(definition, bounds, properties);
   const x = roundControlTextWorldUnit(
-    hasCenteredIcon
-      ? bounds.x +
-          (bounds.width - (iconSize + DESIGN_TOKENS.space[1] + measurement.width)) / 2 +
-          iconSize +
-          DESIGN_TOKENS.space[1] +
+    circleLabelPosition === 'below'
+      ? bounds.x + bounds.width / 2
+      : circleLabelPosition === 'icon-right' && hasCenteredIcon
+        ? bounds.x +
+          (bounds.width - (measurement.width + DESIGN_TOKENS.space[1] + iconSize)) / 2 +
           measurement.width / 2
-      : getControlSceneTextX(definition, bounds, properties, alignment),
+        : hasCenteredIcon
+          ? bounds.x +
+            (bounds.width - (iconSize + DESIGN_TOKENS.space[1] + measurement.width)) / 2 +
+            iconSize +
+            DESIGN_TOKENS.space[1] +
+            measurement.width / 2
+          : getControlSceneTextX(definition, bounds, properties, alignment),
   );
   const colorValue = style.colorProperty === null ? undefined : properties[style.colorProperty];
   return Object.freeze({

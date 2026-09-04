@@ -22,6 +22,7 @@ export type ControlVisualKind =
   | 'chart-bar'
   | 'chart-line'
   | 'chart-pie'
+  | 'circle-button'
   | 'checkbox'
   | 'color-picker'
   | 'field-set'
@@ -240,6 +241,8 @@ export interface ControlSceneDefinition {
     borderModeProperty: string | null;
     borderVisibilityProperty: string | null;
     fillColorProperty: string | null;
+    /** Optional discrete icon-size binding shared by icon-bearing scene projections. */
+    iconSizeProperty?: string | null;
     opacityProperty: string | null;
     scrollbarVisibilityProperty?: string | null;
     strokeColorProperty: string | null;
@@ -594,11 +597,13 @@ export const assertControlDefinitionsConform = (
       [
         definition.scene.style.borderModeProperty,
         definition.scene.style.fillColorProperty,
+        definition.scene.style.iconSizeProperty,
         definition.scene.style.opacityProperty,
         definition.scene.style.strokeColorProperty,
       ].some(
         (property) =>
           property !== null &&
+          property !== undefined &&
           !['number', 'string'].includes(typeof definition.defaultProperties[property]),
       )
     ) {
