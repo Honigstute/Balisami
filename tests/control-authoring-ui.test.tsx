@@ -150,6 +150,7 @@ describe('alpha control authoring UI', () => {
       'Search Box',
       'Text Area',
       'Field Set',
+      'Link',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -195,6 +196,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.searchBox,
       CONTROL_TYPES.textArea,
       CONTROL_TYPES.fieldSet,
+      CONTROL_TYPES.link,
     ]);
   });
 

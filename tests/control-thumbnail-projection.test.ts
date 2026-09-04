@@ -8,6 +8,7 @@ import {
   getControlSpec,
   listPaletteControlSpecs,
 } from '../src/domain';
+import { DESIGN_TOKENS } from '../src/shared/design-tokens';
 import {
   createControlSceneMarkPath,
   createControlSceneOutlinePath,
@@ -650,5 +651,40 @@ describe('control thumbnail projection', () => {
         textMeasurementService: measurementService,
       }).outlinePath,
     );
+  });
+
+  it('projects the Link default and disabled state through one text scene', () => {
+    const definition = getControlSpec(CONTROL_TYPES.link);
+    if (definition === undefined) throw new Error('Link definition is missing.');
+    const bounds = createWorldRect(0, 0, 31, 21);
+
+    const normal = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: 'link-projection',
+      properties: definition.defaultProperties,
+      textMeasurementService: measurementService,
+    });
+    const disabled = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: 'link-projection-disabled',
+      properties: { ...definition.defaultProperties, state: 'disabled' },
+      textMeasurementService: measurementService,
+    });
+
+    expect(normal).toMatchObject({
+      disabled: false,
+      opacity: undefined,
+      outlinePath: '',
+      textLayout: {
+        color: DESIGN_TOKENS.color.accentStrong,
+        fontSize: 13,
+        lines: [expect.objectContaining({ text: 'a link', x: 0 })],
+        textAnchor: 'start',
+        textDecoration: 'underline',
+      },
+    });
+    expect(disabled).toMatchObject({ disabled: true, opacity: 0.45 });
   });
 });

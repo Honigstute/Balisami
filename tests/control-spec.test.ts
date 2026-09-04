@@ -57,6 +57,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.searchBox,
       CONTROL_TYPES.textArea,
       CONTROL_TYPES.fieldSet,
+      CONTROL_TYPES.link,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -107,6 +108,7 @@ describe('control definition registry', () => {
       'Search Box',
       'Text Area',
       'Field Set',
+      'Link',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -869,5 +871,46 @@ describe('control definition registry', () => {
       ]),
     );
     expect(fieldSet?.propertiesSchema.safeParse(fieldSet.defaultProperties).success).toBe(true);
+  });
+
+  it('owns the evidence-backed Link contract without exposing unsupported appearance fields', () => {
+    const link = getControlSpec(CONTROL_TYPES.link);
+
+    expect(link).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'link' },
+      autoSize: null,
+      capabilities: {
+        border: false,
+        fill: false,
+        link: true,
+        state: true,
+      },
+      defaultProperties: {
+        bold: false,
+        fontSize: 13,
+        italic: false,
+        state: 'normal',
+        text: 'a link',
+        underline: true,
+      },
+      defaultSize: { height: 21, width: 31 },
+      scene: { kind: 'text' },
+    });
+    const fields = link?.inspector.flatMap((section) => section.fields) ?? [];
+    expect(fields).toEqual([
+      expect.objectContaining({ kind: 'select', property: 'state' }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(fields).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: 'textColor' }),
+        expect.objectContaining({ property: 'textAlignment' }),
+        expect.objectContaining({ property: 'text' }),
+      ]),
+    );
+    expect(link?.propertiesSchema.safeParse(link.defaultProperties).success).toBe(true);
   });
 });
