@@ -4,6 +4,7 @@ import {
   DESKTOP_CHANNELS,
   type DesktopApi,
   type DesktopClipboardWriteRequest,
+  type DesktopExportFileRequest,
   type ExternalUrlRequest,
   type ProjectCloseOutcome,
   type ProjectCloseRequest,
@@ -18,6 +19,8 @@ import {
   isDesktopAcknowledgement,
   isDesktopClipboardReadValue,
   isDesktopClipboardWriteRequest,
+  isDesktopExportFileRequest,
+  isDesktopExportFileResult,
   isExternalUrlRequest,
   isProjectCloseOutcome,
   isProjectCloseRequest,
@@ -53,6 +56,16 @@ const createValidatedListener = <Value>(
 };
 
 const desktopApi: DesktopApi = Object.freeze({
+  async exportFile(request: DesktopExportFileRequest) {
+    if (!isDesktopExportFileRequest(request)) {
+      throw new TypeError('The export file request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.exportFile, request);
+    if (!isDesktopExportFileResult(response)) {
+      throw new Error('The desktop runtime returned an invalid export result.');
+    }
+    return response;
+  },
   async readClipboard() {
     const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.clipboardRead);
     if (!isDesktopClipboardReadValue(response)) {

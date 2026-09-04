@@ -6,9 +6,11 @@ import {
   type RuntimeInfo,
   type RuntimePlatform,
   isDesktopClipboardWriteRequest,
+  isDesktopExportFileRequest,
   isExternalUrlRequest,
 } from '../shared/desktop-api';
 import { readDesktopClipboard, writeDesktopClipboard } from './desktop-clipboard';
+import { saveDesktopExportFile } from './export-file';
 import { isTrustedRendererUrl } from './navigation-policy';
 import type { ProjectWindowController } from './projects/project-window-controller';
 
@@ -68,6 +70,14 @@ export const registerDesktopIpc = ({
     }
     writeDesktopClipboard(clipboard, input);
     return DESKTOP_ACKNOWLEDGEMENT;
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.exportFile, (event, input: unknown) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    if (!isDesktopExportFileRequest(input)) {
+      throw new TypeError('Rejected an invalid export file request.');
+    }
+    return saveDesktopExportFile(input);
   });
 
   ipcMain.handle(DESKTOP_CHANNELS.getRuntimeInfo, (event): RuntimeInfo => {

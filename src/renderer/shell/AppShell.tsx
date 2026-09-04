@@ -32,6 +32,10 @@ export interface ControlCategoryNavigation {
 
 interface AppShellProps {
   readonly controlCategoryNavigation?: ControlCategoryNavigation;
+  readonly exportControls?: {
+    readonly disabled?: boolean;
+    readonly onExportPng: () => void;
+  };
   readonly historyControls?: {
     readonly canRedo: boolean;
     readonly canUndo: boolean;
@@ -121,6 +125,7 @@ const LibraryPlaceholders = () => (
 
 export const AppShell = ({
   controlCategoryNavigation,
+  exportControls,
   historyControls,
   inspectorTitle = 'Inspector',
   navigatorControls,
@@ -205,6 +210,16 @@ export const AppShell = ({
             </>
           )}
           {viewportControls ?? <DisabledToolbarActions actions={defaultViewportActions} />}
+          <button
+            aria-label="Export current wireframe as PNG"
+            className="icon-button icon-button--dark"
+            disabled={exportControls === undefined || exportControls.disabled}
+            onClick={exportControls?.onExportPng}
+            title="Export PNG"
+            type="button"
+          >
+            <Icon name="export" />
+          </button>
           <button
             aria-label="Present"
             className="icon-button icon-button--dark"

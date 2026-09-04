@@ -8,6 +8,8 @@ import {
   isDesktopAcknowledgement,
   isDesktopClipboardReadValue,
   isDesktopClipboardWriteRequest,
+  isDesktopExportFileRequest,
+  isDesktopExportFileResult,
   isExternalUrlRequest,
   isProjectCloseOutcome,
   isProjectCloseResponse,
@@ -65,6 +67,44 @@ describe('desktop API boundary validation', () => {
     ).toBe(true);
     expect(isDesktopClipboardReadValue({ imagePngBytes: null, payload: 1, text: '' })).toBe(false);
     expect(isDesktopClipboardReadValue({ payload: null, text: '' })).toBe(false);
+  });
+
+  it('accepts only bounded exact export requests and path-free results', () => {
+    expect(
+      isDesktopExportFileRequest({
+        bytes: Uint8Array.from([1, 2, 3]),
+        format: 'png',
+        suggestedBaseName: 'Checkout / Final',
+      }),
+    ).toBe(true);
+    expect(
+      isDesktopExportFileRequest({
+        bytes: new Uint8Array(),
+        format: 'png',
+        suggestedBaseName: 'A',
+      }),
+    ).toBe(false);
+    expect(
+      isDesktopExportFileRequest({
+        bytes: Uint8Array.from([1]),
+        format: 'html',
+        suggestedBaseName: 'A',
+      }),
+    ).toBe(false);
+    expect(
+      isDesktopExportFileResult({
+        status: 'completed',
+        value: { displayName: 'Checkout.png' },
+        warnings: [],
+      }),
+    ).toBe(true);
+    expect(
+      isDesktopExportFileResult({
+        status: 'completed',
+        value: { displayName: 'Checkout.png', filePath: '/private/Checkout.png' },
+        warnings: [],
+      }),
+    ).toBe(false);
   });
 
   it('rejects unsupported runtime platforms and malformed values', () => {

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...arguments_: unknown[]) => unknown>(),
   openExternal: vi.fn<(url: string) => Promise<void>>(),
+  showSaveDialog: vi.fn(),
   readHTML: vi.fn<() => string>(),
   readImage: vi.fn(),
   readText: vi.fn<() => string>(),
@@ -19,6 +20,7 @@ vi.mock('electron', () => ({
     readText: electron.readText,
     write: electron.write,
   },
+  dialog: { showSaveDialog: electron.showSaveDialog },
   ipcMain: {
     handle: (channel: string, handler: (...arguments_: unknown[]) => unknown) => {
       electron.handlers.set(channel, handler);
@@ -38,6 +40,7 @@ describe('desktop external URL IPC', () => {
   beforeEach(() => {
     electron.handlers.clear();
     electron.openExternal.mockReset().mockResolvedValue(undefined);
+    electron.showSaveDialog.mockReset().mockResolvedValue({ canceled: true });
     electron.readHTML.mockReset().mockReturnValue('');
     electron.readImage.mockReset().mockReturnValue({
       getSize: () => ({ height: 0, width: 0 }),
@@ -47,6 +50,30 @@ describe('desktop external URL IPC', () => {
     electron.readText.mockReset().mockReturnValue('');
     electron.write.mockReset();
     registerDesktopIpc({ developmentServerUrl: 'http://localhost:5173' });
+  });
+
+  it('offers a validated export through a native save dialog', async () => {
+    const handler = electron.handlers.get(DESKTOP_CHANNELS.exportFile);
+    const request = {
+      bytes: Uint8Array.from([137, 80, 78, 71]),
+      format: 'png',
+      suggestedBaseName: 'Checkout / Final',
+    };
+
+    await expect(handler?.(createEvent(TRUSTED_URL), request)).resolves.toEqual({
+      status: 'cancelled',
+    });
+    expect(electron.showSaveDialog).toHaveBeenCalledOnce();
+    expect(electron.showSaveDialog.mock.calls[0]?.[0]).toMatchObject({
+      defaultPath: 'Checkout Final.png',
+      filters: [{ extensions: ['png'], name: 'PNG Image' }],
+    });
+    expect(() =>
+      handler?.(createEvent(TRUSTED_URL), { ...request, bytes: new Uint8Array() }),
+    ).toThrow('invalid export file request');
+    expect(() => handler?.(createEvent('https://attacker.example'), request)).toThrow(
+      'untrusted renderer',
+    );
   });
 
   it('reads and writes clipboard flavors only for trusted validated requests', () => {

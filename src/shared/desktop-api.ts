@@ -9,6 +9,7 @@ import { MAX_PROJECT_ASSET_BYTES } from './project-file-limits';
 export const DESKTOP_CHANNELS = {
   clipboardRead: 'desktop:clipboard-read',
   clipboardWrite: 'desktop:clipboard-write',
+  exportFile: 'desktop:export-file',
   getRuntimeInfo: 'desktop:get-runtime-info',
   openExternalUrl: 'desktop:open-external-url',
   projectCloseOutcome: 'desktop:project-close-outcome',
@@ -44,6 +45,21 @@ export interface DesktopClipboardReadValue {
   readonly payload: string | null;
   readonly text: string;
 }
+
+export type DesktopExportFormat = 'pdf' | 'png' | 'svg';
+
+export interface DesktopExportFileRequest {
+  readonly bytes: Uint8Array;
+  readonly format: DesktopExportFormat;
+  /** A path-free board or project name. Main owns the final file path. */
+  readonly suggestedBaseName: string;
+}
+
+export interface DesktopExportedFileValue {
+  readonly displayName: string;
+}
+
+export type DesktopExportFileResult = UserOperationResult<DesktopExportedFileValue>;
 
 export type RuntimePlatform = 'darwin' | 'win32';
 
@@ -174,6 +190,7 @@ export interface ProjectCloseOutcome {
 export type DesktopEventUnsubscribe = () => void;
 
 export interface DesktopApi {
+  exportFile?(request: DesktopExportFileRequest): Promise<DesktopExportFileResult>;
   readClipboard(): Promise<DesktopClipboardReadValue>;
   writeClipboard(request: DesktopClipboardWriteRequest): Promise<DesktopAcknowledgement>;
   getRuntimeInfo(): Promise<RuntimeInfo>;
@@ -244,6 +261,18 @@ export const isDesktopClipboardReadValue = (value: unknown): value is DesktopCli
   (value.payload === null ||
     isBoundedText(value.payload, DESKTOP_CLIPBOARD_LIMITS.payloadCharacters)) &&
   isBoundedPossiblyEmptyText(value.text, DESKTOP_CLIPBOARD_LIMITS.textCharacters);
+
+const isDesktopExportFormat = (value: unknown): value is DesktopExportFormat =>
+  value === 'pdf' || value === 'png' || value === 'svg';
+
+export const isDesktopExportFileRequest = (value: unknown): value is DesktopExportFileRequest =>
+  isRecord(value) &&
+  hasExactKeys(value, ['bytes', 'format', 'suggestedBaseName']) &&
+  value.bytes instanceof Uint8Array &&
+  value.bytes.byteLength > 0 &&
+  value.bytes.byteLength <= MAX_PROJECT_ASSET_BYTES &&
+  isDesktopExportFormat(value.format) &&
+  isBoundedText(value.suggestedBaseName, 160);
 
 export const isExternalUrlRequest = (value: unknown): value is ExternalUrlRequest => {
   if (!isRecord(value) || !hasExactKeys(value, ['url']) || !isBoundedText(value.url, 2_048)) {
@@ -436,6 +465,15 @@ export const isRecentProjectsResult = (value: unknown): value is RecentProjectsR
 
 export const isProjectClosedResult = (value: unknown): value is ProjectClosedResult =>
   isUserOperationResult(value, isProjectClosedValue);
+
+export const isDesktopExportFileResult = (value: unknown): value is DesktopExportFileResult =>
+  isUserOperationResult(
+    value,
+    (candidate): candidate is DesktopExportedFileValue =>
+      isRecord(candidate) &&
+      hasExactKeys(candidate, ['displayName']) &&
+      isBoundedText(candidate.displayName, 255),
+  );
 
 export const isProjectCloseRequest = (value: unknown): value is ProjectCloseRequest =>
   isRecord(value) &&

@@ -54,6 +54,7 @@ import { M11PerformanceFixture } from '../editor/M11PerformanceFixture';
 import { AppShell } from '../shell/AppShell';
 import { ProjectDecisionDialog } from '../projects/ProjectDecisionDialog';
 import { PresentationView } from '../projects/PresentationView';
+import { exportBoardToPng } from '../projects/board-png-export';
 import { ProjectHome } from '../projects/ProjectHome';
 import { useProjectAssetUrls } from '../projects/project-asset-urls';
 import {
@@ -241,6 +242,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   >();
   const [pendingTrashBoardId, setPendingTrashBoardId] = useState<BoardId>();
   const [presentingBoardId, setPresentingBoardId] = useState<BoardId>();
+  const [exportPending, setExportPending] = useState(false);
   const [noticeStore] = useState(() => new NoticeCenterStore());
   const packagedProbeStarted = useRef(false);
   const packagedProbeProjectStarted = useRef(false);
@@ -1221,6 +1223,65 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     resetElementInteraction();
     setPresentingBoardId(activeBoardId);
   }, [activeBoardId, resetElementInteraction]);
+  const exportCurrentBoardPng = useCallback(async (): Promise<void> => {
+    if (
+      exportPending ||
+      activeBoardId === undefined ||
+      document === undefined ||
+      window.balsamicDesktop.exportFile === undefined
+    ) {
+      return;
+    }
+    setExportPending(true);
+    try {
+      const textMeasurementService = await getBrowserControlTextMeasurementService();
+      const encoded = await exportBoardToPng({
+        boardId: activeBoardId,
+        document,
+        readAssetBytes: (assetId) => session.getAssetBytes(assetId),
+        scale: 2,
+        textMeasurementService,
+      });
+      if (!encoded.ok) {
+        noticeStore.report({
+          key: `export:png:${encoded.code}`,
+          message: encoded.message,
+          title: 'PNG export could not be prepared',
+          tone: 'warning',
+        });
+        return;
+      }
+      const saved = await window.balsamicDesktop.exportFile({
+        bytes: encoded.value.bytes,
+        format: 'png',
+        suggestedBaseName: encoded.value.suggestedName,
+      });
+      if (saved.status === 'failed') {
+        noticeStore.report({
+          key: `export:png:${saved.problem.code}`,
+          message: saved.problem.message,
+          title: saved.problem.title,
+          tone: 'warning',
+        });
+      } else if (saved.status === 'completed') {
+        noticeStore.report({
+          key: 'export:png:completed',
+          message: `${saved.value.displayName} was written at 2× resolution.`,
+          title: 'PNG export saved',
+          tone: 'success',
+        });
+      }
+    } catch {
+      noticeStore.report({
+        key: 'export:png:unexpected',
+        message: 'No export file was changed. Keep the app open and retry.',
+        title: 'PNG export was interrupted',
+        tone: 'warning',
+      });
+    } finally {
+      setExportPending(false);
+    }
+  }, [activeBoardId, document, exportPending, noticeStore, session]);
   const createBoard = useCallback((): boolean => {
     const currentDocument = session.getSnapshot().history?.document;
     const boardId = allocateEditorBoardId();
@@ -1788,6 +1849,10 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         ...(view.history === undefined || selectUndoLabel(view.history) === undefined
           ? {}
           : { undoLabel: `Undo ${selectUndoLabel(view.history) as string}` }),
+      }}
+      exportControls={{
+        disabled: exportPending || window.balsamicDesktop.exportFile === undefined,
+        onExportPng: () => void exportCurrentBoardPng(),
       }}
       inspectorTitle={
         document === undefined ? undefined : (

@@ -1,7 +1,16 @@
 import type { ReactNode } from 'react';
 
 export type IconName =
-  'chevron' | 'close' | 'more' | 'presentation' | 'redo' | 'search' | 'undo' | 'zoomIn' | 'zoomOut';
+  | 'chevron'
+  | 'close'
+  | 'export'
+  | 'more'
+  | 'presentation'
+  | 'redo'
+  | 'search'
+  | 'undo'
+  | 'zoomIn'
+  | 'zoomOut';
 
 const getIconPath = (name: IconName): ReactNode => {
   switch (name) {
@@ -9,6 +18,8 @@ const getIconPath = (name: IconName): ReactNode => {
       return <path d="m5 8 3 3 3-3" />;
     case 'close':
       return <path d="m4 4 8 8m0-8-8 8" />;
+    case 'export':
+      return <path d="M8 2v8m-3-3 3 3 3-3M3 12v2h10v-2" />;
     case 'more':
       return (
         <>
