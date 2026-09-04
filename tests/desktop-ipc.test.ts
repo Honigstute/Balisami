@@ -5,10 +5,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...arguments_: unknown[]) => unknown>(),
   openExternal: vi.fn<(url: string) => Promise<void>>(),
+  readHTML: vi.fn<() => string>(),
+  readText: vi.fn<() => string>(),
+  write: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
   app: { getVersion: () => '0.1.0', isPackaged: true },
+  clipboard: {
+    readHTML: electron.readHTML,
+    readText: electron.readText,
+    write: electron.write,
+  },
   ipcMain: {
     handle: (channel: string, handler: (...arguments_: unknown[]) => unknown) => {
       electron.handlers.set(channel, handler);
@@ -28,7 +36,35 @@ describe('desktop external URL IPC', () => {
   beforeEach(() => {
     electron.handlers.clear();
     electron.openExternal.mockReset().mockResolvedValue(undefined);
+    electron.readHTML.mockReset().mockReturnValue('');
+    electron.readText.mockReset().mockReturnValue('');
+    electron.write.mockReset();
     registerDesktopIpc({ developmentServerUrl: 'http://localhost:5173' });
+  });
+
+  it('reads and writes clipboard flavors only for trusted validated requests', () => {
+    const writeHandler = electron.handlers.get(DESKTOP_CHANNELS.clipboardWrite);
+    const readHandler = electron.handlers.get(DESKTOP_CHANNELS.clipboardRead);
+    const request = { payload: '{"formatVersion":1}', text: 'Button' };
+
+    expect(writeHandler?.(createEvent(TRUSTED_URL), request)).toEqual(DESKTOP_ACKNOWLEDGEMENT);
+    const written = electron.write.mock.calls[0]?.[0] as { html?: string; text?: string };
+    expect(written.text).toBe('Button');
+    expect(written.html).toContain('data-balsamic-selection-v1');
+
+    electron.readHTML.mockReturnValue(written.html ?? '');
+    electron.readText.mockReturnValue('Button');
+    expect(readHandler?.(createEvent(TRUSTED_URL))).toEqual({
+      payload: request.payload,
+      text: 'Button',
+    });
+
+    expect(() => writeHandler?.(createEvent(TRUSTED_URL), { payload: '', text: 'Button' })).toThrow(
+      'invalid clipboard write request',
+    );
+    expect(() => writeHandler?.(createEvent('https://attacker.example'), request)).toThrow(
+      'untrusted renderer',
+    );
   });
 
   it('opens a validated HTTP(S) URL through the operating system shell', async () => {

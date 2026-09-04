@@ -104,9 +104,12 @@ import {
 } from '../editor/selection-arrangement';
 import {
   SelectionClipboardStore,
+  createSelectionClipboardPlainText,
   copySelectedElements,
   cutSelectedElements,
+  parseSerializedSelectionClipboardPayload,
   pasteClipboardElements,
+  serializeSelectionClipboardPayload,
   type SelectionPasteSource,
 } from '../editor/selection-clipboard';
 import { deleteSelectedElements, type SelectionDeleteSource } from '../editor/selection-delete';
@@ -222,6 +225,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   const packagedProbeProjectStarted = useRef(false);
   const [editor] = useState(() => {
     const clipboard = new SelectionClipboardStore();
+    let desktopPastePending = false;
     const activeBoard = new ActiveBoardStore();
     const model = new DocumentSceneModel();
     const selection = new SelectionStore();
@@ -617,11 +621,35 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         duplicateSelectionSource,
       );
     };
+    const publishSelectionClipboard = (): void => {
+      const payload = clipboard.getSnapshot().payload;
+      if (payload === undefined) return;
+      void window.balsamicDesktop
+        .writeClipboard({
+          payload: serializeSelectionClipboardPayload(payload),
+          text: createSelectionClipboardPlainText(payload),
+        })
+        .catch(() => {
+          noticeStore.report({
+            key: 'clipboard:write',
+            message:
+              'The selection is still available inside this window. Retry Copy to share it with another app.',
+            title: 'The system clipboard was unavailable',
+            tone: 'warning',
+          });
+        });
+    };
     const copySelection = (): boolean => {
       const currentDocument = session.getSnapshot().history?.document;
-      return currentDocument === undefined
-        ? false
-        : copySelectedElements(currentDocument, selection, model.listItemIds(), clipboard);
+      if (currentDocument === undefined) return false;
+      const copied = copySelectedElements(
+        currentDocument,
+        selection,
+        model.listItemIds(),
+        clipboard,
+      );
+      if (copied) publishSelectionClipboard();
+      return copied;
     };
     const cutSelectionSource: SelectionDeleteSource = {
       commit(commands) {
@@ -633,15 +661,16 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     };
     const cutSelection = (): boolean => {
       const currentDocument = session.getSnapshot().history?.document;
-      return currentDocument === undefined
-        ? false
-        : cutSelectedElements(
-            currentDocument,
-            selection,
-            model.listItemIds(),
-            clipboard,
-            cutSelectionSource,
-          );
+      if (currentDocument === undefined) return false;
+      const cut = cutSelectedElements(
+        currentDocument,
+        selection,
+        model.listItemIds(),
+        clipboard,
+        cutSelectionSource,
+      );
+      if (cut) publishSelectionClipboard();
+      return cut;
     };
     const pasteSelectionSource: SelectionPasteSource = {
       commit(commands) {
@@ -651,7 +680,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         return result?.ok === true && result.changed ? result.history.document : undefined;
       },
     };
-    const pasteSelection = (): boolean => {
+    const pasteStoredSelection = (): boolean => {
       const currentDocument = session.getSnapshot().history?.document;
       return currentDocument === undefined
         ? false
@@ -662,6 +691,30 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             allocateEditorElementId,
             pasteSelectionSource,
           );
+    };
+    const pasteSelection = (): boolean => {
+      if (desktopPastePending) return false;
+      desktopPastePending = true;
+      void window.balsamicDesktop
+        .readClipboard()
+        .then((value) => {
+          const payload = parseSerializedSelectionClipboardPayload(value.payload);
+          if (payload === undefined) return;
+          clipboard.write(payload);
+          pasteStoredSelection();
+        })
+        .catch(() => {
+          noticeStore.report({
+            key: 'clipboard:read',
+            message: 'No project data changed. Retry Paste.',
+            title: 'The system clipboard could not be read',
+            tone: 'warning',
+          });
+        })
+        .finally(() => {
+          desktopPastePending = false;
+        });
+      return true;
     };
     const groupingSource: SelectionGroupingSource = {
       commit(commands, label) {

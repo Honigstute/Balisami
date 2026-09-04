@@ -624,6 +624,10 @@ Depends on: M10, M11
 
 Objective: make projects easy to move and share while keeping export faithful to the editor.
 
+Current progress (2026-09-04):
+
+- The existing versioned, session-only selection clipboard now reaches the operating-system clipboard through a narrow validated preload/main API. Copy and cut publish one opaque bounded Balsamic payload together with a human-readable plain-text and escaped HTML flavor; other applications receive useful control names, while Balsamic validates and reparses the embedded payload before paste. Electron/Node access remains outside the renderer, foreign or oversized HTML cannot become a project command, concurrent paste reads are suppressed, native failures produce one deduplicated actionable overlay, and an accepted paste remains one history transaction. Focused boundary, encoding, selection, application, and project-session verification passes 6 files / 58 tests plus formatting, ESLint, strict TypeScript, and 232-module boundaries. The rebuilt macOS arm64 package passes fuse verification and packaged smoke. Cross-project payload remapping, external plain-text/image paste, and export remain explicitly incomplete.
+
 Deliverables:
 
 - Internal clipboard format plus safe plain-text/image fallbacks across applications.
@@ -680,4 +684,4 @@ Exit gate:
 
 ## Next action
 
-Audit the existing session clipboard, project codec, uncapped output scene, asset staging, preload/main filesystem boundary, and presentation alternate selectors as one M12 entry map. Then implement the smallest complete interoperability slice: same-project and cross-project copy/paste through one versioned payload with collision-safe remapping of element, asset, row-link, and component identities, plus safe plain-text fallback. Keep the operating-system clipboard behind a narrow typed preload/main API, preserve one paste as one history entry, and run focused domain/boundary/persistence tests while developing. Do not run the milestone-wide package/export matrix until the M12 gate or a concrete integration regression requires it. M7 and the post-core catalog backlog remain deferred.
+Extend the selection payload into a self-contained cross-project fragment without weakening the native transport: carry only referenced asset metadata/bytes and component definitions, remap element, row, asset, component, and internal board-link identities collision-safely into the active presented board, and commit the complete import as one validated history transaction. Preserve external URLs, define an explicit policy for source-project board links that have no target equivalent, and keep malformed, oversized, locked, or unsupported fragments non-mutating. Add plain-text paste as a Text Label fallback only after native Balsamic payload precedence is deterministic. Run focused domain/boundary/persistence tests while developing; reserve the milestone-wide package/export matrix for the M12 gate or a concrete integration regression. M7 and the post-core catalog backlog remain deferred.

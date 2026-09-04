@@ -1,12 +1,14 @@
-import { app, ipcMain, shell } from 'electron';
+import { app, clipboard, ipcMain, shell } from 'electron';
 
 import {
   DESKTOP_ACKNOWLEDGEMENT,
   DESKTOP_CHANNELS,
   type RuntimeInfo,
   type RuntimePlatform,
+  isDesktopClipboardWriteRequest,
   isExternalUrlRequest,
 } from '../shared/desktop-api';
+import { readDesktopClipboard, writeDesktopClipboard } from './desktop-clipboard';
 import { isTrustedRendererUrl } from './navigation-policy';
 import type { ProjectWindowController } from './projects/project-window-controller';
 
@@ -53,6 +55,20 @@ export const registerDesktopIpc = ({
 }: RegisterDesktopIpcOptions = {}): void => {
   const getProjectController = (webContentsId: number): ProjectWindowController | undefined =>
     resolveProjectController?.(webContentsId);
+
+  ipcMain.handle(DESKTOP_CHANNELS.clipboardRead, (event) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    return readDesktopClipboard(clipboard);
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.clipboardWrite, (event, input: unknown) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    if (!isDesktopClipboardWriteRequest(input)) {
+      throw new TypeError('Rejected an invalid clipboard write request.');
+    }
+    writeDesktopClipboard(clipboard, input);
+    return DESKTOP_ACKNOWLEDGEMENT;
+  });
 
   ipcMain.handle(DESKTOP_CHANNELS.getRuntimeInfo, (event): RuntimeInfo => {
     assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);

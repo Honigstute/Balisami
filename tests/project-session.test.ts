@@ -96,6 +96,10 @@ class FakeDesktopApi implements DesktopApi {
 
   constructor(readonly document: ProjectDocument) {}
 
+  readClipboard: DesktopApi['readClipboard'] = () => Promise.resolve({ payload: null, text: '' });
+
+  writeClipboard: DesktopApi['writeClipboard'] = () => Promise.resolve({ accepted: true });
+
   getRuntimeInfo = (): Promise<never> => Promise.reject(new Error('Not used by project session.'));
 
   openExternalUrl: DesktopApi['openExternalUrl'] = () => Promise.resolve({ accepted: true });

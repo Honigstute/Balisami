@@ -18,10 +18,13 @@ import {
   SelectionClipboardPayloadSchema,
   SelectionClipboardStore,
   captureSelectionClipboardPayload,
+  createSelectionClipboardPlainText,
   copySelectedElements,
   cutSelectedElements,
+  parseSerializedSelectionClipboardPayload,
   pasteClipboardElements,
   planSelectionPaste,
+  serializeSelectionClipboardPayload,
 } from '../src/renderer/editor/selection-clipboard';
 import { SelectionStore } from '../src/renderer/editor/selection-store';
 import { createValidProjectDocumentInput, DOCUMENT_FIXTURE_IDS } from './fixtures/project-document';
@@ -112,6 +115,10 @@ describe('selection clipboard payload', () => {
     expect(Object.isFrozen(payload)).toBe(true);
     expect(Object.isFrozen(payload?.entries)).toBe(true);
     expect(JSON.stringify(document)).toBe(documentJson);
+    expect(createSelectionClipboardPlainText(payload!)).toBe('Rectangle\nRectangle');
+    expect(
+      parseSerializedSelectionClipboardPayload(serializeSelectionClipboardPayload(payload!)),
+    ).toEqual(payload);
   });
 
   it('rejects invalid capture input and malformed runtime payloads', () => {
@@ -198,6 +205,8 @@ describe('selection clipboard payload', () => {
         entries: [...(valid?.entries ?? []), ...(valid?.entries ?? [])],
       }).success,
     ).toBe(false);
+    expect(parseSerializedSelectionClipboardPayload('{')).toBeUndefined();
+    expect(parseSerializedSelectionClipboardPayload('')).toBeUndefined();
   });
 
   it('keeps clipboard and paste count as session state outside selection and document history', () => {

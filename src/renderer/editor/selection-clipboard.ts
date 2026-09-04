@@ -10,6 +10,7 @@ import {
   ProjectIdSchema,
   createElementLocationIndex,
   selectElementLockState,
+  getControlAccessibleName,
   getControlSpec,
   listElementLinkReferences,
   rekeyControlRowState,
@@ -20,6 +21,7 @@ import {
   type ElementOwner,
   type ProjectDocument,
 } from '../../domain';
+import { DESKTOP_CLIPBOARD_LIMITS } from '../../shared/desktop-api';
 import { deleteSelectedElements, type SelectionDeleteSource } from './selection-delete';
 import type { SelectionDuplicateIdAllocator } from './selection-duplicate';
 import type { SelectionStore } from './selection-store';
@@ -66,6 +68,39 @@ export const SelectionClipboardPayloadSchema = z
   .readonly();
 
 export type SelectionClipboardPayload = z.infer<typeof SelectionClipboardPayloadSchema>;
+
+export const serializeSelectionClipboardPayload = (payload: SelectionClipboardPayload): string =>
+  JSON.stringify(payload);
+
+export const parseSerializedSelectionClipboardPayload = (
+  serialized: unknown,
+): SelectionClipboardPayload | undefined => {
+  if (
+    typeof serialized !== 'string' ||
+    serialized.length === 0 ||
+    serialized.length > DESKTOP_CLIPBOARD_LIMITS.payloadCharacters
+  ) {
+    return undefined;
+  }
+  try {
+    const parsed = SelectionClipboardPayloadSchema.safeParse(JSON.parse(serialized));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Human-readable flavor used when the selection is pasted into another app. */
+export const createSelectionClipboardPlainText = (payload: SelectionClipboardPayload): string =>
+  payload.entries
+    .map((entry) => {
+      const definition = getControlSpec(entry.element.controlType);
+      return definition === undefined
+        ? entry.element.controlType
+        : getControlAccessibleName(definition, entry.element.properties);
+    })
+    .join('\n')
+    .slice(0, DESKTOP_CLIPBOARD_LIMITS.textCharacters);
 
 export interface SelectionClipboardSnapshot {
   readonly pasteCount: number;

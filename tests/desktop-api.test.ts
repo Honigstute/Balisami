@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DESKTOP_ACKNOWLEDGEMENT,
+  DESKTOP_CLIPBOARD_LIMITS,
   isDesktopAcknowledgement,
+  isDesktopClipboardReadValue,
+  isDesktopClipboardWriteRequest,
   isExternalUrlRequest,
   isProjectCloseOutcome,
   isProjectCloseResponse,
@@ -34,6 +37,24 @@ describe('desktop API boundary validation', () => {
     expect(isExternalUrlRequest({ url: 'file:///private/project' })).toBe(false);
     expect(isExternalUrlRequest({ url: 'https://user:secret@example.com' })).toBe(true);
     expect(isExternalUrlRequest({ url: 'https://example.com', extra: true })).toBe(false);
+  });
+
+  it('accepts only bounded exact clipboard transport values', () => {
+    expect(isDesktopClipboardWriteRequest({ payload: '{"formatVersion":1}', text: 'Button' })).toBe(
+      true,
+    );
+    expect(isDesktopClipboardWriteRequest({ payload: '', text: 'Button' })).toBe(false);
+    expect(
+      isDesktopClipboardWriteRequest({
+        payload: 'x'.repeat(DESKTOP_CLIPBOARD_LIMITS.payloadCharacters + 1),
+        text: 'Button',
+      }),
+    ).toBe(false);
+    expect(
+      isDesktopClipboardWriteRequest({ payload: '{"formatVersion":1}', text: '', extra: true }),
+    ).toBe(false);
+    expect(isDesktopClipboardReadValue({ payload: null, text: 'External text' })).toBe(true);
+    expect(isDesktopClipboardReadValue({ payload: 1, text: '' })).toBe(false);
   });
 
   it('rejects unsupported runtime platforms and malformed values', () => {

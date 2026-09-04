@@ -6,6 +6,8 @@ import {
 } from './user-operation';
 
 export const DESKTOP_CHANNELS = {
+  clipboardRead: 'desktop:clipboard-read',
+  clipboardWrite: 'desktop:clipboard-write',
   getRuntimeInfo: 'desktop:get-runtime-info',
   openExternalUrl: 'desktop:open-external-url',
   projectCloseOutcome: 'desktop:project-close-outcome',
@@ -24,6 +26,22 @@ export const DESKTOP_CHANNELS = {
   projectStartupOptions: 'desktop:project-startup-options',
   reportRendererReady: 'desktop:report-renderer-ready',
 } as const;
+
+export const DESKTOP_CLIPBOARD_LIMITS = Object.freeze({
+  payloadCharacters: 8 * 1_024 * 1_024,
+  textCharacters: 100_000,
+});
+
+export interface DesktopClipboardWriteRequest {
+  /** Versioned renderer-owned payload. Main stores it opaquely. */
+  readonly payload: string;
+  readonly text: string;
+}
+
+export interface DesktopClipboardReadValue {
+  readonly payload: string | null;
+  readonly text: string;
+}
 
 export type RuntimePlatform = 'darwin' | 'win32';
 
@@ -154,6 +172,8 @@ export interface ProjectCloseOutcome {
 export type DesktopEventUnsubscribe = () => void;
 
 export interface DesktopApi {
+  readClipboard(): Promise<DesktopClipboardReadValue>;
+  writeClipboard(request: DesktopClipboardWriteRequest): Promise<DesktopAcknowledgement>;
   getRuntimeInfo(): Promise<RuntimeInfo>;
   openExternalUrl(request: ExternalUrlRequest): Promise<DesktopAcknowledgement>;
   onProjectCloseOutcome(listener: (outcome: ProjectCloseOutcome) => void): DesktopEventUnsubscribe;
@@ -200,6 +220,24 @@ const isSafeSaveTokenId = (value: unknown): value is number =>
 
 const isBoundedText = (value: unknown, maxLength: number): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= maxLength;
+
+const isBoundedPossiblyEmptyText = (value: unknown, maxLength: number): value is string =>
+  typeof value === 'string' && value.length <= maxLength;
+
+export const isDesktopClipboardWriteRequest = (
+  value: unknown,
+): value is DesktopClipboardWriteRequest =>
+  isRecord(value) &&
+  hasExactKeys(value, ['payload', 'text']) &&
+  isBoundedText(value.payload, DESKTOP_CLIPBOARD_LIMITS.payloadCharacters) &&
+  isBoundedPossiblyEmptyText(value.text, DESKTOP_CLIPBOARD_LIMITS.textCharacters);
+
+export const isDesktopClipboardReadValue = (value: unknown): value is DesktopClipboardReadValue =>
+  isRecord(value) &&
+  hasExactKeys(value, ['payload', 'text']) &&
+  (value.payload === null ||
+    isBoundedText(value.payload, DESKTOP_CLIPBOARD_LIMITS.payloadCharacters)) &&
+  isBoundedPossiblyEmptyText(value.text, DESKTOP_CLIPBOARD_LIMITS.textCharacters);
 
 export const isExternalUrlRequest = (value: unknown): value is ExternalUrlRequest => {
   if (!isRecord(value) || !hasExactKeys(value, ['url']) || !isBoundedText(value.url, 2_048)) {

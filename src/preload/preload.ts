@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import {
   DESKTOP_CHANNELS,
   type DesktopApi,
+  type DesktopClipboardWriteRequest,
   type ExternalUrlRequest,
   type ProjectCloseOutcome,
   type ProjectCloseRequest,
@@ -15,6 +16,8 @@ import {
   type ProjectReplacementRequest,
   type ProjectStartRequest,
   isDesktopAcknowledgement,
+  isDesktopClipboardReadValue,
+  isDesktopClipboardWriteRequest,
   isExternalUrlRequest,
   isProjectCloseOutcome,
   isProjectCloseRequest,
@@ -50,6 +53,23 @@ const createValidatedListener = <Value>(
 };
 
 const desktopApi: DesktopApi = Object.freeze({
+  async readClipboard() {
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.clipboardRead);
+    if (!isDesktopClipboardReadValue(response)) {
+      throw new Error('The desktop runtime returned invalid clipboard data.');
+    }
+    return response;
+  },
+  async writeClipboard(request: DesktopClipboardWriteRequest) {
+    if (!isDesktopClipboardWriteRequest(request)) {
+      throw new TypeError('The clipboard write request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.clipboardWrite, request);
+    if (!isDesktopAcknowledgement(response)) {
+      throw new Error('The desktop runtime did not acknowledge the clipboard write.');
+    }
+    return response;
+  },
   async getRuntimeInfo() {
     const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.getRuntimeInfo);
     if (!isRuntimeInfo(response)) {

@@ -16,6 +16,8 @@ const installDesktopApi = (desktopApi: DesktopApi): void => {
 const createDesktopApi = (overrides: Partial<DesktopApi> = {}): DesktopApi => {
   const document = createAssetFreeProjectDocument();
   return {
+    readClipboard: vi.fn().mockResolvedValue({ payload: null, text: '' }),
+    writeClipboard: vi.fn().mockResolvedValue({ accepted: true }),
     discardProjectRecovery: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     getRuntimeInfo: vi.fn().mockResolvedValue({
       appVersion: '0.1.0',
@@ -179,6 +181,33 @@ describe('application shell', () => {
     fireEvent.click(undo);
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Redo Insert Button' })).toBeEnabled();
+  });
+
+  it('publishes selected controls to the desktop clipboard and reads them before paste', async () => {
+    let payload: string | null = null;
+    const writeClipboard = vi.fn<DesktopApi['writeClipboard']>((request) => {
+      payload = request.payload;
+      return Promise.resolve({ accepted: true });
+    });
+    const readClipboard = vi.fn<DesktopApi['readClipboard']>(() =>
+      Promise.resolve({ payload, text: 'Button' }),
+    );
+    installDesktopApi(createDesktopApi({ readClipboard, writeClipboard }));
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    const canvas = await screen.findByRole('main', { name: 'Canvas viewport' });
+    const viewport = canvas.querySelector<HTMLElement>('.editor-viewport');
+    if (viewport === null) throw new Error('Editor viewport did not mount.');
+    fireEvent.click(screen.getByRole('button', { name: 'Insert Button' }));
+
+    fireEvent.keyDown(viewport, { code: 'KeyC', key: 'c', metaKey: true });
+    await waitFor(() => expect(writeClipboard).toHaveBeenCalledOnce());
+    expect(writeClipboard).toHaveBeenCalledWith(expect.objectContaining({ text: 'Button' }));
+
+    fireEvent.keyDown(viewport, { code: 'KeyV', key: 'v', metaKey: true });
+    expect(await screen.findByRole('button', { name: 'Undo Paste element' })).toBeEnabled();
+    expect(readClipboard).toHaveBeenCalledOnce();
   });
 
   it('draws one registry-supported control as one exact undoable history entry', async () => {
