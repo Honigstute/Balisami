@@ -95,6 +95,10 @@ const REGISTRY_CIRCLE_BUTTON_LEFT_ID = ElementIdSchema.parse('element_registryci
 const REGISTRY_CIRCLE_BUTTON_RIGHT_ID = ElementIdSchema.parse('element_registrycirclebuttonright');
 const REGISTRY_COMMENT_DEFAULT_ID = ElementIdSchema.parse('element_registrycommentdefault');
 const REGISTRY_COMMENT_EDITED_ID = ElementIdSchema.parse('element_registrycommentedited');
+const REGISTRY_TOOLTIP_SE_ID = ElementIdSchema.parse('element_registrytooltipse');
+const REGISTRY_TOOLTIP_SW_ID = ElementIdSchema.parse('element_registrytooltipsw');
+const REGISTRY_TOOLTIP_NE_ID = ElementIdSchema.parse('element_registrytooltipne');
+const REGISTRY_TOOLTIP_NW_ID = ElementIdSchema.parse('element_registrytooltipnw');
 const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
 const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
@@ -1042,6 +1046,33 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 18,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
+    ...(
+      [
+        { direction: 'SE', id: REGISTRY_TOOLTIP_SE_ID, x: 700 },
+        { direction: 'SW', id: REGISTRY_TOOLTIP_SW_ID, x: 800 },
+        { direction: 'NE', id: REGISTRY_TOOLTIP_NE_ID, x: 900 },
+        { direction: 'NW', id: REGISTRY_TOOLTIP_NW_ID, x: 1000 },
+      ] as const
+    ).map(({ direction, id, x }, index) => ({
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.tooltip,
+        controlVersion: requireControlVersion(CONTROL_TYPES.tooltip),
+        frame: { x, y: 370, width: 87, height: 33 },
+        id,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.tooltip, {
+          direction,
+          ...(direction === 'NW' ? { bold: true, text: 'NW tooltip' } : {}),
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 19 + index,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    })),
   ] as const;
   for (const command of commands) {
     const result = dispatchDocumentCommand(document, command);
@@ -1081,6 +1112,12 @@ const createCommentFixtureDocument = (): ReturnType<typeof createSceneFixtureDoc
   Object.freeze({
     ...createRegistryControlFixtureDocument(),
     selectedId: REGISTRY_COMMENT_EDITED_ID,
+  });
+
+const createCatalogTooltipFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_TOOLTIP_NW_ID,
   });
 
 const createGroupSelectionFixtureDocument = (
@@ -1169,6 +1206,7 @@ type SceneFixtureState =
   | 'textHeadings'
   | 'circleButton'
   | 'comment'
+  | 'catalogTooltip'
   | 'resize'
   | 'selection'
   | 'smartGuides'
@@ -1190,7 +1228,8 @@ const SceneFixture = ({
     state === 'textArea' ||
     state === 'textHeadings' ||
     state === 'circleButton' ||
-    state === 'comment';
+    state === 'comment' ||
+    state === 'catalogTooltip';
   const camera = useViewportCameraStore(isRegistryFixture ? 0.8 : 1);
   const [fixture] = useState(() =>
     state === 'alpha' || state === 'customIcon'
@@ -1206,7 +1245,9 @@ const SceneFixture = ({
                 ? createCircleButtonFixtureDocument()
                 : state === 'comment'
                   ? createCommentFixtureDocument()
-                  : createRegistryControlFixtureDocument()
+                  : state === 'catalogTooltip'
+                    ? createCatalogTooltipFixtureDocument()
+                    : createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
@@ -1990,6 +2031,24 @@ const CommentInspectorFixture = () => {
   );
 };
 
+const CatalogTooltipInspectorFixture = () => {
+  const [fixture] = useState(createCatalogTooltipFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
   const [thumbnailStore] = useState(
@@ -2140,15 +2199,30 @@ export const VisualConformanceFixture = ({
                                                         />
                                                       ),
                                                     }
-                                                  : fixture === 'controls'
-                                                    ? { inspector: <ControlStates /> }
-                                                    : fixture === 'feedback'
-                                                      ? { canvas: <StaticRegionFailure /> }
-                                                      : fixture === 'tooltip'
-                                                        ? { canvas: <TooltipFixture /> }
-                                                        : fixture === 'popover'
-                                                          ? { canvas: <PopoverFixture /> }
-                                                          : undefined;
+                                                  : fixture === 'catalogTooltip'
+                                                    ? {
+                                                        canvas: (
+                                                          <SceneFixture state="catalogTooltip" />
+                                                        ),
+                                                        inspector: (
+                                                          <CatalogTooltipInspectorFixture />
+                                                        ),
+                                                        shelf: (
+                                                          <ControlShelf
+                                                            category="Markup"
+                                                            onInsert={() => false}
+                                                          />
+                                                        ),
+                                                      }
+                                                    : fixture === 'controls'
+                                                      ? { inspector: <ControlStates /> }
+                                                      : fixture === 'feedback'
+                                                        ? { canvas: <StaticRegionFailure /> }
+                                                        : fixture === 'tooltip'
+                                                          ? { canvas: <TooltipFixture /> }
+                                                          : fixture === 'popover'
+                                                            ? { canvas: <PopoverFixture /> }
+                                                            : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -2183,7 +2257,9 @@ export const VisualConformanceFixture = ({
                 ? CONTROL_TYPES.circleButton
                 : fixture === 'comment'
                   ? CONTROL_TYPES.comment
-                  : undefined;
+                  : fixture === 'catalogTooltip'
+                    ? CONTROL_TYPES.tooltip
+                    : undefined;
   const inspectorTitle =
     fixture === 'components'
       ? 'Reusable Card'

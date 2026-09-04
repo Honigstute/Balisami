@@ -44,6 +44,7 @@ export type ControlVisualKind =
   | 'squiggly-block'
   | 'street-map'
   | 'text'
+  | 'tooltip'
   | 'toolbar'
   | 'transparent'
   | 'video-player'

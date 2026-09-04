@@ -839,4 +839,36 @@ describe('control thumbnail projection', () => {
     expect(projection.markPath).toContain('Z');
     expect(projection.markPath).not.toContain('NaN');
   });
+
+  it('projects all four Tooltip compass directions through one closed bubble path', () => {
+    const definition = getControlSpec(CONTROL_TYPES.tooltip);
+    if (definition === undefined) throw new Error('Tooltip definition is missing.');
+
+    const projections = ['SE', 'SW', 'NE', 'NW'].map((direction) =>
+      createControlSceneProjection({
+        bounds: createWorldRect(0, 0, 87, 33),
+        definition,
+        identity: `tooltip-${direction}`,
+        properties: { ...definition.defaultProperties, direction },
+        textMeasurementService: measurementService,
+      }),
+    );
+
+    expect(new Set(projections.map(({ markPath }) => markPath))).toHaveLength(4);
+    for (const projection of projections) {
+      expect(projection).toMatchObject({
+        markFillColor: DESIGN_TOKENS.color.canvas,
+        markStrokeColor: DESIGN_TOKENS.color.ink,
+        outlinePath: '',
+        textLayout: { textAnchor: 'middle' },
+      });
+      expect(projection.markPath).toContain('Z');
+      expect(projection.markPath).not.toMatch(/NaN|Infinity/u);
+    }
+    expect(projections[0]?.primitiveBounds).toEqual({ height: 25, width: 87, x: 0, y: 8 });
+    expect(projections[1]?.primitiveBounds).toEqual({ height: 25, width: 87, x: 0, y: 8 });
+    expect(projections[2]?.primitiveBounds).toEqual({ height: 25, width: 87, x: 0, y: 0 });
+    expect(projections[3]?.primitiveBounds).toEqual({ height: 25, width: 87, x: 0, y: 0 });
+    expect(projections[0]?.textLayout?.lines[0]?.text).toBe('a tooltip');
+  });
 });

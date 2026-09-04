@@ -151,6 +151,69 @@ describe('board thumbnail projection', () => {
     expect(presentation?.markPath).toBe(thumbnail?.markPath);
   });
 
+  it('keeps Tooltip bubble and text geometry identical in navigator and presentation', () => {
+    const input = createValidProjectDocumentInput();
+    const tooltip = getControlSpec(CONTROL_TYPES.tooltip);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (tooltip === undefined || child === undefined) {
+      throw new Error('Tooltip cross-surface fixture is incomplete.');
+    }
+    child.controlType = tooltip.type;
+    child.controlVersion = tooltip.fileVersion;
+    child.frame = { x: 16, y: 24, ...tooltip.defaultSize };
+    child.properties = {
+      ...tooltip.defaultProperties,
+      bold: true,
+      direction: 'NW',
+      text: 'More details',
+    };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Tooltip cross-surface fixture is invalid.');
+    const textMeasurementService = {
+      measure: ({ fontSize, text }: { fontSize: number; text: string }) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      }),
+    };
+
+    const thumbnail = createBoardThumbnailProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+    const presentation = createBoardPresentationProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+    expect(thumbnail).toMatchObject({
+      hasFill: false,
+      hasOutline: false,
+      markFillColor: '#FFFFFF',
+      markStrokeColor: '#202428',
+      visualKind: 'tooltip',
+    });
+    expect(thumbnail?.markPath).toContain('Z');
+    expect(presentation).toMatchObject({
+      accessibleName: 'More details',
+      hasFill: false,
+      hasOutline: false,
+      markFillColor: thumbnail?.markFillColor,
+      markPath: thumbnail?.markPath,
+      markStrokeColor: thumbnail?.markStrokeColor,
+      role: 'img',
+      textLayout: thumbnail?.textLayout,
+      visualKind: 'tooltip',
+    });
+  });
+
   it('keeps styled disabled Text Area geometry and accessibility identical across surfaces', () => {
     const input = createValidProjectDocumentInput();
     const textArea = getControlSpec(CONTROL_TYPES.textArea);

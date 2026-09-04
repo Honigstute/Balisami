@@ -80,6 +80,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=textHeadings')).toBe('textHeadings');
     expect(getRequestedVisualFixture('?visualFixture=circleButton')).toBe('circleButton');
     expect(getRequestedVisualFixture('?visualFixture=comment')).toBe('comment');
+    expect(getRequestedVisualFixture('?visualFixture=catalogTooltip')).toBe('catalogTooltip');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -541,6 +542,50 @@ describe('visual conformance fixture contract', () => {
       if (document.fonts !== undefined) {
         expect(editedComment?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
       }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders all four Tooltip compass directions with the selected text inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogTooltip');
+
+    expect(screen.getByRole('button', { name: 'Insert Tooltip' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.tooltip"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Tooltip' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'NW' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Center' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Choose Color' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="tooltip"]');
+      expect(controls).toHaveLength(4);
+      expect(
+        view.container.querySelector(
+          '[data-scene-element-id="element_registrytooltipse"] .scene-control__mark',
+        ),
+      ).toHaveAttribute('d', expect.stringContaining('Z'));
+      expect(
+        view.container.querySelector('[data-scene-element-id="element_registrytooltipnw"]'),
+      ).toHaveAttribute('aria-label', 'NW tooltip');
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

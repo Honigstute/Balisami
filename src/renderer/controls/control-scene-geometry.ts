@@ -20,6 +20,7 @@ const requireDefinition = (controlType: ControlTypeId): ControlDefinition => {
 export const getControlScenePrimitiveBounds = (
   controlType: ControlTypeId,
   bounds: WorldRect,
+  properties?: ElementProperties,
 ): WorldRect => {
   const definition = requireDefinition(controlType);
   if (definition.scene.kind === 'circle-button') {
@@ -38,6 +39,17 @@ export const getControlScenePrimitiveBounds = (
       bounds.y + tapeInset,
       bounds.width,
       Math.max(0, bounds.height - tapeInset),
+    );
+  }
+  if (definition.scene.kind === 'tooltip') {
+    const direction = properties?.direction ?? definition.defaultProperties.direction;
+    const tailSize = Math.min(8, bounds.height * 0.25);
+    const pointsDown = direction === 'NE' || direction === 'NW';
+    return createWorldRect(
+      bounds.x,
+      pointsDown ? bounds.y : bounds.y + tailSize,
+      bounds.width,
+      Math.max(0, bounds.height - tailSize),
     );
   }
   if (definition.scene.kind !== 'checkbox') {
@@ -92,6 +104,7 @@ export const createControlSceneOutlinePath = (
   if (
     definition.scene.kind === 'comment' ||
     definition.scene.kind === 'text' ||
+    definition.scene.kind === 'tooltip' ||
     definition.scene.kind === 'transparent'
   ) {
     return '';
@@ -245,6 +258,66 @@ export const createControlSceneOutlinePath = (
     getControlScenePrimitiveBounds(controlType, bounds),
     `${elementId}:${definition.scene.kind}`,
   );
+};
+
+const createTooltipMarkPath = (bounds: WorldRect, properties: ElementProperties): string => {
+  const direction = properties.direction;
+  const extendsEast = direction === 'SE' || direction === 'NE';
+  const extendsSouth = direction === 'SE' || direction === 'SW';
+  const tailSize = Math.min(8, bounds.height * 0.25);
+  const left = bounds.x + 1;
+  const right = bounds.x + Math.max(1, bounds.width - 1);
+  const top = bounds.y + (extendsSouth ? tailSize : 1);
+  const bottom = bounds.y + bounds.height - (extendsSouth ? 1 : tailSize);
+  const radius = Math.max(0, Math.min(10, (right - left) / 2, (bottom - top) / 2));
+  const tailTipX = extendsEast ? left + 2 : right - 2;
+  const tailTipY = extendsSouth ? bounds.y + 1 : bounds.y + bounds.height - 1;
+  const tailSpan = Math.min(12, Math.max(0, (right - left) / 2 - radius));
+  const topEdge =
+    extendsSouth && extendsEast
+      ? [
+          `M ${String(left + radius)} ${String(top)}`,
+          `L ${String(tailTipX)} ${String(tailTipY)}`,
+          `L ${String(left + radius + tailSpan)} ${String(top)}`,
+          `L ${String(right - radius)} ${String(top)}`,
+        ]
+      : extendsSouth
+        ? [
+            `M ${String(left + radius)} ${String(top)}`,
+            `L ${String(right - radius - tailSpan)} ${String(top)}`,
+            `L ${String(tailTipX)} ${String(tailTipY)}`,
+            `L ${String(right - radius)} ${String(top)}`,
+          ]
+        : [
+            `M ${String(left + radius)} ${String(top)}`,
+            `L ${String(right - radius)} ${String(top)}`,
+          ];
+  const bottomEdge =
+    !extendsSouth && !extendsEast
+      ? [
+          `L ${String(tailTipX)} ${String(tailTipY)}`,
+          `L ${String(right - radius - tailSpan)} ${String(bottom)}`,
+          `L ${String(left + radius)} ${String(bottom)}`,
+        ]
+      : !extendsSouth
+        ? [
+            `L ${String(left + radius + tailSpan)} ${String(bottom)}`,
+            `L ${String(tailTipX)} ${String(tailTipY)}`,
+            `L ${String(left + radius)} ${String(bottom)}`,
+          ]
+        : [`L ${String(left + radius)} ${String(bottom)}`];
+
+  return [
+    ...topEdge,
+    `Q ${String(right)} ${String(top)} ${String(right)} ${String(top + radius)}`,
+    `L ${String(right)} ${String(bottom - radius)}`,
+    `Q ${String(right)} ${String(bottom)} ${String(right - radius)} ${String(bottom)}`,
+    ...bottomEdge,
+    `Q ${String(left)} ${String(bottom)} ${String(left)} ${String(bottom - radius)}`,
+    `L ${String(left)} ${String(top + radius)}`,
+    `Q ${String(left)} ${String(top)} ${String(left + radius)} ${String(top)}`,
+    'Z',
+  ].join(' ');
 };
 
 /** Small registry-bound decoration shared by live, thumbnail, presentation, and export projections. */
@@ -989,6 +1062,9 @@ export const createControlSceneMarkPath = (
       'Z',
     ].join(' ');
   }
+  if (definition.scene.kind === 'tooltip') {
+    return createTooltipMarkPath(bounds, properties);
+  }
   if (definition.scene.kind === 'image') {
     return createImagePlaceholderMarkPath(bounds, elementId);
   }
@@ -1080,11 +1156,18 @@ export const createControlSceneMarkPath = (
 };
 
 export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
-  !['arrow', 'h-rule', 'help-button', 'scratch-out', 'text', 'transparent', 'v-rule'].includes(
-    definition.scene.kind,
-  );
+  ![
+    'arrow',
+    'h-rule',
+    'help-button',
+    'scratch-out',
+    'text',
+    'tooltip',
+    'transparent',
+    'v-rule',
+  ].includes(definition.scene.kind);
 
 export const controlSceneHasOutline = (definition: ControlDefinition): boolean =>
-  !['comment', 'red-x', 'scratch-out', 'squiggly-block', 'text', 'transparent'].includes(
+  !['comment', 'red-x', 'scratch-out', 'squiggly-block', 'text', 'tooltip', 'transparent'].includes(
     definition.scene.kind,
   );

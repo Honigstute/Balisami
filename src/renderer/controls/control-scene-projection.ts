@@ -101,9 +101,11 @@ export const createControlSceneProjection = ({
     style?.scrollbarVisibilityProperty !== null &&
     style?.scrollbarVisibilityProperty !== undefined &&
     properties[style.scrollbarVisibilityProperty] === true;
-  const primitiveBounds = getControlScenePrimitiveBounds(definition.type, bounds);
+  const primitiveBounds = getControlScenePrimitiveBounds(definition.type, bounds, properties);
   const contentBounds =
-    definition.scene.kind === 'circle-button' || definition.scene.kind === 'comment'
+    definition.scene.kind === 'circle-button' ||
+    definition.scene.kind === 'comment' ||
+    definition.scene.kind === 'tooltip'
       ? primitiveBounds
       : bounds;
   const fillRadii =
