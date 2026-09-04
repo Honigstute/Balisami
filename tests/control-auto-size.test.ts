@@ -335,4 +335,27 @@ describe('registry-driven control auto-size', () => {
       ),
     ).toEqual({ ...radio.frame, width: 117 });
   });
+
+  it('keeps the official Date Chooser default and reserves its fixed calendar affordance', () => {
+    const chooser = createElement(CONTROL_TYPES.dateChooser);
+    if (chooser === undefined) throw new Error('Date Chooser Auto-Size fixture is missing.');
+    const measurement = {
+      measure: ({ text }: { text: string }) => ({
+        baselineOffsets: [13],
+        height: 15.6,
+        lineCount: 1,
+        lineHeight: 15.6,
+        lines: [text],
+        width: text === '20/01/2010' ? 65 : 28,
+      }),
+    };
+
+    expect(calculateControlAutoSizeFrame(chooser, measurement)).toEqual(chooser.frame);
+    expect(
+      calculateControlAutoSizeFrame(
+        { ...chooser, properties: { ...chooser.properties, text: '20/01/2010' } },
+        measurement,
+      ),
+    ).toEqual({ ...chooser.frame, width: 106 });
+  });
 });

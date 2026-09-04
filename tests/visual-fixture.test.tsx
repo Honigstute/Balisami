@@ -83,6 +83,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=catalogTooltip')).toBe('catalogTooltip');
     expect(getRequestedVisualFixture('?visualFixture=catalogCallout')).toBe('catalogCallout');
     expect(getRequestedVisualFixture('?visualFixture=radioButton')).toBe('radioButton');
+    expect(getRequestedVisualFixture('?visualFixture=dateChooser')).toBe('dateChooser');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -709,6 +710,64 @@ describe('visual conformance fixture contract', () => {
         ),
       ).not.toBeNull();
       expect(disabledRadio).toHaveStyle({ opacity: '0.45' });
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders default and edited Date Choosers with the exact trailing calendar inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('dateChooser');
+
+    expect(screen.getByRole('button', { name: 'Insert Date Chooser' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.date-chooser"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Date Chooser' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Border Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Disabled');
+    expect(screen.queryByRole('button', { name: 'Icon' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Content' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll(
+        '[data-control-type="wireframe.date-chooser"]',
+      );
+      expect(controls).toHaveLength(2);
+      const defaultChooser = view.container.querySelector(
+        '[data-scene-element-id="element_registrydatechooserdefault"]',
+      );
+      const editedChooser = view.container.querySelector(
+        '[data-scene-element-id="element_registrydatechooseredited"]',
+      );
+      expect(defaultChooser).toHaveAttribute('role', 'textbox');
+      expect(defaultChooser).toHaveAttribute('aria-label', '  /  /    ');
+      expect(defaultChooser).toHaveAttribute('aria-disabled', 'false');
+      expect(defaultChooser?.querySelector('.scene-control__fill')).toHaveAttribute('width', '57');
+      expect(defaultChooser?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(editedChooser).toHaveAttribute('aria-label', '20/01/2010');
+      expect(editedChooser).toHaveAttribute('aria-disabled', 'true');
+      expect(editedChooser).toHaveStyle({ opacity: '0.45' });
+      expect(editedChooser?.querySelector('.scene-control__outline')).toHaveStyle({
+        stroke: DESIGN_TOKENS.color.accent,
+      });
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

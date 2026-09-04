@@ -23,6 +23,16 @@ export const getControlScenePrimitiveBounds = (
   properties?: ElementProperties,
 ): WorldRect => {
   const definition = requireDefinition(controlType);
+  const trailingAdornment = definition.scene.trailingAdornment;
+  if (trailingAdornment !== undefined) {
+    const bodyInset = Math.min(trailingAdornment.bodyInset, bounds.height / 2);
+    return createWorldRect(
+      bounds.x,
+      bounds.y + bodyInset,
+      Math.max(0, bounds.width - trailingAdornment.size - trailingAdornment.gap),
+      Math.max(0, bounds.height - bodyInset * 2),
+    );
+  }
   if (definition.scene.kind === 'circle-button') {
     const size = Math.min(bounds.width, bounds.height);
     return createWorldRect(
@@ -346,6 +356,48 @@ const createTooltipMarkPath = (bounds: WorldRect, properties: ElementProperties)
     `Q ${String(left)} ${String(top)} ${String(left + radius)} ${String(top)}`,
     'Z',
   ].join(' ');
+};
+
+const createCalendarAdornmentMarkPath = (
+  bounds: WorldRect,
+  elementId: string,
+  size: number,
+): string => {
+  const calendar = createWorldRect(
+    bounds.x + bounds.width - size,
+    bounds.y + (bounds.height - size) / 2,
+    size,
+    size,
+  );
+  const left = calendar.x;
+  const right = calendar.x + calendar.width;
+  const top = calendar.y;
+  const bottom = calendar.y + calendar.height;
+  const paths = [createSeededSketchRectPath(calendar, `${elementId}:calendar-body`)];
+  const line = (startX: number, startY: number, endX: number, endY: number, salt: string) =>
+    createSeededSketchLinePath({
+      end: createWorldPoint(endX, endY),
+      seed: `${elementId}:calendar:${salt}`,
+      start: createWorldPoint(startX, startY),
+    });
+  paths.push(line(left, top + 6, right, top + 6, 'header'));
+  paths.push(line(left + 7, top, left + 7, top + 5, 'binding-left'));
+  paths.push(line(right - 7, top, right - 7, top + 5, 'binding-right'));
+  for (const [index, ratio] of [1 / 3, 2 / 3].entries()) {
+    paths.push(
+      line(left + size * ratio, top + 7, left + size * ratio, bottom, `column-${String(index)}`),
+    );
+    paths.push(
+      line(
+        left,
+        top + 7 + (size - 7) * ratio,
+        right,
+        top + 7 + (size - 7) * ratio,
+        `row-${String(index)}`,
+      ),
+    );
+  }
+  return paths.join(' ');
 };
 
 /** Small registry-bound decoration shared by live, thumbnail, presentation, and export projections. */
@@ -1097,6 +1149,10 @@ export const createControlSceneMarkPath = (
   properties: ElementProperties,
 ): string => {
   const definition = requireDefinition(controlType);
+  const trailingAdornment = definition.scene.trailingAdornment;
+  if (trailingAdornment?.kind === 'calendar') {
+    return createCalendarAdornmentMarkPath(bounds, elementId, trailingAdornment.size);
+  }
   if (definition.scene.kind === 'comment') {
     const left = bounds.x + bounds.width * 0.28;
     const right = bounds.x + bounds.width * 0.72;

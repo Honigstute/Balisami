@@ -41,6 +41,7 @@ export const CONTROL_TYPES = Object.freeze({
   textInput: ControlTypeIdSchema.parse('wireframe.text-input'),
   checkbox: ControlTypeIdSchema.parse('wireframe.checkbox'),
   radioButton: ControlTypeIdSchema.parse('wireframe.radio-button'),
+  dateChooser: ControlTypeIdSchema.parse('wireframe.date-chooser'),
   checkboxGroup: ControlTypeIdSchema.parse('wireframe.checkbox-group'),
   radioButtonGroup: ControlTypeIdSchema.parse('wireframe.radio-button-group'),
   imagePlaceholder: ControlTypeIdSchema.parse('wireframe.image-placeholder'),
@@ -167,6 +168,14 @@ const radioButtonPropertiesSchema = z
     state: z.enum(['up', 'selected', 'disabled']),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
     textColor: sceneColorSchema,
+  })
+  .readonly();
+const dateChooserPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    borderColor: sceneColorSchema,
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
 const markerGroupPropertiesSchema = z
@@ -484,19 +493,25 @@ const createScene = (
   colorTarget: ControlSceneDefinition['colorTarget'] = 'stroke',
   style?: ControlSceneDefinition['style'],
   markStyle?: ControlSceneDefinition['markStyle'],
-  radio?: ControlSceneDefinition['radio'],
-  iconInset?: number,
+  extras: Readonly<{
+    iconInset?: number;
+    radio?: ControlSceneDefinition['radio'];
+    trailingAdornment?: ControlSceneDefinition['trailingAdornment'];
+  }> = Object.freeze({}),
 ): ControlSceneDefinition =>
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
     colorTarget,
     hitShape: Object.freeze(hitShape),
-    ...(iconInset === undefined ? {} : { iconInset }),
+    ...(extras.iconInset === undefined ? {} : { iconInset: extras.iconInset }),
     kind,
     ...(markStyle === undefined ? {} : { markStyle: Object.freeze(markStyle) }),
-    ...(radio === undefined ? {} : { radio: Object.freeze(radio) }),
+    ...(extras.radio === undefined ? {} : { radio: Object.freeze(extras.radio) }),
     propertyKeys: Object.freeze([...new Set(propertyKeys)]),
     ...(style === undefined ? {} : { style: Object.freeze(style) }),
+    ...(extras.trailingAdornment === undefined
+      ? {}
+      : { trailingAdornment: Object.freeze(extras.trailingAdornment) }),
   });
 
 /**
@@ -1330,12 +1345,96 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         fillColor: DESIGN_TOKENS.color.ink,
         strokeColor: DESIGN_TOKENS.color.ink,
       }),
-      Object.freeze({ diameter: 18, gap: 8 }),
-      0,
+      Object.freeze({ iconInset: 0, radio: Object.freeze({ diameter: 18, gap: 8 }) }),
     ),
     tags: ['form', 'option', 'selection', 'single choice'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.radioButton,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Date Chooser', 'textbox', 'text'),
+    aliases: ['date input', 'date field', 'calendar input'],
+    autoSize: createAutoSize('horizontal', 8, 33, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 13, 8, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      borderColor: 'default',
+      state: 'normal',
+      text: '  /  /    ',
+    },
+    defaultSize: createSize(90, 25),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(90, 25),
+    maximumSize: null,
+    palette: createPalette('Date Chooser', 'Forms', 54),
+    propertiesSchema: dateChooserPropertiesSchema,
+    scene: createScene(
+      'input',
+      ['state', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: 'borderColor',
+        state: createDisabledState(),
+      },
+      undefined,
+      Object.freeze({
+        trailingAdornment: Object.freeze({
+          bodyInset: 2,
+          gap: 8,
+          kind: 'calendar',
+          size: 25,
+        }),
+      }),
+    ),
+    tags: ['calendar', 'date', 'form', 'input', 'masked input'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.dateChooser,
   }),
   createDefinition({
     accessibility: createAccessibility('Checkbox Group', 'group'),

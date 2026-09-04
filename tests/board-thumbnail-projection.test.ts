@@ -347,6 +347,69 @@ describe('board thumbnail projection', () => {
     });
   });
 
+  it('keeps edited Date Chooser body, calendar, and accessibility identical across surfaces', () => {
+    const input = createValidProjectDocumentInput();
+    const chooser = getControlSpec(CONTROL_TYPES.dateChooser);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (chooser === undefined || child === undefined) {
+      throw new Error('Date Chooser cross-surface fixture is incomplete.');
+    }
+    child.controlType = chooser.type;
+    child.controlVersion = chooser.fileVersion;
+    child.frame = { x: 16, y: 24, width: 106, height: 25 };
+    child.properties = {
+      ...chooser.defaultProperties,
+      borderColor: '#445566',
+      italic: true,
+      state: 'disabled',
+      text: '20/01/2010',
+    };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Date Chooser cross-surface fixture is invalid.');
+    const textMeasurementService = {
+      measure: ({ fontSize, text }: { fontSize: number; text: string }) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      }),
+    };
+
+    const thumbnail = createBoardThumbnailProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+    const presentation = createBoardPresentationProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+    expect(thumbnail).toMatchObject({
+      disabled: true,
+      hasFill: true,
+      hasOutline: true,
+      opacity: 0.45,
+      primitiveBounds: { height: 21, width: 73 },
+      strokeColor: '#445566',
+      visualKind: 'input',
+    });
+    expect(thumbnail?.markPath).not.toBe('');
+    expect(presentation).toMatchObject({
+      accessibleName: '20/01/2010',
+      markPath: thumbnail?.markPath,
+      role: 'textbox',
+      strokeColor: thumbnail?.strokeColor,
+      textLayout: thumbnail?.textLayout,
+      visualKind: 'input',
+    });
+  });
+
   it('keeps styled disabled Text Area geometry and accessibility identical across surfaces', () => {
     const input = createValidProjectDocumentInput();
     const textArea = getControlSpec(CONTROL_TYPES.textArea);

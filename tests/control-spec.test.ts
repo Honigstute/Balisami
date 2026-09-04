@@ -25,6 +25,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
       CONTROL_TYPES.radioButton,
+      CONTROL_TYPES.dateChooser,
       CONTROL_TYPES.checkboxGroup,
       CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.imagePlaceholder,
@@ -84,6 +85,7 @@ describe('control definition registry', () => {
       'Checkbox Group',
       'Radio Button',
       'Radio Button Group',
+      'Date Chooser',
       'Image',
       'Browser Window',
       'Arrow',
@@ -222,6 +224,45 @@ describe('control definition registry', () => {
         ],
         property: 'state',
       }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(getControlSpec(CONTROL_TYPES.dateChooser)).toMatchObject({
+      accessibility: {
+        fallbackLabel: 'Date Chooser',
+        nameProperty: 'text',
+        role: 'textbox',
+      },
+      autoSize: { axis: 'horizontal', insets: { left: 8, right: 33 } },
+      capabilities: {
+        border: true,
+        icon: false,
+        link: false,
+        state: true,
+        text: { fontSize: 13, property: 'text' },
+      },
+      defaultProperties: {
+        borderColor: 'default',
+        state: 'normal',
+        text: '  /  /    ',
+      },
+      defaultSize: { height: 25, width: 90 },
+      inspector: [{ label: 'Appearance' }, { label: 'State' }, { label: 'Text' }],
+      minimumSize: { height: 25, width: 90 },
+      palette: { category: 'Forms', label: 'Date Chooser' },
+      scene: {
+        hitShape: { kind: 'bounds' },
+        kind: 'input',
+        trailingAdornment: { bodyInset: 2, gap: 8, kind: 'calendar', size: 25 },
+      },
+    });
+    expect(
+      getControlSpec(CONTROL_TYPES.dateChooser)?.inspector.flatMap((section) => section.fields),
+    ).toEqual([
+      expect.objectContaining({ kind: 'color', property: 'borderColor' }),
+      expect.objectContaining({ kind: 'select', property: 'state' }),
       expect.objectContaining({ kind: 'boolean', property: 'bold' }),
       expect.objectContaining({ kind: 'boolean', property: 'italic' }),
       expect.objectContaining({ kind: 'boolean', property: 'underline' }),

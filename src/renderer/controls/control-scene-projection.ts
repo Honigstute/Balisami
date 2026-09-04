@@ -105,7 +105,8 @@ export const createControlSceneProjection = ({
   const contentBounds =
     definition.scene.kind === 'circle-button' ||
     definition.scene.kind === 'comment' ||
-    definition.scene.kind === 'tooltip'
+    definition.scene.kind === 'tooltip' ||
+    definition.scene.trailingAdornment !== undefined
       ? primitiveBounds
       : bounds;
   const fillRadii =

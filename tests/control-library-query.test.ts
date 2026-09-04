@@ -34,6 +34,7 @@ describe('control library query', () => {
       CONTROL_TYPES.checkboxGroup,
       CONTROL_TYPES.radioButton,
       CONTROL_TYPES.radioButtonGroup,
+      CONTROL_TYPES.dateChooser,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
       CONTROL_TYPES.searchBox,
@@ -50,6 +51,7 @@ describe('control library query', () => {
       CONTROL_TYPES.checkboxGroup,
       CONTROL_TYPES.radioButton,
       CONTROL_TYPES.radioButtonGroup,
+      CONTROL_TYPES.dateChooser,
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,
@@ -113,6 +115,9 @@ describe('control library query', () => {
     expect(queryControlLibrary({ query: 'single choice' })[0]?.type).toBe(
       CONTROL_TYPES.radioButton,
     );
+    expect(queryControlLibrary({ query: 'calendar input' })[0]?.type).toBe(
+      CONTROL_TYPES.dateChooser,
+    );
     expect(queryControlLibrary({ query: 'photo' })[0]?.type).toBe(CONTROL_TYPES.imagePlaceholder);
     expect(queryControlLibrary({ query: 'website' })[0]?.type).toBe(CONTROL_TYPES.browser);
     expect(queryControlLibrary({ query: '  BROWSER-window ' })[0]?.type).toBe(
@@ -132,6 +137,7 @@ describe('control library query', () => {
       CONTROL_TYPES.checkboxGroup,
       CONTROL_TYPES.radioButton,
       CONTROL_TYPES.radioButtonGroup,
+      CONTROL_TYPES.dateChooser,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
       CONTROL_TYPES.searchBox,
