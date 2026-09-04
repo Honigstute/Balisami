@@ -56,6 +56,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.treePane,
       CONTROL_TYPES.searchBox,
       CONTROL_TYPES.textArea,
+      CONTROL_TYPES.fieldSet,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -105,6 +106,7 @@ describe('control definition registry', () => {
       'Tree Pane',
       'Search Box',
       'Text Area',
+      'Field Set',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -822,5 +824,50 @@ describe('control definition registry', () => {
         }).success,
       ).toBe(false);
     }
+  });
+
+  it('owns the screenshot-backed Field Set contract without inferred actions', () => {
+    const fieldSet = getControlSpec(CONTROL_TYPES.fieldSet);
+
+    expect(fieldSet).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'group' },
+      autoSize: null,
+      capabilities: {
+        border: true,
+        fill: true,
+        grouping: 'container',
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      defaultProperties: {
+        bold: false,
+        color: 'default',
+        fontSize: 13,
+        italic: false,
+        opacity: 1,
+        text: 'Group Name',
+        underline: false,
+      },
+      defaultSize: { height: 170, width: 200 },
+      scene: { kind: 'field-set' },
+    });
+    const fields = fieldSet?.inspector.flatMap((section) => section.fields) ?? [];
+    expect(fields).toEqual([
+      expect.objectContaining({ kind: 'color', property: 'color' }),
+      expect.objectContaining({ kind: 'range', property: 'opacity' }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(fields).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: 'link' }),
+        expect.objectContaining({ property: 'state' }),
+        expect.objectContaining({ property: 'text' }),
+      ]),
+    );
+    expect(fieldSet?.propertiesSchema.safeParse(fieldSet.defaultProperties).success).toBe(true);
   });
 });

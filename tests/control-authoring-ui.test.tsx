@@ -149,6 +149,7 @@ describe('alpha control authoring UI', () => {
       'Tree Pane',
       'Search Box',
       'Text Area',
+      'Field Set',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -193,6 +194,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.treePane,
       CONTROL_TYPES.searchBox,
       CONTROL_TYPES.textArea,
+      CONTROL_TYPES.fieldSet,
     ]);
   });
 

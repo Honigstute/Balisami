@@ -24,6 +24,7 @@ export type ControlVisualKind =
   | 'chart-pie'
   | 'checkbox'
   | 'color-picker'
+  | 'field-set'
   | 'image'
   | 'h-splitter'
   | 'h-rule'

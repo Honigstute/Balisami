@@ -183,7 +183,19 @@ export const createControlSceneProjection = ({
     ]
       .filter((path) => path.length > 0)
       .join(' '),
-    outlinePath: createControlSceneOutlinePath(definition.type, bounds, identity, properties),
+    outlinePath: createControlSceneOutlinePath(
+      definition.type,
+      bounds,
+      identity,
+      properties,
+      sourceTextLayout === undefined
+        ? undefined
+        : {
+            fontSize: sourceTextLayout.fontSize,
+            textWidth: sourceTextLayout.width,
+            x: sourceTextLayout.lines[0]?.x ?? bounds.x,
+          },
+    ),
     opacity:
       typeof opacityValue === 'number'
         ? opacityValue * (disabled ? (style?.state?.disabledOpacity ?? 1) : 1)

@@ -73,6 +73,7 @@ export const CONTROL_TYPES = Object.freeze({
   treePane: ControlTypeIdSchema.parse('wireframe.tree-pane'),
   searchBox: ControlTypeIdSchema.parse('wireframe.search-box'),
   textArea: ControlTypeIdSchema.parse('wireframe.text-area'),
+  fieldSet: ControlTypeIdSchema.parse('wireframe.field-set'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -258,6 +259,14 @@ const textAreaPropertiesSchema = z
     state: controlStateSchema,
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
     textColor: sceneColorSchema,
+  })
+  .readonly();
+const fieldSetPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
 
@@ -2702,6 +2711,68 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['field', 'form', 'input', 'multiline', 'text'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.textArea,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Field Set', 'group', 'text'),
+    aliases: ['fieldset', 'form group', 'group box'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('start', 13, 16, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      opacity: 1,
+      text: 'Group Name',
+    },
+    defaultSize: createSize(200, 170),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(80, 40),
+    palette: createPalette('Field Set', 'Containers', 370),
+    propertiesSchema: fieldSetPropertiesSchema,
+    scene: createScene('field-set', ['text'], undefined, undefined, 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      strokeColorProperty: null,
+    }),
+    tags: ['container', 'field', 'form', 'group'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.fieldSet,
   }),
 ]);
 
