@@ -3,20 +3,27 @@ import {
   createElementLocationIndex,
   selectElementCommandAvailability,
   selectElementLockState,
+  type DocumentCommand,
   type DeleteElementCommand,
   type ElementId,
   type ProjectDocument,
 } from '../../domain';
+import { planCommandsWithUnusedAssetCleanup } from '../projects/unused-asset-cleanup';
 import type { SelectionStore } from './selection-store';
 
 export interface SelectionDeletePlan {
-  readonly commands: readonly DeleteElementCommand[];
+  readonly commands: readonly DocumentCommand[];
   readonly elementIds: readonly ElementId[];
 }
 
 export interface SelectionDeleteSource {
   /** Returns the accepted document, or undefined when the transaction did not commit. */
-  readonly commit: (commands: readonly DeleteElementCommand[]) => ProjectDocument | undefined;
+  readonly commit: (commands: readonly DocumentCommand[]) => ProjectDocument | undefined;
+}
+
+export interface SelectionDeleteOptions {
+  /** Cut keeps assets available for the same-project clipboard payload. */
+  readonly retainReferencedAssets?: boolean;
 }
 
 /**
@@ -28,6 +35,7 @@ export const planSelectionDelete = (
   document: ProjectDocument,
   selectedIds: readonly ElementId[],
   canonicalElementIds: readonly ElementId[],
+  options: SelectionDeleteOptions = {},
 ): SelectionDeletePlan | undefined => {
   const uniqueSelectedIds = [...new Set(selectedIds)];
   if (uniqueSelectedIds.length === 0) {
@@ -56,12 +64,20 @@ export const planSelectionDelete = (
     }
   }
 
-  return Object.freeze({
-    commands: Object.freeze(
-      orderedIds.map((elementId) =>
-        Object.freeze({ type: DOCUMENT_COMMAND_TYPES.deleteElement, elementId }),
-      ),
+  const deleteCommands = Object.freeze(
+    orderedIds.map((elementId): DeleteElementCommand =>
+      Object.freeze({ type: DOCUMENT_COMMAND_TYPES.deleteElement, elementId }),
     ),
+  );
+  const commands = options.retainReferencedAssets
+    ? deleteCommands
+    : planCommandsWithUnusedAssetCleanup(document, deleteCommands);
+  if (commands === undefined) {
+    return undefined;
+  }
+
+  return Object.freeze({
+    commands,
     elementIds: Object.freeze(orderedIds),
   });
 };
@@ -72,11 +88,13 @@ export const deleteSelectedElements = (
   selection: SelectionStore,
   canonicalElementIds: readonly ElementId[],
   source: SelectionDeleteSource,
+  options: SelectionDeleteOptions = {},
 ): boolean => {
   const plan = planSelectionDelete(
     document,
     selection.getSnapshot().selectedIds,
     canonicalElementIds,
+    options,
   );
   if (plan === undefined) {
     return false;

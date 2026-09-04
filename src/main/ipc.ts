@@ -1,10 +1,11 @@
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, shell } from 'electron';
 
 import {
   DESKTOP_ACKNOWLEDGEMENT,
   DESKTOP_CHANNELS,
   type RuntimeInfo,
   type RuntimePlatform,
+  isExternalUrlRequest,
 } from '../shared/desktop-api';
 import { isTrustedRendererUrl } from './navigation-policy';
 import type { ProjectWindowController } from './projects/project-window-controller';
@@ -67,6 +68,15 @@ export const registerDesktopIpc = ({
   ipcMain.handle(DESKTOP_CHANNELS.reportRendererReady, (event) => {
     assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
     onRendererReady?.();
+    return DESKTOP_ACKNOWLEDGEMENT;
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.openExternalUrl, async (event, input: unknown) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    if (!isExternalUrlRequest(input)) {
+      throw new TypeError('Rejected an invalid external URL request.');
+    }
+    await shell.openExternal(input.url);
     return DESKTOP_ACKNOWLEDGEMENT;
   });
 

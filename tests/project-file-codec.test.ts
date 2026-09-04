@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ProjectDocument } from '../src/domain';
+import {
+  ComponentIdSchema,
+  CONTROL_TYPES,
+  createCustomIconReference,
+  getControlSpec,
+  type ProjectDocument,
+} from '../src/domain';
 import {
   MAX_PROJECT_FILE_ENTRY_COUNT,
   MAX_PROJECT_JSON_DEPTH,
@@ -68,6 +74,64 @@ const manifestBytes = (overrides: Readonly<Record<string, unknown>> = {}): Uint8
   });
 
 describe('project file codec', () => {
+  it('migrates persisted legacy button properties before current document validation', () => {
+    const legacy = createValidProjectDocumentInput();
+    const element = legacy.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    const button = getControlSpec(CONTROL_TYPES.button);
+    if (element === undefined || button === undefined) {
+      throw new Error('Legacy button migration fixture is incomplete.');
+    }
+    element.controlType = CONTROL_TYPES.button;
+    element.controlVersion = 1;
+    element.properties = { text: 'Legacy action' };
+    element.assetIds = [];
+    legacy.assetsById = {};
+    const envelope = replaceEntry(
+      encodeFixture(),
+      PROJECT_FILE_ENTRY_PATHS.document,
+      encodeCanonicalJson(legacy),
+    );
+
+    const decoded = decodeProjectFileEnvelope(envelope);
+    if (!decoded.ok) {
+      throw new Error(`Legacy button decoding failed: ${decoded.error.message}`);
+    }
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toMatchObject({
+      controlType: CONTROL_TYPES.button,
+      controlVersion: button.fileVersion,
+      properties: { iconId: null, text: 'Legacy action' },
+    });
+  });
+
+  it('normalizes every v1-valid Rectangle property object before strict v2 validation', () => {
+    const legacy = createValidProjectDocumentInput();
+    const element = legacy.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    const rectangle = getControlSpec(CONTROL_TYPES.rectangle);
+    if (element === undefined || rectangle === undefined) {
+      throw new Error('Legacy Rectangle migration fixture is incomplete.');
+    }
+    element.controlVersion = 1;
+    element.properties = { extraLegacyJson: { nested: ['valid', true, null] }, opacity: 0.25 };
+    element.assetIds = [];
+    legacy.assetsById = {};
+    const envelope = replaceEntry(
+      encodeFixture(),
+      PROJECT_FILE_ENTRY_PATHS.document,
+      encodeCanonicalJson(legacy),
+    );
+
+    const decoded = decodeProjectFileEnvelope(envelope);
+    if (!decoded.ok) throw new Error(`Legacy Rectangle decoding failed: ${decoded.error.message}`);
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toMatchObject({
+      controlType: CONTROL_TYPES.rectangle,
+      controlVersion: rectangle.fileVersion,
+      properties: { ...rectangle.defaultProperties, opacity: 0.25 },
+    });
+    expect(
+      decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.properties,
+    ).not.toHaveProperty('extraLegacyJson');
+  });
+
   it('round-trips a validated project document without assets', () => {
     const document = createAssetFreeProjectDocument();
     const encoded = encodeFixture(document);
@@ -85,6 +149,112 @@ describe('project file codec', () => {
     expect(decoded.value.assetsById).toEqual({});
     expect(Object.isFrozen(decoded.value.document)).toBe(true);
     expect(Object.isFrozen(decoded.value.assetsById)).toBe(true);
+  });
+
+  it('round-trips hidden reusable-component definition trees', () => {
+    const input = createValidProjectDocumentInput();
+    const componentId = ComponentIdSchema.parse('component_codec0001');
+    const board = input.boardsById[DOCUMENT_FIXTURE_IDS.board];
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (board === undefined || child === undefined) {
+      throw new Error('Component codec fixture is incomplete.');
+    }
+    board.childIds = [];
+    child.assetIds = [];
+    input.assetsById = {};
+    input.componentIds = [componentId];
+    input.componentsById[componentId] = {
+      id: componentId,
+      name: 'Reusable card',
+      rootElementId: DOCUMENT_FIXTURE_IDS.group,
+    };
+    const document = parseProjectFileFixture(input);
+
+    const decoded = decodeProjectFileEnvelope(encodeFixture(document));
+
+    expect(decoded).toMatchObject({ ok: true });
+    if (!decoded.ok) {
+      throw new Error(`Component round trip failed: ${decoded.error.message}`);
+    }
+    expect(decoded.value.document).toEqual(document);
+  });
+
+  it('round-trips complete trashed boards without dropping their owned content or links', () => {
+    const input = createValidProjectDocumentInput();
+    const activeBoardId = 'board_activeaftertrash';
+    input.boardIds = [activeBoardId];
+    input.trashedBoardIds = [DOCUMENT_FIXTURE_IDS.board];
+    input.boardsById[activeBoardId] = {
+      id: activeBoardId,
+      name: 'Active board',
+      note: { text: '' },
+      childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    const asset = input.assetsById[DOCUMENT_FIXTURE_IDS.asset];
+    if (asset === undefined) {
+      throw new Error('Trashed board fixture asset is missing.');
+    }
+    asset.sha256 = PROJECT_FILE_FIXTURE_ASSET_SHA_256;
+    asset.byteLength = PROJECT_FILE_FIXTURE_ASSET_BYTES.byteLength;
+    const document = parseProjectFileFixture(input);
+    const encoded = encodeFixture(document, {
+      [DOCUMENT_FIXTURE_IDS.asset]: PROJECT_FILE_FIXTURE_ASSET_BYTES,
+    });
+    const decoded = decodeProjectFileEnvelope(encoded);
+
+    expect(decoded).toMatchObject({ ok: true });
+    if (!decoded.ok) {
+      throw new Error('Expected trashed board round-trip to succeed.');
+    }
+    expect(decoded.value.document).toEqual(document);
+    expect(decoded.value.document.trashedBoardIds).toEqual([DOCUMENT_FIXTURE_IDS.board]);
+    expect(decoded.value.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.childIds).toEqual([
+      DOCUMENT_FIXTURE_IDS.group,
+    ]);
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.link).toEqual({
+      kind: 'board',
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+    });
+  });
+
+  it('round-trips a selected alternate family without changing canonical board links', () => {
+    const input = createValidProjectDocumentInput();
+    const alternateId = 'board_codec_alternate';
+    const canonicalBoard = input.boardsById[DOCUMENT_FIXTURE_IDS.board];
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (canonicalBoard === undefined || child === undefined) {
+      throw new Error('Alternate codec fixture is incomplete.');
+    }
+    child.assetIds = [];
+    input.assetsById = {};
+    canonicalBoard.childIds = [];
+    canonicalBoard.alternateIds = [alternateId];
+    canonicalBoard.selectedAlternateId = alternateId;
+    input.boardsById[alternateId] = {
+      id: alternateId,
+      name: 'Selected alternate',
+      note: { text: 'Persisted alternate note' },
+      childIds: [DOCUMENT_FIXTURE_IDS.group],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    const document = parseProjectFileFixture(input);
+    const decoded = decodeProjectFileEnvelope(encodeFixture(document));
+
+    expect(decoded).toMatchObject({ ok: true });
+    if (!decoded.ok) {
+      throw new Error('Expected alternate family round-trip to succeed.');
+    }
+    expect(decoded.value.document).toEqual(document);
+    expect(decoded.value.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.selectedAlternateId).toBe(
+      alternateId,
+    );
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.link).toEqual({
+      kind: 'board',
+      boardId: DOCUMENT_FIXTURE_IDS.board,
+    });
   });
 
   it('stores referenced asset bytes by digest and verifies them on round-trip', () => {
@@ -107,6 +277,45 @@ describe('project file codec', () => {
     if (!decoded.ok) {
       throw new Error('Expected project file decoding to succeed.');
     }
+    expect(Array.from(decoded.value.assetsById[DOCUMENT_FIXTURE_IDS.asset] ?? [])).toEqual(
+      Array.from(PROJECT_FILE_FIXTURE_ASSET_BYTES),
+    );
+  });
+
+  it('round-trips a custom icon as a content-addressed project image reference', () => {
+    const input = createValidProjectDocumentInput();
+    const button = getControlSpec(CONTROL_TYPES.button);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    const asset = input.assetsById[DOCUMENT_FIXTURE_IDS.asset];
+    if (button === undefined || child === undefined || asset === undefined) {
+      throw new Error('Custom-icon project fixture is incomplete.');
+    }
+    asset.sha256 = PROJECT_FILE_FIXTURE_ASSET_SHA_256;
+    asset.byteLength = PROJECT_FILE_FIXTURE_ASSET_BYTES.byteLength;
+    child.controlType = button.type;
+    child.controlVersion = button.fileVersion;
+    child.properties = {
+      ...button.defaultProperties,
+      iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
+      text: 'Brand',
+    };
+    child.assetIds = [DOCUMENT_FIXTURE_IDS.asset];
+    const document = parseProjectFileFixture(input);
+    const decoded = decodeProjectFileEnvelope(
+      encodeFixture(document, {
+        [DOCUMENT_FIXTURE_IDS.asset]: PROJECT_FILE_FIXTURE_ASSET_BYTES,
+      }),
+    );
+
+    expect(decoded).toMatchObject({ ok: true });
+    if (!decoded.ok) throw new Error('Expected custom-icon project decoding to succeed.');
+    expect(decoded.value.document.elementsById[DOCUMENT_FIXTURE_IDS.child]).toMatchObject({
+      assetIds: [DOCUMENT_FIXTURE_IDS.asset],
+      properties: {
+        iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
+        text: 'Brand',
+      },
+    });
     expect(Array.from(decoded.value.assetsById[DOCUMENT_FIXTURE_IDS.asset] ?? [])).toEqual(
       Array.from(PROJECT_FILE_FIXTURE_ASSET_BYTES),
     );

@@ -6,14 +6,14 @@ import { AssetIdSchema, BoardIdSchema, ElementIdSchema, ProjectIdSchema } from '
  * Immutable snapshot of the released v1 document shape. Never derive this from
  * the current schema or revise it in place; add the next sequential migration.
  */
-const V1PropertyKeySchema = z
+export const V1PropertyKeySchema = z
   .string()
   .regex(/^[a-z][a-zA-Z0-9._-]{0,63}$/u, 'Expected a safe property key.')
   .refine((value) => value !== 'constructor' && value !== 'prototype', {
     message: 'Reserved object keys cannot be used as control properties.',
   });
 
-type V1JsonValue =
+export type V1JsonValue =
   | boolean
   | null
   | number
@@ -21,7 +21,7 @@ type V1JsonValue =
   | { readonly [key: string]: V1JsonValue }
   | readonly V1JsonValue[];
 
-const V1JsonValueSchema: z.ZodType<V1JsonValue> = z.lazy(() =>
+export const V1JsonValueSchema: z.ZodType<V1JsonValue> = z.lazy(() =>
   z.union([
     z.string(),
     z.number().finite(),
@@ -32,7 +32,7 @@ const V1JsonValueSchema: z.ZodType<V1JsonValue> = z.lazy(() =>
   ]),
 );
 
-const V1WorldRectSchema = z
+export const V1WorldRectSchema = z
   .strictObject({
     x: z.number().finite(),
     y: z.number().finite(),
@@ -57,12 +57,12 @@ const V1ExternalUrlSchema = z
     { message: 'External links must use HTTP or HTTPS.' },
   );
 
-const V1ElementLinkSchema = z.discriminatedUnion('kind', [
+export const V1ElementLinkSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('board'), boardId: BoardIdSchema }).readonly(),
   z.strictObject({ kind: z.literal('external'), url: V1ExternalUrlSchema }).readonly(),
 ]);
 
-const V1AssetReferenceSchema = z
+export const V1AssetReferenceSchema = z
   .strictObject({
     id: AssetIdSchema,
     sha256: z.string().regex(/^[a-f0-9]{64}$/u, 'Expected a lowercase SHA-256 digest.'),
@@ -72,13 +72,13 @@ const V1AssetReferenceSchema = z
   })
   .readonly();
 
-const V1ControlTypeIdSchema = z
+export const V1ControlTypeIdSchema = z
   .string()
   .max(80)
   .regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/u, 'Expected a namespaced lowercase control type.')
   .brand<'ControlTypeId'>();
 
-const V1ElementNodeSchema = z
+export const V1ElementNodeSchema = z
   .strictObject({
     id: ElementIdSchema,
     controlType: V1ControlTypeIdSchema,
@@ -91,7 +91,7 @@ const V1ElementNodeSchema = z
   })
   .readonly();
 
-const V1BoardSchema = z
+export const V1BoardSchema = z
   .strictObject({
     id: BoardIdSchema,
     name: z.string().trim().min(1).max(120),

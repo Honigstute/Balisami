@@ -26,8 +26,10 @@ import {
   createWorldPoint,
 } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlProperties,
   getFixtureControlVersion,
 } from './fixtures/project-document';
 
@@ -201,10 +203,11 @@ describe('move gesture integration', () => {
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x, y: 5_000, width, height: 20 },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     });
     input.elementsById[beforeId] = createRectangle(beforeId, 0, 40);
     input.elementsById[movingId] = createRectangle(movingId, 200, 20);

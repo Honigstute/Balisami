@@ -8,7 +8,9 @@ import {
   getControlSpec,
   type AssetReference,
   type Board,
+  type ComponentDefinition,
   type ElementNode,
+  type ElementProperties,
   type ProjectDocument,
 } from '../../src/domain';
 
@@ -36,12 +38,25 @@ type MutableInput<T> = T extends string
 
 export type ProjectDocumentInputFixture = Omit<
   MutableInput<ProjectDocument>,
-  'assetsById' | 'boardsById' | 'elementsById'
+  'assetsById' | 'boardsById' | 'componentsById' | 'elementsById'
 > & {
   assetsById: Record<string, MutableInput<AssetReference>>;
   boardsById: Record<string, MutableInput<Board>>;
+  componentsById: Record<string, MutableInput<ComponentDefinition>>;
   elementsById: Record<string, MutableInput<ElementNode>>;
 };
+
+export const getFixtureControlProperties = (type: string): MutableInput<ElementProperties> => {
+  const definition = getControlSpec(type);
+  if (definition === undefined) throw new Error(`Fixture control '${type}' is not registered.`);
+  return structuredClone(definition.defaultProperties) as MutableInput<ElementProperties>;
+};
+
+export const createEmptyElementRowDataInput = () => ({
+  version: 1 as const,
+  nextId: 0,
+  bindings: [],
+});
 
 export const DOCUMENT_FIXTURE_IDS = {
   asset: AssetIdSchema.parse('asset_image0001'),
@@ -56,14 +71,19 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
   id: DOCUMENT_FIXTURE_IDS.project,
   name: 'Foundation fixture',
   boardIds: [DOCUMENT_FIXTURE_IDS.board],
+  componentIds: [],
+  trashedBoardIds: [],
   boardsById: {
     [DOCUMENT_FIXTURE_IDS.board]: {
       id: DOCUMENT_FIXTURE_IDS.board,
       name: 'Main wireframe',
       note: { text: 'Fixture board note' },
       childIds: [DOCUMENT_FIXTURE_IDS.group],
+      alternateIds: [],
+      selectedAlternateId: null,
     },
   },
+  componentsById: {},
   elementsById: {
     [DOCUMENT_FIXTURE_IDS.group]: {
       id: DOCUMENT_FIXTURE_IDS.group,
@@ -75,6 +95,7 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
       childIds: [DOCUMENT_FIXTURE_IDS.child],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     },
     [DOCUMENT_FIXTURE_IDS.child]: {
       id: DOCUMENT_FIXTURE_IDS.child,
@@ -82,10 +103,14 @@ export const createValidProjectDocumentInput = (): ProjectDocumentInputFixture =
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 16, y: 24, width: 120, height: 48 },
       locked: false,
-      properties: { opacity: 0.75, tags: ['example', true, null] },
+      properties: {
+        ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle),
+        opacity: 0.75,
+      },
       childIds: [],
       assetIds: [DOCUMENT_FIXTURE_IDS.asset],
       link: { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board },
+      rowData: createEmptyElementRowDataInput(),
     },
   },
   assetsById: {

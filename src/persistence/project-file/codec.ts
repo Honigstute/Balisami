@@ -5,6 +5,20 @@ import {
   type DocumentValidationIssue,
   type ProjectDocument,
 } from '../../domain';
+export {
+  MAX_PROJECT_ASSET_BYTES,
+  MAX_PROJECT_DOCUMENT_BYTES,
+  MAX_PROJECT_FILE_ENTRY_COUNT,
+  MAX_PROJECT_FILE_TOTAL_BYTES,
+  MAX_PROJECT_MANIFEST_BYTES,
+} from '../../shared/project-file-limits';
+import {
+  MAX_PROJECT_ASSET_BYTES,
+  MAX_PROJECT_DOCUMENT_BYTES,
+  MAX_PROJECT_FILE_ENTRY_COUNT,
+  MAX_PROJECT_FILE_TOTAL_BYTES,
+  MAX_PROJECT_MANIFEST_BYTES,
+} from '../../shared/project-file-limits';
 import { copyBytes, isUint8Array } from './binary';
 import { sha256Bytes } from './digest';
 import {
@@ -18,17 +32,15 @@ import {
   isProjectAssetEntryPath,
   PROJECT_FILE_ENTRY_PATHS,
   PROJECT_FILE_FORMAT_ID,
-  PROJECT_FILE_MANIFEST_V2,
+  PROJECT_FILE_MANIFEST_V6,
   ProjectFileManifestV1Schema,
   ProjectFileManifestV2Schema,
+  ProjectFileManifestV3Schema,
+  ProjectFileManifestV4Schema,
+  ProjectFileManifestV5Schema,
+  ProjectFileManifestV6Schema,
 } from './manifest';
 import { routeProjectFileVersion, type ProjectFileVersionRouteResult } from './version-routing';
-
-export const MAX_PROJECT_FILE_ENTRY_COUNT = 10_002;
-export const MAX_PROJECT_MANIFEST_BYTES = 64 * 1_024;
-export const MAX_PROJECT_DOCUMENT_BYTES = 32 * 1_024 * 1_024;
-export const MAX_PROJECT_ASSET_BYTES = 64 * 1_024 * 1_024;
-export const MAX_PROJECT_FILE_TOTAL_BYTES = 256 * 1_024 * 1_024;
 
 export interface ProjectFileEntry {
   readonly path: string;
@@ -251,10 +263,19 @@ const decodeManifest = (
       entryPath: PROJECT_FILE_ENTRY_PATHS.manifest,
     });
   }
-  const parsed =
+  const manifestSchema =
     versionRoute.sourceVersion === 1
-      ? ProjectFileManifestV1Schema.safeParse(decoded.value)
-      : ProjectFileManifestV2Schema.safeParse(decoded.value);
+      ? ProjectFileManifestV1Schema
+      : versionRoute.sourceVersion === 2
+        ? ProjectFileManifestV2Schema
+        : versionRoute.sourceVersion === 3
+          ? ProjectFileManifestV3Schema
+          : versionRoute.sourceVersion === 4
+            ? ProjectFileManifestV4Schema
+            : versionRoute.sourceVersion === 5
+              ? ProjectFileManifestV5Schema
+              : ProjectFileManifestV6Schema;
+  const parsed = manifestSchema.safeParse(decoded.value);
   if (!parsed.success) {
     return fail({
       code: 'invalid-manifest',
@@ -372,7 +393,7 @@ export const encodeProjectFileEnvelope = (
     }
   }
 
-  const manifestBytes = encodeCanonicalJson(PROJECT_FILE_MANIFEST_V2);
+  const manifestBytes = encodeCanonicalJson(PROJECT_FILE_MANIFEST_V6);
   const documentBytes = encodeCanonicalJson(parsedDocument.value);
   for (const [path, bytes] of [
     [PROJECT_FILE_ENTRY_PATHS.manifest, manifestBytes],

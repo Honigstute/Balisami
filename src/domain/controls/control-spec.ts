@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
 import { CONTROL_TEXT_POLICY } from '../../shared/control-text';
+import { DESIGN_TOKENS } from '../../shared/design-tokens';
+import { getIconDefinition } from '../../shared/icons/icon-catalog';
+import { CustomIconReferenceSchema } from './custom-icon-reference';
+import { ComponentInstancePropertiesSchema } from './component-instance';
+import { ComponentIdSchema, ElementRowIdSchema } from '../document/ids';
 import {
   ControlTypeIdSchema,
   ElementPropertiesSchema,
@@ -14,8 +19,11 @@ import {
   type ControlCapabilities,
   type ControlDefinition,
   type ControlExportDefinition,
+  type ControlImageCapability,
   type ControlInspectorSection,
   type ControlPaletteMetadata,
+  type ControlPalettePreset,
+  type ControlRowsDefinition,
   type ControlSceneDefinition,
   type ControlSize,
   type ControlTextCapability,
@@ -23,18 +31,68 @@ import {
 } from './control-definition';
 
 export const CONTROL_TYPES = Object.freeze({
+  componentInstance: ControlTypeIdSchema.parse('foundation.component-instance'),
   group: ControlTypeIdSchema.parse('foundation.group'),
   rectangle: ControlTypeIdSchema.parse('foundation.rectangle'),
   textLabel: ControlTypeIdSchema.parse('wireframe.text-label'),
+  textSubtitle: ControlTypeIdSchema.parse('wireframe.text-subtitle'),
+  textTitle: ControlTypeIdSchema.parse('wireframe.text-title'),
   button: ControlTypeIdSchema.parse('wireframe.button'),
   textInput: ControlTypeIdSchema.parse('wireframe.text-input'),
   checkbox: ControlTypeIdSchema.parse('wireframe.checkbox'),
+  radioButton: ControlTypeIdSchema.parse('wireframe.radio-button'),
+  dateChooser: ControlTypeIdSchema.parse('wireframe.date-chooser'),
+  numericStepper: ControlTypeIdSchema.parse('wireframe.numeric-stepper'),
+  checkboxGroup: ControlTypeIdSchema.parse('wireframe.checkbox-group'),
+  radioButtonGroup: ControlTypeIdSchema.parse('wireframe.radio-button-group'),
   imagePlaceholder: ControlTypeIdSchema.parse('wireframe.image-placeholder'),
   browser: ControlTypeIdSchema.parse('wireframe.browser'),
   arrow: ControlTypeIdSchema.parse('wireframe.arrow'),
+  calendar: ControlTypeIdSchema.parse('wireframe.calendar'),
+  chartBar: ControlTypeIdSchema.parse('wireframe.chart-bar'),
+  chartLine: ControlTypeIdSchema.parse('wireframe.chart-line'),
+  chartPie: ControlTypeIdSchema.parse('wireframe.chart-pie'),
+  playback: ControlTypeIdSchema.parse('wireframe.playback'),
+  videoPlayer: ControlTypeIdSchema.parse('wireframe.video-player'),
+  volumeSlider: ControlTypeIdSchema.parse('wireframe.volume-slider'),
+  webcam: ControlTypeIdSchema.parse('wireframe.webcam'),
+  iosPicker: ControlTypeIdSchema.parse('wireframe.ios-picker'),
+  hSplitter: ControlTypeIdSchema.parse('wireframe.h-splitter'),
+  vSplitter: ControlTypeIdSchema.parse('wireframe.v-splitter'),
+  redX: ControlTypeIdSchema.parse('wireframe.red-x'),
+  squigglyBlock: ControlTypeIdSchema.parse('wireframe.squiggly-block-of-text'),
+  streetMap: ControlTypeIdSchema.parse('wireframe.street-map'),
+  toolbar: ControlTypeIdSchema.parse('wireframe.toolbar'),
+  hRule: ControlTypeIdSchema.parse('wireframe.h-rule'),
+  vRule: ControlTypeIdSchema.parse('wireframe.v-rule'),
+  scratchOut: ControlTypeIdSchema.parse('wireframe.scratch-out'),
+  helpButton: ControlTypeIdSchema.parse('wireframe.help-button'),
+  modalScreen: ControlTypeIdSchema.parse('wireframe.modal-screen'),
+  colorPicker: ControlTypeIdSchema.parse('wireframe.color-picker'),
+  onOffSwitch: ControlTypeIdSchema.parse('wireframe.on-off-switch'),
+  breadcrumbs: ControlTypeIdSchema.parse('wireframe.breadcrumbs'),
+  buttonBar: ControlTypeIdSchema.parse('wireframe.button-bar'),
+  linkBar: ControlTypeIdSchema.parse('wireframe.link-bar'),
+  treePane: ControlTypeIdSchema.parse('wireframe.tree-pane'),
+  tabBar: ControlTypeIdSchema.parse('wireframe.tab-bar'),
+  verticalTabs: ControlTypeIdSchema.parse('wireframe.v-tabs'),
+  accordion: ControlTypeIdSchema.parse('wireframe.accordion'),
+  searchBox: ControlTypeIdSchema.parse('wireframe.search-box'),
+  textArea: ControlTypeIdSchema.parse('wireframe.text-area'),
+  fieldSet: ControlTypeIdSchema.parse('wireframe.field-set'),
+  link: ControlTypeIdSchema.parse('wireframe.link'),
+  multilineButton: ControlTypeIdSchema.parse('wireframe.multiline-button'),
+  circleButton: ControlTypeIdSchema.parse('wireframe.circle-button'),
+  comment: ControlTypeIdSchema.parse('wireframe.comment'),
+  tooltip: ControlTypeIdSchema.parse('wireframe.tooltip'),
+  callout: ControlTypeIdSchema.parse('wireframe.callout'),
+  popover: ControlTypeIdSchema.parse('wireframe.popover'),
+  hCurlyBrace: ControlTypeIdSchema.parse('wireframe.h-curly-brace'),
+  vCurlyBrace: ControlTypeIdSchema.parse('wireframe.v-curly-brace'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
+  componentInstance: CONTROL_TYPES.componentInstance,
   group: CONTROL_TYPES.group,
   rectangle: CONTROL_TYPES.rectangle,
 });
@@ -42,14 +100,113 @@ export const FOUNDATION_CONTROL_TYPES = Object.freeze({
 const textPropertiesSchema = z
   .strictObject({ text: z.string().max(CONTROL_TEXT_POLICY.maximumLength) })
   .readonly();
-const checkboxPropertiesSchema = z
+const canonicalBundledIconIdSchema = z
+  .string()
+  .max(128)
+  .refine(
+    (iconId) => getIconDefinition(iconId)?.id === iconId,
+    'Unknown or non-canonical icon ID.',
+  );
+const controlIconIdSchema = z.union([canonicalBundledIconIdSchema, CustomIconReferenceSchema]);
+const sceneColorSchema = z.union([z.literal('default'), z.string().regex(/^#[0-9a-f]{6}$/iu)]);
+const controlStateSchema = z.enum(['normal', 'disabled']);
+const textAlignmentSchema = z.enum(['start', 'center', 'end']);
+const textStyleSchemaShape = {
+  bold: z.boolean(),
+  fontSize: z.number().min(8).max(96),
+  italic: z.boolean(),
+  underline: z.boolean(),
+} as const;
+const centeredTextStyleSchemaShape = {
+  ...textStyleSchemaShape,
+  textAlignment: textAlignmentSchema,
+} as const;
+const headingTextPropertiesSchema = z
   .strictObject({
-    checked: z.boolean(),
+    ...centeredTextStyleSchemaShape,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const rectanglePropertiesSchema = z
+  .strictObject({
+    borderColor: sceneColorSchema,
+    borderMode: z.enum(['visual-1', 'visual-2', 'visual-3', 'visual-4', 'visual-5', 'visual-6']),
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+  })
+  .readonly();
+const buttonPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    color: sceneColorSchema,
+    iconId: controlIconIdSchema.nullable(),
+    state: controlStateSchema,
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
-const imagePlaceholderPropertiesSchema = z.strictObject({ showBorder: z.boolean() }).readonly();
-const sceneColorSchema = z.union([z.literal('default'), z.string().regex(/^#[0-9a-f]{6}$/iu)]);
+const textInputPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    borderColor: sceneColorSchema,
+    borderMode: z.enum(['full', 'underline']),
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const checkboxPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    checked: z.boolean(),
+    iconId: controlIconIdSchema.nullable(),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const radioButtonPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    iconId: controlIconIdSchema.nullable(),
+    state: z.enum(['up', 'selected', 'disabled']),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const dateChooserPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    borderColor: sceneColorSchema,
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const numericStepperPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    borderColor: sceneColorSchema,
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const markerGroupPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const imagePlaceholderPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    showBorder: z.boolean(),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
 const browserPropertiesSchema = z
   .strictObject({
     borderMode: z.enum(['visual-1', 'visual-2']),
@@ -69,6 +226,198 @@ const arrowPropertiesSchema = z
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
+const staticVisualPropertiesSchema = z.strictObject({}).readonly();
+const rulePropertiesSchema = z
+  .strictObject({
+    borderColor: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    strokeStyle: z.enum(['solid', 'dashed', 'dotted']),
+  })
+  .readonly();
+const colorOpacityPropertiesSchema = z
+  .strictObject({
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+  })
+  .readonly();
+const colorPropertiesSchema = z.strictObject({ color: sceneColorSchema }).readonly();
+const onOffSwitchPropertiesSchema = z
+  .strictObject({ color: sceneColorSchema, state: z.enum(['off', 'on']) })
+  .readonly();
+const breadcrumbsPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const buttonBarPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    selectedRowId: ElementRowIdSchema.nullable(),
+  })
+  .readonly();
+const linkBarPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    selectedColor: sceneColorSchema,
+    selectedRowId: ElementRowIdSchema.nullable(),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const treePanePropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+    selectedRowId: ElementRowIdSchema.nullable(),
+    showBorder: z.boolean(),
+    state: controlStateSchema,
+  })
+  .readonly();
+const tabBarPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+    selectedRowId: ElementRowIdSchema.nullable(),
+    showBorder: z.boolean(),
+    tabsAlignment: z.enum(['start', 'center', 'end']),
+    tabsPosition: z.enum(['top', 'bottom']),
+  })
+  .readonly();
+const verticalTabsPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+    selectedRowId: ElementRowIdSchema.nullable(),
+    showBorder: z.boolean(),
+    tabsPosition: z.enum(['left', 'right']),
+  })
+  .readonly();
+const accordionPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    scrollbar: z.boolean(),
+    selectedRowId: ElementRowIdSchema.nullable(),
+  })
+  .readonly();
+const searchBoxPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    microphoneIcon: z.boolean(),
+    searchIcon: z.boolean(),
+    shape: z.enum(['rounded', 'rectangular']),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const textAreaPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    borderColor: sceneColorSchema,
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    scrollbar: z.boolean(),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const fieldSetPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const linkPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const multilineButtonPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    iconId: controlIconIdSchema.nullable(),
+    opacity: z.number().min(0).max(1),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const circleButtonPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    iconId: controlIconIdSchema.nullable(),
+    iconSize: z.enum(['xs', 's', 'm', 'l', 'xl', 'xxl']),
+    labelPosition: z.enum(['below', 'icon-left', 'icon-right']),
+    showBorder: z.boolean(),
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const commentPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    color: sceneColorSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const tooltipPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    direction: z.enum(['SE', 'SW', 'NE', 'NW']),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const calloutPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const popoverPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    direction: z.enum(['top', 'right', 'bottom', 'left']),
+    position: z.enum(['0', '1', '2', '3', '4']),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const hCurlyBracePropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    direction: z.enum(['top', 'bottom']),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const vCurlyBracePropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    direction: z.enum(['left', 'right']),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
 
 const createSize = (width: number, height: number): ControlSize => Object.freeze({ height, width });
 
@@ -81,34 +430,134 @@ const createAutoSize = (
 ): ControlAutoSizePolicy =>
   Object.freeze({
     axis,
+    basis: 'text',
     insets: Object.freeze({ bottom, left, right, top }),
+  });
+
+const createIntrinsicAutoSize = (axis: ControlAutoSizePolicy['axis']): ControlAutoSizePolicy =>
+  Object.freeze({
+    axis,
+    basis: 'intrinsic',
+    insets: Object.freeze({ bottom: 0, left: 0, right: 0, top: 0 }),
+  });
+
+const createAccordionAutoSize = (): ControlAutoSizePolicy =>
+  Object.freeze({
+    axis: 'both',
+    basis: 'accordion',
+    insets: Object.freeze({ bottom: 0, left: 0, right: 0, top: 0 }),
   });
 
 const createPalette = (
   label: string,
   category: ControlPaletteMetadata['category'],
   order: number,
-): ControlPaletteMetadata => Object.freeze({ category, label, order });
+  drawShortcut: string | null = null,
+  presets: readonly ControlPalettePreset[] = [],
+): ControlPaletteMetadata =>
+  Object.freeze({
+    category,
+    drawShortcut,
+    label,
+    order,
+    presets: Object.freeze(
+      presets.map((preset) =>
+        Object.freeze({ ...preset, properties: Object.freeze(preset.properties) }),
+      ),
+    ),
+  });
+
+const createTextStyleDefaults = (fontSize: number, alignment?: 'center' | 'start') =>
+  Object.freeze({
+    bold: false,
+    fontSize,
+    italic: false,
+    ...(alignment === undefined ? {} : { textAlignment: alignment }),
+    underline: false,
+  });
+
+const createTextStyleFields = (alignment: boolean): ControlInspectorSection['fields'] =>
+  Object.freeze([
+    { kind: 'boolean', label: 'Bold', property: 'bold' },
+    { kind: 'boolean', label: 'Italic', property: 'italic' },
+    { kind: 'boolean', label: 'Underline', property: 'underline' },
+    ...(alignment
+      ? [
+          {
+            kind: 'choice' as const,
+            label: 'Alignment',
+            options: Object.freeze([
+              Object.freeze({ label: 'Left', value: 'start' }),
+              Object.freeze({ label: 'Center', value: 'center' }),
+              Object.freeze({ label: 'Right', value: 'end' }),
+            ]),
+            property: 'textAlignment',
+          },
+        ]
+      : []),
+    { kind: 'number', label: 'Size', maximum: 96, minimum: 8, property: 'fontSize', step: 1 },
+  ]);
 
 const createText = (
   alignment: ControlTextCapability['alignment'],
   fontSize: number,
   inset: number,
+  style: Partial<ControlTextCapability['style']> = {},
+  property = 'text',
+  mode: ControlTextCapability['mode'] = 'single-line',
 ): ControlTextCapability =>
-  Object.freeze({ alignment, fontSize, inset, mode: 'single-line', property: 'text' });
+  Object.freeze({
+    alignment,
+    fontSize,
+    inset,
+    mode,
+    property,
+    style: Object.freeze({
+      alignmentProperty: null,
+      boldProperty: null,
+      colorProperty: null,
+      fontSizeProperty: null,
+      italicProperty: null,
+      underlineProperty: null,
+      ...style,
+    }),
+  });
+
+const createImageCapability = (): ControlImageCapability =>
+  Object.freeze({
+    assetSource: 'element-assets',
+    fit: 'contain',
+    maximumAssets: 1,
+    placeholder: 'cross',
+  });
+
+const createDisabledState = (property = 'state') =>
+  Object.freeze({
+    disabledOpacity: 0.45,
+    disabledValues: Object.freeze(['disabled']),
+    property,
+  });
 
 const createCapabilities = (
-  input: Omit<ControlCapabilities, 'text'>,
+  input: Omit<ControlCapabilities, 'image' | 'text'> &
+    Readonly<{ image?: ControlImageCapability | null }>,
   text: ControlTextCapability | null,
-): ControlCapabilities => Object.freeze({ ...input, text });
+): ControlCapabilities => Object.freeze({ ...input, image: input.image ?? null, text });
 
 const createAccessibility = (
   fallbackLabel: string,
   role: ControlAccessibilityDefinition['role'],
   nameProperty: string | null = null,
   checkedProperty: string | null = null,
+  checkedValues: readonly (boolean | string)[] = checkedProperty === null ? [] : [true],
 ): ControlAccessibilityDefinition =>
-  Object.freeze({ checkedProperty, fallbackLabel, nameProperty, role });
+  Object.freeze({
+    checkedProperty,
+    checkedValues: Object.freeze([...checkedValues]),
+    fallbackLabel,
+    nameProperty,
+    role,
+  });
 
 const createThumbnail = (kind: ControlThumbnailDefinition['kind']): ControlThumbnailDefinition =>
   Object.freeze({ kind });
@@ -121,19 +570,90 @@ const createScene = (
   propertyKeys: readonly string[],
   checkbox?: ControlSceneDefinition['checkbox'],
   hitShape: ControlSceneDefinition['hitShape'] = Object.freeze({ kind: 'bounds' }),
+  colorTarget: ControlSceneDefinition['colorTarget'] = 'stroke',
+  style?: ControlSceneDefinition['style'],
+  markStyle?: ControlSceneDefinition['markStyle'],
+  extras: Readonly<{
+    curlyBrace?: ControlSceneDefinition['curlyBrace'];
+    iconInset?: number;
+    radio?: ControlSceneDefinition['radio'];
+    tabs?: ControlSceneDefinition['tabs'];
+    trailingAdornment?: ControlSceneDefinition['trailingAdornment'];
+  }> = Object.freeze({}),
 ): ControlSceneDefinition =>
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
+    colorTarget,
+    ...(extras.curlyBrace === undefined ? {} : { curlyBrace: Object.freeze(extras.curlyBrace) }),
     hitShape: Object.freeze(hitShape),
+    ...(extras.iconInset === undefined ? {} : { iconInset: extras.iconInset }),
     kind,
-    propertyKeys: Object.freeze(propertyKeys),
+    ...(markStyle === undefined ? {} : { markStyle: Object.freeze(markStyle) }),
+    ...(extras.radio === undefined ? {} : { radio: Object.freeze(extras.radio) }),
+    ...(extras.tabs === undefined ? {} : { tabs: Object.freeze(extras.tabs) }),
+    propertyKeys: Object.freeze([...new Set(propertyKeys)]),
+    ...(style === undefined ? {} : { style: Object.freeze(style) }),
+    ...(extras.trailingAdornment === undefined
+      ? {}
+      : { trailingAdornment: Object.freeze(extras.trailingAdornment) }),
   });
+
+/**
+ * Derives the complete cache dependency contract from declarative scene and
+ * text bindings. Adding a new presentation binding must flow through this one
+ * list so live SVG nodes, thumbnails, and presentation cannot become stale.
+ */
+const createPresentationPropertyKeys = (
+  scene: ControlSceneDefinition,
+  capabilities: ControlCapabilities,
+): readonly string[] => {
+  const text = capabilities.text;
+  const style = scene.style;
+  return Object.freeze([
+    ...new Set([
+      ...scene.propertyKeys,
+      ...(text === null
+        ? []
+        : [
+            text.property,
+            ...Object.values(text.style).filter(
+              (property): property is string => property !== null,
+            ),
+          ]),
+      ...(style === undefined
+        ? []
+        : [
+            style.borderModeProperty,
+            style.borderVisibilityProperty,
+            style.fillColorProperty,
+            style.iconSizeProperty,
+            style.opacityProperty,
+            style.scrollbarVisibilityProperty,
+            style.strokeColorProperty,
+          ].filter((property): property is string => typeof property === 'string')),
+      ...(style?.state === undefined ? [] : [style.state.property]),
+    ]),
+  ]);
+};
 
 const createInspector = (
   label: string,
   fields: ControlInspectorSection['fields'],
 ): readonly ControlInspectorSection[] =>
   Object.freeze([Object.freeze({ fields: Object.freeze(fields), label })]);
+
+const createInspectorFields = (
+  fields: ControlInspectorSection['fields'],
+): ControlInspectorSection['fields'] => Object.freeze(fields);
+
+const createInspectorSections = (
+  sections: readonly ControlInspectorSection[],
+): readonly ControlInspectorSection[] =>
+  Object.freeze(
+    sections.map((section) =>
+      Object.freeze({ fields: Object.freeze(section.fields), label: section.label }),
+    ),
+  );
 
 const createDefinition = (input: {
   accessibility: ControlAccessibilityDefinition;
@@ -144,30 +664,50 @@ const createDefinition = (input: {
   defaultSize: ControlSize;
   export: ControlExportDefinition;
   inspector?: readonly ControlInspectorSection[];
+  fileVersion?: number;
   maximumSize: ControlSize | null;
+  migrations?: ControlDefinition['migrations'];
   minimumSize: ControlSize;
   palette: ControlPaletteMetadata | null;
   propertiesSchema: ControlDefinition['propertiesSchema'];
+  rows?: ControlRowsDefinition | null;
   scene: ControlSceneDefinition;
   tags?: readonly string[];
   thumbnail: ControlThumbnailDefinition;
   type: ControlTypeId;
-}): ControlDefinition =>
-  Object.freeze({
+}): ControlDefinition => {
+  const scene = Object.freeze({
+    ...input.scene,
+    propertyKeys: Object.freeze([
+      ...new Set([
+        ...createPresentationPropertyKeys(input.scene, input.capabilities),
+        ...(input.rows?.selection === null || input.rows?.selection === undefined
+          ? []
+          : [
+              input.rows.selection.property,
+              ...(input.rows.selection.appearance.colorProperty === null
+                ? []
+                : [input.rows.selection.appearance.colorProperty]),
+            ]),
+      ]),
+    ]),
+  });
+  return Object.freeze({
     accessibility: input.accessibility,
     autoSize: input.autoSize,
     capabilities: input.capabilities,
     defaultProperties: Object.freeze(input.defaultProperties),
     defaultSize: input.defaultSize,
     export: input.export,
-    fileVersion: 1,
+    fileVersion: input.fileVersion ?? 1,
     inspector: Object.freeze(input.inspector ?? []),
     maximumSize: input.maximumSize,
     minimumSize: input.minimumSize,
-    migrations: Object.freeze([]),
+    migrations: Object.freeze(input.migrations ?? []),
     palette: input.palette,
     propertiesSchema: input.propertiesSchema,
-    scene: input.scene,
+    rows: input.rows ?? null,
+    scene,
     search: Object.freeze({
       aliases: Object.freeze(input.aliases ?? []),
       tags: Object.freeze(input.tags ?? []),
@@ -175,8 +715,41 @@ const createDefinition = (input: {
     thumbnail: input.thumbnail,
     type: input.type,
   });
+};
 
 const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
+  createDefinition({
+    accessibility: createAccessibility('Component instance', 'group'),
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        // Instances are conceptual containers for export/scene semantics. A
+        // document invariant still rejects persisted instance children because
+        // expansion is derived exclusively from the referenced definition.
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {
+      componentId: ComponentIdSchema.parse('component_unassigned'),
+      overrides: {},
+    },
+    defaultSize: createSize(240, 160),
+    export: createExport('transparent-container'),
+    minimumSize: createSize(24, 24),
+    maximumSize: null,
+    palette: null,
+    propertiesSchema: ComponentInstancePropertiesSchema,
+    scene: createScene('transparent', ['componentId', 'overrides']),
+    thumbnail: createThumbnail('none'),
+    type: CONTROL_TYPES.componentInstance,
+  }),
   createDefinition({
     accessibility: createAccessibility('Group', 'group'),
     autoSize: null,
@@ -219,14 +792,103 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
       },
       null,
     ),
-    defaultProperties: {},
+    defaultProperties: {
+      borderColor: 'default',
+      borderMode: 'visual-2',
+      color: 'default',
+      opacity: 1,
+      scrollbar: false,
+    },
     defaultSize: createSize(180, 120),
     export: createExport('scene'),
+    fileVersion: 2,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Border',
+            options: Object.freeze([
+              Object.freeze({ label: 'Visual 1', value: 'visual-1' }),
+              Object.freeze({ label: 'Visual 2', value: 'visual-2' }),
+              Object.freeze({ label: 'Visual 3', value: 'visual-3' }),
+              Object.freeze({ label: 'Visual 4', value: 'visual-4' }),
+              Object.freeze({ label: 'Visual 5', value: 'visual-5' }),
+              Object.freeze({ label: 'Visual 6', value: 'visual-6' }),
+            ]),
+            property: 'borderMode',
+          },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+        ]),
+        label: 'Layout',
+      }),
+    ]),
     minimumSize: createSize(24, 24),
     maximumSize: null,
-    palette: createPalette('Rectangle', 'Common', 10),
-    propertiesSchema: ElementPropertiesSchema,
-    scene: createScene('rectangle', []),
+    palette: createPalette('Rectangle', 'Common', 10, 'KeyR'),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) => {
+          const normalizeColor = (value: unknown): string =>
+            typeof value === 'string' && (value === 'default' || /^#[0-9a-f]{6}$/iu.test(value))
+              ? value
+              : 'default';
+          const borderMode = properties.borderMode;
+          const opacity = properties.opacity;
+          return Object.freeze({
+            borderColor: normalizeColor(properties.borderColor),
+            borderMode:
+              typeof borderMode === 'string' &&
+              ['visual-1', 'visual-2', 'visual-3', 'visual-4', 'visual-5', 'visual-6'].includes(
+                borderMode,
+              )
+                ? borderMode
+                : 'visual-2',
+            color: normalizeColor(properties.color),
+            opacity:
+              typeof opacity === 'number' &&
+              Number.isFinite(opacity) &&
+              opacity >= 0 &&
+              opacity <= 1
+                ? opacity
+                : 1,
+            scrollbar: typeof properties.scrollbar === 'boolean' ? properties.scrollbar : false,
+          });
+        },
+        toVersion: 2,
+      },
+    ],
+    propertiesSchema: rectanglePropertiesSchema,
+    scene: createScene('rectangle', [], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze(['visual-1']),
+      borderModeProperty: 'borderMode',
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      scrollbarVisibilityProperty: 'scrollbar',
+      strokeColorProperty: 'borderColor',
+    }),
     tags: ['container', 'panel'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.rectangle,
@@ -261,6 +923,102 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     type: CONTROL_TYPES.textLabel,
   }),
   createDefinition({
+    accessibility: createAccessibility('Text Subtitle', 'img', 'text'),
+    aliases: ['subtitle', 'subheading'],
+    autoSize: createAutoSize('both', 0, 0, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('start', 24, 0, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(24, 'start'),
+      text: 'A Subtitle',
+      textColor: 'default',
+    },
+    defaultSize: createSize(102, 28),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(32, 24),
+    palette: createPalette('Text Subtitle', 'Text', 21),
+    propertiesSchema: headingTextPropertiesSchema,
+    scene: createScene('text', ['text']),
+    tags: ['copy', 'subtitle', 'text', 'typography'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.textSubtitle,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Text Title', 'img', 'text'),
+    aliases: ['big title', 'heading', 'title'],
+    autoSize: createAutoSize('both', 0, 0, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('start', 40, 0, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(40, 'start'),
+      text: 'A Big Title',
+      textColor: 'default',
+    },
+    defaultSize: createSize(182, 44),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(32, 24),
+    palette: createPalette('Text Title', 'Text', 22),
+    propertiesSchema: headingTextPropertiesSchema,
+    scene: createScene('text', ['text']),
+    tags: ['big', 'heading', 'text', 'title', 'typography'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.textTitle,
+  }),
+  createDefinition({
     accessibility: createAccessibility('Button', 'button', 'text'),
     aliases: ['action', 'cta'],
     autoSize: createAutoSize('both', 8, 8, 8, 8),
@@ -274,17 +1032,88 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         resizeAxes: 'both',
         state: true,
       },
-      createText('center', 16, 8),
+      createText('center', 16, 8, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
     ),
-    defaultProperties: { text: 'Button' },
+    defaultProperties: {
+      ...createTextStyleDefaults(16, 'center'),
+      color: 'default',
+      iconId: null,
+      state: 'normal',
+      text: 'Button',
+    },
     defaultSize: createSize(120, 40),
     export: createExport('scene'),
-    inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
+    fileVersion: 4,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([{ kind: 'color', label: 'Color', property: 'color' }]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'text', label: 'Text', property: 'text' },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+        ]),
+        label: 'Content',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
     minimumSize: createSize(48, 28),
     maximumSize: null,
     palette: createPalette('Button', 'Buttons', 30),
-    propertiesSchema: textPropertiesSchema,
-    scene: createScene('button', ['text']),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) => Object.freeze({ ...properties, iconId: null }),
+        toVersion: 2,
+      },
+      {
+        fromVersion: 2,
+        migrate: (properties) => Object.freeze({ ...properties }),
+        toVersion: 3,
+      },
+      {
+        fromVersion: 3,
+        migrate: (properties) =>
+          Object.freeze({
+            ...properties,
+            ...createTextStyleDefaults(16, 'center'),
+            color: 'default',
+            state: 'normal',
+          }),
+        toVersion: 4,
+      },
+    ],
+    propertiesSchema: buttonPropertiesSchema,
+    scene: createScene('button', ['iconId', 'state', 'text'], undefined, undefined, 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: null,
+      strokeColorProperty: null,
+      state: createDisabledState(),
+    }),
     tags: ['action'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.button,
@@ -303,17 +1132,118 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         resizeAxes: 'both',
         state: true,
       },
-      createText('start', 16, 10),
+      createText('start', 16, 10, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
     ),
-    defaultProperties: { text: 'Text input' },
+    defaultProperties: {
+      ...createTextStyleDefaults(16, 'start'),
+      borderColor: 'default',
+      borderMode: 'full',
+      color: 'default',
+      opacity: 1,
+      state: 'normal',
+      text: 'Text input',
+      textColor: 'default',
+    },
     defaultSize: createSize(180, 40),
     export: createExport('scene'),
-    inspector: createInspector('Text', [{ kind: 'text', label: 'Content', property: 'text' }]),
+    fileVersion: 2,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Border',
+            options: Object.freeze([
+              Object.freeze({ label: 'Full', value: 'full' }),
+              Object.freeze({ label: 'Underline', value: 'underline' }),
+            ]),
+            property: 'borderMode',
+          },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'text', label: 'Content', property: 'text' },
+          ...createTextStyleFields(true),
+        ]),
+        label: 'Text',
+      }),
+    ]),
     minimumSize: createSize(72, 28),
     maximumSize: null,
-    palette: createPalette('Text Input', 'Forms', 40),
-    propertiesSchema: textPropertiesSchema,
-    scene: createScene('input', ['text']),
+    palette: createPalette('Text Input', 'Forms', 40, null, [
+      {
+        id: 'underline',
+        label: 'Text Input (Underline)',
+        order: 41,
+        properties: { borderMode: 'underline' },
+      },
+    ]),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) =>
+          Object.freeze({
+            ...properties,
+            ...createTextStyleDefaults(16, 'start'),
+            borderColor: 'default',
+            borderMode: 'full',
+            color: 'default',
+            opacity: 1,
+            state: 'normal',
+            textColor: 'default',
+          }),
+        toVersion: 2,
+      },
+    ],
+    propertiesSchema: textInputPropertiesSchema,
+    scene: createScene('input', ['state', 'text'], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: 'borderMode',
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      strokeColorProperty: 'borderColor',
+      state: createDisabledState(),
+    }),
     tags: ['form', 'field'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.textInput,
@@ -332,51 +1262,568 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         resizeAxes: 'both',
         state: true,
       },
-      createText('start', 16, 0),
+      createText('start', 16, 0, {
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
     ),
-    defaultProperties: { checked: false, text: 'Checkbox' },
+    defaultProperties: {
+      ...createTextStyleDefaults(16),
+      checked: false,
+      iconId: null,
+      state: 'normal',
+      text: 'Checkbox',
+      textColor: 'default',
+    },
     defaultSize: createSize(160, 32),
     export: createExport('scene'),
-    inspector: createInspector('Properties', [
-      { kind: 'text', label: 'Label', property: 'text' },
-      { kind: 'boolean', label: 'State', property: 'checked' },
+    fileVersion: 2,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Checked', property: 'checked' },
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'text', label: 'Label', property: 'text' },
+          ...createTextStyleFields(false),
+        ]),
+        label: 'Text',
+      }),
     ]),
     minimumSize: createSize(48, 24),
     maximumSize: null,
     palette: createPalette('Checkbox', 'Forms', 50),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) =>
+          Object.freeze({
+            ...properties,
+            ...createTextStyleDefaults(16),
+            iconId: null,
+            state: 'normal',
+            textColor: 'default',
+          }),
+        toVersion: 2,
+      },
+    ],
     propertiesSchema: checkboxPropertiesSchema,
-    scene: createScene('checkbox', ['checked', 'text'], { boxSize: 18, gap: 8 }),
+    scene: createScene(
+      'checkbox',
+      ['checked', 'iconId', 'state', 'text'],
+      { boxSize: 18, gap: 8 },
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: null,
+        state: createDisabledState(),
+      },
+    ),
     tags: ['form', 'selection', 'toggle'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.checkbox,
   }),
   createDefinition({
-    accessibility: createAccessibility('Image placeholder', 'img'),
-    aliases: ['image', 'photo', 'picture'],
-    autoSize: null,
+    accessibility: createAccessibility(
+      'Radio Button',
+      'radio',
+      'text',
+      'state',
+      Object.freeze(['selected']),
+    ),
+    aliases: ['radio', 'option', 'single choice'],
+    autoSize: createAutoSize('horizontal', 26, 0, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 13, 0, {
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      iconId: null,
+      state: 'up',
+      text: 'Radio Button',
+      textColor: 'default',
+    },
+    defaultSize: createSize(97, 23),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Unselected', value: 'up' }),
+              Object.freeze({ label: 'Selected', value: 'selected' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(48, 23),
+    maximumSize: null,
+    palette: createPalette('Radio Button', 'Forms', 52),
+    propertiesSchema: radioButtonPropertiesSchema,
+    scene: createScene(
+      'radio-button',
+      ['iconId', 'state', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: null,
+        state: createDisabledState(),
+      },
+      Object.freeze({
+        fillColor: DESIGN_TOKENS.color.ink,
+        strokeColor: DESIGN_TOKENS.color.ink,
+      }),
+      Object.freeze({ iconInset: 0, radio: Object.freeze({ diameter: 18, gap: 8 }) }),
+    ),
+    tags: ['form', 'option', 'selection', 'single choice'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.radioButton,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Date Chooser', 'textbox', 'text'),
+    aliases: ['date input', 'date field', 'calendar input'],
+    autoSize: createAutoSize('horizontal', 8, 33, 0, 0),
     capabilities: createCapabilities(
       {
         border: true,
         fill: false,
         grouping: 'leaf',
         icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 13, 8, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      borderColor: 'default',
+      state: 'normal',
+      text: '  /  /    ',
+    },
+    defaultSize: createSize(90, 25),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(90, 25),
+    maximumSize: null,
+    palette: createPalette('Date Chooser', 'Forms', 54),
+    propertiesSchema: dateChooserPropertiesSchema,
+    scene: createScene(
+      'input',
+      ['state', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: 'borderColor',
+        state: createDisabledState(),
+      },
+      undefined,
+      Object.freeze({
+        trailingAdornment: Object.freeze({
+          bodyInset: 2,
+          gap: 8,
+          kind: 'calendar',
+          size: 25,
+        }),
+      }),
+    ),
+    tags: ['calendar', 'date', 'form', 'input', 'masked input'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.dateChooser,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Num. Stepper', 'textbox', 'text'),
+    aliases: ['number stepper', 'numeric stepper', 'spinner'],
+    autoSize: createAutoSize('horizontal', 8, 26, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('center', 13, 0, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      borderColor: 'default',
+      state: 'normal',
+      text: '3',
+    },
+    defaultSize: createSize(41, 24),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(41, 24),
+    maximumSize: null,
+    palette: createPalette('Num. Stepper', 'Forms', 55),
+    propertiesSchema: numericStepperPropertiesSchema,
+    scene: createScene(
+      'input',
+      ['state', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: 'borderColor',
+        state: createDisabledState(),
+      },
+      Object.freeze({ fillColor: DESIGN_TOKENS.color.ink, strokeColor: null }),
+      Object.freeze({
+        trailingAdornment: Object.freeze({
+          bodyInset: 0,
+          gap: 0,
+          kind: 'stepper',
+          width: 15,
+        }),
+      }),
+    ),
+    tags: ['form', 'input', 'number', 'numeric', 'spinner', 'stepper'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.numericStepper,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Checkbox Group', 'group'),
+    aliases: ['checkbox list', 'check group'],
+    autoSize: createAutoSize('both', 4, 4, 4, 4),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        4,
+        {
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: [
+        '[ ] not selected',
+        '[x] selected',
+        '[-] indeterminate',
+        '[ ] -disabled-',
+        '[x] -disabled selected-',
+        '[-] -disabled indeterminate-',
+        'A row without a checkbox',
+      ].join('\n'),
+      textColor: 'default',
+    },
+    defaultSize: createSize(155, 149),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(72, 28),
+    maximumSize: null,
+    palette: createPalette('Checkbox Group', 'Forms', 51),
+    propertiesSchema: markerGroupPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      layout: 'stack',
+      links: true,
+      marker: Object.freeze({ defaultState: 'unchecked', kind: 'checkbox' }),
+      maximum: 64,
+      minimum: 1,
+      property: 'items',
+      selection: null,
+      separator: '\n',
+    }),
+    scene: createScene('text', ['items']),
+    tags: ['checkbox', 'form', 'group', 'indeterminate', 'list'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.checkboxGroup,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Radio Button Group', 'group'),
+    aliases: ['radio group', 'radio list'],
+    autoSize: createAutoSize('both', 4, 4, 4, 4),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        4,
+        {
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: [
+        '(o) option 1 (selected)',
+        '( ) option 2',
+        '(-) option 3 (indeterminate)',
+        '( ) -option 4 (disabled)-',
+        '(o) -option 5 (disabled and selected)-',
+        '(-) -option 6 (disabled indeterminate)-',
+        'A row without a radio button',
+      ].join('\n'),
+      textColor: 'default',
+    },
+    defaultSize: createSize(165, 181),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(72, 28),
+    maximumSize: null,
+    palette: createPalette('Radio Button Group', 'Forms', 53),
+    propertiesSchema: markerGroupPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      layout: 'stack',
+      links: true,
+      marker: Object.freeze({ defaultState: 'unchecked', kind: 'radio' }),
+      maximum: 64,
+      minimum: 1,
+      property: 'items',
+      selection: null,
+      separator: '\n',
+    }),
+    scene: createScene('text', ['items']),
+    tags: ['form', 'group', 'indeterminate', 'list', 'radio'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.radioButtonGroup,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Image placeholder', 'img', 'text'),
+    aliases: ['image', 'photo', 'picture'],
+    autoSize: createIntrinsicAutoSize('both'),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        image: createImageCapability(),
         link: true,
         resizeAxes: 'both',
         state: false,
       },
-      null,
+      createText('center', 16, 0, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
     ),
-    defaultProperties: { showBorder: false },
+    defaultProperties: {
+      ...createTextStyleDefaults(16),
+      showBorder: false,
+      text: '',
+    },
     defaultSize: createSize(120, 100),
     export: createExport('scene'),
-    inspector: createInspector('Border', [
-      { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+    fileVersion: 2,
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'text', label: 'Content', property: 'text' },
+          ...createTextStyleFields(false),
+        ]),
+        label: 'Text',
+      }),
     ]),
     minimumSize: createSize(24, 24),
     maximumSize: null,
-    palette: createPalette('Image', 'Assets', 60),
+    palette: createPalette('Image', 'Assets', 60, 'KeyI'),
+    migrations: [
+      {
+        fromVersion: 1,
+        migrate: (properties) =>
+          Object.freeze({ ...properties, ...createTextStyleDefaults(16), text: '' }),
+        toVersion: 2,
+      },
+    ],
     propertiesSchema: imagePlaceholderPropertiesSchema,
-    scene: createScene('image', ['showBorder']),
+    scene: createScene('image', ['showBorder', 'text'], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: 'showBorder',
+      fillColorProperty: null,
+      opacityProperty: null,
+      strokeColorProperty: null,
+    }),
     tags: ['asset', 'placeholder'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.imagePlaceholder,
@@ -410,14 +1857,20 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         ],
         property: 'borderMode',
       },
-      { kind: 'text', label: 'Color', property: 'color' },
+      { kind: 'color', label: 'Color', property: 'color' },
       { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
     ]),
     minimumSize: createSize(160, 120),
     maximumSize: null,
     palette: createPalette('Browser Window', 'Containers', 70),
     propertiesSchema: browserPropertiesSchema,
-    scene: createScene('browser', ['borderMode', 'color', 'scrollbar']),
+    scene: createScene(
+      'browser',
+      ['borderMode', 'color', 'scrollbar'],
+      undefined,
+      undefined,
+      'fill',
+    ),
     tags: ['container', 'website', 'web'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.browser,
@@ -470,7 +1923,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
         property: 'labelPosition',
         step: 0.05,
       },
-      { kind: 'text', label: 'Color', property: 'color' },
+      { kind: 'color', label: 'Color', property: 'color' },
       {
         kind: 'number',
         label: 'Opacity',
@@ -519,6 +1972,2307 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.arrow,
   }),
+  createDefinition({
+    accessibility: createAccessibility('Calendar', 'img'),
+    aliases: ['date calendar', 'month calendar'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(244, 202),
+    export: createExport('scene'),
+    minimumSize: createSize(112, 96),
+    maximumSize: null,
+    palette: createPalette('Calendar', 'Common', 90),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('calendar', []),
+    tags: ['date', 'month', 'schedule'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.calendar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Bar chart', 'img'),
+    aliases: ['bar chart', 'horizontal chart'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(360, 270),
+    export: createExport('scene'),
+    minimumSize: createSize(96, 72),
+    maximumSize: null,
+    palette: createPalette('Chart: Bar', 'Common', 100),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('chart-bar', []),
+    tags: ['chart', 'data', 'diagram', 'visualization'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.chartBar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Line chart', 'img'),
+    aliases: ['line chart', 'trend chart'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(180, 180),
+    export: createExport('scene'),
+    minimumSize: createSize(72, 72),
+    maximumSize: null,
+    palette: createPalette('Chart: Line', 'Common', 110),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('chart-line', []),
+    tags: ['chart', 'data', 'diagram', 'trend', 'visualization'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.chartLine,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Pie chart', 'img'),
+    aliases: ['pie chart', 'radial chart'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(180, 180),
+    export: createExport('scene'),
+    minimumSize: createSize(72, 72),
+    maximumSize: null,
+    palette: createPalette('Chart: Pie', 'Common', 120),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('chart-pie', []),
+    tags: ['chart', 'data', 'diagram', 'radial', 'visualization'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.chartPie,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Playback', 'img'),
+    aliases: ['media controls', 'transport controls'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(110, 36),
+    export: createExport('scene'),
+    minimumSize: createSize(72, 28),
+    maximumSize: null,
+    palette: createPalette('Playback', 'Media', 130),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('playback', []),
+    tags: ['audio', 'media', 'player', 'transport'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.playback,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Video player', 'img'),
+    aliases: ['movie player', 'video'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(300, 200),
+    export: createExport('scene'),
+    minimumSize: createSize(120, 80),
+    maximumSize: null,
+    palette: createPalette('Video Player', 'Media', 140),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('video-player', []),
+    tags: ['media', 'movie', 'player'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.videoPlayer,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Volume slider', 'img'),
+    aliases: ['audio slider', 'sound slider', 'volume control'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(72, 16),
+    export: createExport('scene'),
+    minimumSize: createSize(48, 16),
+    maximumSize: null,
+    palette: createPalette('Volume Slider', 'Media', 150),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('volume-slider', []),
+    tags: ['audio', 'media', 'sound'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.volumeSlider,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Webcam', 'img'),
+    aliases: ['camera preview', 'video camera'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(177, 146),
+    export: createExport('scene'),
+    minimumSize: createSize(72, 64),
+    maximumSize: null,
+    palette: createPalette('Webcam', 'Media', 160),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('webcam', []),
+    tags: ['camera', 'media', 'person', 'video'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.webcam,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('iOS picker', 'img'),
+    aliases: ['ios wheel picker', 'wheel picker'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(214, 160),
+    export: createExport('scene'),
+    minimumSize: createSize(96, 72),
+    maximumSize: null,
+    palette: createPalette('iOS Picker', 'iOS', 170),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('ios-picker', []),
+    tags: ['ios', 'mobile', 'picker', 'wheel'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.iosPicker,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Horizontal splitter', 'img'),
+    aliases: ['horizontal divider', 'horizontal splitter'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(200, 12),
+    export: createExport('scene'),
+    minimumSize: createSize(48, 8),
+    maximumSize: null,
+    palette: createPalette('H.Splitter', 'Layout', 180),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('h-splitter', []),
+    tags: ['divider', 'layout', 'resize', 'splitter'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.hSplitter,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Vertical splitter', 'img'),
+    aliases: ['vertical divider', 'vertical splitter'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(12, 198),
+    export: createExport('scene'),
+    minimumSize: createSize(8, 48),
+    maximumSize: null,
+    palette: createPalette('V.Splitter', 'Layout', 190),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('v-splitter', []),
+    tags: ['divider', 'layout', 'resize', 'splitter'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.vSplitter,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Red X', 'img'),
+    aliases: ['cross out', 'red cross'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(240, 104),
+    export: createExport('scene'),
+    minimumSize: createSize(48, 24),
+    maximumSize: null,
+    palette: createPalette('Red X', 'Markup', 200),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('red-x', []),
+    tags: ['cross', 'delete', 'markup', 'reject'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.redX,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Squiggly block of text', 'img'),
+    aliases: ['block of text', 'placeholder text', 'squiggly text'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(275, 80),
+    export: createExport('scene'),
+    minimumSize: createSize(64, 32),
+    maximumSize: null,
+    palette: createPalette('Squiggly Block of Text', 'Markup', 210, 'KeyT'),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('squiggly-block', []),
+    tags: ['content', 'markup', 'placeholder', 'text'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.squigglyBlock,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Street map', 'img'),
+    aliases: ['city map', 'map'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(252, 222),
+    export: createExport('scene'),
+    minimumSize: createSize(96, 72),
+    maximumSize: null,
+    palette: createPalette('Street Map', 'Assets', 220),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('street-map', []),
+    tags: ['asset', 'location', 'map', 'street'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.streetMap,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Toolbar', 'img'),
+    aliases: ['editor toolbar', 'format toolbar'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(261, 29),
+    export: createExport('scene'),
+    minimumSize: createSize(120, 24),
+    maximumSize: null,
+    palette: createPalette('Toolbar', 'Common', 230),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('toolbar', []),
+    tags: ['actions', 'editor', 'formatting', 'toolbar'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.toolbar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Horizontal rule', 'img'),
+    aliases: ['horizontal divider', 'horizontal line'],
+    autoSize: createIntrinsicAutoSize('both'),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { borderColor: 'default', opacity: 1, strokeStyle: 'solid' },
+    defaultSize: createSize(100, 10),
+    export: createExport('scene'),
+    inspector: createInspector('Rule', [
+      { kind: 'color', label: 'Border Color', property: 'borderColor' },
+      { kind: 'range', label: 'Opacity', maximum: 1, minimum: 0, property: 'opacity', step: 0.05 },
+      {
+        kind: 'choice',
+        label: 'Stroke',
+        options: [
+          { label: 'Solid', value: 'solid' },
+          { label: 'Dashed', value: 'dashed' },
+          { label: 'Dotted', value: 'dotted' },
+        ],
+        property: 'strokeStyle',
+      },
+    ]),
+    minimumSize: createSize(24, 6),
+    maximumSize: null,
+    palette: createPalette('H.Rule', 'Markup', 240),
+    propertiesSchema: rulePropertiesSchema,
+    scene: createScene('h-rule', ['borderColor', 'opacity', 'strokeStyle']),
+    tags: ['divider', 'line', 'markup', 'rule'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.hRule,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Vertical rule', 'img'),
+    aliases: ['vertical divider', 'vertical line'],
+    autoSize: createIntrinsicAutoSize('both'),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { borderColor: 'default', opacity: 1, strokeStyle: 'solid' },
+    defaultSize: createSize(10, 100),
+    export: createExport('scene'),
+    inspector: createInspector('Rule', [
+      { kind: 'color', label: 'Border Color', property: 'borderColor' },
+      { kind: 'range', label: 'Opacity', maximum: 1, minimum: 0, property: 'opacity', step: 0.05 },
+      {
+        kind: 'choice',
+        label: 'Stroke',
+        options: [
+          { label: 'Solid', value: 'solid' },
+          { label: 'Dashed', value: 'dashed' },
+          { label: 'Dotted', value: 'dotted' },
+        ],
+        property: 'strokeStyle',
+      },
+    ]),
+    minimumSize: createSize(6, 24),
+    maximumSize: null,
+    palette: createPalette('V.Rule', 'Markup', 250),
+    propertiesSchema: rulePropertiesSchema,
+    scene: createScene('v-rule', ['borderColor', 'opacity', 'strokeStyle']),
+    tags: ['divider', 'line', 'markup', 'rule'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.vRule,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Scratch-out', 'img'),
+    aliases: ['redaction', 'scribble', 'strike out'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { color: 'default', opacity: 1 },
+    defaultSize: createSize(205, 107),
+    export: createExport('scene'),
+    inspector: createInspector('Scratch-Out', [
+      { kind: 'color', label: 'Color', property: 'color' },
+      { kind: 'range', label: 'Opacity', maximum: 1, minimum: 0, property: 'opacity', step: 0.05 },
+    ]),
+    minimumSize: createSize(32, 24),
+    maximumSize: null,
+    palette: createPalette('Scratch-Out', 'Markup', 260),
+    propertiesSchema: colorOpacityPropertiesSchema,
+    scene: createScene('scratch-out', ['color', 'opacity']),
+    tags: ['markup', 'redact', 'scratch', 'scribble'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.scratchOut,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Help', 'button'),
+    aliases: ['question', 'support'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(18, 18),
+    export: createExport('scene'),
+    minimumSize: createSize(12, 12),
+    maximumSize: null,
+    palette: createPalette('Help Button', 'Buttons', 270),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('help-button', []),
+    tags: ['button', 'help', 'question', 'support'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.helpButton,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Modal screen', 'img'),
+    aliases: ['backdrop', 'dialog overlay', 'overlay'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: {},
+    defaultSize: createSize(318, 240),
+    export: createExport('scene'),
+    minimumSize: createSize(48, 48),
+    maximumSize: null,
+    palette: createPalette('Modal Screen', 'Containers', 280),
+    propertiesSchema: staticVisualPropertiesSchema,
+    scene: createScene('modal-screen', []),
+    tags: ['backdrop', 'container', 'modal', 'overlay'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.modalScreen,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Color picker', 'img'),
+    aliases: ['color swatch', 'colour picker'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      null,
+    ),
+    defaultProperties: { color: 'default' },
+    defaultSize: createSize(26, 28),
+    export: createExport('scene'),
+    inspector: createInspector('Color Picker', [
+      { kind: 'color', label: 'Color', property: 'color' },
+    ]),
+    minimumSize: createSize(16, 16),
+    maximumSize: null,
+    palette: createPalette('Color Picker', 'Forms', 290),
+    propertiesSchema: colorPropertiesSchema,
+    scene: createScene('color-picker', ['color'], undefined, undefined, 'fill'),
+    tags: ['color', 'colour', 'form', 'picker', 'swatch'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.colorPicker,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('On/off switch', 'button'),
+    aliases: ['switch', 'toggle'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      null,
+    ),
+    defaultProperties: { color: 'default', state: 'on' },
+    defaultSize: createSize(42, 24),
+    export: createExport('scene'),
+    inspector: createInspector('ON/OFF Switch', [
+      { kind: 'color', label: 'Color', property: 'color' },
+      {
+        kind: 'choice',
+        label: 'State',
+        options: [
+          { label: 'Off', value: 'off' },
+          { label: 'On', value: 'on' },
+        ],
+        property: 'state',
+      },
+    ]),
+    minimumSize: createSize(28, 16),
+    maximumSize: null,
+    palette: createPalette('ON/OFF Switch', 'Forms', 300),
+    propertiesSchema: onOffSwitchPropertiesSchema,
+    scene: createScene('on-off-switch', ['color', 'state'], undefined, undefined, 'fill'),
+    tags: ['form', 'off', 'on', 'switch', 'toggle'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.onOffSwitch,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Breadcrumbs', 'group'),
+    aliases: ['breadcrumb', 'navigation path'],
+    autoSize: createAutoSize('horizontal', 0, 0, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'horizontal',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        0,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: 'Home › Products › Xyz › Features',
+    },
+    defaultSize: createSize(210, 21),
+    export: createExport('scene'),
+    inspector: createInspector('Text', createTextStyleFields(false)),
+    minimumSize: createSize(24, 16),
+    maximumSize: null,
+    palette: createPalette('Breadcrumbs', 'Common', 310),
+    propertiesSchema: breadcrumbsPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'source',
+      layout: 'inline',
+      links: true,
+      marker: null,
+      maximum: 64,
+      minimum: 1,
+      property: 'items',
+      selection: null,
+      separator: '›',
+    }),
+    scene: createScene('text', ['items']),
+    tags: ['breadcrumb', 'links', 'navigation', 'path'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.breadcrumbs,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Button Bar', 'group'),
+    aliases: ['segmented button', 'segmented control'],
+    autoSize: createAutoSize('horizontal', 8, 8, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'horizontal',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        4,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: 'One | Two | Three',
+      selectedRowId: null,
+    },
+    defaultSize: createSize(159, 27),
+    export: createExport('scene'),
+    inspector: createInspector('Text', createTextStyleFields(false)),
+    minimumSize: createSize(48, 20),
+    maximumSize: null,
+    palette: createPalette('Button Bar', 'Buttons', 320),
+    propertiesSchema: buttonBarPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      layout: 'segments',
+      links: true,
+      marker: null,
+      maximum: 32,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: false,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'first',
+        property: 'selectedRowId',
+      }),
+      separator: '|',
+    }),
+    scene: createScene('rectangle', ['items']),
+    tags: ['bar', 'button', 'links', 'segmented', 'selection'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.buttonBar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Link Bar', 'group'),
+    aliases: ['navigation links', 'link navigation'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'horizontal',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        0,
+        {
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: 'Home | Products | Company | Blog',
+      selectedColor: 'default',
+      selectedRowId: null,
+      textColor: DESIGN_TOKENS.color.accentStrong,
+    },
+    defaultSize: createSize(226, 21),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Separator and Selected Text Color', property: 'selectedColor' },
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(64, 16),
+    maximumSize: null,
+    palette: createPalette('Link Bar', 'Common', 330),
+    propertiesSchema: linkBarPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'source',
+      layout: 'inline',
+      links: true,
+      marker: null,
+      maximum: 32,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: 'selectedColor', kind: 'text' }),
+        default: 'none',
+        property: 'selectedRowId',
+      }),
+      separator: '|',
+    }),
+    scene: createScene('text', ['items']),
+    tags: ['bar', 'links', 'navigation', 'selection'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.linkBar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Tree Pane', 'group'),
+    aliases: ['file tree', 'folder tree', 'hierarchy', 'tree view'],
+    autoSize: createAutoSize('both', 4, 4, 4, 4),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText(
+        'start',
+        13,
+        4,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      items: [
+        'f Use f for closed folders',
+        'F Use F for open folders',
+        '[+] You may also use this',
+        '[-] and this',
+        '[x] or this',
+        '[ ] and this',
+        '> or even this',
+        'v and this',
+        '- Use - for a file icon',
+        '_ or _ to leave a space for your own icon',
+        'f use spaces or dots for hierarchy',
+        '.v just like',
+        '..- this',
+      ].join('\n'),
+      opacity: 1,
+      scrollbar: false,
+      selectedRowId: null,
+      showBorder: true,
+      state: 'normal',
+    },
+    defaultSize: createSize(300, 285),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(120, 80),
+    maximumSize: null,
+    palette: createPalette('Tree Pane', 'Containers', 340),
+    propertiesSchema: treePanePropertiesSchema,
+    rows: Object.freeze({
+      adornment: Object.freeze({ defaultKind: 'folder-closed', kind: 'tree' }),
+      display: 'labels',
+      layout: 'stack',
+      links: true,
+      marker: null,
+      maximum: 64,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'none',
+        property: 'selectedRowId',
+      }),
+      separator: '\n',
+    }),
+    scene: createScene('rectangle', ['items'], undefined, undefined, 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: 'showBorder',
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      scrollbarVisibilityProperty: 'scrollbar',
+      strokeColorProperty: null,
+      state: createDisabledState(),
+    }),
+    tags: ['disclosure', 'file', 'folder', 'hierarchy', 'navigation', 'tree'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.treePane,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Tab Bar', 'group'),
+    aliases: ['horizontal tabs', 'tab group'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        4,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      items: 'One, Two, Three, Four',
+      opacity: 1,
+      scrollbar: false,
+      selectedRowId: null,
+      showBorder: true,
+      tabsAlignment: 'start',
+      tabsPosition: 'top',
+    },
+    defaultSize: createSize(254, 100),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+          {
+            kind: 'choice',
+            label: 'Tabs Position',
+            options: Object.freeze([
+              Object.freeze({ label: 'Top', value: 'top' }),
+              Object.freeze({ label: 'Bottom', value: 'bottom' }),
+            ]),
+            property: 'tabsPosition',
+          },
+          {
+            kind: 'choice',
+            label: 'Tabs Alignment',
+            options: Object.freeze([
+              Object.freeze({ label: 'Left', value: 'start' }),
+              Object.freeze({ label: 'Center', value: 'center' }),
+              Object.freeze({ label: 'Right', value: 'end' }),
+            ]),
+            property: 'tabsAlignment',
+          },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(120, 48),
+    maximumSize: null,
+    palette: createPalette('Tab Bar', 'Layout', 470),
+    propertiesSchema: tabBarPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      layout: 'segments',
+      links: true,
+      marker: null,
+      maximum: 32,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'none',
+        property: 'selectedRowId',
+      }),
+      separator: ',',
+    }),
+    scene: createScene(
+      'tabs',
+      ['items', 'showBorder', 'tabsAlignment', 'tabsPosition'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: 'showBorder',
+        defaultFillColor: DESIGN_TOKENS.color.panel,
+        fillColorProperty: 'color',
+        opacityProperty: 'opacity',
+        scrollbarVisibilityProperty: 'scrollbar',
+        strokeColorProperty: null,
+      },
+      undefined,
+      {
+        tabs: Object.freeze({
+          alignmentProperty: 'tabsAlignment',
+          orientation: 'horizontal',
+          positionProperty: 'tabsPosition',
+        }),
+      },
+    ),
+    tags: ['container', 'horizontal', 'navigation', 'tabs'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.tabBar,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('V.Tabs', 'group'),
+    aliases: ['vertical tabs', 'side tabs'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        8,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      items: 'First Tab\nSecond Tab\nThird Tab\nFourth Tab',
+      opacity: 1,
+      scrollbar: false,
+      selectedRowId: null,
+      showBorder: true,
+      tabsPosition: 'left',
+    },
+    defaultSize: createSize(200, 194),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+          {
+            kind: 'choice',
+            label: 'Tabs Position',
+            options: Object.freeze([
+              Object.freeze({ label: 'Left', value: 'left' }),
+              Object.freeze({ label: 'Right', value: 'right' }),
+            ]),
+            property: 'tabsPosition',
+          },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(120, 80),
+    maximumSize: null,
+    palette: createPalette('V.Tabs', 'Layout', 480),
+    propertiesSchema: verticalTabsPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      layout: 'stack',
+      links: true,
+      marker: null,
+      maximum: 32,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'none',
+        property: 'selectedRowId',
+      }),
+      separator: '\n',
+    }),
+    scene: createScene(
+      'tabs',
+      ['items', 'showBorder', 'tabsPosition'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: 'showBorder',
+        defaultFillColor: DESIGN_TOKENS.color.panel,
+        fillColorProperty: 'color',
+        opacityProperty: 'opacity',
+        scrollbarVisibilityProperty: 'scrollbar',
+        strokeColorProperty: null,
+      },
+      undefined,
+      {
+        tabs: Object.freeze({
+          alignmentProperty: null,
+          orientation: 'vertical',
+          positionProperty: 'tabsPosition',
+        }),
+      },
+    ),
+    tags: ['container', 'navigation', 'side', 'tabs', 'vertical'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.verticalTabs,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Accordion', 'group'),
+    aliases: ['collapsible panels', 'disclosure group', 'expander'],
+    autoSize: createAccordionAutoSize(),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        DESIGN_TOKENS.space[2],
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: 'Item One\nItem Two\nItem Three\nItem Four',
+      scrollbar: false,
+      selectedRowId: null,
+    },
+    defaultSize: createSize(150, 186),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(80, 27),
+    maximumSize: null,
+    palette: createPalette('Accordion', 'Layout', 490),
+    propertiesSchema: accordionPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      hierarchy: Object.freeze({ childPrefix: '-', kind: 'accordion' }),
+      layout: 'stack',
+      links: true,
+      marker: null,
+      maximum: 64,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'first',
+        property: 'selectedRowId',
+      }),
+      separator: '\n',
+    }),
+    scene: createScene(
+      'accordion',
+      ['items'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        defaultFillColor: DESIGN_TOKENS.color.panel,
+        fillColorProperty: null,
+        opacityProperty: null,
+        scrollbarVisibilityProperty: 'scrollbar',
+        strokeColorProperty: null,
+      },
+      Object.freeze({
+        fillColor: DESIGN_TOKENS.color.accentStrong,
+        strokeColor: DESIGN_TOKENS.color.accentStrong,
+      }),
+    ),
+    tags: ['collapse', 'container', 'disclosure', 'expand', 'navigation'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.accordion,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Search Box', 'textbox', 'text'),
+    aliases: ['find', 'search field'],
+    autoSize: createAutoSize('both', 32, 32, 4, 4),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 13, 32, {
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      microphoneIcon: false,
+      searchIcon: true,
+      shape: 'rounded',
+      state: 'normal',
+      text: 'search',
+      textColor: DESIGN_TOKENS.color.mutedInk,
+    },
+    defaultSize: createSize(120, 25),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Shape',
+            options: Object.freeze([
+              Object.freeze({ label: 'Rounded', value: 'rounded' }),
+              Object.freeze({ label: 'Rectangular', value: 'rectangular' }),
+            ]),
+            property: 'shape',
+          },
+          { kind: 'boolean', label: 'Search Icon', property: 'searchIcon' },
+          { kind: 'boolean', label: 'Microphone Icon', property: 'microphoneIcon' },
+        ]),
+        label: 'Search',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(80, 24),
+    maximumSize: null,
+    palette: createPalette('Search Box', 'Forms', 350, null, [
+      {
+        id: 'rectangular-microphone',
+        label: 'Search Box (Rectangular + Microphone)',
+        order: 351,
+        properties: { microphoneIcon: true, shape: 'rectangular' },
+      },
+    ]),
+    propertiesSchema: searchBoxPropertiesSchema,
+    scene: createScene(
+      'search-box',
+      ['microphoneIcon', 'searchIcon', 'shape', 'state', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: null,
+        state: createDisabledState(),
+      },
+    ),
+    tags: ['find', 'form', 'input', 'search'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.searchBox,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Text Area', 'textbox', 'text'),
+    aliases: ['multiline input', 'textarea'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText(
+        'start',
+        13,
+        8,
+        {
+          alignmentProperty: 'textAlignment',
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13, 'start'),
+      borderColor: 'default',
+      color: 'default',
+      opacity: 1,
+      scrollbar: false,
+      state: 'normal',
+      text: '',
+      textColor: 'default',
+    },
+    defaultSize: createSize(200, 140),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    minimumSize: createSize(72, 40),
+    maximumSize: null,
+    palette: createPalette('Text Area', 'Forms', 360),
+    propertiesSchema: textAreaPropertiesSchema,
+    scene: createScene('input', ['state', 'text'], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      scrollbarVisibilityProperty: 'scrollbar',
+      strokeColorProperty: 'borderColor',
+      state: createDisabledState(),
+    }),
+    tags: ['field', 'form', 'input', 'multiline', 'text'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.textArea,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Field Set', 'group', 'text'),
+    aliases: ['fieldset', 'form group', 'group box'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('start', 13, 16, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      opacity: 1,
+      text: 'Group Name',
+    },
+    defaultSize: createSize(200, 170),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(80, 40),
+    palette: createPalette('Field Set', 'Containers', 370),
+    propertiesSchema: fieldSetPropertiesSchema,
+    scene: createScene('field-set', ['text'], undefined, undefined, 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      strokeColorProperty: null,
+    }),
+    tags: ['container', 'field', 'form', 'group'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.fieldSet,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Link', 'link', 'text'),
+    aliases: ['anchor', 'hyperlink', 'text link'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 13, 0, {
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      state: 'normal',
+      text: 'a link',
+      textColor: DESIGN_TOKENS.color.accentStrong,
+      underline: true,
+    },
+    defaultSize: createSize(31, 21),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(16, 16),
+    palette: createPalette('Link', 'Common', 380),
+    propertiesSchema: linkPropertiesSchema,
+    scene: createScene('text', ['state', 'text'], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: null,
+      opacityProperty: null,
+      strokeColorProperty: null,
+      state: createDisabledState(),
+    }),
+    tags: ['anchor', 'hyperlink', 'navigation', 'text'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.link,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Multiline Button', 'button', 'text'),
+    aliases: ['descriptive button', 'multi line button', 'two line button'],
+    autoSize: createAutoSize('both', 16, 16, 12, 12),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        12,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      iconId: null,
+      opacity: 1,
+      text: 'Multiline Button\nSecond line of text',
+    },
+    defaultSize: createSize(136, 66),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(80, 48),
+    palette: createPalette('Multiline Button', 'Buttons', 390),
+    propertiesSchema: multilineButtonPropertiesSchema,
+    scene: createScene('multiline-button', ['iconId', 'text'], undefined, undefined, 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      strokeColorProperty: null,
+    }),
+    tags: ['action', 'button', 'description', 'multiline'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.multilineButton,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Circle Button', 'button', 'text'),
+    aliases: ['fab', 'floating action button', 'round button'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('center', 13, 4, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      iconId: 'plus',
+      iconSize: 'm',
+      labelPosition: 'below',
+      showBorder: true,
+      state: 'normal',
+      text: '',
+    },
+    defaultSize: createSize(48, 48),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+          {
+            kind: 'select',
+            label: 'Icon Size',
+            options: Object.freeze(
+              ['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((label) =>
+                Object.freeze({ label, value: label.toLowerCase() }),
+              ),
+            ),
+            property: 'iconSize',
+          },
+          {
+            kind: 'choice',
+            label: 'Label Position',
+            options: Object.freeze([
+              Object.freeze({ label: 'Below', value: 'below' }),
+              Object.freeze({ label: 'Icon Left', value: 'icon-left' }),
+              Object.freeze({ label: 'Icon Right', value: 'icon-right' }),
+            ]),
+            property: 'labelPosition',
+          },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(32, 32),
+    palette: createPalette('Circle Button', 'Buttons', 400),
+    propertiesSchema: circleButtonPropertiesSchema,
+    scene: createScene(
+      'circle-button',
+      ['iconId', 'iconSize', 'labelPosition', 'showBorder', 'state', 'text'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: 'showBorder',
+        fillColorProperty: 'color',
+        iconSizeProperty: 'iconSize',
+        opacityProperty: null,
+        strokeColorProperty: null,
+        state: createDisabledState(),
+      },
+    ),
+    tags: ['action', 'button', 'circle', 'fab', 'floating'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.circleButton,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Comment', 'img', 'text'),
+    aliases: ['note', 'sticky', 'sticky note'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        8,
+        {
+          alignmentProperty: 'textAlignment',
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13, 'start'),
+      color: DESIGN_TOKENS.color.wireframeCommentFill,
+      text: 'A comment',
+    },
+    defaultSize: createSize(109, 123),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([{ kind: 'color', label: 'Color', property: 'color' }]),
+        label: 'Color',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(48, 48),
+    palette: createPalette('Comment', 'Markup', 410),
+    propertiesSchema: commentPropertiesSchema,
+    scene: createScene(
+      'comment',
+      ['text'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: 'color',
+        opacityProperty: null,
+        strokeColorProperty: null,
+      },
+      {
+        fillColor: DESIGN_TOKENS.color.wireframeCommentTape,
+        strokeColor: DESIGN_TOKENS.color.wireframeCommentTape,
+      },
+    ),
+    tags: ['annotation', 'comment', 'note', 'sticky'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.comment,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Tooltip', 'img', 'text'),
+    aliases: ['hint', 'hover help'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('center', 13, 8, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13, 'center'),
+      direction: 'SE',
+      text: 'a tooltip',
+    },
+    defaultSize: createSize(87, 33),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Direction',
+            options: Object.freeze([
+              Object.freeze({ label: 'SE', value: 'SE' }),
+              Object.freeze({ label: 'SW', value: 'SW' }),
+              Object.freeze({ label: 'NE', value: 'NE' }),
+              Object.freeze({ label: 'NW', value: 'NW' }),
+            ]),
+            property: 'direction',
+          },
+        ]),
+        label: 'Direction',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(48, 24),
+    palette: createPalette('Tooltip', 'Markup', 420),
+    propertiesSchema: tooltipPropertiesSchema,
+    scene: createScene('tooltip', ['direction', 'text'], undefined, undefined, 'fill', undefined, {
+      fillColor: DESIGN_TOKENS.color.canvas,
+      strokeColor: DESIGN_TOKENS.color.ink,
+    }),
+    tags: ['annotation', 'help', 'hint', 'hover'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.tooltip,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Callout', 'img', 'text'),
+    aliases: ['annotation badge', 'numbered annotation', 'numbered callout'],
+    autoSize: createAutoSize('both', 16, 16, 10, 10),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        10,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: DESIGN_TOKENS.color.wireframeCalloutFill,
+      opacity: 1,
+      text: '1',
+    },
+    defaultSize: createSize(39, 39),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(39, 39),
+    palette: createPalette('Callout', 'Markup', 430),
+    propertiesSchema: calloutPropertiesSchema,
+    scene: createScene('callout', ['text'], undefined, Object.freeze({ kind: 'ellipse' }), 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      strokeColorProperty: null,
+    }),
+    tags: ['annotation', 'badge', 'callout', 'number', 'markup'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.callout,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Popover', 'group', 'text'),
+    aliases: ['callout container', 'detail bubble', 'ipad popover'],
+    autoSize: createIntrinsicAutoSize('both'),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        12,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      direction: 'top',
+      position: '2',
+      text: '',
+    },
+    defaultSize: createSize(222, 187),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([{ kind: 'color', label: 'Color', property: 'color' }]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Direction',
+            options: Object.freeze([
+              Object.freeze({ label: 'Top', value: 'top' }),
+              Object.freeze({ label: 'Right', value: 'right' }),
+              Object.freeze({ label: 'Bottom', value: 'bottom' }),
+              Object.freeze({ label: 'Left', value: 'left' }),
+            ]),
+            property: 'direction',
+          },
+          {
+            kind: 'choice',
+            label: 'Position',
+            options: Object.freeze([
+              Object.freeze({ label: 'Start', value: '0' }),
+              Object.freeze({ label: 'Near', value: '1' }),
+              Object.freeze({ label: 'Center', value: '2' }),
+              Object.freeze({ label: 'Far', value: '3' }),
+              Object.freeze({ label: 'End', value: '4' }),
+            ]),
+            property: 'position',
+          },
+        ]),
+        label: 'Popover',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(64, 48),
+    palette: createPalette('Popover', 'Containers', 440),
+    propertiesSchema: popoverPropertiesSchema,
+    scene: createScene(
+      'popover',
+      ['direction', 'position', 'text'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: 'color',
+        opacityProperty: null,
+        strokeColorProperty: null,
+      },
+      Object.freeze({ fillColor: null, strokeColor: DESIGN_TOKENS.color.ink }),
+    ),
+    tags: ['bubble', 'callout', 'container', 'detail', 'overlay', 'popover'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.popover,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Horizontal Curly Brace', 'img', 'text'),
+    aliases: ['brace', 'bracket', 'horizontal brace'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        0,
+        {
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      direction: 'top',
+      text: 'A paragraph of text.\nA second row of text.',
+      textColor: 'default',
+    },
+    defaultSize: createSize(200, 80),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Direction',
+            options: Object.freeze([
+              Object.freeze({ label: 'Top', value: 'top' }),
+              Object.freeze({ label: 'Bottom', value: 'bottom' }),
+            ]),
+            property: 'direction',
+          },
+        ]),
+        label: 'Brace',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(24, 20),
+    palette: createPalette('H.Curly Brace', 'Markup', 450),
+    propertiesSchema: hCurlyBracePropertiesSchema,
+    scene: createScene(
+      'curly-brace',
+      ['direction', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      undefined,
+      Object.freeze({ fillColor: null, strokeColor: DESIGN_TOKENS.color.ink }),
+      Object.freeze({ curlyBrace: Object.freeze({ orientation: 'horizontal' }) }),
+    ),
+    tags: ['annotation', 'brace', 'bracket', 'curly', 'horizontal', 'markup'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.hCurlyBrace,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Vertical Curly Brace', 'img', 'text'),
+    aliases: ['brace', 'bracket', 'vertical brace'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        0,
+        {
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      direction: 'left',
+      text: 'A paragraph of text.\nA second row of text.',
+      textColor: 'default',
+    },
+    defaultSize: createSize(180, 140),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Direction',
+            options: Object.freeze([
+              Object.freeze({ label: 'Left', value: 'left' }),
+              Object.freeze({ label: 'Right', value: 'right' }),
+            ]),
+            property: 'direction',
+          },
+        ]),
+        label: 'Brace',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(14, 24),
+    palette: createPalette('V.Curly Brace', 'Markup', 460),
+    propertiesSchema: vCurlyBracePropertiesSchema,
+    scene: createScene(
+      'curly-brace',
+      ['direction', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      undefined,
+      Object.freeze({ fillColor: null, strokeColor: DESIGN_TOKENS.color.ink }),
+      Object.freeze({ curlyBrace: Object.freeze({ orientation: 'vertical' }) }),
+    ),
+    tags: ['annotation', 'brace', 'bracket', 'curly', 'markup', 'vertical'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.vCurlyBrace,
+  }),
 ]);
 
 assertControlDefinitionsConform(CONTROL_DEFINITIONS);
@@ -526,9 +4280,18 @@ assertControlDefinitionsConform(CONTROL_DEFINITIONS);
 const CONTROL_DEFINITION_BY_TYPE = new Map<string, ControlDefinition>(
   CONTROL_DEFINITIONS.map((definition) => [definition.type, definition]),
 );
+const CONTROL_DEFINITION_BY_DRAW_SHORTCUT = new Map<string, ControlDefinition>(
+  CONTROL_DEFINITIONS.flatMap((definition) => {
+    const shortcut = definition.palette?.drawShortcut;
+    return shortcut === null || shortcut === undefined ? [] : [[shortcut, definition] as const];
+  }),
+);
 
 export const getControlSpec = (type: string): ControlDefinition | undefined =>
   CONTROL_DEFINITION_BY_TYPE.get(type);
+
+export const getControlSpecByDrawShortcut = (code: string): ControlDefinition | undefined =>
+  CONTROL_DEFINITION_BY_DRAW_SHORTCUT.get(code);
 
 export const listControlSpecs = (): readonly ControlDefinition[] => CONTROL_DEFINITIONS;
 
@@ -538,3 +4301,57 @@ export const listPaletteControlSpecs = (): readonly ControlDefinition[] =>
       (first, second) => (first.palette?.order ?? 0) - (second.palette?.order ?? 0),
     ),
   );
+
+export interface ControlPaletteEntry {
+  readonly definition: ControlDefinition;
+  /** Stable authoring identity; presets never create a second persisted control type. */
+  readonly id: string;
+  readonly label: string;
+  readonly order: number;
+  readonly presetId: string | null;
+  readonly properties: ElementProperties;
+}
+
+const CONTROL_PALETTE_ENTRIES: readonly ControlPaletteEntry[] = Object.freeze(
+  CONTROL_DEFINITIONS.flatMap((definition) => {
+    const palette = definition.palette;
+    if (palette === null) return [];
+    return [
+      Object.freeze({
+        definition,
+        id: definition.type,
+        label: palette.label,
+        order: palette.order,
+        presetId: null,
+        properties: definition.defaultProperties,
+      }),
+      ...palette.presets.map((preset) =>
+        Object.freeze({
+          definition,
+          id: `${definition.type}:${preset.id}`,
+          label: preset.label,
+          order: preset.order,
+          presetId: preset.id,
+          properties: Object.freeze({ ...definition.defaultProperties, ...preset.properties }),
+        }),
+      ),
+    ];
+  }).sort(
+    (first, second) =>
+      first.order - second.order || (first.id < second.id ? -1 : first.id > second.id ? 1 : 0),
+  ),
+);
+
+export const listControlPaletteEntries = (): readonly ControlPaletteEntry[] =>
+  CONTROL_PALETTE_ENTRIES;
+
+export const getControlPaletteEntry = (
+  controlType: string,
+  presetId: string | null = null,
+): ControlPaletteEntry | undefined =>
+  CONTROL_PALETTE_ENTRIES.find(
+    (entry) => entry.definition.type === controlType && entry.presetId === presetId,
+  );
+
+export const getControlPaletteEntryById = (entryId: string): ControlPaletteEntry | undefined =>
+  CONTROL_PALETTE_ENTRIES.find((entry) => entry.id === entryId);

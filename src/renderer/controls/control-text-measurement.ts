@@ -26,6 +26,8 @@ export class ControlTextMeasurementError extends Error {
 
 export interface ControlTextMeasurementRequest {
   readonly fontSize: number;
+  readonly fontStyle?: 'italic' | 'normal';
+  readonly fontWeight?: 'bold' | 'normal';
   readonly lineHeight?: number;
   readonly mode: 'multiline' | 'single-line';
   readonly text: string;
@@ -69,8 +71,12 @@ export interface ControlTextAutoSizeInput {
   readonly minimumSize: ControlSize;
 }
 
-const createFontShorthand = (fontSize: number): string =>
-  `${String(DESIGN_TOKENS.font.weight.regular)} ${String(fontSize)}px "${DESIGN_TOKENS.font.family.wireframe}"`;
+const createFontShorthand = (
+  fontSize: number,
+  fontStyle: 'italic' | 'normal' = 'normal',
+  fontWeight: 'bold' | 'normal' = 'normal',
+): string =>
+  `${fontStyle} ${fontWeight === 'bold' ? '700' : String(DESIGN_TOKENS.font.weight.regular)} ${String(fontSize)}px "${DESIGN_TOKENS.font.family.wireframe}"`;
 
 /** Canonical rounding boundary for measured text geometry in world units. */
 export const roundControlTextWorldUnit = (value: number): number => {
@@ -101,7 +107,13 @@ const validateRequest = (request: ControlTextMeasurementRequest): number => {
     (request.mode !== 'multiline' && request.mode !== 'single-line') ||
     !Number.isFinite(request.fontSize) ||
     request.fontSize <= 0 ||
-    request.fontSize > CONTROL_TEXT_MEASUREMENT_POLICY.maximumFontSize
+    request.fontSize > CONTROL_TEXT_MEASUREMENT_POLICY.maximumFontSize ||
+    (request.fontStyle !== undefined &&
+      request.fontStyle !== 'italic' &&
+      request.fontStyle !== 'normal') ||
+    (request.fontWeight !== undefined &&
+      request.fontWeight !== 'bold' &&
+      request.fontWeight !== 'normal')
   ) {
     return throwInvalidInput('Control text measurement received invalid text or font settings.');
   }
@@ -138,7 +150,7 @@ export const createControlTextMeasurementService = (
     measure: (request: ControlTextMeasurementRequest): ControlTextMeasurement => {
       const lineHeightMultiplier = validateRequest(request);
       const lines = normalizeLines(request.text, request.mode);
-      context.font = createFontShorthand(request.fontSize);
+      context.font = createFontShorthand(request.fontSize, request.fontStyle, request.fontWeight);
       context.textBaseline = 'alphabetic';
 
       const probe = context.measureText(CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText);
@@ -182,9 +194,16 @@ export const createControlTextMeasurementService = (
 export const prepareBundledWireframeFont = async (
   fontFaceSet: ControlFontFaceSet,
 ): Promise<void> => {
-  const font = createFontShorthand(CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeSize);
+  const fonts = [
+    createFontShorthand(CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeSize),
+    createFontShorthand(CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeSize, 'italic'),
+    createFontShorthand(CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeSize, 'normal', 'bold'),
+    createFontShorthand(CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeSize, 'italic', 'bold'),
+  ];
   try {
-    await fontFaceSet.load(font, CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText);
+    await Promise.all(
+      fonts.map((font) => fontFaceSet.load(font, CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText)),
+    );
     await fontFaceSet.ready;
   } catch {
     throw new ControlTextMeasurementError(
@@ -192,7 +211,9 @@ export const prepareBundledWireframeFont = async (
       'The bundled wireframe font could not be loaded.',
     );
   }
-  if (!fontFaceSet.check(font, CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText)) {
+  if (
+    fonts.some((font) => !fontFaceSet.check(font, CONTROL_TEXT_MEASUREMENT_POLICY.fontProbeText))
+  ) {
     throw new ControlTextMeasurementError(
       'font-unavailable',
       'The bundled wireframe font is unavailable.',
@@ -280,7 +301,11 @@ export const calculateControlTextAutoSize = (input: ControlTextAutoSizeInput): C
     throwInvalidInput('Control auto-size exceeds finite world geometry.');
   }
   const clamp = (value: number, minimum: number, maximum: number | undefined): number =>
-    roundControlTextWorldUnit(Math.min(maximum ?? value, Math.max(minimum, value)));
+    roundControlTextWorldUnit(
+      maximum === undefined
+        ? Math.max(minimum, value)
+        : Math.min(maximum, Math.max(minimum, value)),
+    );
   return Object.freeze({
     height:
       input.axis === 'horizontal'

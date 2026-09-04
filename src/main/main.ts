@@ -4,6 +4,7 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
 import recoveryProbeContract from '../../recovery-probe-contract.json';
+import m11PerformanceContract from '../../m11-performance-contract.json';
 import projectWorkflowProbeContract from '../../project-workflow-probe-contract.json';
 import smokeTestContract from '../../smoke-test-contract.json';
 import viewportPerformanceContract from '../../viewport-performance-contract.json';
@@ -45,10 +46,15 @@ import { ProjectWindowController } from './projects/project-window-controller';
 import { RecentProjectStore } from './recent/recent-project-store';
 import { verifyPackagedShellGeometry } from './shell-geometry-check';
 import { captureSmokeScreenshot } from './smoke-test';
+import { verifyPackagedProjectHomeGeometry } from './project-home-geometry-check';
 import { StartupHealthMonitor } from './startup-health';
 import { runPackagedViewportPerformanceProbe } from './viewport-performance-probe';
 import { installWindowDiagnostics, type WindowProblem } from './window-diagnostics';
 import { createMainWindowOptions } from './window-options';
+import {
+  measureM11ProjectPersistence,
+  runPackagedM11PerformanceProbe,
+} from './m11-performance-probe';
 
 const isSmokeTest = process.argv.includes(smokeTestContract.argument);
 const recoveryProbeInvocation = parseRecoveryProbeInvocation(process.argv, recoveryProbeContract);
@@ -64,12 +70,14 @@ const isRecoveryProbe = recoveryProbeInvocation.kind !== 'none';
 const isProjectWorkflowProbe = projectWorkflowProbeInvocation.kind !== 'none';
 const isVisualFixture = visualFixtureInvocation.kind !== 'none';
 const isViewportPerformanceProbe = process.argv.includes(viewportPerformanceContract.argument);
+const isM11PerformanceProbe = process.argv.includes(m11PerformanceContract.argument);
 const isAutomatedTest =
   isSmokeTest ||
   isRecoveryProbe ||
   isProjectWorkflowProbe ||
   isVisualFixture ||
-  isViewportPerformanceProbe;
+  isViewportPerformanceProbe ||
+  isM11PerformanceProbe;
 
 registerAppScheme();
 app.enableSandbox();
@@ -84,6 +92,7 @@ const startupHealth =
   isSmokeTest ||
   visualFixtureInvocation.kind === 'fixture' ||
   isViewportPerformanceProbe ||
+  isM11PerformanceProbe ||
   isProjectWorkflowProbe ||
   (recoveryProbeInvocation.kind === 'probe' && recoveryProbeInvocation.mode === 'verify')
     ? new StartupHealthMonitor()
@@ -199,7 +208,7 @@ const runSmokeTest = async (window: BrowserWindow): Promise<void> => {
   await startupHealth.waitForRendererReady(smokeTestContract.readyTimeoutMs);
   await new Promise<void>((resolve) => setTimeout(resolve, smokeTestContract.settleMs));
   startupHealth.assertHealthy();
-  await verifyPackagedShellGeometry(window);
+  await verifyPackagedProjectHomeGeometry(window);
   startupHealth.assertHealthy();
   const screenshotPath = await captureSmokeScreenshot(window, app.getPath('temp'));
   process.stdout.write(
@@ -284,6 +293,16 @@ const startApplication = async (): Promise<void> => {
   ) {
     throw new Error('The viewport performance probe cannot run with another packaged test mode.');
   }
+  if (
+    isM11PerformanceProbe &&
+    (isSmokeTest ||
+      recoveryProbeInvocation.kind === 'probe' ||
+      projectWorkflowProbeInvocation.kind === 'probe' ||
+      visualFixtureInvocation.kind === 'fixture' ||
+      isViewportPerformanceProbe)
+  ) {
+    throw new Error('The M11 performance probe cannot run with another packaged test mode.');
+  }
   let activeRecoveryProbe: Extract<RecoveryProbeInvocation, { readonly kind: 'probe' }> | undefined;
   let activeProjectWorkflowProbe:
     Extract<ProjectWorkflowProbeInvocation, { readonly kind: 'probe' }> | undefined;
@@ -342,28 +361,51 @@ const startApplication = async (): Promise<void> => {
     resolveProjectController: (webContentsId) => projectControllers.get(webContentsId),
   });
   const window = await createWindow(
-    isViewportPerformanceProbe
+    isM11PerformanceProbe
       ? {
-          rendererQuery: `${viewportPerformanceContract.queryKey}=${viewportPerformanceContract.queryValue}`,
+          rendererQuery: `${m11PerformanceContract.queryKey}=${m11PerformanceContract.queryValue}`,
         }
-      : visualFixtureInvocation.kind === 'fixture'
+      : isViewportPerformanceProbe
         ? {
-            rendererQuery: `${visualFixtureContract.queryKey}=${encodeURIComponent(visualFixtureInvocation.fixture)}`,
+            rendererQuery: `${viewportPerformanceContract.queryKey}=${viewportPerformanceContract.queryValue}`,
           }
-        : activeProjectWorkflowProbe !== undefined
+        : visualFixtureInvocation.kind === 'fixture'
           ? {
-              projectDialogs: createProjectWorkflowProbeDialogs(
-                activeProjectWorkflowProbe.root,
-                activeProjectWorkflowProbe.contract.userFileName,
-              ),
-              rendererQuery: `${activeProjectWorkflowProbe.contract.queryKey}=${activeProjectWorkflowProbe.contract.queryValue}`,
+              rendererQuery: `${visualFixtureContract.queryKey}=${encodeURIComponent(visualFixtureInvocation.fixture)}`,
             }
-          : activeRecoveryProbe?.mode === 'verify'
+          : activeProjectWorkflowProbe !== undefined
             ? {
-                rendererQuery: `${activeRecoveryProbe.contract.rendererQueryKey}=${activeRecoveryProbe.contract.rendererQueryValue}`,
+                projectDialogs: createProjectWorkflowProbeDialogs(
+                  activeProjectWorkflowProbe.root,
+                  activeProjectWorkflowProbe.contract.userFileName,
+                ),
+                rendererQuery: `${activeProjectWorkflowProbe.contract.queryKey}=${activeProjectWorkflowProbe.contract.queryValue}`,
               }
-            : {},
+            : activeRecoveryProbe?.mode === 'verify'
+              ? {
+                  rendererQuery: `${activeRecoveryProbe.contract.rendererQueryKey}=${activeRecoveryProbe.contract.rendererQueryValue}`,
+                }
+              : {},
   );
+  if (isM11PerformanceProbe) {
+    if (startupHealth === undefined) {
+      throw new Error('The M11 performance health monitor is unavailable.');
+    }
+    const persistence = await measureM11ProjectPersistence();
+    await startupHealth.waitForRendererReady(m11PerformanceContract.readyTimeoutMs);
+    startupHealth.assertHealthy();
+    const result = await runPackagedM11PerformanceProbe(
+      window,
+      m11PerformanceContract,
+      persistence,
+    );
+    startupHealth.assertHealthy();
+    await writeStandardOutputLine(
+      `${m11PerformanceContract.resultMarker}${JSON.stringify(result)}`,
+    );
+    app.exit(0);
+    return;
+  }
   if (isViewportPerformanceProbe) {
     if (startupHealth === undefined) {
       throw new Error('The viewport performance health monitor is unavailable.');

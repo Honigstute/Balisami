@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import {
   DESKTOP_CHANNELS,
   type DesktopApi,
+  type ExternalUrlRequest,
   type ProjectCloseOutcome,
   type ProjectCloseRequest,
   type ProjectCloseResponse,
@@ -14,6 +15,7 @@ import {
   type ProjectReplacementRequest,
   type ProjectStartRequest,
   isDesktopAcknowledgement,
+  isExternalUrlRequest,
   isProjectCloseOutcome,
   isProjectCloseRequest,
   isProjectCloseResponse,
@@ -54,6 +56,16 @@ const desktopApi: DesktopApi = Object.freeze({
       throw new Error('The desktop runtime returned an invalid response.');
     }
 
+    return response;
+  },
+  async openExternalUrl(request: ExternalUrlRequest) {
+    if (!isExternalUrlRequest(request)) {
+      throw new TypeError('The external URL request is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.openExternalUrl, request);
+    if (!isDesktopAcknowledgement(response)) {
+      throw new Error('The desktop runtime did not acknowledge the external URL.');
+    }
     return response;
   },
   onProjectCloseOutcome(listener: (outcome: ProjectCloseOutcome) => void) {

@@ -1,18 +1,63 @@
 import type { z } from 'zod';
 
+import { MAX_ELEMENT_ROW_BINDINGS } from '../document/schema';
 import type { ControlTypeId, ElementProperties, JsonValue } from '../document/schema';
 
-export type ControlCategory = 'Assets' | 'Buttons' | 'Common' | 'Containers' | 'Forms' | 'Text';
+export type ControlCategory =
+  | 'Assets'
+  | 'Buttons'
+  | 'Common'
+  | 'Containers'
+  | 'Forms'
+  | 'Layout'
+  | 'Markup'
+  | 'Media'
+  | 'Text'
+  | 'iOS';
 export type ControlVisualKind =
+  | 'accordion'
   | 'arrow'
   | 'browser'
   | 'button'
+  | 'calendar'
+  | 'callout'
+  | 'chart-bar'
+  | 'chart-line'
+  | 'chart-pie'
+  | 'circle-button'
+  | 'comment'
   | 'checkbox'
+  | 'color-picker'
+  | 'curly-brace'
+  | 'field-set'
   | 'image'
+  | 'h-splitter'
+  | 'h-rule'
+  | 'help-button'
   | 'input'
+  | 'ios-picker'
+  | 'playback'
+  | 'popover'
+  | 'radio-button'
+  | 'modal-screen'
+  | 'multiline-button'
+  | 'on-off-switch'
   | 'rectangle'
+  | 'red-x'
+  | 'scratch-out'
+  | 'search-box'
+  | 'squiggly-block'
+  | 'street-map'
+  | 'tabs'
   | 'text'
-  | 'transparent';
+  | 'tooltip'
+  | 'toolbar'
+  | 'transparent'
+  | 'video-player'
+  | 'v-rule'
+  | 'v-splitter'
+  | 'volume-slider'
+  | 'webcam';
 
 export interface ControlSize {
   readonly height: number;
@@ -30,13 +75,27 @@ export interface ControlAutoSizeInsets {
 
 export interface ControlAutoSizePolicy {
   readonly axis: ControlAutoSizeAxis;
+  /** Accordion measures visible rows/pane; text measures bundled-font content; intrinsic restores defaults. */
+  readonly basis: 'accordion' | 'intrinsic' | 'text';
   readonly insets: ControlAutoSizeInsets;
 }
 
 export interface ControlPaletteMetadata {
   readonly category: ControlCategory;
+  /** Physical key held while drawing this control, or null when unsupported. */
+  readonly drawShortcut: string | null;
   readonly label: string;
   readonly order: number;
+  /** Additional entries that insert this same schema with explicit property overrides. */
+  readonly presets: readonly ControlPalettePreset[];
+}
+
+export interface ControlPalettePreset {
+  /** Stable within the owning definition; not part of persisted document state. */
+  readonly id: string;
+  readonly label: string;
+  readonly order: number;
+  readonly properties: ElementProperties;
 }
 
 export interface ControlTextCapability {
@@ -45,6 +104,23 @@ export interface ControlTextCapability {
   readonly inset: number;
   readonly mode: 'multiline' | 'single-line';
   readonly property: string;
+  /** Optional persisted style bindings. Null entries mean the style is fixed by this definition. */
+  readonly style: Readonly<{
+    alignmentProperty: string | null;
+    boldProperty: string | null;
+    colorProperty: string | null;
+    fontSizeProperty: string | null;
+    italicProperty: string | null;
+    underlineProperty: string | null;
+  }>;
+}
+
+export interface ControlImageCapability {
+  /** Element asset references remain the canonical image-selection owner. */
+  readonly assetSource: 'element-assets';
+  readonly fit: 'contain';
+  readonly maximumAssets: 1;
+  readonly placeholder: 'cross';
 }
 
 export type ControlGroupingCapability = 'container' | 'leaf';
@@ -55,13 +131,15 @@ export interface ControlCapabilities {
   readonly fill: boolean;
   readonly grouping: ControlGroupingCapability;
   readonly icon: boolean;
+  readonly image: ControlImageCapability | null;
   readonly link: boolean;
   readonly resizeAxes: ControlResizeAxes;
   readonly state: boolean;
   readonly text: ControlTextCapability | null;
 }
 
-export type ControlAccessibilityRole = 'button' | 'checkbox' | 'group' | 'img' | 'textbox';
+export type ControlAccessibilityRole =
+  'button' | 'checkbox' | 'group' | 'img' | 'link' | 'radio' | 'textbox';
 
 export interface ControlAccessibilityDefinition {
   /** Used when the configured name property is absent or blank. */
@@ -69,8 +147,10 @@ export interface ControlAccessibilityDefinition {
   /** Optional string property used as the instance's accessible name. */
   readonly nameProperty: string | null;
   readonly role: ControlAccessibilityRole;
-  /** Optional boolean property exposed as aria-checked. */
+  /** Optional boolean or string-enum property exposed as aria-checked. */
   readonly checkedProperty: string | null;
+  /** Exact property values exposed as aria-checked=true; empty when no checked property exists. */
+  readonly checkedValues: readonly (boolean | string)[];
 }
 
 export interface ControlHitShapePoint {
@@ -102,15 +182,15 @@ export interface ControlInspectorChoiceOption {
 }
 
 export type ControlInspectorPropertyField =
-  | (ControlInspectorPropertyFieldBase & Readonly<{ kind: 'boolean' | 'text' }>)
+  | (ControlInspectorPropertyFieldBase & Readonly<{ kind: 'boolean' | 'color' | 'icon' | 'text' }>)
   | (ControlInspectorPropertyFieldBase &
       Readonly<{
-        kind: 'choice';
+        kind: 'choice' | 'select';
         options: readonly ControlInspectorChoiceOption[];
       }>)
   | (ControlInspectorPropertyFieldBase &
       Readonly<{
-        kind: 'number';
+        kind: 'number' | 'range';
         maximum: number;
         minimum: number;
         step: number;
@@ -121,12 +201,107 @@ export interface ControlInspectorSection {
   readonly label: string;
 }
 
+/**
+ * Stable logical rows parsed from one persisted string property. The source
+ * property remains the sole label/order owner; ElementNode.rowData owns only
+ * stable identities and first-class links for those parsed rows.
+ */
+export interface ControlRowsDefinition {
+  /** Optional syntax-backed hierarchy/adornment grammar for tree rows. */
+  readonly adornment: Readonly<{
+    readonly defaultKind: 'folder-closed';
+    readonly kind: 'tree';
+  }> | null;
+  /** Source paints delimiter syntax; labels paints only parsed labels in their row geometry. */
+  readonly display: 'labels' | 'source';
+  /** Optional definition-owned parent/child grammar for accordion rows. */
+  readonly hierarchy?: Readonly<{
+    readonly childPrefix: '-';
+    readonly kind: 'accordion';
+  }> | null;
+  /** Inline rows use measured spans; segments use cells; stack owns one row per line. */
+  readonly layout: 'inline' | 'segments' | 'stack';
+  readonly links: boolean;
+  /** Optional syntax-backed marker grammar for stacked checkbox/radio rows. */
+  readonly marker: Readonly<{
+    readonly defaultState: 'unchecked';
+    readonly kind: 'checkbox' | 'radio';
+  }> | null;
+  readonly maximum: number;
+  readonly minimum: number;
+  readonly property: string;
+  /** Optional persisted selection points at a stable ElementRowId, never a label or array index. */
+  readonly selection: Readonly<{
+    readonly allowNone: boolean;
+    readonly appearance: Readonly<{
+      readonly colorProperty: string | null;
+      readonly kind: 'fill' | 'text';
+    }>;
+    readonly default: 'first' | 'none';
+    readonly property: string;
+  }> | null;
+  readonly separator: string;
+}
+
 export interface ControlSceneDefinition {
   /** Checkbox dimensions are world units and ignored by other scene primitives. */
   readonly checkbox?: Readonly<{ boxSize: number; gap: number }>;
+  /** One shared brace projection serves the horizontal and vertical annotation schemas. */
+  readonly curlyBrace?: Readonly<{ orientation: 'horizontal' | 'vertical' }>;
+  /** Radio dimensions are world units and ignored by other scene primitives. */
+  readonly radio?: Readonly<{ diameter: number; gap: number }>;
+  /** Shared container/tab-strip geometry for horizontal and vertical tab controls. */
+  readonly tabs?: Readonly<{
+    readonly alignmentProperty: string | null;
+    readonly orientation: 'horizontal' | 'vertical';
+    readonly positionProperty: string;
+  }>;
+  /** Optional fixed trailing affordance that leaves the editable body as canonical geometry. */
+  readonly trailingAdornment?:
+    | Readonly<{
+        bodyInset: number;
+        gap: number;
+        kind: 'calendar';
+        size: number;
+      }>
+    | Readonly<{
+        bodyInset: number;
+        gap: number;
+        kind: 'stepper';
+        width: number;
+      }>;
   /** Exact selectable geometry applied after the spatial index's AABB broad phase. */
   readonly hitShape: ControlHitShape;
+  /** Optional per-definition inner clearance for dense icon-bearing controls. */
+  readonly iconInset?: number;
   readonly kind: ControlVisualKind;
+  /** Registry-owned destination for a non-default `color` property. */
+  readonly colorTarget: 'fill' | 'stroke';
+  /** Optional fixed treatment for definition-owned decorative mark geometry. */
+  readonly markStyle?: Readonly<{
+    readonly fillColor: string | null;
+    readonly strokeColor: string | null;
+  }>;
+  /** Optional persisted style bindings used by every scene projection surface. */
+  readonly style?: Readonly<{
+    readonly borderHiddenValues: readonly string[];
+    borderModeProperty: string | null;
+    borderVisibilityProperty: string | null;
+    /** Token-owned fallback used when the persisted fill color is `default`. */
+    defaultFillColor?: string | null;
+    fillColorProperty: string | null;
+    /** Optional discrete icon-size binding shared by icon-bearing scene projections. */
+    iconSizeProperty?: string | null;
+    opacityProperty: string | null;
+    scrollbarVisibilityProperty?: string | null;
+    strokeColorProperty: string | null;
+    /** Optional reusable visual/accessibility state binding. */
+    state?: Readonly<{
+      disabledOpacity: number;
+      disabledValues: readonly string[];
+      property: string;
+    }>;
+  }>;
   /** Only these properties invalidate cached scene presentation. */
   readonly propertyKeys: readonly string[];
 }
@@ -169,6 +344,7 @@ export interface ControlDefinition {
   readonly migrations: readonly ControlPropertyMigration[];
   readonly palette: ControlPaletteMetadata | null;
   readonly propertiesSchema: z.ZodType;
+  readonly rows: ControlRowsDefinition | null;
   readonly scene: ControlSceneDefinition;
   readonly search: Readonly<{ aliases: readonly string[]; tags: readonly string[] }>;
   readonly thumbnail: ControlThumbnailDefinition;
@@ -186,12 +362,39 @@ const listPropertyReferences = (definition: ControlDefinition): readonly string[
     ...definition.scene.propertyKeys,
     ...definition.inspector.flatMap((section) => section.fields.map((field) => field.property)),
     ...(definition.capabilities.text === null ? [] : [definition.capabilities.text.property]),
+    ...(definition.capabilities.text === null
+      ? []
+      : Object.values(definition.capabilities.text.style).filter(
+          (property): property is string => property !== null,
+        )),
+    ...(definition.scene.style === undefined
+      ? []
+      : [
+          definition.scene.style.borderModeProperty,
+          definition.scene.style.borderVisibilityProperty,
+          definition.scene.style.fillColorProperty,
+          definition.scene.style.iconSizeProperty,
+          definition.scene.style.opacityProperty,
+          definition.scene.style.scrollbarVisibilityProperty,
+          definition.scene.style.strokeColorProperty,
+        ].filter((property): property is string => typeof property === 'string')),
+    ...(definition.scene.style?.state === undefined ? [] : [definition.scene.style.state.property]),
     ...(definition.accessibility.nameProperty === null
       ? []
       : [definition.accessibility.nameProperty]),
     ...(definition.accessibility.checkedProperty === null
       ? []
       : [definition.accessibility.checkedProperty]),
+    ...(definition.rows === null
+      ? []
+      : [
+          definition.rows.property,
+          ...(definition.rows.selection === null ? [] : [definition.rows.selection.property]),
+          ...(definition.rows.selection?.appearance.colorProperty === null ||
+          definition.rows.selection?.appearance.colorProperty === undefined
+            ? []
+            : [definition.rows.selection.appearance.colorProperty]),
+        ]),
   ]);
 
 const isNormalizedPoint = (point: ControlHitShapePoint): boolean =>
@@ -208,6 +411,7 @@ export const assertControlDefinitionsConform = (
 ): void => {
   const types = new Set<string>();
   const paletteOrders = new Set<number>();
+  const drawShortcuts = new Set<string>();
 
   for (const definition of definitions) {
     if (types.has(definition.type)) {
@@ -242,6 +446,72 @@ export const assertControlDefinitionsConform = (
     if (!defaults.success) {
       throw new Error(`Control '${definition.type}' has properties that reject their defaults.`);
     }
+    const rows = definition.rows;
+    if (rows !== null) {
+      const defaultRowSource = definition.defaultProperties[rows.property];
+      if (
+        typeof defaultRowSource !== 'string' ||
+        rows.separator.length === 0 ||
+        rows.separator.length > 16 ||
+        !Number.isSafeInteger(rows.minimum) ||
+        !Number.isSafeInteger(rows.maximum) ||
+        rows.minimum < 0 ||
+        rows.minimum > rows.maximum ||
+        rows.maximum > MAX_ELEMENT_ROW_BINDINGS ||
+        typeof rows.links !== 'boolean' ||
+        !['labels', 'source'].includes(rows.display) ||
+        !['inline', 'segments', 'stack'].includes(rows.layout) ||
+        (rows.adornment !== null &&
+          (rows.layout !== 'stack' ||
+            rows.display !== 'labels' ||
+            rows.separator !== '\n' ||
+            rows.adornment.kind !== 'tree' ||
+            rows.adornment.defaultKind !== 'folder-closed')) ||
+        (rows.marker !== null &&
+          (rows.layout !== 'stack' ||
+            rows.display !== 'labels' ||
+            rows.separator !== '\n' ||
+            !['checkbox', 'radio'].includes(rows.marker.kind) ||
+            rows.marker.defaultState !== 'unchecked')) ||
+        (rows.marker !== null && rows.adornment !== null) ||
+        (rows.layout === 'stack' &&
+          rows.marker === null &&
+          rows.adornment === null &&
+          rows.hierarchy?.kind !== 'accordion' &&
+          definition.scene.tabs?.orientation !== 'vertical') ||
+        (rows.hierarchy !== null &&
+          rows.hierarchy !== undefined &&
+          (rows.layout !== 'stack' ||
+            rows.display !== 'labels' ||
+            rows.separator !== '\n' ||
+            rows.hierarchy.kind !== 'accordion' ||
+            rows.hierarchy.childPrefix !== '-' ||
+            rows.marker !== null ||
+            rows.adornment !== null ||
+            definition.scene.kind !== 'accordion')) ||
+        (rows.selection !== null &&
+          (rows.selection.property.trim().length === 0 ||
+            !['fill', 'text'].includes(rows.selection.appearance.kind) ||
+            (rows.selection.appearance.colorProperty !== null &&
+              typeof definition.defaultProperties[rows.selection.appearance.colorProperty] !==
+                'string') ||
+            !['first', 'none'].includes(rows.selection.default) ||
+            (!rows.selection.allowNone && rows.selection.default === 'none') ||
+            definition.defaultProperties[rows.selection.property] !== null))
+      ) {
+        throw new Error(`Control '${definition.type}' has invalid parsed-row metadata.`);
+      }
+      const defaultRows = defaultRowSource
+        .split(rows.separator)
+        .map((label) => (rows.adornment?.kind === 'tree' ? label.trimEnd() : label.trim()));
+      if (
+        defaultRows.length < rows.minimum ||
+        defaultRows.length > rows.maximum ||
+        defaultRows.some((label) => label.length === 0)
+      ) {
+        throw new Error(`Control '${definition.type}' has invalid default parsed rows.`);
+      }
+    }
     for (const property of listPropertyReferences(definition)) {
       if (!hasOwn(definition.defaultProperties, property)) {
         throw new Error(
@@ -260,12 +530,16 @@ export const assertControlDefinitionsConform = (
       for (const field of section.fields) {
         const value = definition.defaultProperties[field.property];
         const choiceValues =
-          field.kind === 'choice' ? field.options.map((option) => option.value) : [];
+          field.kind === 'choice' || field.kind === 'select'
+            ? field.options.map((option) => option.value)
+            : [];
         if (
           field.label.trim().length === 0 ||
           (field.kind === 'boolean' && typeof value !== 'boolean') ||
           (field.kind === 'text' && typeof value !== 'string') ||
-          (field.kind === 'choice' &&
+          (field.kind === 'color' && typeof value !== 'string') ||
+          (field.kind === 'icon' && value !== null && typeof value !== 'string') ||
+          ((field.kind === 'choice' || field.kind === 'select') &&
             (typeof value !== 'string' ||
               field.options.length < 2 ||
               new Set(choiceValues).size !== choiceValues.length ||
@@ -273,7 +547,7 @@ export const assertControlDefinitionsConform = (
                 (option) => option.label.trim().length === 0 || option.value.trim().length === 0,
               ) ||
               !choiceValues.includes(value))) ||
-          (field.kind === 'number' &&
+          ((field.kind === 'number' || field.kind === 'range') &&
             (typeof value !== 'number' ||
               !Number.isFinite(value) ||
               !Number.isFinite(field.minimum) ||
@@ -285,6 +559,11 @@ export const assertControlDefinitionsConform = (
         ) {
           throw new Error(
             `Control '${definition.type}' has an invalid '${field.property}' inspector field.`,
+          );
+        }
+        if (field.kind === 'icon' && !definition.capabilities.icon) {
+          throw new Error(
+            `Control '${definition.type}' exposes an icon field without icon capability.`,
           );
         }
       }
@@ -304,12 +583,46 @@ export const assertControlDefinitionsConform = (
     ) {
       throw new Error(`Control '${definition.type}' has invalid capability metadata.`);
     }
+    if (
+      definition.capabilities.image !== null &&
+      (definition.capabilities.image.assetSource !== 'element-assets' ||
+        definition.capabilities.image.fit !== 'contain' ||
+        definition.capabilities.image.maximumAssets !== 1 ||
+        definition.capabilities.image.placeholder !== 'cross' ||
+        definition.scene.kind !== 'image')
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid image capability metadata.`);
+    }
+    if (definition.scene.kind === 'image' && definition.capabilities.image === null) {
+      throw new Error(`Control '${definition.type}' is missing image capability metadata.`);
+    }
     if (text !== null && typeof definition.defaultProperties[text.property] !== 'string') {
       throw new Error(`Control '${definition.type}' has an invalid text capability.`);
     }
+    const defaultTextAlignment =
+      text?.style.alignmentProperty === null || text === null
+        ? null
+        : definition.defaultProperties[text.style.alignmentProperty];
+    if (
+      text !== null &&
+      ((text.style.alignmentProperty !== null &&
+        (typeof defaultTextAlignment !== 'string' ||
+          !['start', 'center', 'end'].includes(defaultTextAlignment))) ||
+        (text.style.fontSizeProperty !== null &&
+          !isPositiveFinite(Number(definition.defaultProperties[text.style.fontSizeProperty]))) ||
+        [text.style.boldProperty, text.style.italicProperty, text.style.underlineProperty].some(
+          (property) =>
+            property !== null && typeof definition.defaultProperties[property] !== 'boolean',
+        ) ||
+        (text.style.colorProperty !== null &&
+          typeof definition.defaultProperties[text.style.colorProperty] !== 'string'))
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid text-style metadata.`);
+    }
     if (
       definition.autoSize !== null &&
-      (text === null ||
+      ((definition.autoSize.basis !== 'intrinsic' && text === null) ||
+        !['accordion', 'intrinsic', 'text'].includes(definition.autoSize.basis) ||
         !['both', 'horizontal', 'vertical'].includes(definition.autoSize.axis) ||
         [
           definition.autoSize.insets.bottom,
@@ -322,26 +635,128 @@ export const assertControlDefinitionsConform = (
     }
     if (
       definition.accessibility.fallbackLabel.trim().length === 0 ||
-      !['button', 'checkbox', 'group', 'img', 'textbox'].includes(definition.accessibility.role) ||
+      !['button', 'checkbox', 'group', 'img', 'link', 'radio', 'textbox'].includes(
+        definition.accessibility.role,
+      ) ||
       (definition.accessibility.nameProperty !== null &&
         typeof definition.defaultProperties[definition.accessibility.nameProperty] !== 'string') ||
-      (definition.accessibility.checkedProperty !== null &&
-        typeof definition.defaultProperties[definition.accessibility.checkedProperty] !==
-          'boolean') ||
-      (definition.accessibility.role === 'checkbox' &&
+      (definition.accessibility.checkedProperty === null
+        ? definition.accessibility.checkedValues.length !== 0
+        : (() => {
+            const defaultCheckedValue =
+              definition.defaultProperties[definition.accessibility.checkedProperty];
+            return (
+              (typeof defaultCheckedValue !== 'boolean' &&
+                typeof defaultCheckedValue !== 'string') ||
+              definition.accessibility.checkedValues.length === 0 ||
+              new Set(definition.accessibility.checkedValues).size !==
+                definition.accessibility.checkedValues.length ||
+              !definition.accessibility.checkedValues.every(
+                (value) =>
+                  typeof value === typeof defaultCheckedValue &&
+                  (typeof value === 'boolean' || (typeof value === 'string' && value.length > 0)),
+              )
+            );
+          })()) ||
+      ((definition.accessibility.role === 'checkbox' ||
+        definition.accessibility.role === 'radio') &&
         definition.accessibility.checkedProperty === null)
     ) {
       throw new Error(`Control '${definition.type}' has invalid accessibility metadata.`);
     }
     const hitShape = definition.scene.hitShape;
+    if (!['fill', 'stroke'].includes(definition.scene.colorTarget)) {
+      throw new Error(`Control '${definition.type}' has invalid scene geometry metadata.`);
+    }
     if (
       !['bounds', 'ellipse', 'line'].includes(hitShape.kind) ||
+      (definition.scene.iconInset !== undefined &&
+        !isNonNegativeFinite(definition.scene.iconInset)) ||
       (hitShape.kind === 'line' &&
         (!isNormalizedPoint(hitShape.start) ||
           !isNormalizedPoint(hitShape.end) ||
           !isPositiveFinite(hitShape.tolerance)))
     ) {
       throw new Error(`Control '${definition.type}' has an invalid hit shape.`);
+    }
+    const trailingAdornment = definition.scene.trailingAdornment;
+    const trailingAdornmentWidth =
+      trailingAdornment?.kind === 'calendar'
+        ? trailingAdornment.size
+        : trailingAdornment?.kind === 'stepper'
+          ? trailingAdornment.width
+          : undefined;
+    if (
+      trailingAdornment !== undefined &&
+      (trailingAdornmentWidth === undefined ||
+        !isNonNegativeFinite(trailingAdornment.bodyInset) ||
+        !isNonNegativeFinite(trailingAdornment.gap) ||
+        !isPositiveFinite(trailingAdornmentWidth) ||
+        trailingAdornment.bodyInset * 2 >= definition.minimumSize.height ||
+        trailingAdornmentWidth + trailingAdornment.gap >= definition.minimumSize.width)
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid trailing-adornment metadata.`);
+    }
+    if (
+      definition.scene.style !== undefined &&
+      [
+        definition.scene.style.borderModeProperty,
+        definition.scene.style.fillColorProperty,
+        definition.scene.style.iconSizeProperty,
+        definition.scene.style.opacityProperty,
+        definition.scene.style.strokeColorProperty,
+      ].some(
+        (property) =>
+          property !== null &&
+          property !== undefined &&
+          !['number', 'string'].includes(typeof definition.defaultProperties[property]),
+      )
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid scene-style metadata.`);
+    }
+    if (
+      definition.scene.style?.defaultFillColor !== undefined &&
+      definition.scene.style.defaultFillColor !== null &&
+      typeof definition.scene.style.defaultFillColor !== 'string'
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid default-fill metadata.`);
+    }
+    if (
+      definition.scene.style !== undefined &&
+      ((definition.scene.style.borderModeProperty === null &&
+        definition.scene.style.borderHiddenValues.length > 0) ||
+        new Set(definition.scene.style.borderHiddenValues).size !==
+          definition.scene.style.borderHiddenValues.length ||
+        definition.scene.style.borderHiddenValues.some((value) => value.trim().length === 0))
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid border-mode metadata.`);
+    }
+    if (
+      definition.scene.style?.borderVisibilityProperty !== null &&
+      definition.scene.style?.borderVisibilityProperty !== undefined &&
+      typeof definition.defaultProperties[definition.scene.style.borderVisibilityProperty] !==
+        'boolean'
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid border-visibility metadata.`);
+    }
+    if (
+      definition.scene.style?.scrollbarVisibilityProperty !== null &&
+      definition.scene.style?.scrollbarVisibilityProperty !== undefined &&
+      typeof definition.defaultProperties[definition.scene.style.scrollbarVisibilityProperty] !==
+        'boolean'
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid scrollbar metadata.`);
+    }
+    const sceneState = definition.scene.style?.state;
+    if (
+      sceneState !== undefined &&
+      (typeof definition.defaultProperties[sceneState.property] !== 'string' ||
+        !isPositiveFinite(sceneState.disabledOpacity) ||
+        sceneState.disabledOpacity > 1 ||
+        sceneState.disabledValues.length === 0 ||
+        new Set(sceneState.disabledValues).size !== sceneState.disabledValues.length)
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid scene-state metadata.`);
     }
     if (definition.scene.kind === 'checkbox') {
       const checkbox = definition.scene.checkbox;
@@ -354,6 +769,48 @@ export const assertControlDefinitionsConform = (
       }
     } else if (definition.scene.checkbox !== undefined) {
       throw new Error(`Control '${definition.type}' has unexpected checkbox geometry.`);
+    }
+    if (definition.scene.kind === 'curly-brace') {
+      const orientation = definition.scene.curlyBrace?.orientation;
+      const direction = definition.defaultProperties.direction;
+      if (
+        (orientation !== 'horizontal' && orientation !== 'vertical') ||
+        (orientation === 'horizontal' && direction !== 'top' && direction !== 'bottom') ||
+        (orientation === 'vertical' && direction !== 'left' && direction !== 'right')
+      ) {
+        throw new Error(`Control '${definition.type}' has invalid curly-brace geometry.`);
+      }
+    } else if (definition.scene.curlyBrace !== undefined) {
+      throw new Error(`Control '${definition.type}' has unexpected curly-brace geometry.`);
+    }
+    if (definition.scene.kind === 'tabs') {
+      const tabs = definition.scene.tabs;
+      const position =
+        tabs === undefined ? undefined : definition.defaultProperties[tabs.positionProperty];
+      const alignment =
+        tabs?.alignmentProperty === null || tabs?.alignmentProperty === undefined
+          ? undefined
+          : definition.defaultProperties[tabs.alignmentProperty];
+      if (
+        tabs === undefined ||
+        (tabs.orientation !== 'horizontal' && tabs.orientation !== 'vertical') ||
+        definition.rows === null ||
+        definition.rows.display !== 'labels' ||
+        definition.rows.marker !== null ||
+        definition.rows.adornment !== null ||
+        (tabs.orientation === 'horizontal' &&
+          (definition.rows.layout !== 'segments' ||
+            (position !== 'top' && position !== 'bottom') ||
+            (alignment !== 'start' && alignment !== 'center' && alignment !== 'end'))) ||
+        (tabs.orientation === 'vertical' &&
+          (definition.rows.layout !== 'stack' ||
+            (position !== 'left' && position !== 'right') ||
+            tabs.alignmentProperty !== null))
+      ) {
+        throw new Error(`Control '${definition.type}' has invalid tab geometry.`);
+      }
+    } else if (definition.scene.tabs !== undefined) {
+      throw new Error(`Control '${definition.type}' has unexpected tab geometry.`);
     }
 
     if (
@@ -373,14 +830,41 @@ export const assertControlDefinitionsConform = (
     }
 
     if (definition.palette !== null) {
+      const drawShortcut = definition.palette.drawShortcut;
       if (
         definition.palette.label.trim().length === 0 ||
         !Number.isSafeInteger(definition.palette.order) ||
-        paletteOrders.has(definition.palette.order)
+        paletteOrders.has(definition.palette.order) ||
+        (drawShortcut !== null &&
+          (!/^Key[A-Z]$/u.test(drawShortcut) ||
+            drawShortcuts.has(drawShortcut) ||
+            definition.capabilities.resizeAxes !== 'both'))
       ) {
         throw new Error(`Control '${definition.type}' has invalid palette metadata.`);
       }
       paletteOrders.add(definition.palette.order);
+      const presetIds = new Set<string>();
+      for (const preset of definition.palette.presets) {
+        const presetProperties = definition.propertiesSchema.safeParse({
+          ...definition.defaultProperties,
+          ...preset.properties,
+        });
+        if (
+          !/^[a-z][a-z0-9-]{0,63}$/u.test(preset.id) ||
+          preset.label.trim().length === 0 ||
+          !Number.isSafeInteger(preset.order) ||
+          paletteOrders.has(preset.order) ||
+          presetIds.has(preset.id) ||
+          !presetProperties.success
+        ) {
+          throw new Error(`Control '${definition.type}' has invalid palette preset metadata.`);
+        }
+        presetIds.add(preset.id);
+        paletteOrders.add(preset.order);
+      }
+      if (drawShortcut !== null) {
+        drawShortcuts.add(drawShortcut);
+      }
     }
 
     if (definition.migrations.length !== definition.fileVersion - 1) {

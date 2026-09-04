@@ -7,6 +7,7 @@ import {
   parseProjectDocument,
   selectBoardElementIds,
   selectBoardCommandAvailability,
+  selectBoardPresentationId,
   selectBoardRootElements,
   selectElementCommandAvailability,
   selectElementLockState,
@@ -55,6 +56,8 @@ describe('project document selectors', () => {
       name: 'Secondary',
       note: { text: '' },
       childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
     };
     const document = parseFixture(input);
 
@@ -165,5 +168,25 @@ describe('project document selectors', () => {
       canMoveForward: false,
     });
     expect(selectBoardCommandAvailability(document, SECONDARY_BOARD_ID)).toBeUndefined();
+  });
+
+  it('resolves only canonical board IDs through their persisted selected version', () => {
+    const input = createValidProjectDocumentInput();
+    const alternateId = BoardIdSchema.parse('board_selectoralt1');
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.alternateIds = [alternateId];
+    input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.selectedAlternateId = alternateId;
+    input.boardsById[alternateId] = {
+      id: alternateId,
+      name: 'Alternate',
+      note: { text: '' },
+      childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    const document = parseFixture(input);
+
+    expect(selectBoardPresentationId(document, DOCUMENT_FIXTURE_IDS.board)).toBe(alternateId);
+    expect(selectBoardPresentationId(document, alternateId)).toBeUndefined();
+    expect(selectBoardPresentationId(document, SECONDARY_BOARD_ID)).toBeUndefined();
   });
 });

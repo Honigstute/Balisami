@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/renderer/app/App';
@@ -36,6 +36,7 @@ const createDesktopApi = (overrides: Partial<DesktopApi> = {}): DesktopApi => {
     onProjectCloseOutcome: () => () => undefined,
     onProjectCloseRequest: () => () => undefined,
     onProjectCommand: () => () => undefined,
+    openExternalUrl: vi.fn().mockResolvedValue({ accepted: true }),
     openProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     openRecentProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     reportRendererReady: vi.fn().mockResolvedValue(undefined),
@@ -71,15 +72,36 @@ describe('application shell', () => {
     installDesktopApi(createDesktopApi({ reportRendererReady }));
   });
 
-  it('renders every stable shell region', async () => {
+  it('shows the project home before mounting the editor and starts new explicitly', async () => {
+    const fixtureDocument = createAssetFreeProjectDocument();
+    const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: fixtureDocument.name,
+        document: fixtureDocument,
+        source: 'new',
+      },
+      warnings: [],
+    });
+    installDesktopApi(createDesktopApi({ reportRendererReady, startProject }));
     render(<App />);
 
-    expect(screen.getByRole('banner')).toBeInTheDocument();
+    expect(await screen.findByText('No recent projects yet')).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: 'Canvas viewport' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Built for quick thinking')).not.toBeInTheDocument();
+    expect(startProject).not.toHaveBeenCalled();
+
+    const newProject = screen.getByRole('button', { name: 'New project' });
+    await waitFor(() => expect(newProject).toBeEnabled());
+    fireEvent.click(newProject);
+
+    expect(await screen.findByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Control categories' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Wireframes' })).toBeInTheDocument();
-    expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Inspector' })).toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'Control library is loading' })).toBeInTheDocument();
+    expect(startProject).toHaveBeenCalledOnce();
     for (const region of Object.values(SHELL_REGIONS)) {
       expect(document.querySelectorAll(`[${SHELL_REGION_ATTRIBUTE}="${region}"]`)).toHaveLength(1);
     }
@@ -97,7 +119,7 @@ describe('application shell', () => {
     });
   });
 
-  it('uses the Windows shortcut label when the desktop reports Windows', async () => {
+  it('uses the Windows shortcut label after a project is opened', async () => {
     installDesktopApi(
       createDesktopApi({
         getRuntimeInfo: vi.fn().mockResolvedValue({
@@ -112,14 +134,298 @@ describe('application shell', () => {
 
     render(<App />);
 
-    await waitFor(() => {
-      expect(screen.getByText('Windows · x64 · v0.1.0 · Packaged')).toBeInTheDocument();
-    });
+    await screen.findByText('No recent projects yet');
+    const newProject = screen.getByRole('button', { name: 'New project' });
+    expect(newProject).toBeEnabled();
+    fireEvent.click(newProject);
+
+    expect(await screen.findByText('Windows · x64 · v0.1.0 · Packaged')).toBeInTheDocument();
     expect(screen.getByText('Ctrl K')).toBeInTheDocument();
     expect(screen.queryByText('⌘ K')).not.toBeInTheDocument();
   });
 
-  it('keeps the shell mounted behind one explicit startup recovery decision', async () => {
+  it('opens and exits full-screen presentation without changing the editor shell', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    const shell = await screen.findByTestId('app-shell');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Present' }));
+    const presentation = screen.getByRole('dialog', { name: 'Wireframe presentation' });
+    expect(presentation).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toBe(shell);
+    expect(screen.getByRole('button', { name: 'Exit presentation' })).toHaveFocus();
+
+    fireEvent.keyDown(presentation, { key: 'Escape' });
+    expect(
+      screen.queryByRole('dialog', { name: 'Wireframe presentation' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toBe(shell);
+  });
+
+  it('quick-adds one registry control as one undoable history entry', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const search = screen.getByRole('combobox', { name: 'Find a control' });
+    fireEvent.change(search, { target: { value: 'cta' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    const undo = await screen.findByRole('button', { name: 'Undo Insert Button' });
+    expect(undo).toBeEnabled();
+    fireEvent.click(undo);
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Redo Insert Button' })).toBeEnabled();
+  });
+
+  it('draws one registry-supported control as one exact undoable history entry', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    const canvas = await screen.findByRole('main', { name: 'Canvas viewport' });
+    const viewport = canvas.querySelector<HTMLElement>('.editor-viewport');
+    if (viewport === null) {
+      throw new Error('Editor viewport did not mount.');
+    }
+
+    fireEvent.keyDown(viewport, { code: 'KeyR', key: 'r' });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 80, clientY: 90, pointerId: 90 });
+    fireEvent.pointerMove(viewport, { clientX: 300, clientY: 250, pointerId: 90 });
+    fireEvent.pointerUp(viewport, { button: 0, clientX: 320, clientY: 270, pointerId: 90 });
+    fireEvent.keyUp(window, { code: 'KeyR', key: 'r' });
+
+    const undo = await screen.findByRole('button', { name: 'Undo Draw Rectangle' });
+    expect(undo).toBeEnabled();
+    expect(screen.getByRole('heading', { name: 'Rectangle' })).toBeInTheDocument();
+    fireEvent.click(undo);
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Redo Draw Rectangle' })).toBeEnabled();
+  });
+
+  it('drops, decodes, renders, and undoes one authenticated image transaction', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const close = vi.fn();
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(() => Promise.resolve({ close, height: 320, width: 640 })),
+    );
+    const createObjectUrl = vi.fn(() => 'blob:balsamic-imported-image');
+    const previousCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    const previousRevokeObjectUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: createObjectUrl },
+      revokeObjectURL: { configurable: true, value: vi.fn() },
+    });
+    try {
+      render(<App />);
+      await screen.findByText('No recent projects yet');
+      fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+      const canvas = await screen.findByRole('main', { name: 'Canvas viewport' });
+      const viewport = canvas.querySelector<HTMLElement>('.editor-viewport');
+      if (viewport === null) {
+        throw new Error('Editor viewport did not mount.');
+      }
+      const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+      const file = {
+        name: 'dropped-transparent.png',
+        size: bytes.byteLength,
+        type: 'image/png',
+        arrayBuffer: () => Promise.resolve(Uint8Array.from(bytes).buffer),
+      } as File;
+      const dataTransfer = {
+        dropEffect: 'none',
+        files: { item: (index: number) => (index === 0 ? file : null), length: 1 },
+        getData: () => '',
+        types: ['Files'],
+      } as unknown as DataTransfer;
+
+      expect(fireEvent.dragOver(viewport, { dataTransfer })).toBe(false);
+      const drop = createEvent.drop(viewport, { dataTransfer });
+      Object.defineProperties(drop, {
+        clientX: { value: 400 },
+        clientY: { value: 300 },
+      });
+      expect(fireEvent(viewport, drop)).toBe(false);
+
+      await screen.findByRole('button', { name: 'Undo Import image' });
+      expect(screen.getByRole('heading', { name: 'Image' })).toBeInTheDocument();
+      await waitFor(() => {
+        expect(
+          document.querySelector(
+            '[data-control-type="wireframe.image-placeholder"] .scene-control__image',
+          ),
+        ).toHaveAttribute('href', 'blob:balsamic-imported-image');
+      });
+      expect(createObjectUrl).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+
+      fireEvent.keyDown(viewport, { code: 'Delete' });
+      const undoDelete = await screen.findByRole('button', { name: 'Undo Delete element' });
+      expect(screen.queryByRole('heading', { name: 'Image' })).not.toBeInTheDocument();
+      expect(
+        document.querySelector('[data-control-type="wireframe.image-placeholder"]'),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(undoDelete);
+      await waitFor(() => {
+        expect(
+          document.querySelector(
+            '[data-control-type="wireframe.image-placeholder"] .scene-control__image',
+          ),
+        ).toHaveAttribute('href', 'blob:balsamic-imported-image');
+      });
+      expect(createObjectUrl).toHaveBeenCalledTimes(2);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo Import image' }));
+      expect(screen.getByRole('button', { name: 'Redo Import image' })).toBeEnabled();
+      expect(screen.queryByRole('heading', { name: 'Image' })).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousCreateObjectUrl === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL');
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', previousCreateObjectUrl);
+      }
+      if (previousRevokeObjectUrl === undefined) {
+        Reflect.deleteProperty(URL, 'revokeObjectURL');
+      } else {
+        Object.defineProperty(URL, 'revokeObjectURL', previousRevokeObjectUrl);
+      }
+    }
+  });
+
+  it('confirms board deletion, keeps it in navigator trash, and restores it', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add wireframe' }));
+    expect(await screen.findByRole('button', { name: 'Wireframe 1' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Move “Wireframe 1” to Trash' }));
+    const confirmation = screen.getByRole('alertdialog', {
+      name: 'Move “Wireframe 1” to Trash?',
+    });
+    expect(confirmation).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Wireframe 1' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Trashed wireframes' })).toHaveTextContent(
+      'Wireframe 1',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Undo Move board “Wireframe 1” to trash' }),
+    ).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    expect(await screen.findByRole('button', { name: 'Wireframe 1' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.queryByRole('region', { name: 'Trashed wireframes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Undo Restore board “Wireframe 1”' })).toBeEnabled();
+  });
+
+  it('stores independent board notes through one command per committed edit', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+
+    const firstNote = screen.getByRole('textbox', { name: 'Notes for Main wireframe' });
+    fireEvent.change(firstNote, { target: { value: 'Primary flow decision' } });
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    fireEvent.blur(firstNote);
+    expect(screen.getByRole('button', { name: 'Undo Edit board note' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add wireframe' }));
+    const secondNote = await screen.findByRole('textbox', { name: 'Notes for Wireframe 1' });
+    expect(secondNote).toHaveValue('');
+    fireEvent.change(secondNote, { target: { value: 'Confirmation flow decision' } });
+    fireEvent.blur(secondNote);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Main wireframe' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Main wireframe' })).toHaveValue(
+      'Primary flow decision',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Wireframe 1' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Wireframe 1' })).toHaveValue(
+      'Confirmation flow decision',
+    );
+  });
+
+  it('uses the selected alternate for canvas-adjacent board state and keeps Official intact', async () => {
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Alternate' }));
+    const alternateNote = await screen.findByRole('textbox', { name: 'Notes for Alternate 1' });
+    expect(alternateNote).toHaveValue('Fixture board note');
+    expect(
+      screen.getByRole('heading', { name: 'Main wireframe · Alternate 1' }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(alternateNote, { target: { value: 'Alternate-only decision' } });
+    fireEvent.blur(alternateNote);
+    fireEvent.click(screen.getByRole('button', { name: 'Current' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Official' }));
+
+    expect(await screen.findByRole('textbox', { name: 'Notes for Main wireframe' })).toHaveValue(
+      'Fixture board note',
+    );
+    expect(screen.getByRole('button', { name: 'Undo Select board version' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Current' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Alternate 1' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Alternate 1' })).toHaveValue(
+      'Alternate-only decision',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard Alternate' }));
+    const discard = screen.getByRole('alertdialog', { name: 'Discard “Alternate 1”?' });
+    expect(within(discard).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    fireEvent.click(within(discard).getByRole('button', { name: 'Discard Alternate' }));
+    expect(await screen.findByRole('textbox', { name: 'Notes for Main wireframe' })).toHaveValue(
+      'Fixture board note',
+    );
+    const undoDiscard = screen.getByRole('button', { name: 'Undo Discard alternate' });
+    fireEvent.click(undoDiscard);
+    expect(await screen.findByRole('textbox', { name: 'Notes for Alternate 1' })).toHaveValue(
+      'Alternate-only decision',
+    );
+  });
+
+  it('keeps the project home behind one explicit startup recovery decision', async () => {
     const startProject = vi.fn<DesktopApi['startProject']>().mockResolvedValue({
       status: 'cancelled',
     });
@@ -149,7 +455,8 @@ describe('application shell', () => {
     expect(
       await screen.findByRole('alertdialog', { name: 'Unsaved work is available' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: 'Canvas viewport' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Restore' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Discard' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Start New and Keep Recovery' })).toBeEnabled();
@@ -160,7 +467,7 @@ describe('application shell', () => {
     });
   });
 
-  it('keeps the shell mounted behind one bounded startup error overlay', async () => {
+  it('keeps the project home behind one bounded startup error overlay', async () => {
     installDesktopApi(
       createDesktopApi({
         getProjectStartupOptions: vi.fn().mockResolvedValue({
@@ -179,24 +486,60 @@ describe('application shell', () => {
     expect(
       await screen.findByRole('alertdialog', { name: 'Recovery could not be checked' }),
     ).toHaveAccessibleDescription('Existing recovery files were not changed.');
-    expect(screen.getByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: 'Canvas viewport' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Start New' })).toHaveFocus();
   });
 
-  it('contains no enabled placeholder actions', () => {
+  it('opens the latest recent project directly from the home screen', async () => {
+    const document = createAssetFreeProjectDocument();
+    const recentProjectId = 'a'.repeat(64);
+    const openRecentProject = vi.fn<DesktopApi['openRecentProject']>().mockResolvedValue({
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: 'Launch plan',
+        document,
+        source: 'project-file',
+      },
+      warnings: [],
+    });
+    installDesktopApi(
+      createDesktopApi({
+        getProjectStartupOptions: vi.fn().mockResolvedValue({
+          status: 'completed',
+          value: {
+            ignoredRecoveryEvidenceCount: 0,
+            recentProjects: [
+              {
+                displayName: 'Launch plan',
+                id: recentProjectId,
+                lastOpenedAtEpochMs: 1_787_000_000_000,
+              },
+            ],
+            recoveries: [],
+          },
+          warnings: [],
+        }),
+        openRecentProject,
+      }),
+    );
     render(<App />);
 
-    for (const button of screen.getAllByRole('button')) {
-      if (button.hasAttribute('aria-expanded')) {
-        expect(button).toBeEnabled();
-      } else {
-        expect(button).toBeDisabled();
-      }
-    }
+    const recentProject = await screen.findByRole('button', { name: 'Open Launch plan' });
+    expect(screen.getByText('Last project')).toBeInTheDocument();
+    fireEvent.click(recentProject);
+
+    expect(await screen.findByRole('main', { name: 'Canvas viewport' })).toBeInTheDocument();
+    expect(openRecentProject).toHaveBeenCalledWith({
+      currentProject: { dirty: false, projectDisplayName: 'No project open' },
+      recentProjectId,
+    });
+    expect(screen.getByText('Launch plan')).toBeInTheDocument();
   });
 
-  it('uses the reserved status strip when the bridge fails', async () => {
+  it('keeps a failed desktop bridge inside the project home', async () => {
     reportRendererReady = vi.fn<DesktopApi['reportRendererReady']>().mockResolvedValue(undefined);
     installDesktopApi(
       createDesktopApi({
@@ -210,11 +553,13 @@ describe('application shell', () => {
     await waitFor(() => {
       expect(screen.getByText('Desktop bridge unavailable')).toBeInTheDocument();
     });
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New project' })).toBeDisabled();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(reportRendererReady).not.toHaveBeenCalled();
   });
 
-  it('keeps renderer-readiness failure inside the reserved status strip', async () => {
+  it('keeps renderer-readiness failure inside the project home', async () => {
     installDesktopApi(
       createDesktopApi({
         getRuntimeInfo: vi.fn().mockResolvedValue({
@@ -232,6 +577,7 @@ describe('application shell', () => {
     await waitFor(() => {
       expect(screen.getByText('Desktop bridge unavailable')).toBeInTheDocument();
     });
+    expect(screen.getByRole('main', { name: 'Balsamic home' })).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

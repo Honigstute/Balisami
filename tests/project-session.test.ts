@@ -3,9 +3,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  AssetIdSchema,
+  BoardIdSchema,
+  CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   ProjectIdSchema,
+  getControlSpec,
   parseProjectDocument,
   undoDocumentHistory,
   type ProjectDocument,
@@ -29,6 +33,7 @@ import { TextEditInteraction } from '../src/renderer/editor/text-edit-interactio
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
 import type { AnimationFrameScheduler } from '../src/renderer/editor/viewport-camera-store';
 import { ProjectSession } from '../src/renderer/projects/project-session';
+import { planBoardDuplicate } from '../src/renderer/projects/board-duplicate';
 import type {
   DesktopApi,
   ProjectCloseOutcome,
@@ -37,6 +42,7 @@ import type {
   ProjectCommand,
   ProjectHistorySnapshotRequest,
   ProjectOpenedResult,
+  ProjectRecoverySnapshotRequest,
   ProjectRecoveryDiscardedResult,
   ProjectSavedResult,
   ProjectStartupOptionsResult,
@@ -77,9 +83,10 @@ class FakeDesktopApi implements DesktopApi {
   readonly closeRequests = new Set<(request: ProjectCloseRequest) => void>();
   readonly closeResponses: ProjectCloseResponse[] = [];
   readonly commands = new Set<(command: ProjectCommand) => void>();
-  readonly recoveryRequests: unknown[] = [];
+  readonly recoveryRequests: ProjectRecoverySnapshotRequest[] = [];
   readonly saveRequests: ProjectHistorySnapshotRequest[] = [];
   readonly openRequests: unknown[] = [];
+  readonly recentOpenRequests: unknown[] = [];
 
   nextDiscard: ProjectRecoveryDiscardedResult | undefined;
   nextOpen: ProjectOpenedResult | undefined;
@@ -90,6 +97,8 @@ class FakeDesktopApi implements DesktopApi {
   constructor(readonly document: ProjectDocument) {}
 
   getRuntimeInfo = (): Promise<never> => Promise.reject(new Error('Not used by project session.'));
+
+  openExternalUrl: DesktopApi['openExternalUrl'] = () => Promise.resolve({ accepted: true });
 
   discardProjectRecovery: DesktopApi['discardProjectRecovery'] = (request) =>
     Promise.resolve(
@@ -134,8 +143,10 @@ class FakeDesktopApi implements DesktopApi {
     return Promise.resolve(this.nextOpen ?? { status: 'cancelled' });
   };
 
-  openRecentProject: DesktopApi['openRecentProject'] = () =>
-    Promise.resolve({ status: 'cancelled' });
+  openRecentProject: DesktopApi['openRecentProject'] = (request) => {
+    this.recentOpenRequests.push(request);
+    return Promise.resolve(this.nextOpen ?? { status: 'cancelled' });
+  };
 
   respondToProjectClose = (response: ProjectCloseResponse): void => {
     this.closeResponses.push(response);
@@ -188,12 +199,103 @@ const setBoardNote = (text: string) => ({
   note: { text },
 });
 
+const startNewSession = async (session: ProjectSession): Promise<void> => {
+  await session.start();
+  await session.startNewProject();
+};
+
+const sha256 = async (bytes: Uint8Array): Promise<string> => {
+  const digest = new Uint8Array(
+    await globalThis.crypto.subtle.digest('SHA-256', Uint8Array.from(bytes)),
+  );
+  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
 describe('renderer project session', () => {
+  it('does not report a project ready until its transition accepts renderer commands', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    let resolveStart:
+      ((result: Awaited<ReturnType<DesktopApi['startProject']>>) => void) | undefined;
+    desktop.startProject = () =>
+      new Promise((resolve) => {
+        resolveStart = resolve;
+      });
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+
+    const transition = session.startNewProject();
+    expect(session.getSnapshot()).toMatchObject({ isReady: false, isTransitioning: true });
+    expect(session.dispatch(setBoardNote('Blocked during transition'))).toBeUndefined();
+    resolveStart?.({
+      status: 'completed',
+      value: { assetsById: {}, displayName: document.name, document, source: 'new' },
+      warnings: [],
+    });
+    await transition;
+
+    expect(session.getSnapshot()).toMatchObject({ isReady: true, isTransitioning: false });
+    expect(session.dispatch(setBoardNote('Accepted after transition'))?.ok).toBe(true);
+  });
+
+  it('waits at the project home and opens a recent project without creating an untitled one', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const recentProjectId = 'a'.repeat(64);
+    desktop.nextStartup = {
+      status: 'completed',
+      value: {
+        ignoredRecoveryEvidenceCount: 0,
+        recentProjects: [
+          { displayName: 'Latest wireframe', id: recentProjectId, lastOpenedAtEpochMs: 100 },
+        ],
+        recoveries: [],
+      },
+      warnings: [],
+    };
+    desktop.nextOpen = {
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: 'Latest wireframe',
+        document,
+        source: 'project-file',
+      },
+      warnings: [],
+    };
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+
+    await session.start();
+
+    expect(session.getSnapshot()).toMatchObject({
+      history: undefined,
+      isReady: false,
+      startup: {
+        recentProjects: [{ displayName: 'Latest wireframe', id: recentProjectId }],
+        status: 'ready',
+      },
+    });
+
+    await session.openRecentProject(recentProjectId);
+
+    expect(desktop.recentOpenRequests).toEqual([
+      {
+        currentProject: { dirty: false, projectDisplayName: 'No project open' },
+        recentProjectId,
+      },
+    ]);
+    expect(session.getSnapshot()).toMatchObject({
+      displayName: 'Latest wireframe',
+      isReady: true,
+      startup: undefined,
+    });
+  });
+
   it('publishes undo and redo through the same history and recovery authority', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     const initialRecoveryCount = desktop.recoveryRequests.length;
 
     expect(session.dispatch(setBoardNote('Alpha history'))).toMatchObject({
@@ -207,6 +309,90 @@ describe('renderer project session', () => {
       session.getSnapshot().history?.document.boardsById[DOCUMENT_FIXTURE_IDS.board]?.note.text,
     ).toBe('Alpha history');
     expect(desktop.recoveryRequests).toHaveLength(initialRecoveryCount + 3);
+  });
+
+  it('commits authenticated asset bytes atomically and projects the exact live set', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await startNewSession(session);
+    const assetId = AssetIdSchema.parse('asset_sessionimage01');
+    const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const asset = Object.freeze({
+      id: assetId,
+      sha256: await sha256(bytes),
+      mediaType: 'image/png' as const,
+      byteLength: bytes.byteLength,
+      originalName: 'session-image.png',
+    });
+
+    const imported = await session.dispatchTransactionWithAssets(
+      [
+        { type: DOCUMENT_COMMAND_TYPES.createAsset, asset },
+        {
+          type: DOCUMENT_COMMAND_TYPES.setElementAssets,
+          elementId: DOCUMENT_FIXTURE_IDS.child,
+          assetIds: [assetId],
+        },
+      ],
+      { [assetId]: bytes },
+      { label: 'Import image' },
+    );
+
+    expect(imported).toMatchObject({ changed: true, ok: true });
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(1);
+    expect(desktop.recoveryRequests.at(-1)?.assetsById[assetId]).toEqual(bytes);
+
+    expect(session.undo()).toBe(true);
+    expect(desktop.recoveryRequests.at(-1)?.assetsById).toEqual({});
+    expect(session.redo()).toBe(true);
+    expect(desktop.recoveryRequests.at(-1)?.assetsById[assetId]).toEqual(bytes);
+
+    desktop.saveProject = (request) => {
+      desktop.saveRequests.push(request);
+      return Promise.resolve({
+        status: 'completed',
+        value: {
+          displayName: 'Asset Project',
+          stateId: request.stateId,
+          tokenId: request.tokenId,
+        },
+        warnings: [],
+      });
+    };
+    await session.save();
+    expect(desktop.saveRequests.at(-1)?.assetsById[assetId]).toEqual(bytes);
+  });
+
+  it('rejects missing or unauthenticated asset bytes before history changes', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await startNewSession(session);
+    const recoveryCount = desktop.recoveryRequests.length;
+    const before = session.getSnapshot().history?.document;
+    const assetId = AssetIdSchema.parse('asset_sessioninvalid1');
+    const asset = Object.freeze({
+      id: assetId,
+      sha256: 'f'.repeat(64),
+      mediaType: 'image/png' as const,
+      byteLength: 4,
+    });
+
+    expect(session.dispatch({ type: DOCUMENT_COMMAND_TYPES.createAsset, asset })).toMatchObject({
+      error: { code: 'invalid-transaction' },
+      history: { document },
+      ok: false,
+    });
+    expect(
+      await session.dispatchTransactionWithAssets(
+        [{ type: DOCUMENT_COMMAND_TYPES.createAsset, asset }],
+        { [assetId]: Uint8Array.from([1, 2, 3, 4]) },
+      ),
+    ).toMatchObject({ error: { code: 'invalid-transaction' }, history: { document }, ok: false });
+    expect(session.getSnapshot().history?.document).toBe(before);
+    expect(session.getSnapshot().history?.undoEntries).toHaveLength(0);
+    expect(desktop.recoveryRequests).toHaveLength(recoveryCount);
   });
 
   it('commits multi-element alignment as one history entry and one recovery schedule', async () => {
@@ -251,7 +437,7 @@ describe('renderer project session', () => {
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     const selection = new SelectionStore();
     selection.replace([thirdId, DOCUMENT_FIXTURE_IDS.group, secondId], DOCUMENT_FIXTURE_IDS.group);
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -310,7 +496,7 @@ describe('renderer project session', () => {
     const document = parsed.value;
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -341,7 +527,7 @@ describe('renderer project session', () => {
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     const selection = new SelectionStore();
     selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -383,7 +569,7 @@ describe('renderer project session', () => {
     const selection = new SelectionStore();
     const cloneId = ElementIdSchema.parse('element_sessionclone1');
     selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -436,7 +622,7 @@ describe('renderer project session', () => {
     const clipboard = new SelectionClipboardStore();
     const cloneId = ElementIdSchema.parse('element_sessionpaste01');
     selection.selectOnly(DOCUMENT_FIXTURE_IDS.child);
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     expect(
@@ -496,7 +682,7 @@ describe('renderer project session', () => {
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     const scheduler = new TestAnimationFrameScheduler();
-    await session.start();
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     const nudge = new KeyboardNudgeInteraction(
@@ -557,7 +743,7 @@ describe('renderer project session', () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
 
     const result = session.dispatchTransaction(
       [
@@ -580,11 +766,76 @@ describe('renderer project session', () => {
     expect(desktop.recoveryRequests).toHaveLength(2);
   });
 
-  it('keeps an in-place text draft outside the document and commits one undoable recovery point', async () => {
+  it('duplicates a nested board through one history and recovery transaction', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
+    const cloneBoardId = BoardIdSchema.parse('board_sessionduplicate');
+    const cloneElementIds = [
+      ElementIdSchema.parse('element_sessiondup_group'),
+      ElementIdSchema.parse('element_sessiondup_child'),
+    ];
+    const plan = planBoardDuplicate(
+      document,
+      DOCUMENT_FIXTURE_IDS.board,
+      cloneBoardId,
+      (_sourceId, index) => cloneElementIds[index],
+    );
+    if (plan === undefined) {
+      throw new Error('Board duplicate transaction plan was not created.');
+    }
+
+    const result = session.dispatchTransaction(plan.commands, { label: 'Duplicate board' });
+
+    expect(result).toMatchObject({ changed: true, ok: true });
+    const history = session.getSnapshot().history;
+    if (history === undefined) {
+      throw new Error('Board duplicate transaction history was not created.');
+    }
+    expect(history.undoEntries).toHaveLength(1);
+    expect(history.undoEntries[0]).toMatchObject({
+      forwardCommands: [
+        { type: 'board.create' },
+        { type: 'element.create' },
+        { type: 'element.create' },
+      ],
+      label: 'Duplicate board',
+    });
+    expect(desktop.recoveryRequests).toHaveLength(2);
+    expect(undoDocumentHistory(history)).toMatchObject({
+      changed: true,
+      history: { document },
+      ok: true,
+    });
+  });
+
+  it('keeps an in-place text draft outside the document and commits one undoable recovery point', async () => {
+    const baseDocument = createAssetFreeProjectDocument();
+    const textInput = getControlSpec(CONTROL_TYPES.textInput);
+    const baseElement = baseDocument.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (textInput === undefined || baseElement === undefined) {
+      throw new Error('Text-edit integration fixture is incomplete.');
+    }
+    const parsed = parseProjectDocument({
+      ...baseDocument,
+      elementsById: {
+        ...baseDocument.elementsById,
+        [baseElement.id]: {
+          ...baseElement,
+          controlType: textInput.type,
+          controlVersion: textInput.fileVersion,
+          properties: { ...textInput.defaultProperties, text: 'Draft label' },
+        },
+      },
+    });
+    if (!parsed.ok) {
+      throw new Error(`Text-edit integration fixture is invalid: ${JSON.stringify(parsed.issues)}`);
+    }
+    const document = parsed.value;
+    const desktop = new FakeDesktopApi(document);
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await startNewSession(session);
     expect(desktop.recoveryRequests).toHaveLength(1);
 
     const interaction = new TextEditInteraction({
@@ -633,7 +884,6 @@ describe('renderer project session', () => {
       throw new Error('Text-edit integration history was not created.');
     }
     expect(history.document.elementsById[DOCUMENT_FIXTURE_IDS.child]?.properties).toMatchObject({
-      opacity: 0.75,
       text: 'Accepted label',
     });
     expect(history.undoEntries).toHaveLength(1);
@@ -641,11 +891,7 @@ describe('renderer project session', () => {
     expect(history.undoEntries[0]?.forwardCommands).toEqual([
       {
         elementId: DOCUMENT_FIXTURE_IDS.child,
-        properties: {
-          opacity: 0.75,
-          tags: ['example', true, null],
-          text: 'Accepted label',
-        },
+        properties: { ...textInput.defaultProperties, text: 'Accepted label' },
         type: DOCUMENT_COMMAND_TYPES.setElementProperties,
       },
     ]);
@@ -698,7 +944,7 @@ describe('renderer project session', () => {
     expect(session.getSnapshot().history?.document).toEqual(document);
   });
 
-  it('starts a new project only after the last recovery is explicitly discarded', async () => {
+  it('returns to the project home after the last recovery is explicitly discarded', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const recoveryId = 'e01a0907-b8dc-4991-8435-81b9bb0a9e16';
@@ -718,10 +964,11 @@ describe('renderer project session', () => {
 
     expect(session.getSnapshot()).toMatchObject({
       dialog: undefined,
-      isDirty: true,
-      isReady: true,
+      history: undefined,
+      isDirty: false,
+      isReady: false,
+      startup: { recentProjects: [], status: 'ready' },
     });
-    expect(session.getSnapshot().history?.document).toEqual(document);
   });
 
   it('keeps a failed recovery choice visible and reports one stable problem', async () => {
@@ -762,7 +1009,7 @@ describe('renderer project session', () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
 
     expect(session.dispatch(setBoardNote('Captured by save'))?.ok).toBe(true);
     const deferred = createDeferred<ProjectSavedResult>();
@@ -800,7 +1047,7 @@ describe('renderer project session', () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Keep this exact edit'));
     const before = session.getSnapshot().history;
 
@@ -836,7 +1083,7 @@ describe('renderer project session', () => {
       warnings: [],
     };
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Old project edit'));
 
     await session.openProject();
@@ -855,7 +1102,7 @@ describe('renderer project session', () => {
     const desktop = new FakeDesktopApi(document);
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
     const unbind = session.bindDesktopEvents();
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Approved close snapshot'));
 
     desktop.emitCloseRequest({ requestId: 'close-1' });
@@ -884,7 +1131,7 @@ describe('renderer project session', () => {
       warnings: [],
     });
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Unsaved'));
 
     await session.save();
@@ -899,7 +1146,7 @@ describe('renderer project session', () => {
     const desktop = new FakeDesktopApi(document);
     desktop.nextSave = Promise.reject(new Error('private path: /Users/person/secret.project'));
     const session = new ProjectSession({ createInitialDocument: () => document, desktop });
-    await session.start();
+    await startNewSession(session);
     session.dispatch(setBoardNote('Unsaved'));
 
     await session.save();

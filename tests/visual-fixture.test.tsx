@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import visualFixtureContract from '../visual-fixture-contract.json';
 import { VisualConformanceFixture } from '../src/renderer/design/VisualConformanceFixture';
+import { DESIGN_TOKENS } from '../src/shared/design-tokens';
 import {
   VISUAL_FIXTURE_NAMES,
   getRequestedVisualFixture,
@@ -73,6 +74,23 @@ describe('visual conformance fixture contract', () => {
       'viewportSelectionZoom',
     );
     expect(getRequestedVisualFixture('?visualFixture=mvpAlpha')).toBe('mvpAlpha');
+    expect(getRequestedVisualFixture('?visualFixture=components')).toBe('components');
+    expect(getRequestedVisualFixture('?visualFixture=searchBox')).toBe('searchBox');
+    expect(getRequestedVisualFixture('?visualFixture=textArea')).toBe('textArea');
+    expect(getRequestedVisualFixture('?visualFixture=textHeadings')).toBe('textHeadings');
+    expect(getRequestedVisualFixture('?visualFixture=circleButton')).toBe('circleButton');
+    expect(getRequestedVisualFixture('?visualFixture=comment')).toBe('comment');
+    expect(getRequestedVisualFixture('?visualFixture=catalogTooltip')).toBe('catalogTooltip');
+    expect(getRequestedVisualFixture('?visualFixture=catalogCallout')).toBe('catalogCallout');
+    expect(getRequestedVisualFixture('?visualFixture=catalogPopover')).toBe('catalogPopover');
+    expect(getRequestedVisualFixture('?visualFixture=catalogCurlyBraces')).toBe(
+      'catalogCurlyBraces',
+    );
+    expect(getRequestedVisualFixture('?visualFixture=catalogTabs')).toBe('catalogTabs');
+    expect(getRequestedVisualFixture('?visualFixture=catalogAccordion')).toBe('catalogAccordion');
+    expect(getRequestedVisualFixture('?visualFixture=radioButton')).toBe('radioButton');
+    expect(getRequestedVisualFixture('?visualFixture=dateChooser')).toBe('dateChooser');
+    expect(getRequestedVisualFixture('?visualFixture=numericStepper')).toBe('numericStepper');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -118,13 +136,17 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Insert Text Label' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Button' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Text Input' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Scene' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Scene' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('heading', { name: 'Button' })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveValue('Alpha button');
+    expect(screen.getByRole('textbox', { name: 'Text' })).toHaveValue('Alpha button');
+    expect(screen.getByRole('button', { name: 'Icon' })).toHaveTextContent('Arrow Right');
     await waitFor(() => {
       expect(view.container.querySelector('[data-control-visual="text"]')).not.toBeNull();
       expect(view.container.querySelector('[data-control-visual="input"]')).not.toBeNull();
       expect(view.container.querySelector('[data-control-visual="button"]')).not.toBeNull();
+      expect(
+        view.container.querySelector('.scene-control__catalog-icon[data-icon-id="arrow-right"]'),
+      ).not.toBeNull();
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',
@@ -133,7 +155,68 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
   });
 
-  it('renders the registry-backed checkbox scene and inspector schema', async () => {
+  it('renders the searchable icon picker as a portal without replacing shell regions', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('iconPicker');
+
+    expect(await screen.findByRole('dialog', { name: 'Icon library' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search icons' })).toHaveFocus();
+    expect(screen.getByText('Project images')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Imported brand mark' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.app-icon-popover__option')).toHaveLength(73);
+    await waitFor(() => {
+      expect(
+        [...view.container.querySelectorAll<SVGGElement>('[data-icon-id]')].map(
+          (element) => element.dataset.iconId,
+        ),
+      ).toContain(`project-image:asset_registryimage`);
+    });
+    expect(view.container.querySelector('[data-shell-region="root"]')).toBeInTheDocument();
+    expect(document.querySelector('.app-popover')?.parentElement).not.toBe(
+      view.container.querySelector('[data-shell-region="inspector"]'),
+    );
+  });
+
+  it('renders reusable instances, overrides, component shelf, and inspector in one stable shell', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('components');
+
+    expect(screen.getByRole('heading', { name: 'Reusable Card' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Definition name' })).toHaveValue('Reusable Card');
+    expect(screen.getByRole('button', { name: 'Break Apart' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Update Definition' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Insert Reusable Card' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(view.container.querySelectorAll('[data-control-visual="button"]')).toHaveLength(3);
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders the registry-backed Tree Pane editor, hierarchy adornments, and linked-row hints', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,
       height: 600,
@@ -151,17 +234,57 @@ describe('visual conformance fixture contract', () => {
     expect(screen.getByRole('button', { name: 'Insert Image' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Browser Window' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert Arrow' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Checkbox' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Checked' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Insert Playback' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Video Player' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Volume Slider' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Webcam' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Breadcrumbs' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Button Bar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Tree Pane' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.tree-pane"]'),
+    ).not.toBeNull();
+    const rowEditor = view.container.querySelector('[data-control-rows-inspector="true"]');
+    expect(rowEditor).not.toBeNull();
+    expect(rowEditor?.querySelector('input[value="f Use f for closed folders"]')).not.toBeNull();
+    expect(rowEditor?.querySelector('input[value="https://example.com/tree-file"]')).not.toBeNull();
     await waitFor(() => {
       const checkbox = view.container.querySelector('[data-control-visual="checkbox"]');
       const image = view.container.querySelector('[data-control-visual="image"]');
       const browser = view.container.querySelector('[data-control-visual="browser"]');
       const arrow = view.container.querySelector('[data-control-visual="arrow"]');
+      const playback = view.container.querySelector('[data-control-visual="playback"]');
+      const videoPlayer = view.container.querySelector('[data-control-visual="video-player"]');
+      const volumeSlider = view.container.querySelector('[data-control-visual="volume-slider"]');
+      const webcam = view.container.querySelector('[data-control-visual="webcam"]');
+      const linkedRowHint = view.container.querySelector(
+        '.scene-control__row-link-hint[data-link-target="https://example.com/tree-file"]',
+      );
+      const buttonBar = view.container.querySelector('[data-control-type="wireframe.button-bar"]');
+      const treePane = view.container.querySelector(
+        '[data-scene-element-id="element_registrytreepane"]',
+      );
       expect(checkbox).not.toBeNull();
       expect(image).not.toBeNull();
       expect(browser).not.toBeNull();
       expect(arrow).not.toBeNull();
+      expect(playback).not.toBeNull();
+      expect(videoPlayer).not.toBeNull();
+      expect(volumeSlider).not.toBeNull();
+      expect(webcam).not.toBeNull();
+      if (document.fonts !== undefined) {
+        expect(treePane?.querySelectorAll('[data-control-row-adornment]')).toHaveLength(13);
+        expect(linkedRowHint).not.toBeNull();
+        expect(Number(linkedRowHint?.getAttribute('width'))).toBeGreaterThan(0);
+      }
+      expect(treePane?.querySelector('.scene-control__row-selection')).not.toBeNull();
+      expect(buttonBar?.querySelector('.scene-control__row-selection')).not.toBeNull();
+      for (const mediaControl of [playback, videoPlayer, volumeSlider, webcam]) {
+        expect(mediaControl?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+          'display',
+          'none',
+        );
+      }
       expect(arrow).toHaveAttribute('data-control-stroke-style', 'dashed');
       expect(checkbox).toHaveAttribute('aria-checked', 'true');
       expect(checkbox).toHaveAttribute('aria-label', 'Remember me');
@@ -170,8 +293,752 @@ describe('visual conformance fixture contract', () => {
         'display',
         'none',
       );
+      expect(image?.querySelector('.scene-control__image')).toHaveAttribute(
+        'href',
+        expect.stringContaining('data:image/svg+xml'),
+      );
+      expect(image?.querySelector('.scene-control__mark')).toHaveAttribute('display', 'none');
     });
     expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders both Search Box palette identities and the alternate inspector state', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('searchBox');
+
+    expect(screen.getByRole('button', { name: 'Insert Search Box' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Insert Search Box (Rectangular + Microphone)' }),
+    ).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.search-box"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Search Box' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Search' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link type' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rectangular' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(
+      screen.getByRole('group', { name: 'Search Icon' }).querySelector('[aria-pressed="true"]'),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole('group', { name: 'Microphone Icon' }).querySelector('[aria-pressed="true"]'),
+    ).not.toBeNull();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="search-box"]');
+      expect(controls).toHaveLength(2);
+      for (const control of controls) {
+        expect(control.querySelector('.scene-control__mark')).not.toHaveAttribute(
+          'display',
+          'none',
+        );
+      }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders the selected Text Area, multiline text, scrollbar, link hint, and exact inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('textArea');
+
+    expect(screen.getByRole('button', { name: 'Insert Text Area' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.text-area"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Text Area' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Border' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Border Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link type' })).toHaveTextContent('Web address');
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
+    expect(
+      screen.getByRole('group', { name: 'Scrollbar' }).querySelector('[aria-pressed="true"]'),
+    ).not.toBeNull();
+
+    await waitFor(() => {
+      const textArea = view.container.querySelector(
+        '[data-scene-element-id="element_registrytextarea"]',
+      );
+      expect(textArea).not.toBeNull();
+      expect(textArea).toHaveAttribute('aria-label', 'First line\nSecond line');
+      expect(textArea).toHaveAttribute('role', 'textbox');
+      if (document.fonts !== undefined) {
+        expect(textArea?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
+      expect(textArea?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(
+        textArea?.querySelector(
+          '.scene-control__link-hint[data-link-target="https://example.com/notes"]',
+        ),
+      ).not.toBeNull();
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+    expect(screen.getByTestId('canvas-viewport')).toBeInTheDocument();
+  });
+
+  it('renders distinct Text Subtitle and Text Title controls with the isolated Title inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('textHeadings');
+
+    expect(screen.getByRole('button', { name: 'Insert Text Subtitle' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Text Title' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.text-title"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Text Title' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link type' })).toHaveTextContent('Web address');
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Orientation' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const subtitle = view.container.querySelector(
+        '[data-scene-element-id="element_registrytextsubtitle"]',
+      );
+      const title = view.container.querySelector(
+        '[data-scene-element-id="element_registrytexttitle"]',
+      );
+      expect(subtitle).toHaveAttribute('aria-label', 'A Subtitle');
+      expect(title).toHaveAttribute('aria-label', 'A Big Title');
+      expect(
+        title?.querySelector(
+          '.scene-control__link-hint[data-link-target="https://example.com/title"]',
+        ),
+      ).not.toBeNull();
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders exact Circle Button variants with the complete selected inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('circleButton');
+
+    expect(screen.getByRole('button', { name: 'Insert Circle Button' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.circle-button"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Circle Button' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Show Border' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Icon' })).toHaveTextContent('Arrow Right');
+    expect(screen.getByRole('button', { name: 'Icon Size' })).toHaveTextContent('L');
+    expect(screen.getByRole('button', { name: 'Icon Right' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Link type' })).toHaveTextContent('Web address');
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="circle-button"]');
+      expect(controls).toHaveLength(4);
+      expect(
+        view.container.querySelector(
+          '[data-scene-element-id="element_registrycirclebuttonright"] .scene-control__link-hint[data-link-target="https://example.com/go"]',
+        ),
+      ).not.toBeNull();
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders the exact Comment default and an edited multiline sticky-note state', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('comment');
+
+    expect(screen.getByRole('button', { name: 'Insert Comment' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.comment"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Comment' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Center' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="comment"]');
+      expect(controls).toHaveLength(2);
+      const defaultComment = view.container.querySelector(
+        '[data-scene-element-id="element_registrycommentdefault"]',
+      );
+      const editedComment = view.container.querySelector(
+        '[data-scene-element-id="element_registrycommentedited"]',
+      );
+      expect(defaultComment).toHaveAttribute('aria-label', 'A comment');
+      expect(defaultComment?.querySelector('.scene-control__fill')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.wireframeCommentFill,
+      });
+      expect(defaultComment?.querySelector('.scene-control__mark')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.wireframeCommentTape,
+        stroke: DESIGN_TOKENS.color.wireframeCommentTape,
+      });
+      expect(editedComment).toHaveAttribute('aria-label', 'Review this\nflow');
+      if (document.fonts !== undefined) {
+        expect(editedComment?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders all four Tooltip compass directions with the selected text inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogTooltip');
+
+    expect(screen.getByRole('button', { name: 'Insert Tooltip' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.tooltip"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Tooltip' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'NW' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Center' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Choose Color' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="tooltip"]');
+      expect(controls).toHaveLength(4);
+      expect(
+        view.container.querySelector(
+          '[data-scene-element-id="element_registrytooltipse"] .scene-control__mark',
+        ),
+      ).toHaveAttribute('d', expect.stringContaining('Z'));
+      expect(
+        view.container.querySelector('[data-scene-element-id="element_registrytooltipnw"]'),
+      ).toHaveAttribute('aria-label', 'NW tooltip');
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders default and multiline Callouts with the exact selected inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogCallout');
+
+    expect(screen.getByRole('button', { name: 'Insert Callout' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.callout"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Callout' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Opacity' })).toHaveValue('0.72');
+    expect(screen.queryByRole('button', { name: 'Center' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="callout"]');
+      expect(controls).toHaveLength(2);
+      const defaultCallout = view.container.querySelector(
+        '[data-scene-element-id="element_registrycalloutdefault"]',
+      );
+      const editedCallout = view.container.querySelector(
+        '[data-scene-element-id="element_registrycalloutedited"]',
+      );
+      expect(defaultCallout).toHaveAttribute('aria-label', '1');
+      expect(defaultCallout?.querySelector('.scene-control__fill')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.wireframeCalloutFill,
+      });
+      expect(defaultCallout?.querySelector('.scene-control__outline')).toHaveAttribute(
+        'd',
+        expect.stringContaining('C'),
+      );
+      expect(editedCallout).toHaveAttribute('aria-label', 'Review this\nflow');
+      if (document.fonts !== undefined) {
+        expect(editedCallout?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders every Popover side with the selected discrete position inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogPopover');
+
+    expect(screen.getByRole('button', { name: 'Insert Popover' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.popover"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Popover' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Left' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'End' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="popover"]');
+      expect(controls).toHaveLength(4);
+      const selected = view.container.querySelector(
+        '[data-scene-element-id="element_registrypopoverleft"]',
+      );
+      expect(selected).toHaveAttribute('aria-label', 'Name: Thor');
+      expect(selected?.querySelector('.scene-control__mark')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.accent,
+        stroke: DESIGN_TOKENS.color.ink,
+      });
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders both Curly Brace orientations and their exact direction inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogCurlyBraces');
+
+    expect(screen.getByRole('button', { name: 'Insert H.Curly Brace' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert V.Curly Brace' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.v-curly-brace"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'V.Curly Brace' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Right' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="curly-brace"]');
+      expect(controls).toHaveLength(4);
+      const selected = view.container.querySelector(
+        '[data-scene-element-id="element_registryvcurlyright"]',
+      );
+      expect(selected).toHaveAttribute('aria-label', 'Related settings\nand behavior');
+      expect(selected?.querySelector('.scene-control__mark')).toHaveStyle({
+        stroke: DESIGN_TOKENS.color.ink,
+      });
+      if (document.fonts !== undefined) {
+        expect(selected?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders both tab orientations, selected seams, border modes, and exact inspector fields', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogTabs');
+
+    expect(screen.getByRole('button', { name: 'Insert Tab Bar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert V.Tabs' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.v-tabs"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'V.Tabs' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Show Border' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Right' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Scrollbar' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="tabs"]');
+      expect(controls).toHaveLength(4);
+      const selected = view.container.querySelector(
+        '[data-scene-element-id="element_registryvtabsright"]',
+      );
+      expect(selected?.querySelector('.scene-control__fill')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.accent,
+      });
+      expect(selected?.querySelector('.scene-control__outline')).toHaveAttribute('d');
+      if (document.fonts !== undefined) {
+        const selectedRow = selected?.querySelector<SVGRectElement>(
+          '.scene-control__row-selection',
+        );
+        expect(selectedRow).toHaveAttribute('display', 'inline');
+        expect(selectedRow).toHaveStyle({ fill: DESIGN_TOKENS.color.canvas });
+        expect(selectedRow?.style.fillOpacity).toBe('1');
+        expect(selected?.querySelectorAll('.scene-control__text tspan')).toHaveLength(4);
+      }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders open, closed, and nested Accordion states with the generic inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogAccordion');
+
+    expect(screen.getByRole('button', { name: 'Insert Accordion' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.accordion"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Accordion' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Scrollbar' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="accordion"]');
+      expect(controls).toHaveLength(3);
+      const selected = view.container.querySelector(
+        '[data-scene-element-id="element_registryaccordionnested"]',
+      );
+      if (document.fonts !== undefined) {
+        expect(selected?.querySelectorAll('.scene-control__text tspan')).toHaveLength(6);
+        expect(selected?.querySelector('.scene-control__row-selection')).toHaveAttribute(
+          'display',
+          'inline',
+        );
+      }
+      expect(selected?.querySelector('.scene-control__mark')).toHaveAttribute('d');
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders unselected, selected, and disabled Radio Buttons with the exact inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('radioButton');
+
+    expect(screen.getByRole('button', { name: 'Insert Radio Button' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.radio-button"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Radio Button' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Icon' })).toHaveTextContent('Star');
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Selected');
+    expect(screen.getByRole('button', { name: 'Link type' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Label' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="radio-button"]');
+      expect(controls).toHaveLength(3);
+      const defaultRadio = view.container.querySelector(
+        '[data-scene-element-id="element_registryradiodefault"]',
+      );
+      const selectedRadio = view.container.querySelector(
+        '[data-scene-element-id="element_registryradioselected"]',
+      );
+      const disabledRadio = view.container.querySelector(
+        '[data-scene-element-id="element_registryradiodisabled"]',
+      );
+      expect(defaultRadio).toHaveAttribute('role', 'radio');
+      expect(defaultRadio).toHaveAttribute('aria-checked', 'false');
+      expect(defaultRadio?.querySelector('.scene-control__mark')).toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(selectedRadio).toHaveAttribute('aria-label', 'Preferred option');
+      expect(selectedRadio).toHaveAttribute('aria-checked', 'true');
+      expect(selectedRadio?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(selectedRadio?.querySelector('.scene-control__catalog-icon')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(
+        selectedRadio?.querySelector(
+          '.scene-control__link-hint[data-link-target="https://example.com/preferred"]',
+        ),
+      ).not.toBeNull();
+      expect(disabledRadio).toHaveStyle({ opacity: '0.45' });
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders default and edited Date Choosers with the exact trailing calendar inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('dateChooser');
+
+    expect(screen.getByRole('button', { name: 'Insert Date Chooser' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.date-chooser"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Date Chooser' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Border Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Disabled');
+    expect(screen.queryByRole('button', { name: 'Icon' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Content' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll(
+        '[data-control-type="wireframe.date-chooser"]',
+      );
+      expect(controls).toHaveLength(2);
+      const defaultChooser = view.container.querySelector(
+        '[data-scene-element-id="element_registrydatechooserdefault"]',
+      );
+      const editedChooser = view.container.querySelector(
+        '[data-scene-element-id="element_registrydatechooseredited"]',
+      );
+      expect(defaultChooser).toHaveAttribute('role', 'textbox');
+      expect(defaultChooser).toHaveAttribute('aria-label', '  /  /    ');
+      expect(defaultChooser).toHaveAttribute('aria-disabled', 'false');
+      expect(defaultChooser?.querySelector('.scene-control__fill')).toHaveAttribute('width', '57');
+      expect(defaultChooser?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(editedChooser).toHaveAttribute('aria-label', '20/01/2010');
+      expect(editedChooser).toHaveAttribute('aria-disabled', 'true');
+      expect(editedChooser).toHaveStyle({ opacity: '0.45' });
+      expect(editedChooser?.querySelector('.scene-control__outline')).toHaveStyle({
+        stroke: DESIGN_TOKENS.color.accent,
+      });
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders default and edited Num. Steppers with fixed buttons and the exact inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('numericStepper');
+
+    expect(screen.getByRole('button', { name: 'Insert Num. Stepper' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.numeric-stepper"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Num. Stepper' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Border Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Disabled');
+    expect(screen.queryByRole('button', { name: 'Icon' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Content' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll(
+        '[data-control-type="wireframe.numeric-stepper"]',
+      );
+      expect(controls).toHaveLength(2);
+      const defaultStepper = view.container.querySelector(
+        '[data-scene-element-id="element_registrynumericstepperdefault"]',
+      );
+      const editedStepper = view.container.querySelector(
+        '[data-scene-element-id="element_registrynumericstepperedited"]',
+      );
+      expect(defaultStepper).toHaveAttribute('role', 'textbox');
+      expect(defaultStepper).toHaveAttribute('aria-label', '3');
+      expect(defaultStepper).toHaveAttribute('aria-disabled', 'false');
+      expect(defaultStepper?.querySelector('.scene-control__fill')).toHaveAttribute('width', '26');
+      expect(defaultStepper?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(editedStepper).toHaveAttribute('aria-label', '12:35');
+      expect(editedStepper).toHaveAttribute('aria-disabled', 'true');
+      expect(editedStepper).toHaveStyle({ opacity: '0.45' });
+      expect(editedStepper?.querySelector('.scene-control__outline')).toHaveStyle({
+        stroke: DESIGN_TOKENS.color.accent,
+      });
+      expect(editedStepper?.querySelector('.scene-control__mark')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.ink,
+        stroke: DESIGN_TOKENS.color.accent,
+      });
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
   });
 
   it('renders fixed-screen selection geometry without replacing the scene or shell', () => {

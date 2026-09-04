@@ -1,4 +1,9 @@
-import type { ControlDefinition } from '../../domain';
+import {
+  ElementIdSchema,
+  createInitialControlRowState,
+  type ControlDefinition,
+  type ElementProperties,
+} from '../../domain';
 import { createWorldRect, type WorldRect } from '../editor/viewport-transform';
 import {
   createControlSceneProjection,
@@ -22,6 +27,8 @@ export interface ControlThumbnailProjection extends ControlSceneProjection {
 export const createControlThumbnailProjection = (
   definition: ControlDefinition,
   textMeasurementService?: ControlTextMeasurementService,
+  properties: ElementProperties = definition.defaultProperties,
+  identity: string = definition.type,
 ): ControlThumbnailProjection | undefined => {
   if (definition.thumbnail.kind === 'none') {
     return undefined;
@@ -30,11 +37,17 @@ export const createControlThumbnailProjection = (
   const padding =
     Math.min(definition.defaultSize.width, definition.defaultSize.height) *
     CONTROL_THUMBNAIL_PROJECTION_POLICY.framePaddingRatio;
+  const thumbnailElementId = ElementIdSchema.parse(
+    `element_thumbnail_${definition.type.replaceAll('.', '_')}`,
+  );
+  const rowState = createInitialControlRowState(definition, thumbnailElementId, properties);
+  if (rowState === undefined) return undefined;
   const scene = createControlSceneProjection({
     bounds,
     definition,
-    identity: `control-thumbnail:${definition.type}`,
-    properties: definition.defaultProperties,
+    identity: `control-thumbnail:${identity}`,
+    properties: rowState.properties,
+    rowData: rowState.rowData,
     textMeasurementService,
   });
   return Object.freeze({

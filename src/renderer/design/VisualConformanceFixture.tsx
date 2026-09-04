@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
+  AssetIdSchema,
   BoardIdSchema,
+  ComponentIdSchema,
   CONTROL_TYPES,
   DOCUMENT_COMMAND_TYPES,
+  EMPTY_ELEMENT_ROW_DATA,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
+  createCustomIconReference,
+  createInitialControlRowState,
   dispatchDocumentCommand,
   getControlSpec,
   parseProjectDocument,
@@ -21,6 +26,7 @@ import {
   PROJECT_WORKFLOW_ALPHA_LAYOUT,
 } from '../../shared/project-workflow-alpha';
 import { ControlInspector } from '../controls/ControlInspector';
+import { listControlLibraryCategories } from '../controls/control-library-query';
 import { ControlShelf } from '../controls/ControlShelf';
 import { WireframeNavigator } from '../controls/WireframeNavigator';
 import { DocumentScene } from '../editor/DocumentScene';
@@ -55,6 +61,11 @@ import {
   createWorldVector,
 } from '../editor/viewport-transform';
 import { AppShell } from '../shell/AppShell';
+import {
+  BoardThumbnailStore,
+  createBrowserBoardThumbnailScheduler,
+} from '../projects/board-thumbnail-store';
+import { PresentationView } from '../projects/PresentationView';
 import { AppButton } from './AppButton';
 import { AppScroller } from './AppEmptyState';
 import { AppInput } from './AppInput';
@@ -67,6 +78,61 @@ import { AppSlider } from './AppSlider';
 import { AppSwatch } from './AppSwatch';
 import { AppTooltip } from './AppTooltip';
 import { NoticeCenterStore } from './notice-center';
+
+const REGISTRY_IMAGE_ASSET_ID = AssetIdSchema.parse('asset_registryimage');
+const REGISTRY_SEARCH_BOX_ID = ElementIdSchema.parse('element_registrysearchbox');
+const REGISTRY_SEARCH_BOX_ALTERNATE_ID = ElementIdSchema.parse(
+  'element_registrysearchboxalternate',
+);
+const REGISTRY_TEXT_AREA_ID = ElementIdSchema.parse('element_registrytextarea');
+const REGISTRY_TEXT_SUBTITLE_ID = ElementIdSchema.parse('element_registrytextsubtitle');
+const REGISTRY_TEXT_TITLE_ID = ElementIdSchema.parse('element_registrytexttitle');
+const REGISTRY_CIRCLE_BUTTON_DEFAULT_ID = ElementIdSchema.parse(
+  'element_registrycirclebuttondefault',
+);
+const REGISTRY_CIRCLE_BUTTON_BELOW_ID = ElementIdSchema.parse('element_registrycirclebuttonbelow');
+const REGISTRY_CIRCLE_BUTTON_LEFT_ID = ElementIdSchema.parse('element_registrycirclebuttonleft');
+const REGISTRY_CIRCLE_BUTTON_RIGHT_ID = ElementIdSchema.parse('element_registrycirclebuttonright');
+const REGISTRY_COMMENT_DEFAULT_ID = ElementIdSchema.parse('element_registrycommentdefault');
+const REGISTRY_COMMENT_EDITED_ID = ElementIdSchema.parse('element_registrycommentedited');
+const REGISTRY_TOOLTIP_SE_ID = ElementIdSchema.parse('element_registrytooltipse');
+const REGISTRY_TOOLTIP_SW_ID = ElementIdSchema.parse('element_registrytooltipsw');
+const REGISTRY_TOOLTIP_NE_ID = ElementIdSchema.parse('element_registrytooltipne');
+const REGISTRY_TOOLTIP_NW_ID = ElementIdSchema.parse('element_registrytooltipnw');
+const REGISTRY_CALLOUT_DEFAULT_ID = ElementIdSchema.parse('element_registrycalloutdefault');
+const REGISTRY_CALLOUT_EDITED_ID = ElementIdSchema.parse('element_registrycalloutedited');
+const REGISTRY_RADIO_DEFAULT_ID = ElementIdSchema.parse('element_registryradiodefault');
+const REGISTRY_RADIO_SELECTED_ID = ElementIdSchema.parse('element_registryradioselected');
+const REGISTRY_RADIO_DISABLED_ID = ElementIdSchema.parse('element_registryradiodisabled');
+const REGISTRY_DATE_CHOOSER_DEFAULT_ID = ElementIdSchema.parse(
+  'element_registrydatechooserdefault',
+);
+const REGISTRY_DATE_CHOOSER_EDITED_ID = ElementIdSchema.parse('element_registrydatechooseredited');
+const REGISTRY_NUMERIC_STEPPER_DEFAULT_ID = ElementIdSchema.parse(
+  'element_registrynumericstepperdefault',
+);
+const REGISTRY_NUMERIC_STEPPER_EDITED_ID = ElementIdSchema.parse(
+  'element_registrynumericstepperedited',
+);
+const REGISTRY_POPOVER_TOP_ID = ElementIdSchema.parse('element_registrypopovertop');
+const REGISTRY_POPOVER_RIGHT_ID = ElementIdSchema.parse('element_registrypopoverright');
+const REGISTRY_POPOVER_BOTTOM_ID = ElementIdSchema.parse('element_registrypopoverbottom');
+const REGISTRY_POPOVER_LEFT_ID = ElementIdSchema.parse('element_registrypopoverleft');
+const REGISTRY_H_CURLY_TOP_ID = ElementIdSchema.parse('element_registryhcurlytop');
+const REGISTRY_H_CURLY_BOTTOM_ID = ElementIdSchema.parse('element_registryhcurlybottom');
+const REGISTRY_V_CURLY_LEFT_ID = ElementIdSchema.parse('element_registryvcurlyleft');
+const REGISTRY_V_CURLY_RIGHT_ID = ElementIdSchema.parse('element_registryvcurlyright');
+const REGISTRY_TAB_TOP_ID = ElementIdSchema.parse('element_registrytabtop');
+const REGISTRY_TAB_BOTTOM_ID = ElementIdSchema.parse('element_registrytabbottom');
+const REGISTRY_V_TABS_LEFT_ID = ElementIdSchema.parse('element_registryvtabsleft');
+const REGISTRY_V_TABS_RIGHT_ID = ElementIdSchema.parse('element_registryvtabsright');
+const REGISTRY_ACCORDION_DEFAULT_ID = ElementIdSchema.parse('element_registryaccordiondefault');
+const REGISTRY_ACCORDION_CLOSED_ID = ElementIdSchema.parse('element_registryaccordionclosed');
+const REGISTRY_ACCORDION_NESTED_ID = ElementIdSchema.parse('element_registryaccordionnested');
+const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
+const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
+)}`;
 
 interface VisualConformanceFixtureProps {
   readonly fixture: VisualFixtureName;
@@ -81,6 +147,17 @@ const requireControlVersion = (type: ControlTypeId): number => {
     throw new Error(`Visual fixture control '${type}' is not registered.`);
   }
   return definition.fileVersion;
+};
+
+const requireControlProperties = (
+  type: ControlTypeId,
+  overrides: Readonly<Record<string, boolean | null | number | string>> = {},
+) => {
+  const definition = getControlSpec(type);
+  if (definition === undefined) {
+    throw new Error(`Visual fixture control '${type}' is not registered.`);
+  }
+  return { ...definition.defaultProperties, ...overrides };
 };
 
 const createSceneFixtureDocument = (): {
@@ -104,14 +181,19 @@ const createSceneFixtureDocument = (): {
     id: projectId,
     name: 'Scene visual fixture',
     boardIds: [boardId],
+    componentIds: [],
+    trashedBoardIds: [],
     boardsById: {
       [boardId]: {
         id: boardId,
         name: 'Scene',
         note: { text: '' },
         childIds: [outerId, groupId],
+        alternateIds: [],
+        selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById: {
       [outerId]: {
         id: outerId,
@@ -119,10 +201,11 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
         frame: { x: 160, y: 100, width: 520, height: 380 },
         locked: false,
-        properties: {},
+        properties: requireControlProperties(FOUNDATION_CONTROL_TYPES.rectangle),
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [groupId]: {
         id: groupId,
@@ -134,6 +217,7 @@ const createSceneFixtureDocument = (): {
         childIds: [titleId, fieldId, buttonId, sideId],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [titleId]: {
         id: titleId,
@@ -145,6 +229,7 @@ const createSceneFixtureDocument = (): {
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [fieldId]: {
         id: fieldId,
@@ -152,10 +237,13 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(CONTROL_TYPES.textInput),
         frame: { x: 28, y: 96, width: 300, height: 48 },
         locked: false,
-        properties: { text: 'Email address' },
+        properties: requireControlProperties(CONTROL_TYPES.textInput, {
+          text: 'Email address',
+        }),
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [buttonId]: {
         id: buttonId,
@@ -163,10 +251,14 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: { x: 28, y: 172, width: 128, height: 44 },
         locked: false,
-        properties: { text: 'Continue' },
+        properties: requireControlProperties(CONTROL_TYPES.button, {
+          iconId: 'arrow-right',
+          text: 'Continue',
+        }),
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [sideId]: {
         id: sideId,
@@ -174,10 +266,11 @@ const createSceneFixtureDocument = (): {
         controlVersion: requireControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
         frame: { x: 372, y: 28, width: 112, height: 304 },
         locked: false,
-        properties: {},
+        properties: requireControlProperties(FOUNDATION_CONTROL_TYPES.rectangle),
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
     },
     assetsById: {},
@@ -194,6 +287,116 @@ const createSceneFixtureDocument = (): {
   });
 };
 
+const createComponentFixtureDocument = (): {
+  readonly boardId: ReturnType<typeof BoardIdSchema.parse>;
+  readonly componentId: ReturnType<typeof ComponentIdSchema.parse>;
+  readonly document: ProjectDocument;
+  readonly selectedId: ReturnType<typeof ElementIdSchema.parse>;
+} => {
+  const projectId = ProjectIdSchema.parse('project_visualcomponent');
+  const boardId = BoardIdSchema.parse('board_visualcomponent');
+  const componentId = ComponentIdSchema.parse('component_visualcard');
+  const rootId = ElementIdSchema.parse('element_visualcomproot');
+  const titleId = ElementIdSchema.parse('element_visualcomptitle');
+  const buttonId = ElementIdSchema.parse('element_visualcompbutton');
+  const selectedId = ElementIdSchema.parse('element_visualcompinst1');
+  const secondInstanceId = ElementIdSchema.parse('element_visualcompinst2');
+  const result = parseProjectDocument({
+    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
+    id: projectId,
+    name: 'Component visual fixture',
+    boardIds: [boardId],
+    componentIds: [componentId],
+    trashedBoardIds: [],
+    boardsById: {
+      [boardId]: {
+        id: boardId,
+        name: 'Components',
+        note: { text: '' },
+        childIds: [selectedId, secondInstanceId],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+    },
+    componentsById: {
+      [componentId]: { id: componentId, name: 'Reusable Card', rootElementId: rootId },
+    },
+    elementsById: {
+      [rootId]: {
+        id: rootId,
+        controlType: CONTROL_TYPES.group,
+        controlVersion: requireControlVersion(CONTROL_TYPES.group),
+        frame: { x: 0, y: 0, width: 300, height: 160 },
+        locked: false,
+        properties: {},
+        childIds: [titleId, buttonId],
+        assetIds: [],
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+      },
+      [titleId]: {
+        id: titleId,
+        controlType: CONTROL_TYPES.textLabel,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textLabel),
+        frame: { x: 24, y: 24, width: 220, height: 28 },
+        locked: false,
+        properties: { text: 'Definition title' },
+        childIds: [],
+        assetIds: [],
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+      },
+      [buttonId]: {
+        id: buttonId,
+        controlType: CONTROL_TYPES.button,
+        controlVersion: requireControlVersion(CONTROL_TYPES.button),
+        frame: { x: 24, y: 88, width: 150, height: 44 },
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.button, {
+          iconId: 'arrow-right',
+          text: 'Definition action',
+        }),
+        childIds: [],
+        assetIds: [],
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+      },
+      [selectedId]: {
+        id: selectedId,
+        controlType: CONTROL_TYPES.componentInstance,
+        controlVersion: requireControlVersion(CONTROL_TYPES.componentInstance),
+        frame: { x: 70, y: 90, width: 300, height: 160 },
+        locked: false,
+        properties: {
+          componentId,
+          overrides: { [buttonId]: { text: 'Instance action' } },
+        },
+        childIds: [],
+        assetIds: [],
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+      },
+      [secondInstanceId]: {
+        id: secondInstanceId,
+        controlType: CONTROL_TYPES.componentInstance,
+        controlVersion: requireControlVersion(CONTROL_TYPES.componentInstance),
+        frame: { x: 410, y: 90, width: 300, height: 160 },
+        locked: false,
+        properties: { componentId, overrides: {} },
+        childIds: [],
+        assetIds: [],
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+      },
+    },
+    assetsById: {},
+  });
+  if (!result.ok) {
+    throw new Error('The deterministic component visual fixture is invalid.');
+  }
+  return Object.freeze({ boardId, componentId, document: result.value, selectedId });
+};
+
 const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
   const projectId = ProjectIdSchema.parse('project_visualalpha');
   const boardId = BoardIdSchema.parse('board_visualalpha');
@@ -206,14 +409,19 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
     id: projectId,
     name: 'Alpha visual fixture',
     boardIds: [boardId],
+    componentIds: [],
+    trashedBoardIds: [],
     boardsById: {
       [boardId]: {
         id: boardId,
         name: 'Scene',
         note: { text: '' },
         childIds: [rectangleId, titleId, buttonId, inputId],
+        alternateIds: [],
+        selectedAlternateId: null,
       },
     },
+    componentsById: {},
     elementsById: {
       [rectangleId]: {
         id: rectangleId,
@@ -221,10 +429,11 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         controlVersion: requireControlVersion(CONTROL_TYPES.rectangle),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.rectangle,
         locked: false,
-        properties: {},
+        properties: requireControlProperties(CONTROL_TYPES.rectangle),
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [titleId]: {
         id: titleId,
@@ -236,6 +445,7 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [buttonId]: {
         id: buttonId,
@@ -243,10 +453,14 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         controlVersion: requireControlVersion(CONTROL_TYPES.button),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.button,
         locked: false,
-        properties: { text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT },
+        properties: requireControlProperties(CONTROL_TYPES.button, {
+          iconId: 'arrow-right',
+          text: PROJECT_WORKFLOW_ALPHA_BUTTON_TEXT,
+        }),
         childIds: [],
         assetIds: [],
-        link: null,
+        link: { kind: 'board', boardId },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
       [inputId]: {
         id: inputId,
@@ -254,10 +468,13 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
         controlVersion: requireControlVersion(CONTROL_TYPES.textInput),
         frame: PROJECT_WORKFLOW_ALPHA_LAYOUT.textInput,
         locked: false,
-        properties: { text: 'Email address' },
+        properties: requireControlProperties(CONTROL_TYPES.textInput, {
+          text: 'Email address',
+        }),
         childIds: [],
         assetIds: [],
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
       },
     },
     assetsById: {},
@@ -274,14 +491,168 @@ const createAlphaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocum
   });
 };
 
+const createPresentationFixtureDocument = (): Readonly<{
+  boardId: ReturnType<typeof BoardIdSchema.parse>;
+  document: ProjectDocument;
+}> => {
+  const fixture = createAlphaFixtureDocument();
+  const canonical = fixture.document.boardsById[fixture.boardId];
+  const linkedElement = fixture.document.elementsById[fixture.selectedId];
+  const alternateId = BoardIdSchema.parse('board_visualpresentalt');
+  const detailsId = BoardIdSchema.parse('board_visualpresentdetails');
+  if (canonical === undefined || linkedElement === undefined) {
+    throw new Error('The presentation visual fixture source is incomplete.');
+  }
+  const result = parseProjectDocument({
+    ...fixture.document,
+    boardIds: [fixture.boardId, detailsId],
+    boardsById: {
+      [fixture.boardId]: {
+        ...canonical,
+        name: 'Account flow',
+        childIds: [],
+        alternateIds: [alternateId],
+        selectedAlternateId: alternateId,
+      },
+      [alternateId]: {
+        id: alternateId,
+        name: 'Client direction',
+        note: { text: '' },
+        childIds: canonical.childIds,
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+      [detailsId]: {
+        id: detailsId,
+        name: 'Confirmation',
+        note: { text: '' },
+        childIds: [],
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
+    },
+    componentsById: {},
+    elementsById: {
+      ...fixture.document.elementsById,
+      [fixture.selectedId]: {
+        ...linkedElement,
+        link: { kind: 'board', boardId: detailsId },
+      },
+    },
+  });
+  if (!result.ok) {
+    throw new Error('The deterministic presentation visual fixture is invalid.');
+  }
+  return Object.freeze({ boardId: fixture.boardId, document: result.value });
+};
+
 const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
   const fixture = createAlphaFixtureDocument();
+  const breadcrumbsId = ElementIdSchema.parse('element_registrybreadcrumbs');
+  const buttonBarId = ElementIdSchema.parse('element_registrybuttonbar');
+  const treePaneId = ElementIdSchema.parse('element_registrytreepane');
   const checkboxId = ElementIdSchema.parse('element_registrycheckbox');
   const browserId = ElementIdSchema.parse('element_registrybrowser');
   const imageId = ElementIdSchema.parse('element_registryimage');
   const arrowId = ElementIdSchema.parse('element_registryarrow');
+  const playbackId = ElementIdSchema.parse('element_registryplayback');
+  const videoPlayerId = ElementIdSchema.parse('element_registryvideoplayer');
+  const volumeSliderId = ElementIdSchema.parse('element_registryvolumeslider');
+  const webcamId = ElementIdSchema.parse('element_registrywebcam');
+  const breadcrumbsDefinition = getControlSpec(CONTROL_TYPES.breadcrumbs);
+  const breadcrumbsProperties = requireControlProperties(CONTROL_TYPES.breadcrumbs);
+  const initialBreadcrumbRows =
+    breadcrumbsDefinition === undefined
+      ? undefined
+      : createInitialControlRowState(breadcrumbsDefinition, breadcrumbsId, breadcrumbsProperties)
+          ?.rowData;
+  if (initialBreadcrumbRows === undefined) {
+    throw new Error('The deterministic Breadcrumbs row fixture is invalid.');
+  }
+  const buttonBarDefinition = getControlSpec(CONTROL_TYPES.buttonBar);
+  const buttonBarInitial =
+    buttonBarDefinition === undefined
+      ? undefined
+      : createInitialControlRowState(
+          buttonBarDefinition,
+          buttonBarId,
+          requireControlProperties(CONTROL_TYPES.buttonBar),
+        );
+  if (buttonBarInitial === undefined) {
+    throw new Error('The deterministic Button Bar row fixture is invalid.');
+  }
+  const treePaneDefinition = getControlSpec(CONTROL_TYPES.treePane);
+  const treePaneInitial =
+    treePaneDefinition === undefined
+      ? undefined
+      : createInitialControlRowState(
+          treePaneDefinition,
+          treePaneId,
+          requireControlProperties(CONTROL_TYPES.treePane),
+        );
+  if (treePaneInitial === undefined) {
+    throw new Error('The deterministic Tree Pane row fixture is invalid.');
+  }
+  const buttonBarRowData = Object.freeze({
+    ...buttonBarInitial.rowData,
+    bindings: Object.freeze(
+      buttonBarInitial.rowData.bindings.map((binding, index) =>
+        Object.freeze({
+          ...binding,
+          link:
+            index === 0
+              ? Object.freeze({ kind: 'external' as const, url: 'https://example.com/one' })
+              : null,
+        }),
+      ),
+    ),
+  });
+  const breadcrumbsRowData = Object.freeze({
+    ...initialBreadcrumbRows,
+    bindings: Object.freeze(
+      initialBreadcrumbRows.bindings.map((binding, index) =>
+        Object.freeze({
+          ...binding,
+          link:
+            index === 0
+              ? Object.freeze({
+                  kind: 'external' as const,
+                  url: 'https://example.com/home',
+                })
+              : null,
+        }),
+      ),
+    ),
+  });
+  const treePaneRowData = Object.freeze({
+    ...treePaneInitial.rowData,
+    bindings: Object.freeze(
+      treePaneInitial.rowData.bindings.map((binding, index) =>
+        Object.freeze({
+          ...binding,
+          link:
+            index === 8
+              ? Object.freeze({
+                  kind: 'external' as const,
+                  url: 'https://example.com/tree-file',
+                })
+              : null,
+        }),
+      ),
+    ),
+  });
   let document = fixture.document;
   const commands = [
+    {
+      type: DOCUMENT_COMMAND_TYPES.createAsset,
+      asset: {
+        id: REGISTRY_IMAGE_ASSET_ID,
+        sha256: 'c'.repeat(64),
+        mediaType: 'image/svg+xml',
+        byteLength: 1,
+        originalName: 'registry-image.svg',
+      },
+    },
     {
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: {
@@ -292,6 +663,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 390, y: 50, width: 160, height: 220 },
         id: browserId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: { borderMode: 'visual-1', color: 'default', scrollbar: true },
       },
@@ -303,13 +675,33 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       element: {
         assetIds: [],
         childIds: [],
+        controlType: CONTROL_TYPES.buttonBar,
+        controlVersion: requireControlVersion(CONTROL_TYPES.buttonBar),
+        frame: { x: 76, y: 268, width: 240, height: 32 },
+        id: buttonBarId,
+        link: null,
+        rowData: buttonBarRowData,
+        locked: false,
+        properties: buttonBarInitial.properties,
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [REGISTRY_IMAGE_ASSET_ID],
+        childIds: [],
         controlType: CONTROL_TYPES.imagePlaceholder,
         controlVersion: requireControlVersion(CONTROL_TYPES.imagePlaceholder),
         frame: { x: 12, y: 64, width: 56, height: 56 },
         id: imageId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
-        properties: { showBorder: true },
+        properties: requireControlProperties(CONTROL_TYPES.imagePlaceholder, {
+          showBorder: true,
+        }),
       },
       index: 0,
       owner: { elementId: browserId, kind: 'element' },
@@ -324,6 +716,7 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
         frame: { x: 82, y: 72, width: 64, height: 72 },
         id: arrowId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
         properties: {
           color: 'default',
@@ -344,15 +737,547 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       element: {
         assetIds: [],
         childIds: [],
+        controlType: CONTROL_TYPES.breadcrumbs,
+        controlVersion: requireControlVersion(CONTROL_TYPES.breadcrumbs),
+        frame: { x: 76, y: 300, width: 240, height: 28 },
+        id: breadcrumbsId,
+        link: null,
+        rowData: breadcrumbsRowData,
+        locked: false,
+        properties: breadcrumbsProperties,
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 2,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
         controlType: CONTROL_TYPES.checkbox,
         controlVersion: requireControlVersion(CONTROL_TYPES.checkbox),
-        frame: { x: 76, y: 312, width: 180, height: 32 },
+        frame: { x: 76, y: 340, width: 180, height: 32 },
         id: checkboxId,
         link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
         locked: false,
-        properties: { checked: true, text: 'Remember me' },
+        properties: requireControlProperties(CONTROL_TYPES.checkbox, {
+          checked: true,
+          text: 'Remember me',
+        }),
       },
-      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 1,
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 2,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.playback,
+        controlVersion: requireControlVersion(CONTROL_TYPES.playback),
+        frame: { x: 76, y: 360, width: 110, height: 36 },
+        id: playbackId,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: {},
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 3,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.videoPlayer,
+        controlVersion: requireControlVersion(CONTROL_TYPES.videoPlayer),
+        frame: { x: 202, y: 372, width: 144, height: 96 },
+        id: videoPlayerId,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: {},
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 4,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.volumeSlider,
+        controlVersion: requireControlVersion(CONTROL_TYPES.volumeSlider),
+        frame: { x: 76, y: 420, width: 96, height: 20 },
+        id: volumeSliderId,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: {},
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 5,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.webcam,
+        controlVersion: requireControlVersion(CONTROL_TYPES.webcam),
+        frame: { x: 274, y: 286, width: 96, height: 72 },
+        id: webcamId,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: {},
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 6,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.treePane,
+        controlVersion: requireControlVersion(CONTROL_TYPES.treePane),
+        frame: { x: 330, y: 286, width: 255, height: 181 },
+        id: treePaneId,
+        link: null,
+        rowData: treePaneRowData,
+        locked: false,
+        properties: {
+          ...treePaneInitial.properties,
+          selectedRowId: treePaneInitial.rowData.bindings[8]?.id ?? null,
+        },
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 7,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.searchBox,
+        controlVersion: requireControlVersion(CONTROL_TYPES.searchBox),
+        frame: { x: 76, y: 226, width: 120, height: 25 },
+        id: REGISTRY_SEARCH_BOX_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.searchBox),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 8,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.searchBox,
+        controlVersion: requireControlVersion(CONTROL_TYPES.searchBox),
+        frame: { x: 214, y: 226, width: 120, height: 25 },
+        id: REGISTRY_SEARCH_BOX_ALTERNATE_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.searchBox, {
+          microphoneIcon: true,
+          shape: 'rectangular',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 9,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.textArea,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textArea),
+        frame: { x: 590, y: 226, width: 200, height: 140 },
+        id: REGISTRY_TEXT_AREA_ID,
+        link: { kind: 'external', url: 'https://example.com/notes' },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.textArea, {
+          bold: true,
+          opacity: 0.82,
+          scrollbar: true,
+          text: 'First line\nSecond line',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 10,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.textSubtitle,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textSubtitle),
+        frame: { x: 590, y: 384, width: 102, height: 28 },
+        id: REGISTRY_TEXT_SUBTITLE_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.textSubtitle),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 11,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.textTitle,
+        controlVersion: requireControlVersion(CONTROL_TYPES.textTitle),
+        frame: { x: 590, y: 424, width: 182, height: 44 },
+        id: REGISTRY_TEXT_TITLE_ID,
+        link: { kind: 'external', url: 'https://example.com/title' },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.textTitle, {
+          textColor: DESIGN_TOKENS.color.accent,
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 12,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.circleButton,
+        controlVersion: requireControlVersion(CONTROL_TYPES.circleButton),
+        frame: { x: 342, y: 226, width: 48, height: 48 },
+        id: REGISTRY_CIRCLE_BUTTON_DEFAULT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.circleButton),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 13,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.circleButton,
+        controlVersion: requireControlVersion(CONTROL_TYPES.circleButton),
+        frame: { x: 398, y: 226, width: 56, height: 56 },
+        id: REGISTRY_CIRCLE_BUTTON_BELOW_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.circleButton, {
+          iconId: 'star',
+          iconSize: 's',
+          labelPosition: 'below',
+          text: 'Save',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 14,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.circleButton,
+        controlVersion: requireControlVersion(CONTROL_TYPES.circleButton),
+        frame: { x: 462, y: 226, width: 56, height: 56 },
+        id: REGISTRY_CIRCLE_BUTTON_LEFT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.circleButton, {
+          iconId: 'shopping-cart',
+          iconSize: 's',
+          labelPosition: 'icon-left',
+          text: 'Buy',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 15,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.circleButton,
+        controlVersion: requireControlVersion(CONTROL_TYPES.circleButton),
+        frame: { x: 526, y: 226, width: 56, height: 56 },
+        id: REGISTRY_CIRCLE_BUTTON_RIGHT_ID,
+        link: { kind: 'external', url: 'https://example.com/go' },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.circleButton, {
+          color: DESIGN_TOKENS.color.accent,
+          iconId: 'arrow-right',
+          iconSize: 'l',
+          labelPosition: 'icon-right',
+          showBorder: false,
+          text: 'Go',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 16,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.comment,
+        controlVersion: requireControlVersion(CONTROL_TYPES.comment),
+        frame: { x: 800, y: 226, width: 109, height: 123 },
+        id: REGISTRY_COMMENT_DEFAULT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.comment),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 17,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.comment,
+        controlVersion: requireControlVersion(CONTROL_TYPES.comment),
+        frame: { x: 920, y: 226, width: 109, height: 123 },
+        id: REGISTRY_COMMENT_EDITED_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.comment, {
+          bold: true,
+          color: DESIGN_TOKENS.color.canvasGrid,
+          text: 'Review this\nflow',
+          textAlignment: 'center',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 18,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    ...(
+      [
+        { direction: 'SE', id: REGISTRY_TOOLTIP_SE_ID, x: 700 },
+        { direction: 'SW', id: REGISTRY_TOOLTIP_SW_ID, x: 800 },
+        { direction: 'NE', id: REGISTRY_TOOLTIP_NE_ID, x: 900 },
+        { direction: 'NW', id: REGISTRY_TOOLTIP_NW_ID, x: 1000 },
+      ] as const
+    ).map(({ direction, id, x }, index) => ({
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.tooltip,
+        controlVersion: requireControlVersion(CONTROL_TYPES.tooltip),
+        frame: { x, y: 370, width: 87, height: 33 },
+        id,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.tooltip, {
+          direction,
+          ...(direction === 'NW' ? { bold: true, text: 'NW tooltip' } : {}),
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 19 + index,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    })),
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.callout,
+        controlVersion: requireControlVersion(CONTROL_TYPES.callout),
+        frame: { x: 700, y: 440, width: 39, height: 39 },
+        id: REGISTRY_CALLOUT_DEFAULT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.callout),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 23,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.callout,
+        controlVersion: requireControlVersion(CONTROL_TYPES.callout),
+        frame: { x: 800, y: 430, width: 156, height: 66 },
+        id: REGISTRY_CALLOUT_EDITED_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.callout, {
+          bold: true,
+          color: DESIGN_TOKENS.color.accent,
+          opacity: 0.72,
+          text: 'Review this\nflow',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 24,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.radioButton,
+        controlVersion: requireControlVersion(CONTROL_TYPES.radioButton),
+        frame: { x: 700, y: 520, width: 97, height: 23 },
+        id: REGISTRY_RADIO_DEFAULT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.radioButton),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 25,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.radioButton,
+        controlVersion: requireControlVersion(CONTROL_TYPES.radioButton),
+        frame: { x: 820, y: 520, width: 160, height: 23 },
+        id: REGISTRY_RADIO_SELECTED_ID,
+        link: { kind: 'external', url: 'https://example.com/preferred' },
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.radioButton, {
+          bold: true,
+          iconId: 'star',
+          state: 'selected',
+          text: 'Preferred option',
+          textColor: DESIGN_TOKENS.color.accent,
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 26,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.radioButton,
+        controlVersion: requireControlVersion(CONTROL_TYPES.radioButton),
+        frame: { x: 1000, y: 520, width: 120, height: 23 },
+        id: REGISTRY_RADIO_DISABLED_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.radioButton, {
+          state: 'disabled',
+          text: 'Unavailable',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 27,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.dateChooser,
+        controlVersion: requireControlVersion(CONTROL_TYPES.dateChooser),
+        frame: { x: 700, y: 570, width: 90, height: 25 },
+        id: REGISTRY_DATE_CHOOSER_DEFAULT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.dateChooser),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 28,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.dateChooser,
+        controlVersion: requireControlVersion(CONTROL_TYPES.dateChooser),
+        frame: { x: 820, y: 570, width: 106, height: 25 },
+        id: REGISTRY_DATE_CHOOSER_EDITED_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.dateChooser, {
+          borderColor: DESIGN_TOKENS.color.accent,
+          italic: true,
+          state: 'disabled',
+          text: '20/01/2010',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 29,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.numericStepper,
+        controlVersion: requireControlVersion(CONTROL_TYPES.numericStepper),
+        frame: { x: 700, y: 620, width: 41, height: 24 },
+        id: REGISTRY_NUMERIC_STEPPER_DEFAULT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.numericStepper),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 30,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.numericStepper,
+        controlVersion: requireControlVersion(CONTROL_TYPES.numericStepper),
+        frame: { x: 820, y: 620, width: 66, height: 24 },
+        id: REGISTRY_NUMERIC_STEPPER_EDITED_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.numericStepper, {
+          bold: true,
+          borderColor: DESIGN_TOKENS.color.accent,
+          state: 'disabled',
+          text: '12:35',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 31,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
   ] as const;
@@ -363,8 +1288,334 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
     }
     document = result.document;
   }
-  return Object.freeze({ ...fixture, document, selectedId: checkboxId });
+  return Object.freeze({ ...fixture, document, selectedId: treePaneId });
 };
+
+const createSearchBoxFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_SEARCH_BOX_ALTERNATE_ID,
+  });
+
+const createTextAreaFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_TEXT_AREA_ID,
+  });
+
+const createTextHeadingsFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_TEXT_TITLE_ID,
+  });
+
+const createCircleButtonFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_CIRCLE_BUTTON_RIGHT_ID,
+  });
+
+const createCommentFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_COMMENT_EDITED_ID,
+  });
+
+const createCatalogTooltipFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_TOOLTIP_NW_ID,
+  });
+
+const createCatalogCalloutFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_CALLOUT_EDITED_ID,
+  });
+
+const createCatalogPopoverFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const fixture = createAlphaFixtureDocument();
+  const entries = [
+    { direction: 'top', id: REGISTRY_POPOVER_TOP_ID, position: '0', x: 700, y: 80 },
+    { direction: 'right', id: REGISTRY_POPOVER_RIGHT_ID, position: '1', x: 850, y: 80 },
+    { direction: 'bottom', id: REGISTRY_POPOVER_BOTTOM_ID, position: '3', x: 700, y: 310 },
+    { direction: 'left', id: REGISTRY_POPOVER_LEFT_ID, position: '4', x: 850, y: 310 },
+  ] as const;
+  let document = fixture.document;
+  for (const entry of entries) {
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.popover,
+        controlVersion: requireControlVersion(CONTROL_TYPES.popover),
+        frame: { height: 187, width: 222, x: entry.x, y: entry.y },
+        id: entry.id,
+        link: null,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.popover, {
+          direction: entry.direction,
+          position: entry.position,
+          ...(entry.direction === 'left'
+            ? { bold: true, color: DESIGN_TOKENS.color.accent, text: 'Name: Thor' }
+            : {}),
+        }),
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+      },
+      index: document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic Popover visual fixture is invalid.');
+    }
+    document = result.document;
+  }
+  return Object.freeze({ ...fixture, document, selectedId: REGISTRY_POPOVER_LEFT_ID });
+};
+
+const createCatalogCurlyBracesFixtureDocument = (): ReturnType<
+  typeof createSceneFixtureDocument
+> => {
+  const fixture = createAlphaFixtureDocument();
+  const entries = [
+    {
+      controlType: CONTROL_TYPES.hCurlyBrace,
+      direction: 'top',
+      frame: { height: 80, width: 200, x: 680, y: 90 },
+      id: REGISTRY_H_CURLY_TOP_ID,
+    },
+    {
+      controlType: CONTROL_TYPES.hCurlyBrace,
+      direction: 'bottom',
+      frame: { height: 80, width: 200, x: 680, y: 235 },
+      id: REGISTRY_H_CURLY_BOTTOM_ID,
+    },
+    {
+      controlType: CONTROL_TYPES.vCurlyBrace,
+      direction: 'left',
+      frame: { height: 140, width: 180, x: 940, y: 65 },
+      id: REGISTRY_V_CURLY_LEFT_ID,
+    },
+    {
+      controlType: CONTROL_TYPES.vCurlyBrace,
+      direction: 'right',
+      frame: { height: 140, width: 180, x: 940, y: 250 },
+      id: REGISTRY_V_CURLY_RIGHT_ID,
+    },
+  ] as const;
+  let document = fixture.document;
+  for (const entry of entries) {
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: entry.controlType,
+        controlVersion: requireControlVersion(entry.controlType),
+        frame: entry.frame,
+        id: entry.id,
+        link: null,
+        locked: false,
+        properties: requireControlProperties(entry.controlType, {
+          direction: entry.direction,
+          ...(entry.id === REGISTRY_V_CURLY_RIGHT_ID
+            ? {
+                bold: true,
+                text: 'Related settings\nand behavior',
+                textColor: DESIGN_TOKENS.color.accent,
+              }
+            : {}),
+        }),
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+      },
+      index: document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic Curly Brace visual fixture is invalid.');
+    }
+    document = result.document;
+  }
+  return Object.freeze({ ...fixture, document, selectedId: REGISTRY_V_CURLY_RIGHT_ID });
+};
+
+const createCatalogTabsFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const fixture = createAlphaFixtureDocument();
+  const entries = [
+    {
+      controlType: CONTROL_TYPES.tabBar,
+      frame: { height: 100, width: 254, x: 665, y: 70 },
+      id: REGISTRY_TAB_TOP_ID,
+      overrides: { tabsPosition: 'top' },
+      selectedIndex: 0,
+    },
+    {
+      controlType: CONTROL_TYPES.tabBar,
+      frame: { height: 100, width: 254, x: 665, y: 230 },
+      id: REGISTRY_TAB_BOTTOM_ID,
+      overrides: { showBorder: false, tabsAlignment: 'center', tabsPosition: 'bottom' },
+      selectedIndex: null,
+    },
+    {
+      controlType: CONTROL_TYPES.verticalTabs,
+      frame: { height: 194, width: 200, x: 900, y: 55 },
+      id: REGISTRY_V_TABS_LEFT_ID,
+      overrides: { tabsPosition: 'left' },
+      selectedIndex: 1,
+    },
+    {
+      controlType: CONTROL_TYPES.verticalTabs,
+      frame: { height: 194, width: 200, x: 900, y: 285 },
+      id: REGISTRY_V_TABS_RIGHT_ID,
+      overrides: { color: DESIGN_TOKENS.color.accent, scrollbar: true, tabsPosition: 'right' },
+      selectedIndex: 2,
+    },
+  ] as const;
+  let document = fixture.document;
+  for (const entry of entries) {
+    const definition = getControlSpec(entry.controlType);
+    if (definition === undefined) throw new Error('The deterministic Tabs definition is missing.');
+    const initial = createInitialControlRowState(
+      definition,
+      entry.id,
+      requireControlProperties(entry.controlType, entry.overrides),
+    );
+    if (initial === undefined) throw new Error('The deterministic Tabs row fixture is invalid.');
+    const selectedRowId =
+      entry.selectedIndex === null
+        ? null
+        : (initial.rowData.bindings[entry.selectedIndex]?.id ?? null);
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: entry.controlType,
+        controlVersion: definition.fileVersion,
+        frame: entry.frame,
+        id: entry.id,
+        link: null,
+        locked: false,
+        properties: { ...initial.properties, selectedRowId },
+        rowData: initial.rowData,
+      },
+      index: document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic Tabs visual fixture is invalid.');
+    }
+    document = result.document;
+  }
+  return Object.freeze({ ...fixture, document, selectedId: REGISTRY_V_TABS_RIGHT_ID });
+};
+
+const createCatalogAccordionFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const fixture = createAlphaFixtureDocument();
+  const entries = [
+    {
+      frame: { height: 186, width: 150, x: 665, y: 65 },
+      id: REGISTRY_ACCORDION_DEFAULT_ID,
+      items: 'Item One\nItem Two\nItem Three\nItem Four',
+      selectedIndex: 0,
+      scrollbar: false,
+    },
+    {
+      frame: { height: 186, width: 150, x: 665, y: 285 },
+      id: REGISTRY_ACCORDION_CLOSED_ID,
+      items: 'Item One\nItem Two\nItem Three\nItem Four',
+      selectedIndex: null,
+      scrollbar: false,
+    },
+    {
+      frame: { height: 240, width: 220, x: 875, y: 65 },
+      id: REGISTRY_ACCORDION_NESTED_ID,
+      items: 'Navigation\n- Overview\n- Activity\n- Reports\n- Archive\nSettings',
+      selectedIndex: 2,
+      scrollbar: true,
+    },
+  ] as const;
+  const definition = getControlSpec(CONTROL_TYPES.accordion);
+  if (definition === undefined)
+    throw new Error('The deterministic Accordion definition is missing.');
+  let document = fixture.document;
+  for (const entry of entries) {
+    const initial = createInitialControlRowState(
+      definition,
+      entry.id,
+      requireControlProperties(CONTROL_TYPES.accordion, {
+        items: entry.items,
+        scrollbar: entry.scrollbar,
+      }),
+    );
+    if (initial === undefined)
+      throw new Error('The deterministic Accordion row fixture is invalid.');
+    const selectedRowId =
+      entry.selectedIndex === null
+        ? null
+        : (initial.rowData.bindings[entry.selectedIndex]?.id ?? null);
+    const rowData =
+      entry.id !== REGISTRY_ACCORDION_NESTED_ID
+        ? initial.rowData
+        : Object.freeze({
+            ...initial.rowData,
+            bindings: Object.freeze(
+              initial.rowData.bindings.map((binding, index) =>
+                index === 2
+                  ? Object.freeze({
+                      ...binding,
+                      link: Object.freeze({
+                        kind: 'external' as const,
+                        url: 'https://example.com/activity',
+                      }),
+                    })
+                  : binding,
+              ),
+            ),
+          });
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.accordion,
+        controlVersion: definition.fileVersion,
+        frame: entry.frame,
+        id: entry.id,
+        link: null,
+        locked: false,
+        properties: { ...initial.properties, selectedRowId },
+        rowData,
+      },
+      index: document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic Accordion visual fixture is invalid.');
+    }
+    document = result.document;
+  }
+  return Object.freeze({ ...fixture, document, selectedId: REGISTRY_ACCORDION_NESTED_ID });
+};
+
+const createRadioButtonFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_RADIO_SELECTED_ID,
+  });
+
+const createDateChooserFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_DATE_CHOOSER_EDITED_ID,
+  });
+
+const createNumericStepperFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_NUMERIC_STEPPER_EDITED_ID,
+  });
 
 const createGroupSelectionFixtureDocument = (
   fixture: ReturnType<typeof createSceneFixtureDocument>,
@@ -436,6 +1687,7 @@ const createAlignedSelectionFixtureDocument = (
 type SceneFixtureState =
   | 'alpha'
   | 'alignSelection'
+  | 'customIcon'
   | 'delete'
   | 'duplicate'
   | 'equalGaps'
@@ -446,6 +1698,20 @@ type SceneFixtureState =
   | 'paste'
   | 'plain'
   | 'registryControl'
+  | 'searchBox'
+  | 'textArea'
+  | 'textHeadings'
+  | 'circleButton'
+  | 'comment'
+  | 'catalogTooltip'
+  | 'catalogCallout'
+  | 'catalogPopover'
+  | 'catalogCurlyBraces'
+  | 'catalogTabs'
+  | 'catalogAccordion'
+  | 'radioButton'
+  | 'dateChooser'
+  | 'numericStepper'
   | 'resize'
   | 'selection'
   | 'smartGuides'
@@ -461,15 +1727,98 @@ const SceneFixture = ({
   // The representative Browser sits beside the alpha controls. A fixed
   // session-only zoom keeps it and both children visible inside the minimum
   // native canvas without changing document geometry or shell tracks.
-  const camera = useViewportCameraStore(state === 'registryControl' ? 0.8 : 1);
+  const isRegistryFixture =
+    state === 'registryControl' ||
+    state === 'searchBox' ||
+    state === 'textArea' ||
+    state === 'textHeadings' ||
+    state === 'circleButton' ||
+    state === 'comment' ||
+    state === 'catalogTooltip' ||
+    state === 'catalogCallout' ||
+    state === 'catalogPopover' ||
+    state === 'catalogCurlyBraces' ||
+    state === 'catalogTabs' ||
+    state === 'catalogAccordion' ||
+    state === 'radioButton' ||
+    state === 'dateChooser' ||
+    state === 'numericStepper';
+  const camera = useViewportCameraStore(isRegistryFixture ? 0.8 : 1);
   const [fixture] = useState(() =>
-    state === 'alpha'
+    state === 'alpha' || state === 'customIcon'
       ? createAlphaFixtureDocument()
-      : state === 'registryControl'
-        ? createRegistryControlFixtureDocument()
+      : isRegistryFixture
+        ? state === 'searchBox'
+          ? createSearchBoxFixtureDocument()
+          : state === 'textArea'
+            ? createTextAreaFixtureDocument()
+            : state === 'textHeadings'
+              ? createTextHeadingsFixtureDocument()
+              : state === 'circleButton'
+                ? createCircleButtonFixtureDocument()
+                : state === 'comment'
+                  ? createCommentFixtureDocument()
+                  : state === 'catalogTooltip'
+                    ? createCatalogTooltipFixtureDocument()
+                    : state === 'catalogCallout'
+                      ? createCatalogCalloutFixtureDocument()
+                      : state === 'catalogPopover'
+                        ? createCatalogPopoverFixtureDocument()
+                        : state === 'catalogCurlyBraces'
+                          ? createCatalogCurlyBracesFixtureDocument()
+                          : state === 'catalogTabs'
+                            ? createCatalogTabsFixtureDocument()
+                            : state === 'catalogAccordion'
+                              ? createCatalogAccordionFixtureDocument()
+                              : state === 'radioButton'
+                                ? createRadioButtonFixtureDocument()
+                                : state === 'dateChooser'
+                                  ? createDateChooserFixtureDocument()
+                                  : state === 'numericStepper'
+                                    ? createNumericStepperFixtureDocument()
+                                    : createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
+    if (state === 'customIcon') {
+      const withAsset = dispatchDocumentCommand(fixture.document, {
+        type: DOCUMENT_COMMAND_TYPES.createAsset,
+        asset: {
+          id: REGISTRY_IMAGE_ASSET_ID,
+          sha256: 'c'.repeat(64),
+          mediaType: 'image/svg+xml',
+          byteLength: REGISTRY_IMAGE_DATA_URL.length,
+          originalName: 'Imported brand mark',
+        },
+      });
+      if (!withAsset.ok || !withAsset.changed) {
+        throw new Error('The custom-icon visual fixture asset could not be created.');
+      }
+      const withOwnership = dispatchDocumentCommand(withAsset.document, {
+        type: DOCUMENT_COMMAND_TYPES.setElementAssets,
+        elementId: fixture.selectedId,
+        assetIds: [REGISTRY_IMAGE_ASSET_ID],
+      });
+      if (!withOwnership.ok || !withOwnership.changed) {
+        throw new Error('The custom-icon visual fixture ownership could not be created.');
+      }
+      const element = withOwnership.document.elementsById[fixture.selectedId];
+      const withIcon =
+        element === undefined
+          ? undefined
+          : dispatchDocumentCommand(withOwnership.document, {
+              type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+              elementId: element.id,
+              properties: {
+                ...element.properties,
+                iconId: createCustomIconReference(REGISTRY_IMAGE_ASSET_ID),
+              },
+            });
+      if (withIcon === undefined || !withIcon.ok || !withIcon.changed) {
+        throw new Error('The custom-icon visual fixture property could not be created.');
+      }
+      return withIcon.document;
+    }
     if (state === 'alignSelection') {
       return createAlignedSelectionFixtureDocument(fixture);
     }
@@ -529,6 +1878,7 @@ const SceneFixture = ({
     } else if (
       state === 'selection' ||
       state === 'alpha' ||
+      state === 'customIcon' ||
       state === 'move' ||
       state === 'smartGuides' ||
       state === 'equalGaps' ||
@@ -538,7 +1888,7 @@ const SceneFixture = ({
       state === 'duplicate' ||
       state === 'paste' ||
       state === 'textEdit' ||
-      state === 'registryControl'
+      isRegistryFixture
     ) {
       selection.selectOnly(selectedId);
     }
@@ -714,6 +2064,7 @@ const SceneFixture = ({
       camera={camera}
       {...(state === 'selection' ||
       state === 'alpha' ||
+      state === 'customIcon' ||
       state === 'move' ||
       state === 'smartGuides' ||
       state === 'equalGaps' ||
@@ -724,7 +2075,7 @@ const SceneFixture = ({
       state === 'duplicate' ||
       state === 'paste' ||
       state === 'textEdit' ||
-      state === 'registryControl'
+      isRegistryFixture
         ? {
             interactionChildren: (
               <>
@@ -768,6 +2119,9 @@ const SceneFixture = ({
       worldChildren={
         <DocumentScene
           activeBoardId={fixture.boardId}
+          {...(isRegistryFixture || state === 'customIcon'
+            ? { assetUrls: { [REGISTRY_IMAGE_ASSET_ID]: REGISTRY_IMAGE_DATA_URL } }
+            : {})}
           camera={camera}
           document={document}
           {...(state === 'nudge'
@@ -780,6 +2134,109 @@ const SceneFixture = ({
           {...(state === 'resize' ? { resizeInteraction: editor.resizeInteraction } : {})}
         />
       }
+    />
+  );
+};
+
+const ComponentCanvasFixture = () => {
+  const camera = useViewportCameraStore(0.85);
+  const [fixture] = useState(createComponentFixtureDocument);
+  const [editor] = useState(() => {
+    const model = new DocumentSceneModel();
+    model.reconcile(fixture.document, fixture.boardId);
+    const selection = new SelectionStore();
+    selection.selectOnly(fixture.selectedId);
+    return Object.freeze({ model, selection });
+  });
+  return (
+    <ViewportScene
+      camera={camera}
+      interactionChildren={
+        <SelectionOverlay camera={camera} model={editor.model} selection={editor.selection} />
+      }
+      worldChildren={
+        <DocumentScene
+          activeBoardId={fixture.boardId}
+          camera={camera}
+          document={fixture.document}
+          model={editor.model}
+        />
+      }
+    />
+  );
+};
+
+const ComponentInspectorFixture = () => {
+  const [fixture] = useState(createComponentFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const ComponentShelfFixture = () => {
+  const [fixture] = useState(createComponentFixtureDocument);
+  const component = fixture.document.componentsById[fixture.componentId];
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>('[aria-label="Manage Reusable Card"]')?.click();
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+  if (component === undefined) throw new Error('The component shelf fixture is incomplete.');
+  return (
+    <ControlShelf
+      category="Components"
+      components={[component]}
+      onDeleteComponent={() => false}
+      onDuplicateComponent={() => false}
+      onInsert={() => false}
+      onInsertComponent={() => false}
+      onRenameComponent={() => false}
+      onReorderComponent={() => false}
+      projectDocument={fixture.document}
+    />
+  );
+};
+
+const ComponentNavigatorFixture = () => {
+  const [fixture] = useState(createComponentFixtureDocument);
+  const [thumbnailStore] = useState(
+    () => new BoardThumbnailStore({ scheduler: createBrowserBoardThumbnailScheduler() }),
+  );
+  useEffect(() => {
+    thumbnailStore.generate(fixture.document);
+    return () => thumbnailStore.dispose();
+  }, [fixture.document, thumbnailStore]);
+  return (
+    <WireframeNavigator
+      activeBoardId={fixture.boardId}
+      document={fixture.document}
+      onCreateAlternate={() => true}
+      onDuplicateBoard={() => true}
+      onDuplicateAlternate={() => true}
+      onMergeAlternate={() => true}
+      onPromoteAlternate={() => true}
+      onRenameAlternate={() => true}
+      onRenameBoard={() => true}
+      onRequestTrashBoard={() => undefined}
+      onReorderBoard={() => true}
+      onRequestDiscardAlternate={() => undefined}
+      onRestoreBoard={() => true}
+      onSelectBoard={() => undefined}
+      onSelectVersion={() => true}
+      shortcutPlatform="darwin"
+      thumbnailStore={thumbnailStore}
     />
   );
 };
@@ -946,7 +2403,11 @@ const ModalFixture = () => (
   </AppModal>
 );
 
-const AlphaInspectorFixture = () => {
+const AlphaInspectorFixture = ({
+  showProjectImage = false,
+}: {
+  readonly showProjectImage?: boolean;
+}) => {
   const [fixture] = useState(createAlphaFixtureDocument);
   const [selection] = useState(() => {
     const store = new SelectionStore();
@@ -955,13 +2416,36 @@ const AlphaInspectorFixture = () => {
   });
   return (
     <ControlInspector
+      customIcons={
+        showProjectImage
+          ? [
+              {
+                assetId: REGISTRY_IMAGE_ASSET_ID,
+                label: 'Imported brand mark',
+                url: REGISTRY_IMAGE_DATA_URL,
+              },
+            ]
+          : []
+      }
       document={fixture.document}
       onAutoSize={() => Promise.resolve(false)}
-      onSetFrame={() => false}
+      onSetFrames={() => false}
       onSetProperties={() => false}
       selection={selection}
     />
   );
+};
+
+const IconPickerInspectorFixture = () => {
+  useEffect(() => {
+    queueMicrotask(() => {
+      const trigger = globalThis.document.querySelector<HTMLButtonElement>(
+        '.app-icon-popover__trigger',
+      );
+      trigger?.click();
+    });
+  }, []);
+  return <AlphaInspectorFixture showProjectImage />;
 };
 
 const RegistryControlInspectorFixture = () => {
@@ -975,7 +2459,264 @@ const RegistryControlInspectorFixture = () => {
     <ControlInspector
       document={fixture.document}
       onAutoSize={() => Promise.resolve(false)}
-      onSetFrame={() => false}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const SearchBoxInspectorFixture = () => {
+  const [fixture] = useState(createSearchBoxFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetLinks={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const TextAreaInspectorFixture = () => {
+  const [fixture] = useState(createTextAreaFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetLinks={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const TextHeadingsInspectorFixture = () => {
+  const [fixture] = useState(createTextHeadingsFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetLinks={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const CircleButtonInspectorFixture = () => {
+  const [fixture] = useState(createCircleButtonFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetLinks={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const CommentInspectorFixture = () => {
+  const [fixture] = useState(createCommentFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const CatalogTooltipInspectorFixture = () => {
+  const [fixture] = useState(createCatalogTooltipFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const CatalogCalloutInspectorFixture = () => {
+  const [fixture] = useState(createCatalogCalloutFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const CatalogPopoverInspectorFixture = () => {
+  const [fixture] = useState(createCatalogPopoverFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const CatalogCurlyBracesInspectorFixture = () => {
+  const [fixture] = useState(createCatalogCurlyBracesFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const CatalogTabsInspectorFixture = () => {
+  const [fixture] = useState(createCatalogTabsFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const CatalogAccordionInspectorFixture = () => {
+  const [fixture] = useState(createCatalogAccordionFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const RadioButtonInspectorFixture = () => {
+  const [fixture] = useState(createRadioButtonFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetLinks={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const DateChooserInspectorFixture = () => {
+  const [fixture] = useState(createDateChooserFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
+const NumericStepperInspectorFixture = () => {
+  const [fixture] = useState(createNumericStepperFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
       onSetProperties={() => false}
       selection={selection}
     />
@@ -984,7 +2725,34 @@ const RegistryControlInspectorFixture = () => {
 
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
-  return <WireframeNavigator activeBoardId={fixture.boardId} document={fixture.document} />;
+  const [thumbnailStore] = useState(
+    () => new BoardThumbnailStore({ scheduler: createBrowserBoardThumbnailScheduler() }),
+  );
+  useEffect(() => {
+    thumbnailStore.generate(fixture.document);
+    return () => thumbnailStore.dispose();
+  }, [fixture.document, thumbnailStore]);
+  return (
+    <WireframeNavigator
+      activeBoardId={fixture.boardId}
+      document={fixture.document}
+      onCreateAlternate={() => true}
+      onDuplicateBoard={() => true}
+      onDuplicateAlternate={() => true}
+      onMergeAlternate={() => true}
+      onPromoteAlternate={() => true}
+      onRenameAlternate={() => true}
+      onRenameBoard={() => true}
+      onRequestTrashBoard={() => undefined}
+      onReorderBoard={() => true}
+      onRequestDiscardAlternate={() => undefined}
+      onRestoreBoard={() => true}
+      onSelectBoard={() => undefined}
+      onSelectVersion={() => true}
+      shortcutPlatform="darwin"
+      thumbnailStore={thumbnailStore}
+    />
+  );
 };
 
 export const VisualConformanceFixture = ({
@@ -993,6 +2761,8 @@ export const VisualConformanceFixture = ({
   quickAddShortcut,
   runtimeLabel,
 }: VisualConformanceFixtureProps) => {
+  const presentationFixture =
+    fixture === 'presentation' ? createPresentationFixtureDocument() : undefined;
   const regionContent =
     fixture === 'scene'
       ? { canvas: <SceneFixture /> }
@@ -1029,36 +2799,312 @@ export const VisualConformanceFixture = ({
                                       navigator: <AlphaNavigatorFixture />,
                                       shelf: <ControlShelf onInsert={() => false} />,
                                     }
-                                  : fixture === 'registryControl'
+                                  : fixture === 'iconPicker'
                                     ? {
-                                        canvas: <SceneFixture state="registryControl" />,
-                                        inspector: <RegistryControlInspectorFixture />,
+                                        canvas: <SceneFixture state="customIcon" />,
+                                        inspector: <IconPickerInspectorFixture />,
                                         shelf: <ControlShelf onInsert={() => false} />,
                                       }
-                                    : fixture === 'controls'
-                                      ? { inspector: <ControlStates /> }
-                                      : fixture === 'feedback'
-                                        ? { canvas: <StaticRegionFailure /> }
-                                        : fixture === 'tooltip'
-                                          ? { canvas: <TooltipFixture /> }
-                                          : fixture === 'popover'
-                                            ? { canvas: <PopoverFixture /> }
-                                            : undefined;
+                                    : fixture === 'components'
+                                      ? {
+                                          canvas: <ComponentCanvasFixture />,
+                                          inspector: <ComponentInspectorFixture />,
+                                          navigator: <ComponentNavigatorFixture />,
+                                          shelf: <ComponentShelfFixture />,
+                                        }
+                                      : fixture === 'registryControl'
+                                        ? {
+                                            canvas: <SceneFixture state="registryControl" />,
+                                            inspector: <RegistryControlInspectorFixture />,
+                                            shelf: <ControlShelf onInsert={() => false} />,
+                                          }
+                                        : fixture === 'searchBox'
+                                          ? {
+                                              canvas: <SceneFixture state="searchBox" />,
+                                              inspector: <SearchBoxInspectorFixture />,
+                                              shelf: (
+                                                <ControlShelf
+                                                  category="Forms"
+                                                  onInsert={() => false}
+                                                />
+                                              ),
+                                            }
+                                          : fixture === 'textArea'
+                                            ? {
+                                                canvas: <SceneFixture state="textArea" />,
+                                                inspector: <TextAreaInspectorFixture />,
+                                                shelf: (
+                                                  <ControlShelf
+                                                    category="Forms"
+                                                    onInsert={() => false}
+                                                  />
+                                                ),
+                                              }
+                                            : fixture === 'textHeadings'
+                                              ? {
+                                                  canvas: <SceneFixture state="textHeadings" />,
+                                                  inspector: <TextHeadingsInspectorFixture />,
+                                                  shelf: (
+                                                    <ControlShelf
+                                                      category="Text"
+                                                      onInsert={() => false}
+                                                    />
+                                                  ),
+                                                }
+                                              : fixture === 'circleButton'
+                                                ? {
+                                                    canvas: <SceneFixture state="circleButton" />,
+                                                    inspector: <CircleButtonInspectorFixture />,
+                                                    shelf: (
+                                                      <ControlShelf
+                                                        category="Buttons"
+                                                        onInsert={() => false}
+                                                      />
+                                                    ),
+                                                  }
+                                                : fixture === 'comment'
+                                                  ? {
+                                                      canvas: <SceneFixture state="comment" />,
+                                                      inspector: <CommentInspectorFixture />,
+                                                      shelf: (
+                                                        <ControlShelf
+                                                          category="Markup"
+                                                          onInsert={() => false}
+                                                        />
+                                                      ),
+                                                    }
+                                                  : fixture === 'catalogTooltip'
+                                                    ? {
+                                                        canvas: (
+                                                          <SceneFixture state="catalogTooltip" />
+                                                        ),
+                                                        inspector: (
+                                                          <CatalogTooltipInspectorFixture />
+                                                        ),
+                                                        shelf: (
+                                                          <ControlShelf
+                                                            category="Markup"
+                                                            onInsert={() => false}
+                                                          />
+                                                        ),
+                                                      }
+                                                    : fixture === 'catalogCallout'
+                                                      ? {
+                                                          canvas: (
+                                                            <SceneFixture state="catalogCallout" />
+                                                          ),
+                                                          inspector: (
+                                                            <CatalogCalloutInspectorFixture />
+                                                          ),
+                                                          shelf: (
+                                                            <ControlShelf
+                                                              category="Markup"
+                                                              onInsert={() => false}
+                                                            />
+                                                          ),
+                                                        }
+                                                      : fixture === 'catalogPopover'
+                                                        ? {
+                                                            canvas: (
+                                                              <SceneFixture state="catalogPopover" />
+                                                            ),
+                                                            inspector: (
+                                                              <CatalogPopoverInspectorFixture />
+                                                            ),
+                                                            shelf: (
+                                                              <ControlShelf
+                                                                category="Containers"
+                                                                onInsert={() => false}
+                                                              />
+                                                            ),
+                                                          }
+                                                        : fixture === 'catalogCurlyBraces'
+                                                          ? {
+                                                              canvas: (
+                                                                <SceneFixture state="catalogCurlyBraces" />
+                                                              ),
+                                                              inspector: (
+                                                                <CatalogCurlyBracesInspectorFixture />
+                                                              ),
+                                                              shelf: (
+                                                                <ControlShelf
+                                                                  category="Markup"
+                                                                  onInsert={() => false}
+                                                                />
+                                                              ),
+                                                            }
+                                                          : fixture === 'catalogTabs'
+                                                            ? {
+                                                                canvas: (
+                                                                  <SceneFixture state="catalogTabs" />
+                                                                ),
+                                                                inspector: (
+                                                                  <CatalogTabsInspectorFixture />
+                                                                ),
+                                                                shelf: (
+                                                                  <ControlShelf
+                                                                    category="Layout"
+                                                                    onInsert={() => false}
+                                                                  />
+                                                                ),
+                                                              }
+                                                            : fixture === 'catalogAccordion'
+                                                              ? {
+                                                                  canvas: (
+                                                                    <SceneFixture state="catalogAccordion" />
+                                                                  ),
+                                                                  inspector: (
+                                                                    <CatalogAccordionInspectorFixture />
+                                                                  ),
+                                                                  shelf: (
+                                                                    <ControlShelf
+                                                                      category="Layout"
+                                                                      onInsert={() => false}
+                                                                    />
+                                                                  ),
+                                                                }
+                                                              : fixture === 'radioButton'
+                                                                ? {
+                                                                    canvas: (
+                                                                      <SceneFixture state="radioButton" />
+                                                                    ),
+                                                                    inspector: (
+                                                                      <RadioButtonInspectorFixture />
+                                                                    ),
+                                                                    shelf: (
+                                                                      <ControlShelf
+                                                                        category="Forms"
+                                                                        onInsert={() => false}
+                                                                      />
+                                                                    ),
+                                                                  }
+                                                                : fixture === 'dateChooser'
+                                                                  ? {
+                                                                      canvas: (
+                                                                        <SceneFixture state="dateChooser" />
+                                                                      ),
+                                                                      inspector: (
+                                                                        <DateChooserInspectorFixture />
+                                                                      ),
+                                                                      shelf: (
+                                                                        <ControlShelf
+                                                                          category="Forms"
+                                                                          onInsert={() => false}
+                                                                        />
+                                                                      ),
+                                                                    }
+                                                                  : fixture === 'numericStepper'
+                                                                    ? {
+                                                                        canvas: (
+                                                                          <SceneFixture state="numericStepper" />
+                                                                        ),
+                                                                        inspector: (
+                                                                          <NumericStepperInspectorFixture />
+                                                                        ),
+                                                                        shelf: (
+                                                                          <ControlShelf
+                                                                            category="Forms"
+                                                                            onInsert={() => false}
+                                                                          />
+                                                                        ),
+                                                                      }
+                                                                    : fixture === 'controls'
+                                                                      ? {
+                                                                          inspector: (
+                                                                            <ControlStates />
+                                                                          ),
+                                                                        }
+                                                                      : fixture === 'feedback'
+                                                                        ? {
+                                                                            canvas: (
+                                                                              <StaticRegionFailure />
+                                                                            ),
+                                                                          }
+                                                                        : fixture === 'tooltip'
+                                                                          ? {
+                                                                              canvas: (
+                                                                                <TooltipFixture />
+                                                                              ),
+                                                                            }
+                                                                          : fixture === 'popover'
+                                                                            ? {
+                                                                                canvas: (
+                                                                                  <PopoverFixture />
+                                                                                ),
+                                                                              }
+                                                                            : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
     ) : fixture === 'modal' ? (
       <ModalFixture />
-    ) : undefined;
+    ) : presentationFixture === undefined ? undefined : (
+      <PresentationView
+        document={presentationFixture.document}
+        initialBoardId={presentationFixture.boardId}
+        onExit={() => undefined}
+        onOpenExternal={() => Promise.resolve(true)}
+      />
+    );
   const viewportControls =
     fixture === 'viewportZoom' ? (
       <ViewportZoomFixture platform={platform} />
     ) : fixture === 'viewportSelectionZoom' ? (
       <ViewportZoomFixture platform={platform} withSelection />
     ) : undefined;
+  const inspectorControlType =
+    fixture === 'mvpAlpha' || fixture === 'iconPicker'
+      ? CONTROL_TYPES.button
+      : fixture === 'registryControl'
+        ? CONTROL_TYPES.treePane
+        : fixture === 'searchBox'
+          ? CONTROL_TYPES.searchBox
+          : fixture === 'textArea'
+            ? CONTROL_TYPES.textArea
+            : fixture === 'textHeadings'
+              ? CONTROL_TYPES.textTitle
+              : fixture === 'circleButton'
+                ? CONTROL_TYPES.circleButton
+                : fixture === 'comment'
+                  ? CONTROL_TYPES.comment
+                  : fixture === 'catalogTooltip'
+                    ? CONTROL_TYPES.tooltip
+                    : fixture === 'catalogCallout'
+                      ? CONTROL_TYPES.callout
+                      : fixture === 'catalogPopover'
+                        ? CONTROL_TYPES.popover
+                        : fixture === 'catalogCurlyBraces'
+                          ? CONTROL_TYPES.vCurlyBrace
+                          : fixture === 'catalogTabs'
+                            ? CONTROL_TYPES.verticalTabs
+                            : fixture === 'catalogAccordion'
+                              ? CONTROL_TYPES.accordion
+                              : fixture === 'radioButton'
+                                ? CONTROL_TYPES.radioButton
+                                : fixture === 'dateChooser'
+                                  ? CONTROL_TYPES.dateChooser
+                                  : fixture === 'numericStepper'
+                                    ? CONTROL_TYPES.numericStepper
+                                    : undefined;
+  const inspectorTitle =
+    fixture === 'components'
+      ? 'Reusable Card'
+      : inspectorControlType === undefined
+        ? undefined
+        : getControlSpec(inspectorControlType)?.palette?.label;
 
   return (
     <AppShell
+      {...(fixture === 'components'
+        ? {
+            controlCategoryNavigation: {
+              activeCategory: 'Components',
+              categories: listControlLibraryCategories(),
+              onSelectCategory: () => undefined,
+            },
+          }
+        : {})}
+      {...(inspectorTitle === undefined ? {} : { inspectorTitle })}
       projectName={`Visual · ${fixture}`}
       projectOverlay={projectOverlay}
       quickAddShortcut={quickAddShortcut}

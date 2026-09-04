@@ -7,11 +7,17 @@ import {
   DOCUMENT_COMMAND_TYPES,
   CONTROL_TYPES,
   FOUNDATION_CONTROL_TYPES,
+  createElementRowId,
+  createInitialControlRowState,
   dispatchDocumentCommand,
+  getControlSpec,
   parseProjectDocument,
   type ProjectDocument,
 } from '../src/domain';
-import type { ControlTextMeasurementService } from '../src/renderer/controls/control-text-measurement';
+import type {
+  ControlTextMeasurementRequest,
+  ControlTextMeasurementService,
+} from '../src/renderer/controls/control-text-measurement';
 import { DocumentScene } from '../src/renderer/editor/DocumentScene';
 import { DocumentSceneModel } from '../src/renderer/editor/document-scene-model';
 import { KeyboardNudgeInteraction } from '../src/renderer/editor/keyboard-nudge-interaction';
@@ -31,9 +37,11 @@ import {
   createWorldPoint,
 } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlVersion,
+  getFixtureControlProperties,
 } from './fixtures/project-document';
 
 class TestAnimationFrameScheduler implements AnimationFrameScheduler {
@@ -84,10 +92,11 @@ const parseMovePreviewFixture = (): ProjectDocument => {
     controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: 180, y: 24, width: 100, height: 48 },
     locked: false,
-    properties: {},
+    properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   const result = parseProjectDocument(input);
   if (!result.ok) {
@@ -99,6 +108,9 @@ const parseMovePreviewFixture = (): ProjectDocument => {
 const parseTextSceneFixture = (): ProjectDocument => {
   const input = createValidProjectDocumentInput();
   input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.controlType = CONTROL_TYPES.textLabel;
+  input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.controlVersion = getFixtureControlVersion(
+    CONTROL_TYPES.textLabel,
+  );
   input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.properties = { text: 'Line\r\nbreak' };
   const result = parseProjectDocument(input);
   if (!result.ok) {
@@ -107,7 +119,360 @@ const parseTextSceneFixture = (): ProjectDocument => {
   return result.value;
 };
 
+const parseImageSceneFixture = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+  child.controlType = CONTROL_TYPES.imagePlaceholder;
+  child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.imagePlaceholder);
+  child.properties = { ...getFixtureControlProperties(CONTROL_TYPES.imagePlaceholder) };
+  child.assetIds = [DOCUMENT_FIXTURE_IDS.asset];
+  const result = parseProjectDocument(input);
+  if (!result.ok) {
+    throw new Error('Image scene fixture is invalid.');
+  }
+  return result.value;
+};
+
+type StylePropertyOverrides = Readonly<Record<string, boolean | null | number | string>>;
+
+const parseTextInputStyleSceneFixture = (
+  overrides: StylePropertyOverrides = {},
+): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+  child.controlType = CONTROL_TYPES.textInput;
+  child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.textInput);
+  child.properties = {
+    ...getFixtureControlProperties(CONTROL_TYPES.textInput),
+    ...overrides,
+  };
+  const result = parseProjectDocument(input);
+  if (!result.ok) {
+    throw new Error(`Text Input style scene fixture is invalid: ${JSON.stringify(result.issues)}`);
+  }
+  return result.value;
+};
+
+const parseRectangleScrollbarSceneFixture = (scrollbar: boolean): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.properties = {
+    ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle),
+    scrollbar,
+  };
+  const result = parseProjectDocument(input);
+  if (!result.ok) {
+    throw new Error(
+      `Rectangle scrollbar scene fixture is invalid: ${JSON.stringify(result.issues)}`,
+    );
+  }
+  return result.value;
+};
+
+const parseBreadcrumbSceneFixture = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+  const definition = getControlSpec(CONTROL_TYPES.breadcrumbs);
+  if (definition === undefined) throw new Error('Breadcrumbs definition is missing.');
+  child.controlType = CONTROL_TYPES.breadcrumbs;
+  child.controlVersion = definition.fileVersion;
+  child.frame = { x: 16, y: 24, width: 220, height: 28 };
+  child.properties = getFixtureControlProperties(CONTROL_TYPES.breadcrumbs);
+  child.assetIds = [];
+  const rowData = createInitialControlRowState(
+    definition,
+    DOCUMENT_FIXTURE_IDS.child,
+    definition.defaultProperties,
+  )?.rowData;
+  if (rowData === undefined) throw new Error('Breadcrumb rows could not be initialized.');
+  child.rowData = {
+    version: 1,
+    nextId: rowData.nextId,
+    bindings: rowData.bindings.map((binding, index) => ({
+      generation: binding.generation,
+      id: binding.id,
+      link: index === 0 ? { kind: 'board', boardId: DOCUMENT_FIXTURE_IDS.board } : null,
+    })),
+  };
+  input.assetsById = {};
+  const result = parseProjectDocument(input);
+  if (!result.ok) throw new Error('Breadcrumb scene fixture is invalid.');
+  return result.value;
+};
+
+const parseButtonBarSceneFixture = (): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+  const definition = getControlSpec(CONTROL_TYPES.buttonBar);
+  if (definition === undefined) throw new Error('Button Bar definition is missing.');
+  const initial = createInitialControlRowState(
+    definition,
+    DOCUMENT_FIXTURE_IDS.child,
+    definition.defaultProperties,
+  );
+  if (initial === undefined) throw new Error('Button Bar rows could not be initialized.');
+  child.controlType = definition.type;
+  child.controlVersion = definition.fileVersion;
+  child.frame = { x: 16, y: 24, width: 180, height: 28 };
+  child.properties = structuredClone(initial.properties) as typeof child.properties;
+  child.rowData = structuredClone(initial.rowData) as unknown as typeof child.rowData;
+  child.assetIds = [];
+  input.assetsById = {};
+  const result = parseProjectDocument(input);
+  if (!result.ok) throw new Error('Button Bar scene fixture is invalid.');
+  return result.value;
+};
+
 describe('document SVG scene', () => {
+  it('renders an authenticated image URL without placeholder marks or an implicit border', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const document = parseImageSceneFixture();
+    const model = new DocumentSceneModel();
+    const renderScene = (assetUrls: Readonly<Record<string, string>>) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            assetUrls={assetUrls}
+            camera={camera}
+            document={document}
+            model={model}
+          />
+        }
+      />
+    );
+    const view = render(
+      renderScene({ [DOCUMENT_FIXTURE_IDS.asset]: 'blob:balsamic-authenticated-image' }),
+    );
+    scheduler.flushNext();
+    const element = view.container.querySelector(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const image = element?.querySelector('.scene-control__image');
+    const mark = element?.querySelector('.scene-control__mark');
+    const outline = element?.querySelector('.scene-control__outline');
+    expect(image).toHaveAttribute('href', 'blob:balsamic-authenticated-image');
+    expect(image).toHaveAttribute('preserveAspectRatio', 'xMidYMid meet');
+    expect(image).toHaveAttribute('display', 'inline');
+    expect(mark).toHaveAttribute('display', 'none');
+    expect(outline).toHaveAttribute('display', 'none');
+
+    view.rerender(renderScene({}));
+    expect(image).not.toHaveAttribute('href');
+    expect(image).toHaveAttribute('display', 'none');
+    expect(mark).toHaveAttribute('display', 'inline');
+    camera.dispose();
+  });
+
+  it('projects linked-element hints at constant screen size and updates keyed nodes', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const linkedDocument = parseFixture();
+    const model = new DocumentSceneModel();
+    const renderScene = (document: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(linkedDocument));
+    scheduler.flushNext();
+    const sceneElement = view.container.querySelector(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const hint = sceneElement?.querySelector<SVGGElement>('.scene-control__link-hint');
+    const background = hint?.querySelector<SVGCircleElement>(
+      '.scene-control__link-hint-background',
+    );
+    expect(hint).toHaveAttribute('data-link-kind', 'board');
+    expect(hint).toHaveAttribute('data-link-target', DOCUMENT_FIXTURE_IDS.board);
+    expect(background).toHaveAttribute('r', '8');
+
+    camera.scheduleTransform(createViewportTransform({ panX: 0, panY: 0, zoom: 2 }));
+    scheduler.flushNext();
+    expect(background).toHaveAttribute('r', '4');
+
+    const cleared = dispatchDocumentCommand(linkedDocument, {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: DOCUMENT_FIXTURE_IDS.child,
+      link: null,
+    });
+    if (!cleared.ok || !cleared.changed) {
+      throw new Error('Linked scene fixture could not be cleared.');
+    }
+    view.rerender(renderScene(cleared.document));
+    expect(view.container.querySelector('.scene-control__link-hint')).toBe(hint);
+    expect(hint).toHaveAttribute('display', 'none');
+    camera.dispose();
+  });
+
+  it('projects exact row link hints once and does no row measurement or DOM rebuild on zoom', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const measure = vi.fn(({ fontSize, text }: ControlTextMeasurementRequest) => ({
+      baselineOffsets: [fontSize],
+      height: fontSize * 1.2,
+      lineCount: 1,
+      lineHeight: fontSize * 1.2,
+      lines: [text],
+      width: [...text].reduce((width, character) => width + (character === 'W' ? 9 : 4), 0),
+    }));
+    const service: ControlTextMeasurementService = { measure };
+    const document = parseBreadcrumbSceneFixture();
+    const view = render(
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={new DocumentSceneModel()}
+            textMeasurementService={service}
+          />
+        }
+      />,
+    );
+    scheduler.flushNext();
+    const rowId = createElementRowId(DOCUMENT_FIXTURE_IDS.child, 0);
+    const hint = view.container.querySelector<SVGRectElement>(`[data-row-id="${rowId}"]`);
+    expect(hint).toHaveAttribute('data-link-kind', 'board');
+    expect(hint).toHaveAttribute('data-link-target', DOCUMENT_FIXTURE_IDS.board);
+    expect(hint).toHaveAttribute('x', '-4');
+    expect(Number(hint?.getAttribute('width'))).toBeGreaterThan(0);
+    const measurementCount = measure.mock.calls.length;
+
+    camera.scheduleTransform(createViewportTransform({ panX: 0, panY: 0, zoom: 2 }));
+    scheduler.flushNext();
+    expect(view.container.querySelector(`[data-row-id="${rowId}"]`)).toBe(hint);
+    expect(measure).toHaveBeenCalledTimes(measurementCount);
+    camera.dispose();
+  });
+
+  it('updates selected segment geometry on one keyed live scene node', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const service: ControlTextMeasurementService = {
+      measure: ({ fontSize, text }) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      }),
+    };
+    const initial = parseButtonBarSceneFixture();
+    const model = new DocumentSceneModel();
+    const renderScene = (document: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+            textMeasurementService={service}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(initial));
+    scheduler.flushNext();
+    const element = view.container.querySelector(
+      `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`,
+    );
+    const selection = element?.querySelector<SVGRectElement>('.scene-control__row-selection');
+    expect(selection).toHaveAttribute('display', 'inline');
+    const firstX = selection?.getAttribute('x');
+
+    const source = initial.elementsById[DOCUMENT_FIXTURE_IDS.child]!;
+    const changed = dispatchDocumentCommand(initial, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: source.id,
+      properties: { ...source.properties, selectedRowId: source.rowData.bindings[1]!.id },
+      rowData: source.rowData,
+    });
+    if (!changed.ok || !changed.changed) throw new Error('Button Bar selection did not change.');
+    view.rerender(renderScene(changed.document));
+    expect(view.container.querySelector(`[data-scene-element-id="${source.id}"]`)).toBe(element);
+    expect(selection?.getAttribute('x')).not.toBe(firstX);
+    camera.dispose();
+  });
+
   it('updates an existing keyed text node from canonical measured alphabetic baselines', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,
@@ -176,9 +541,167 @@ describe('document SVG scene', () => {
     expect(line).toHaveTextContent('Line break');
     expect(service.measure).toHaveBeenCalledWith({
       fontSize: 18,
+      fontStyle: 'normal',
+      fontWeight: 'normal',
       mode: 'single-line',
       text: 'Line\r\nbreak',
     });
+    camera.dispose();
+  });
+
+  it('invalidates one keyed live node for every registry-owned text style and state binding', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const model = new DocumentSceneModel();
+    const service: ControlTextMeasurementService = {
+      measure: vi.fn(({ fontSize, text }: ControlTextMeasurementRequest) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      })),
+    };
+    const renderScene = (document: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+            textMeasurementService={service}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(parseTextInputStyleSceneFixture()));
+    scheduler.flushNext();
+    const selector = `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`;
+    const keyedElement = view.container.querySelector<SVGGElement>(selector);
+    if (keyedElement === null) {
+      throw new Error('Text Input scene element did not mount.');
+    }
+    let priorRevision = keyedElement.dataset.sceneRevision;
+    const cases: readonly Readonly<{
+      assert: (element: SVGGElement) => void;
+      properties: StylePropertyOverrides;
+    }>[] = [
+      {
+        properties: { bold: true },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('font-weight', 'bold'),
+      },
+      {
+        properties: { italic: true },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('font-style', 'italic'),
+      },
+      {
+        properties: { underline: true },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('text-decoration', 'underline'),
+      },
+      {
+        properties: { fontSize: 19 },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('font-size', '19'),
+      },
+      {
+        properties: { textAlignment: 'end' },
+        assert: (element) =>
+          expect(element.querySelector('text')).toHaveAttribute('text-anchor', 'end'),
+      },
+      {
+        properties: { textColor: '#123456' },
+        assert: (element) => expect(element.querySelector('text')).toHaveStyle({ fill: '#123456' }),
+      },
+      {
+        properties: { state: 'disabled' },
+        assert: (element) => {
+          expect(element).toHaveAttribute('aria-disabled', 'true');
+          expect(element).toHaveStyle({ opacity: '0.45' });
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      view.rerender(renderScene(parseTextInputStyleSceneFixture(testCase.properties)));
+      const updatedElement = view.container.querySelector<SVGGElement>(selector);
+      expect(updatedElement).toBe(keyedElement);
+      expect(updatedElement?.dataset.sceneRevision).not.toBe(priorRevision);
+      if (updatedElement === null) {
+        throw new Error('Updated Text Input scene element disappeared.');
+      }
+      testCase.assert(updatedElement);
+      priorRevision = updatedElement.dataset.sceneRevision;
+    }
+    camera.dispose();
+  });
+
+  it('updates the keyed rectangle mark when its confirmed scrollbar field changes', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const scheduler = new TestAnimationFrameScheduler();
+    const camera = new ViewportCameraStore({
+      initialDeviceScale: createDeviceScale(1),
+      initialTransform: createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      initialViewport: createViewportSize(1, 1),
+      scheduler,
+    });
+    const model = new DocumentSceneModel();
+    const renderScene = (document: ProjectDocument) => (
+      <ViewportScene
+        camera={camera}
+        worldChildren={
+          <DocumentScene
+            activeBoardId={DOCUMENT_FIXTURE_IDS.board}
+            camera={camera}
+            document={document}
+            model={model}
+          />
+        }
+      />
+    );
+    const view = render(renderScene(parseRectangleScrollbarSceneFixture(false)));
+    scheduler.flushNext();
+    const selector = `[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.child}"]`;
+    const keyedElement = view.container.querySelector<SVGGElement>(selector);
+    const mark = keyedElement?.querySelector<SVGPathElement>('.scene-control__mark');
+    expect(mark).toHaveAttribute('display', 'none');
+
+    view.rerender(renderScene(parseRectangleScrollbarSceneFixture(true)));
+    expect(view.container.querySelector(selector)).toBe(keyedElement);
+    expect(keyedElement?.querySelector('.scene-control__mark')).toBe(mark);
+    expect(mark).toHaveAttribute('display', 'inline');
+    expect(mark?.getAttribute('d')).not.toBe('');
     camera.dispose();
   });
 
@@ -224,12 +747,14 @@ describe('document SVG scene', () => {
       view.container.querySelector(`[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.group}"]`),
     ).toBeNull();
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)?.kind).toBe('container');
-    const initialPath = initialElement?.querySelector('path')?.getAttribute('d');
+    const initialPath = initialElement?.querySelector('.scene-control__outline')?.getAttribute('d');
 
     camera.scheduleTransform(createViewportTransform({ panX: 25, panY: 15, zoom: 1 }));
     scheduler.flushNext();
     expect(view.container.querySelector(selector)).toBe(initialElement);
-    expect(initialElement?.querySelector('path')?.getAttribute('d')).toBe(initialPath);
+    expect(initialElement?.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      initialPath,
+    );
 
     const movedDocument = parseFixture(30);
     view.rerender(
@@ -246,7 +771,9 @@ describe('document SVG scene', () => {
       />,
     );
     expect(view.container.querySelector(selector)).toBe(initialElement);
-    expect(initialElement?.querySelector('path')?.getAttribute('d')).not.toBe(initialPath);
+    expect(initialElement?.querySelector('.scene-control__outline')?.getAttribute('d')).not.toBe(
+      initialPath,
+    );
 
     camera.scheduleTransform(createViewportTransform({ panX: -10_000, panY: -10_000, zoom: 1 }));
     scheduler.flushNext();
@@ -309,8 +836,8 @@ describe('document SVG scene', () => {
     if (moved === null || unrelated === null) {
       throw new Error('Move preview scene elements did not mount.');
     }
-    const movedPath = moved.querySelector('path')?.getAttribute('d');
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const movedPath = moved.querySelector('.scene-control__outline')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
 
     move.begin({
@@ -333,9 +860,11 @@ describe('document SVG scene', () => {
     moveScheduler.flushNext();
 
     expect(moved).toHaveAttribute('transform', 'translate(50 25)');
-    expect(moved.querySelector('path')?.getAttribute('d')).toBe(movedPath);
+    expect(moved.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(movedPath);
     expect(unrelated).not.toHaveAttribute('transform');
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     expect(sceneRenderCount).toBe(1);
 
@@ -401,8 +930,8 @@ describe('document SVG scene', () => {
     if (nudged === null || unrelated === null) {
       throw new Error('Keyboard nudge preview scene elements did not mount.');
     }
-    const nudgedPath = nudged.querySelector('path')?.getAttribute('d');
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const nudgedPath = nudged.querySelector('.scene-control__outline')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
 
     nudge.begin([DOCUMENT_FIXTURE_IDS.child], 'ArrowRight', false);
@@ -414,9 +943,11 @@ describe('document SVG scene', () => {
     nudgeScheduler.flushNext();
 
     expect(nudged).toHaveAttribute('transform', 'translate(500 10)');
-    expect(nudged.querySelector('path')?.getAttribute('d')).toBe(nudgedPath);
+    expect(nudged.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(nudgedPath);
     expect(unrelated).not.toHaveAttribute('transform');
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     expect(sceneRenderCount).toBe(1);
 
@@ -470,7 +1001,7 @@ describe('document SVG scene', () => {
     if (deleted === null || unrelated === null) {
       throw new Error('Delete preview scene elements did not mount.');
     }
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
     const result = dispatchDocumentCommand(document, {
       type: DOCUMENT_COMMAND_TYPES.deleteElement,
@@ -483,7 +1014,9 @@ describe('document SVG scene', () => {
     view.rerender(renderScene(result.document));
     expect(view.container.querySelector(deletedSelector)).toBeNull();
     expect(view.container.querySelector(unrelatedSelector)).toBe(unrelated);
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     camera.dispose();
   });
@@ -532,9 +1065,9 @@ describe('document SVG scene', () => {
     if (source === null || unrelated === null) {
       throw new Error('Duplicate preview source elements did not mount.');
     }
-    const sourcePath = source.querySelector('path')?.getAttribute('d');
+    const sourcePath = source.querySelector('.scene-control__outline')?.getAttribute('d');
     const sourceRevision = source.dataset.sceneRevision;
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
     const sourceElement = document.elementsById[DOCUMENT_FIXTURE_IDS.child];
     if (sourceElement === undefined) {
@@ -558,10 +1091,12 @@ describe('document SVG scene', () => {
     view.rerender(renderScene(result.document));
     expect(view.container.querySelector(cloneSelector)).not.toBeNull();
     expect(view.container.querySelector(sourceSelector)).toBe(source);
-    expect(source.querySelector('path')?.getAttribute('d')).toBe(sourcePath);
+    expect(source.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(sourcePath);
     expect(source.dataset.sceneRevision).toBe(sourceRevision);
     expect(view.container.querySelector(unrelatedSelector)).toBe(unrelated);
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     camera.dispose();
   });
@@ -622,10 +1157,10 @@ describe('document SVG scene', () => {
       throw new Error('Resize preview scene elements did not mount.');
     }
     const resizedFill = resized.querySelector<SVGRectElement>('rect');
-    const resizedPath = resized.querySelector<SVGPathElement>('path');
+    const resizedPath = resized.querySelector<SVGPathElement>('.scene-control__outline');
     const originalPath = resizedPath?.getAttribute('d');
     const originalRevision = resized.dataset.sceneRevision;
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
 
     resize.begin({
@@ -654,7 +1189,9 @@ describe('document SVG scene', () => {
     expect(resizedFill).toHaveAttribute('height', '73');
     expect(resizedPath?.getAttribute('d')).not.toBe(originalPath);
     expect(resized.dataset.sceneRevision).toBe(originalRevision);
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     expect(sceneRenderCount).toBe(1);
 
@@ -662,7 +1199,9 @@ describe('document SVG scene', () => {
     expect(resizedFill).toHaveAttribute('width', '120');
     expect(resizedFill).toHaveAttribute('height', '48');
     expect(resizedPath?.getAttribute('d')).toBe(originalPath);
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(sceneRenderCount).toBe(1);
     camera.dispose();
   });

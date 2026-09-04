@@ -3,6 +3,8 @@ import {
   DOCUMENT_COMMAND_TYPES,
   ElementIdSchema,
   createElementLocationIndex,
+  getControlSpec,
+  rekeyControlRowState,
   selectElementLockState,
   type CreateElementCommand,
   type ElementId,
@@ -121,11 +123,24 @@ export const planSelectionDuplicate = (
     ) {
       return undefined;
     }
+    const definition = getControlSpec(candidate.element.controlType);
+    const rowState =
+      definition === undefined
+        ? undefined
+        : rekeyControlRowState(
+            definition,
+            candidate.element.properties,
+            candidate.element.rowData,
+            cloneId,
+          );
+    if (rowState === undefined) return undefined;
     const parsedCommand = CreateElementCommandSchema.safeParse({
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: {
         ...candidate.element,
         id: cloneId,
+        properties: rowState.properties,
+        rowData: rowState.rowData,
         frame: {
           ...candidate.element.frame,
           x: cloneX,

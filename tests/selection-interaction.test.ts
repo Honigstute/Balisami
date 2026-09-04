@@ -119,7 +119,7 @@ describe('selection interaction', () => {
     expect(selection.getSnapshot().primaryId).toBe(FIRST_ID);
   });
 
-  it('promotes only an empty-space drag into directional marquee selection', () => {
+  it('selects every intersecting control for an empty-space marquee in either direction', () => {
     const selection = new SelectionStore();
     const querySelectionRegion = vi.fn<SelectionInteractionGeometry['querySelectionRegion']>(
       (_bounds, mode) => (mode === 'contained' ? [FIRST_ID] : [SECOND_ID, THIRD_ID]),
@@ -129,17 +129,17 @@ describe('selection interaction', () => {
       createGeometry({ queryHitStack: () => [], querySelectionRegion }),
     );
     const start = createPosition(50, 50);
-    const containedEnd = createPosition(90, 80);
+    const forwardEnd = createPosition(90, 80);
     interaction.beginPress({ altKey: false, pointerId: 1, shiftKey: false, ...start });
 
-    expect(interaction.updatePress(1, { ...containedEnd, shiftKey: false })).toBe(true);
+    expect(interaction.updatePress(1, { ...forwardEnd, shiftKey: false })).toBe(true);
     expect(interaction.getSnapshot()).toMatchObject({
       kind: 'marquee',
-      mode: 'contained',
-      previewIds: [FIRST_ID],
+      mode: 'intersecting',
+      previewIds: [SECOND_ID, THIRD_ID],
     });
-    expect(interaction.completePress(1, { ...containedEnd, shiftKey: false })).toBe(true);
-    expect(selection.getSnapshot().selectedIds).toEqual([FIRST_ID]);
+    expect(interaction.completePress(1, { ...forwardEnd, shiftKey: false })).toBe(true);
+    expect(selection.getSnapshot().selectedIds).toEqual([SECOND_ID, THIRD_ID]);
 
     const intersectingEnd = createPosition(10, 90);
     interaction.beginPress({ altKey: false, pointerId: 2, shiftKey: false, ...start });
@@ -151,7 +151,10 @@ describe('selection interaction', () => {
     });
     interaction.completePress(2, { ...intersectingEnd, shiftKey: false });
     expect(selection.getSnapshot().selectedIds).toEqual([SECOND_ID, THIRD_ID]);
-    expect(querySelectionRegion).toHaveBeenCalledWith(expect.anything(), 'intersecting');
+    expect(querySelectionRegion).toHaveBeenCalledTimes(4);
+    for (const [, mode] of querySelectionRegion.mock.calls) {
+      expect(mode).toBe('intersecting');
+    }
   });
 
   it('adds Shift-marquee candidates and preserves exact state when marquee is cancelled', () => {

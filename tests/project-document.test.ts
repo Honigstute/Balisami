@@ -1,15 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BoardIdSchema,
+  ComponentIdSchema,
+  CONTROL_TYPES,
+  ElementIdSchema,
+  ElementRowIdSchema,
   MAX_DOCUMENT_VALIDATION_ISSUES,
+  MAX_ELEMENT_ROW_BINDINGS,
   FOUNDATION_CONTROL_TYPES,
+  createCustomIconReference,
+  getControlSpec,
   parseProjectDocument,
   type AssetId,
   type BoardId,
+  type ComponentId,
   type ElementId,
   type ProjectDocumentParseResult,
 } from '../src/domain';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   type ProjectDocumentInputFixture,
@@ -53,6 +63,14 @@ const getAsset = (input: ProjectDocumentInputFixture, id: AssetId) => {
   return asset;
 };
 
+const getComponent = (input: ProjectDocumentInputFixture, id: ComponentId) => {
+  const component = input.componentsById[id];
+  if (component === undefined) {
+    throw new Error(`Fixture component '${id}' is missing.`);
+  }
+  return component;
+};
+
 describe('project document schema', () => {
   it('parses a normalized nested document and returns readonly records', () => {
     const result = parseProjectDocument(createValidProjectDocumentInput());
@@ -81,6 +99,112 @@ describe('project document schema', () => {
     input.assetsById = {};
 
     expect(parseProjectDocument(input)).toMatchObject({ ok: true });
+  });
+
+  it('requires current row data and enforces the explicit collection bound', () => {
+    const missing = structuredClone(createValidProjectDocumentInput()) as unknown as {
+      elementsById: Record<string, Record<string, unknown>>;
+    };
+    const missingChild = missing.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (missingChild === undefined) throw new Error('Missing-row fixture child is absent.');
+    delete missingChild.rowData;
+    expect(issuePaths(expectFailure(missing))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.child}.rowData`,
+    );
+
+    const overLimit = createValidProjectDocumentInput();
+    getElement(overLimit, DOCUMENT_FIXTURE_IDS.child).rowData.bindings = Array.from(
+      { length: MAX_ELEMENT_ROW_BINDINGS + 1 },
+      (_, index) => ({
+        generation: index,
+        id: ElementRowIdSchema.parse(`row_binding${String(index).padStart(6, '0')}`),
+        link: null,
+      }),
+    );
+    expect(issuePaths(expectFailure(overLimit))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.child}.rowData.bindings`,
+    );
+  });
+
+  it('partitions every board between active order and durable trash', () => {
+    const trashed = createValidProjectDocumentInput();
+    trashed.boardIds = [];
+    trashed.trashedBoardIds = [DOCUMENT_FIXTURE_IDS.board];
+    expect(parseProjectDocument(trashed)).toMatchObject({ ok: true });
+
+    const competingOwners = createValidProjectDocumentInput();
+    competingOwners.trashedBoardIds = [DOCUMENT_FIXTURE_IDS.board];
+    expect(issuePaths(expectFailure(competingOwners))).toContain('trashedBoardIds.0');
+
+    const unowned = createValidProjectDocumentInput();
+    unowned.boardIds = [];
+    expect(issuePaths(expectFailure(unowned))).toContain(
+      `boardsById.${DOCUMENT_FIXTURE_IDS.board}`,
+    );
+
+    const missing = createValidProjectDocumentInput();
+    missing.trashedBoardIds = ['board_missing01'];
+    expect(issuePaths(expectFailure(missing))).toContain('trashedBoardIds.0');
+  });
+
+  it('partitions hidden alternates under exactly one canonical board', () => {
+    const alternateId = BoardIdSchema.parse('board_alternate01');
+    const valid = createValidProjectDocumentInput();
+    const canonical = getBoard(valid, DOCUMENT_FIXTURE_IDS.board);
+    canonical.alternateIds = [alternateId];
+    canonical.selectedAlternateId = alternateId;
+    valid.boardsById[alternateId] = {
+      id: alternateId,
+      name: 'Alternate A',
+      note: { text: 'Try the compact flow.' },
+      childIds: [],
+      alternateIds: [],
+      selectedAlternateId: null,
+    };
+    expect(parseProjectDocument(valid)).toMatchObject({ ok: true });
+
+    const selectedOutsideFamily = structuredClone(valid);
+    getBoard(selectedOutsideFamily, DOCUMENT_FIXTURE_IDS.board).selectedAlternateId =
+      'board_missing01';
+    expect(issuePaths(expectFailure(selectedOutsideFamily))).toContain(
+      `boardsById.${DOCUMENT_FIXTURE_IDS.board}.selectedAlternateId`,
+    );
+
+    const topLevelAlternate = structuredClone(valid);
+    topLevelAlternate.boardIds.push(alternateId);
+    expect(issuePaths(expectFailure(topLevelAlternate))).toContain(
+      `boardsById.${DOCUMENT_FIXTURE_IDS.board}.alternateIds.0`,
+    );
+
+    const nestedAlternate = structuredClone(valid);
+    getBoard(nestedAlternate, alternateId).alternateIds = ['board_nestedalt01'];
+    expect(issuePaths(expectFailure(nestedAlternate))).toContain(
+      `boardsById.${alternateId}.alternateIds`,
+    );
+
+    const sharedAlternate = structuredClone(valid);
+    const secondCanonicalId = BoardIdSchema.parse('board_altowner002');
+    sharedAlternate.boardIds.push(secondCanonicalId);
+    sharedAlternate.boardsById[secondCanonicalId] = {
+      id: secondCanonicalId,
+      name: 'Second canonical',
+      note: { text: '' },
+      childIds: [],
+      alternateIds: [alternateId],
+      selectedAlternateId: null,
+    };
+    expect(issuePaths(expectFailure(sharedAlternate))).toContain(
+      `boardsById.${secondCanonicalId}.alternateIds.0`,
+    );
+
+    const linkedToAlternate = structuredClone(valid);
+    getElement(linkedToAlternate, DOCUMENT_FIXTURE_IDS.child).link = {
+      kind: 'board',
+      boardId: alternateId,
+    };
+    expect(issuePaths(expectFailure(linkedToAlternate))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.child}.link.boardId`,
+    );
   });
 
   it('rejects unstable IDs, non-finite geometry, unsafe properties, and UI-only fields', () => {
@@ -114,6 +238,166 @@ describe('project document schema', () => {
     expect(paths).toContain('boardIds.0');
     expect(paths).toContain(`boardsById.${mismatchedBoardKey}.id`);
     expect(paths).toContain(`boardsById.${mismatchedBoardKey}`);
+  });
+
+  it('owns component definition trees through an exact ordered component library', () => {
+    const componentId = ComponentIdSchema.parse('component_primary01');
+    const valid = createValidProjectDocumentInput();
+    valid.componentIds = [componentId];
+    valid.componentsById[componentId] = {
+      id: componentId,
+      name: 'Primary action',
+      rootElementId: DOCUMENT_FIXTURE_IDS.group,
+    };
+    getBoard(valid, DOCUMENT_FIXTURE_IDS.board).childIds = [];
+
+    expect(parseProjectDocument(valid)).toMatchObject({ ok: true });
+
+    const missingRecord = structuredClone(valid);
+    missingRecord.componentsById = {};
+    expect(issuePaths(expectFailure(missingRecord))).toContain('componentIds.0');
+
+    const unorderedRecord = structuredClone(valid);
+    unorderedRecord.componentIds = [];
+    expect(issuePaths(expectFailure(unorderedRecord))).toContain(`componentsById.${componentId}`);
+
+    const mismatchedRecord = structuredClone(valid);
+    getComponent(mismatchedRecord, componentId).id = 'component_secondary1';
+    expect(issuePaths(expectFailure(mismatchedRecord))).toContain(
+      `componentsById.${componentId}.id`,
+    );
+
+    const missingRoot = structuredClone(valid);
+    getComponent(missingRoot, componentId).rootElementId = 'element_missing01';
+    expect(issuePaths(expectFailure(missingRoot))).toContain(
+      `componentsById.${componentId}.rootElementId`,
+    );
+
+    const leafRoot = structuredClone(valid);
+    getComponent(leafRoot, componentId).rootElementId = DOCUMENT_FIXTURE_IDS.child;
+    getElement(leafRoot, DOCUMENT_FIXTURE_IDS.group).childIds = [];
+    expect(issuePaths(expectFailure(leafRoot))).toContain(
+      `componentsById.${componentId}.rootElementId`,
+    );
+
+    const multiplyOwnedRoot = structuredClone(valid);
+    getBoard(multiplyOwnedRoot, DOCUMENT_FIXTURE_IDS.board).childIds = [DOCUMENT_FIXTURE_IDS.group];
+    expect(issuePaths(expectFailure(multiplyOwnedRoot))).toContain(
+      `elementsById.${DOCUMENT_FIXTURE_IDS.group}`,
+    );
+  });
+
+  it('validates component-instance references and property-only overrides', () => {
+    const componentId = ComponentIdSchema.parse('component_override01');
+    const instanceId = ElementIdSchema.parse('element_instance01');
+    const input = createValidProjectDocumentInput();
+    const instanceSpec = getControlSpec(CONTROL_TYPES.componentInstance);
+    if (instanceSpec === undefined) {
+      throw new Error('Component instance definition is missing.');
+    }
+    const buttonSpec = getControlSpec(CONTROL_TYPES.button);
+    if (buttonSpec === undefined) {
+      throw new Error('Button definition is missing.');
+    }
+    const definitionChild = getElement(input, DOCUMENT_FIXTURE_IDS.child);
+    definitionChild.controlType = CONTROL_TYPES.button;
+    definitionChild.controlVersion = buttonSpec.fileVersion;
+    definitionChild.properties = { ...buttonSpec.defaultProperties, text: 'Definition action' };
+    input.componentIds = [componentId];
+    input.componentsById[componentId] = {
+      id: componentId,
+      name: 'Reusable card',
+      rootElementId: DOCUMENT_FIXTURE_IDS.group,
+    };
+    getBoard(input, DOCUMENT_FIXTURE_IDS.board).childIds = [instanceId];
+    input.elementsById[instanceId] = {
+      id: instanceId,
+      controlType: CONTROL_TYPES.componentInstance,
+      controlVersion: instanceSpec.fileVersion,
+      frame: { x: 40, y: 50, width: 320, height: 180 },
+      locked: false,
+      properties: {
+        componentId,
+        overrides: {
+          [DOCUMENT_FIXTURE_IDS.child]: { text: 'Instance action' },
+        },
+      },
+      childIds: [],
+      assetIds: [],
+      link: null,
+      rowData: createEmptyElementRowDataInput(),
+    };
+
+    expect(parseProjectDocument(input)).toMatchObject({ ok: true });
+
+    const missingDefinition = structuredClone(input);
+    getElement(missingDefinition, instanceId).properties.componentId = 'component_missing01';
+    expect(issuePaths(expectFailure(missingDefinition))).toContain(
+      `elementsById.${instanceId}.properties.componentId`,
+    );
+
+    const outsideTarget = structuredClone(input);
+    getElement(outsideTarget, instanceId).properties.overrides = {
+      element_outside01: { text: 'Outside' },
+    };
+    expect(issuePaths(expectFailure(outsideTarget))).toContain(
+      `elementsById.${instanceId}.properties.overrides.element_outside01`,
+    );
+
+    const invalidMergedProperties = structuredClone(input);
+    getElement(invalidMergedProperties, instanceId).properties.overrides = {
+      [DOCUMENT_FIXTURE_IDS.child]: { text: 42 },
+    };
+    expect(
+      issuePaths(expectFailure(invalidMergedProperties)).some((path) =>
+        path.startsWith(
+          `elementsById.${instanceId}.properties.overrides.${DOCUMENT_FIXTURE_IDS.child}`,
+        ),
+      ),
+    ).toBe(true);
+
+    const persistedChild = structuredClone(input);
+    getElement(persistedChild, instanceId).childIds = [DOCUMENT_FIXTURE_IDS.child];
+    expect(issuePaths(expectFailure(persistedChild))).toContain(
+      `elementsById.${instanceId}.childIds`,
+    );
+  });
+
+  it('rejects nested component cycles at the document boundary', () => {
+    const componentId = ComponentIdSchema.parse('component_cycle0001');
+    const nestedInstanceId = ElementIdSchema.parse('element_nestedinst1');
+    const input = createValidProjectDocumentInput();
+    const instanceSpec = getControlSpec(CONTROL_TYPES.componentInstance);
+    if (instanceSpec === undefined) {
+      throw new Error('Component instance definition is missing.');
+    }
+    input.componentIds = [componentId];
+    input.componentsById[componentId] = {
+      id: componentId,
+      name: 'Recursive component',
+      rootElementId: DOCUMENT_FIXTURE_IDS.group,
+    };
+    getBoard(input, DOCUMENT_FIXTURE_IDS.board).childIds = [];
+    getElement(input, DOCUMENT_FIXTURE_IDS.group).childIds = [nestedInstanceId];
+    delete input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    input.assetsById = {};
+    input.elementsById[nestedInstanceId] = {
+      id: nestedInstanceId,
+      controlType: CONTROL_TYPES.componentInstance,
+      controlVersion: instanceSpec.fileVersion,
+      frame: { x: 10, y: 10, width: 120, height: 80 },
+      locked: false,
+      properties: { componentId, overrides: {} },
+      childIds: [],
+      assetIds: [],
+      link: null,
+      rowData: createEmptyElementRowDataInput(),
+    };
+
+    const result = expectFailure(input);
+
+    expect(issuePaths(result)).toContain(`elementsById.${nestedInstanceId}.properties.componentId`);
+    expect(result.issues.some((issue) => issue.message.includes('Component hierarchy'))).toBe(true);
   });
 
   it('rejects element and asset records stored under competing IDs', () => {
@@ -224,6 +508,23 @@ describe('project document schema', () => {
 
     expect(paths).toContain(`elementsById.${DOCUMENT_FIXTURE_IDS.child}.assetIds.0`);
     expect(paths).toContain(`elementsById.${DOCUMENT_FIXTURE_IDS.child}.link.boardId`);
+  });
+
+  it('requires a custom icon image to remain in the element asset reachability list', () => {
+    const input = createValidProjectDocumentInput();
+    const button = getControlSpec(CONTROL_TYPES.button);
+    const child = getElement(input, DOCUMENT_FIXTURE_IDS.child);
+    if (button === undefined) throw new Error('Button definition is missing.');
+    child.controlType = button.type;
+    child.controlVersion = button.fileVersion;
+    child.properties = {
+      iconId: createCustomIconReference(DOCUMENT_FIXTURE_IDS.asset),
+      text: 'Brand',
+    };
+    child.assetIds = [];
+
+    const result = expectFailure(input);
+    expect(issuePaths(result)).toContain(`elementsById.${DOCUMENT_FIXTURE_IDS.child}.assetIds`);
   });
 
   it('permits only HTTP(S) external links', () => {

@@ -10,8 +10,10 @@ import {
 } from '../src/renderer/editor/move-geometry';
 import { createWorldPoint, createWorldVector } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlProperties,
   getFixtureControlVersion,
 } from './fixtures/project-document';
 
@@ -94,10 +96,11 @@ describe('move geometry', () => {
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 400, y: 100, width: 80, height: 40 },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     };
     input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.push(rootId);
     const parsed = parseProjectDocument(input);

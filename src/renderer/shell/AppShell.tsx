@@ -24,7 +24,14 @@ export interface AppShellRegionContent {
   readonly shelf?: ReactNode;
 }
 
+export interface ControlCategoryNavigation {
+  readonly activeCategory: string;
+  readonly categories: readonly string[];
+  readonly onSelectCategory: (category: string) => void;
+}
+
 interface AppShellProps {
+  readonly controlCategoryNavigation?: ControlCategoryNavigation;
   readonly historyControls?: {
     readonly canRedo: boolean;
     readonly canUndo: boolean;
@@ -33,9 +40,18 @@ interface AppShellProps {
     readonly redoLabel?: string;
     readonly undoLabel?: string;
   };
+  readonly inspectorTitle?: ReactNode;
+  readonly navigatorControls?: {
+    readonly onCreateBoard: () => void;
+  };
+  readonly noticeStore?: NoticeCenterStore;
   readonly projectName?: string;
   readonly projectOverlay?: ReactNode;
+  readonly presentationControls?: {
+    readonly onPresent: () => void;
+  };
   readonly projectProbeState?: { readonly attributeName: string; readonly value: string };
+  readonly quickAdd?: ReactNode;
   readonly quickAddShortcut: string;
   readonly regionContent?: AppShellRegionContent;
   readonly statusLabel: string;
@@ -45,7 +61,7 @@ interface AppShellProps {
   readonly viewportControls?: ReactNode;
 }
 
-const categories = [
+const placeholderCategories = [
   'All',
   'Common',
   'Forms',
@@ -71,11 +87,6 @@ const defaultViewportActions: ReadonlyArray<{
   { label: 'Zoom out', icon: 'zoomOut' },
   { label: 'Zoom in', icon: 'zoomIn' },
 ];
-
-const toolbarActionsAfterViewport: ReadonlyArray<{
-  readonly label: string;
-  readonly icon: IconName;
-}> = [{ label: 'Present', icon: 'presentation' }];
 
 const DisabledToolbarActions = ({
   actions,
@@ -109,10 +120,16 @@ const LibraryPlaceholders = () => (
 );
 
 export const AppShell = ({
+  controlCategoryNavigation,
   historyControls,
+  inspectorTitle = 'Inspector',
+  navigatorControls,
+  noticeStore: providedNoticeStore,
   projectName = 'Untitled project',
   projectOverlay,
+  presentationControls,
   projectProbeState,
+  quickAdd,
   quickAddShortcut,
   regionContent = {},
   statusLabel,
@@ -121,7 +138,8 @@ export const AppShell = ({
   usePersistedLayout = true,
   viewportControls,
 }: AppShellProps) => {
-  const [noticeStore] = useState(() => new NoticeCenterStore());
+  const [defaultNoticeStore] = useState(() => new NoticeCenterStore());
+  const noticeStore = providedNoticeStore ?? defaultNoticeStore;
   const shell = useShellPreferences(usePersistedLayout);
   const navigatorTrackWidth = shell.preferences.navigator.collapsed
     ? DESIGN_TOKENS.shell.collapsedPaneWidth
@@ -133,6 +151,8 @@ export const AppShell = ({
     '--inspector-current-width': `${String(inspectorTrackWidth)}px`,
     '--navigator-current-width': `${String(navigatorTrackWidth)}px`,
   };
+  const categories = controlCategoryNavigation?.categories ?? placeholderCategories;
+  const activeCategory = controlCategoryNavigation?.activeCategory ?? categories[0];
 
   return (
     <div
@@ -185,14 +205,25 @@ export const AppShell = ({
             </>
           )}
           {viewportControls ?? <DisabledToolbarActions actions={defaultViewportActions} />}
-          <DisabledToolbarActions actions={toolbarActionsAfterViewport} />
+          <button
+            aria-label="Present"
+            className="icon-button icon-button--dark"
+            disabled={presentationControls === undefined}
+            onClick={presentationControls?.onPresent}
+            title="Present"
+            type="button"
+          >
+            <Icon name="presentation" />
+          </button>
         </div>
 
-        <div className="quick-add" role="search">
-          <Icon name="search" />
-          <input aria-label="Quick add" disabled placeholder="Quick add" type="search" />
-          <kbd>{quickAddShortcut}</kbd>
-        </div>
+        {quickAdd ?? (
+          <button aria-label="Quick add" className="quick-add" disabled type="button">
+            <Icon name="search" />
+            <span>Quick add</span>
+            <kbd>{quickAddShortcut}</kbd>
+          </button>
+        )}
       </header>
 
       <div
@@ -210,12 +241,14 @@ export const AppShell = ({
         aria-label="Control categories"
         className="category-bar"
       >
-        {categories.map((category, index) => (
+        {categories.map((category) => (
           <button
-            aria-current={index === 0 ? 'page' : undefined}
+            aria-current={category === activeCategory ? 'page' : undefined}
             className="category-tab"
-            disabled
+            disabled={controlCategoryNavigation === undefined}
             key={category}
+            onClick={() => controlCategoryNavigation?.onSelectCategory(category)}
+            type="button"
           >
             {category}
           </button>
@@ -251,6 +284,16 @@ export const AppShell = ({
         <div className="panel-header">
           <h2>Wireframes</h2>
           <div className="panel-header__actions">
+            <button
+              aria-label="Add wireframe"
+              className="icon-button panel-action--optional"
+              disabled={navigatorControls === undefined}
+              onClick={navigatorControls?.onCreateBoard}
+              title="Add wireframe"
+              type="button"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
             <button
               aria-label="Wireframe options"
               className="icon-button panel-action--optional"
@@ -310,7 +353,7 @@ export const AppShell = ({
         className={`inspector-panel${shell.preferences.inspector.collapsed ? ' pane--collapsed' : ''}`}
       >
         <div className="panel-header panel-header--inspector">
-          <h2>Inspector</h2>
+          <h2>{inspectorTitle}</h2>
           <button
             aria-expanded={!shell.preferences.inspector.collapsed}
             aria-label={

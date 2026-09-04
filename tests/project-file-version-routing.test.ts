@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { PROJECT_FILE_FORMAT_VERSION, routeProjectFileVersion } from '../src/persistence';
 
 describe('project file version routing', () => {
-  it('routes the current v2 format without redundant migration work', () => {
+  it('routes the current format without redundant migration work', () => {
     const result = routeProjectFileVersion(PROJECT_FILE_FORMAT_VERSION);
 
     expect(result).toEqual({
       ok: true,
-      sourceVersion: 2,
-      targetVersion: 2,
+      sourceVersion: PROJECT_FILE_FORMAT_VERSION,
+      targetVersion: PROJECT_FILE_FORMAT_VERSION,
       steps: [],
     });
     if (!result.ok) {
@@ -18,16 +18,64 @@ describe('project file version routing', () => {
     expect(Object.isFrozen(result.steps)).toBe(true);
   });
 
-  it('routes the released v1 format through exactly one executable step', () => {
+  it('routes every released format through a complete sequential path', () => {
     const result = routeProjectFileVersion(1);
-    expect(result).toMatchObject({ ok: true, sourceVersion: 1, targetVersion: 2 });
+    expect(result).toMatchObject({
+      ok: true,
+      sourceVersion: 1,
+      targetVersion: PROJECT_FILE_FORMAT_VERSION,
+    });
     if (!result.ok) {
       throw new Error('Expected v1 routing to succeed.');
     }
     expect(result.steps.map(({ fromVersion, toVersion }) => ({ fromVersion, toVersion }))).toEqual([
       { fromVersion: 1, toVersion: 2 },
+      { fromVersion: 2, toVersion: 3 },
+      { fromVersion: 3, toVersion: 4 },
+      { fromVersion: 4, toVersion: 5 },
+      { fromVersion: 5, toVersion: 6 },
     ]);
     expect(result.steps[0]?.migrateDocument).toBeTypeOf('function');
+
+    const v2 = routeProjectFileVersion(2);
+    expect(v2).toMatchObject({ ok: true, sourceVersion: 2, targetVersion: 6 });
+    if (!v2.ok) {
+      throw new Error('Expected v2 routing to succeed.');
+    }
+    expect(v2.steps.map(({ fromVersion, toVersion }) => ({ fromVersion, toVersion }))).toEqual([
+      { fromVersion: 2, toVersion: 3 },
+      { fromVersion: 3, toVersion: 4 },
+      { fromVersion: 4, toVersion: 5 },
+      { fromVersion: 5, toVersion: 6 },
+    ]);
+
+    const v3 = routeProjectFileVersion(3);
+    expect(v3).toMatchObject({ ok: true, sourceVersion: 3, targetVersion: 6 });
+    if (!v3.ok) {
+      throw new Error('Expected v3 routing to succeed.');
+    }
+    expect(v3.steps.map(({ fromVersion, toVersion }) => ({ fromVersion, toVersion }))).toEqual([
+      { fromVersion: 3, toVersion: 4 },
+      { fromVersion: 4, toVersion: 5 },
+      { fromVersion: 5, toVersion: 6 },
+    ]);
+
+    const v4 = routeProjectFileVersion(4);
+    expect(v4).toMatchObject({ ok: true, sourceVersion: 4, targetVersion: 6 });
+    if (!v4.ok) {
+      throw new Error('Expected v4 routing to succeed.');
+    }
+    expect(v4.steps.map(({ fromVersion, toVersion }) => ({ fromVersion, toVersion }))).toEqual([
+      { fromVersion: 4, toVersion: 5 },
+      { fromVersion: 5, toVersion: 6 },
+    ]);
+
+    const v5 = routeProjectFileVersion(5);
+    expect(v5).toMatchObject({ ok: true, sourceVersion: 5, targetVersion: 6 });
+    if (!v5.ok) throw new Error('Expected v5 routing to succeed.');
+    expect(v5.steps.map(({ fromVersion, toVersion }) => ({ fromVersion, toVersion }))).toEqual([
+      { fromVersion: 5, toVersion: 6 },
+    ]);
   });
 
   it('rejects versions without a complete sequential migration path', () => {

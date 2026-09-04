@@ -1,5 +1,6 @@
 import {
   DOCUMENT_COMMAND_TYPES,
+  EMPTY_ELEMENT_ROW_DATA,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
   GroupElementsCommandSchema,
@@ -181,6 +182,7 @@ export const planSelectionGroup = (
       childIds,
       assetIds: [],
       link: null,
+      rowData: EMPTY_ELEMENT_ROW_DATA,
     },
     owner,
     toIndex,

@@ -11,6 +11,8 @@ import {
   createElementLocationIndex,
   selectElementLockState,
   getControlSpec,
+  listElementLinkReferences,
+  rekeyControlRowState,
   selectOwnerChildIds,
   type CreateElementCommand,
   type ElementId,
@@ -130,7 +132,10 @@ const referencesAreAvailable = (
   element: SelectionClipboardPayload['entries'][number]['element'],
 ): boolean =>
   element.assetIds.every((assetId) => document.assetsById[assetId] !== undefined) &&
-  (element.link?.kind !== 'board' || document.boardsById[element.link.boardId] !== undefined);
+  listElementLinkReferences(element).every(
+    (reference) =>
+      reference.link.kind !== 'board' || document.boardsById[reference.link.boardId] !== undefined,
+  );
 
 /** Captures a canonical, validated snapshot without changing clipboard or document state. */
 export const captureSelectionClipboardPayload = (
@@ -220,7 +225,9 @@ export const cutSelectedElements = (
   );
   if (
     payload === undefined ||
-    !deleteSelectedElements(document, selection, canonicalElementIds, source)
+    !deleteSelectedElements(document, selection, canonicalElementIds, source, {
+      retainReferencedAssets: true,
+    })
   ) {
     return false;
   }
@@ -322,11 +329,24 @@ export const planSelectionPaste = (
     ) {
       return undefined;
     }
+    const definition = getControlSpec(entry.element.controlType);
+    const rowState =
+      definition === undefined
+        ? undefined
+        : rekeyControlRowState(
+            definition,
+            entry.element.properties,
+            entry.element.rowData,
+            cloneId,
+          );
+    if (rowState === undefined) return undefined;
     const command = CreateElementCommandSchema.safeParse({
       type: DOCUMENT_COMMAND_TYPES.createElement,
       element: {
         ...entry.element,
         id: cloneId,
+        properties: rowState.properties,
+        rowData: rowState.rowData,
         frame: { ...entry.element.frame, x: cloneX, y: cloneY },
         childIds: [],
       },

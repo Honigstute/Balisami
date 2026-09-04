@@ -3,11 +3,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ComponentIdSchema,
   CONTROL_TYPES,
   ElementIdSchema,
   FOUNDATION_CONTROL_TYPES,
   getControlSpec,
   parseProjectDocument,
+  type ElementId,
   type ProjectDocument,
 } from '../src/domain';
 import {
@@ -22,13 +24,17 @@ import {
   createWorldRect,
 } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
   getFixtureControlVersion,
+  getFixtureControlProperties,
   type ProjectDocumentInputFixture,
 } from './fixtures/project-document';
 
 const ROOT_ID = ElementIdSchema.parse('element_root0001');
+const COMPONENT_ID = ComponentIdSchema.parse('component_scene0001');
+const COMPONENT_INSTANCE_ID = ElementIdSchema.parse('element_instance01');
 
 const parseFixture = (input: ProjectDocumentInputFixture): ProjectDocument => {
   const result = parseProjectDocument(input);
@@ -46,10 +52,11 @@ const createTwoRectangleDocument = (rootX = 200, rootY = 100): ProjectDocument =
     controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: rootX, y: rootY, width: 80, height: 60 },
     locked: false,
-    properties: {},
+    properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
   return parseFixture(input);
@@ -63,10 +70,11 @@ const createOverlappingRectangleDocument = (topLocked = false): ProjectDocument 
     controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
     frame: { x: -4, y: 36.5, width: 120, height: 48 },
     locked: false,
-    properties: {},
+    properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
     childIds: [],
     assetIds: [],
     link: null,
+    rowData: createEmptyElementRowDataInput(),
   };
   input.elementsById[DOCUMENT_FIXTURE_IDS.child]!.locked = topLocked;
   input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [ROOT_ID, DOCUMENT_FIXTURE_IDS.group];
@@ -87,6 +95,7 @@ const createArrowDocument = (routing: 'visual-1' | 'visual-2' = 'visual-1'): Pro
     frame: { height: 100, width: 100, x: 200, y: 100 },
     id: ROOT_ID,
     link: null,
+    rowData: createEmptyElementRowDataInput(),
     locked: false,
     properties: {
       color: 'default',
@@ -103,7 +112,96 @@ const createArrowDocument = (routing: 'visual-1' | 'visual-2' = 'visual-1'): Pro
   return parseFixture(input);
 };
 
+const createComponentInstanceDocument = (
+  definitionText = 'Definition action',
+  overrideText?: string,
+): ProjectDocument => {
+  const input = createValidProjectDocumentInput();
+  const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+  const board = input.boardsById[DOCUMENT_FIXTURE_IDS.board];
+  if (child === undefined || board === undefined) {
+    throw new Error('Component scene fixture is incomplete.');
+  }
+  child.controlType = CONTROL_TYPES.button;
+  child.controlVersion = getFixtureControlVersion(CONTROL_TYPES.button);
+  child.properties = {
+    ...getFixtureControlProperties(CONTROL_TYPES.button),
+    text: definitionText,
+  };
+  child.assetIds = [];
+  input.assetsById = {};
+  input.componentIds = [COMPONENT_ID];
+  input.componentsById[COMPONENT_ID] = {
+    id: COMPONENT_ID,
+    name: 'Reusable action',
+    rootElementId: DOCUMENT_FIXTURE_IDS.group,
+  };
+  board.childIds = [COMPONENT_INSTANCE_ID];
+  input.elementsById[COMPONENT_INSTANCE_ID] = {
+    id: COMPONENT_INSTANCE_ID,
+    controlType: CONTROL_TYPES.componentInstance,
+    controlVersion: getFixtureControlVersion(CONTROL_TYPES.componentInstance),
+    frame: { x: 100, y: 200, width: 640, height: 360 },
+    locked: false,
+    properties: {
+      componentId: COMPONENT_ID,
+      overrides:
+        overrideText === undefined ? {} : { [DOCUMENT_FIXTURE_IDS.child]: { text: overrideText } },
+    },
+    childIds: [],
+    assetIds: [],
+    link: null,
+    rowData: createEmptyElementRowDataInput(),
+  };
+  return parseFixture(input);
+};
+
 describe('document scene model', () => {
+  it('expands reusable instances deterministically while keeping only the instance interactive', () => {
+    const model = new DocumentSceneModel();
+    const initial = createComponentInstanceDocument();
+
+    model.reconcile(initial, DOCUMENT_FIXTURE_IDS.board);
+
+    const visible = model.queryVisible(
+      createViewportTransform({ panX: 0, panY: 0, zoom: 1 }),
+      createViewportSize(1_000, 800),
+    );
+    const derivedButton = visible.find(
+      (item) => !item.interactive && item.controlType === CONTROL_TYPES.button,
+    );
+    expect(visible).toHaveLength(3);
+    expect(model.listItemIds()).toEqual([COMPONENT_INSTANCE_ID]);
+    expect(model.listSelectableItemIds()).toEqual([COMPONENT_INSTANCE_ID]);
+    expect(model.getItem(COMPONENT_INSTANCE_ID)).toMatchObject({
+      interactive: true,
+      kind: 'object',
+      visualKind: 'transparent',
+    });
+    expect(derivedButton).toMatchObject({
+      bounds: createWorldRect(132, 248, 240, 96),
+      interactive: false,
+      properties: { iconId: null, text: 'Definition action' },
+    });
+    expect(model.hitTestTopmost(createWorldPoint(150, 260))?.id).toBe(COMPONENT_INSTANCE_ID);
+
+    const derivedId = derivedButton?.id;
+    const updated = createComponentInstanceDocument('Updated definition');
+    expect(model.reconcile(updated, DOCUMENT_FIXTURE_IDS.board)).toMatchObject({
+      changed: true,
+      updatedItemCount: 1,
+    });
+    expect(model.getItem(derivedId as ElementId)?.properties).toMatchObject({
+      text: 'Updated definition',
+    });
+
+    const overridden = createComponentInstanceDocument('Updated definition', 'Instance action');
+    model.reconcile(overridden, DOCUMENT_FIXTURE_IDS.board);
+    expect(model.getItem(derivedId as ElementId)?.properties).toMatchObject({
+      text: 'Instance action',
+    });
+  });
+
   it('derives nested world bounds and restores canonical child stacking after spatial lookup', () => {
     const document = createTwoRectangleDocument();
     const model = new DocumentSceneModel();
@@ -154,15 +252,6 @@ describe('document scene model', () => {
       changed: false,
       removedItemCount: 0,
       revision: 1,
-      updatedItemCount: 0,
-    });
-    expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)).toBe(initialItem);
-
-    const propertyOnlyInput = createValidProjectDocumentInput();
-    propertyOnlyInput.elementsById[DOCUMENT_FIXTURE_IDS.child]!.properties = { state: 'changed' };
-    const propertyOnly = parseFixture(propertyOnlyInput);
-    expect(model.reconcile(propertyOnly, DOCUMENT_FIXTURE_IDS.board)).toMatchObject({
-      changed: false,
       updatedItemCount: 0,
     });
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.child)).toBe(initialItem);
@@ -226,10 +315,11 @@ describe('document scene model', () => {
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: 200, y: 100, width: 80, height: 60 },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     };
     reorderedInput.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds = [
       DOCUMENT_FIXTURE_IDS.group,
@@ -413,10 +503,11 @@ describe('document scene model', () => {
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x: -4, y: 36.5, width: 120, height: 48 },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     };
     input.boardsById[DOCUMENT_FIXTURE_IDS.board]!.childIds.unshift(ROOT_ID);
     const document = parseFixture(input);

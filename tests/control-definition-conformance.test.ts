@@ -9,6 +9,7 @@ import {
   createEmptyProjectDocument,
   containsControlHitPoint,
   dispatchDocumentCommand,
+  getControlAccessibleChecked,
   getControlAccessibleName,
   getControlSpec,
   listPaletteControlSpecs,
@@ -66,12 +67,95 @@ describe('control definition conformance harness', () => {
         const checked = dispatchDocumentCommand(document, {
           type: DOCUMENT_COMMAND_TYPES.setElementProperties,
           elementId,
-          properties: { checked: true, text: 'Remember me' },
+          properties: { ...definition.defaultProperties, checked: true, text: 'Remember me' },
         });
         if (!checked.ok || !checked.changed) {
           throw new Error('Checkbox conformance state could not be applied.');
         }
         document = checked.document;
+      }
+      if (definition.type === CONTROL_TYPES.radioButton) {
+        const selected = dispatchDocumentCommand(document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId,
+          properties: {
+            ...definition.defaultProperties,
+            bold: true,
+            iconId: 'star',
+            state: 'selected',
+            text: 'Preferred option',
+          },
+        });
+        if (!selected.ok || !selected.changed) {
+          throw new Error('Radio Button conformance state could not be applied.');
+        }
+        const linked = dispatchDocumentCommand(selected.document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementLink,
+          elementId,
+          link: { kind: 'external', url: 'https://example.com/preferred' },
+        });
+        if (!linked.ok || !linked.changed) {
+          throw new Error('Radio Button conformance link could not be applied.');
+        }
+        document = linked.document;
+      }
+      if (definition.type === CONTROL_TYPES.dateChooser) {
+        const edited = dispatchDocumentCommand(document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId,
+          properties: {
+            ...definition.defaultProperties,
+            borderColor: '#445566',
+            italic: true,
+            state: 'disabled',
+            text: '20/01/2010',
+          },
+        });
+        if (!edited.ok || !edited.changed) {
+          throw new Error('Date Chooser conformance state could not be applied.');
+        }
+        document = edited.document;
+      }
+      if (definition.type === CONTROL_TYPES.numericStepper) {
+        const edited = dispatchDocumentCommand(document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId,
+          properties: {
+            ...definition.defaultProperties,
+            bold: true,
+            borderColor: '#445566',
+            state: 'disabled',
+            text: '12:35',
+          },
+        });
+        if (!edited.ok || !edited.changed) {
+          throw new Error('Num. Stepper conformance state could not be applied.');
+        }
+        document = edited.document;
+      }
+      if (definition.type === CONTROL_TYPES.link) {
+        const styled = dispatchDocumentCommand(document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId,
+          properties: {
+            ...definition.defaultProperties,
+            bold: true,
+            state: 'disabled',
+            text: 'Documentation',
+          },
+        });
+        if (!styled.ok || !styled.changed) {
+          throw new Error('Link conformance state could not be applied.');
+        }
+        const linked = dispatchDocumentCommand(styled.document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementLink,
+          elementId,
+          link: { kind: 'external', url: 'https://example.com/documentation' },
+        });
+        if (!linked.ok || !linked.changed) {
+          throw new Error('Link conformance target could not be applied.');
+        }
+        document = linked.document;
       }
       elementIds.push(elementId);
     }
@@ -130,6 +214,7 @@ describe('control definition conformance harness', () => {
           definition,
           identity: before.id,
           properties: before.properties,
+          rowData: before.rowData,
           textMeasurementService: measurementService,
         }),
       ).toEqual(
@@ -138,6 +223,7 @@ describe('control definition conformance harness', () => {
           definition,
           identity: after.id,
           properties: after.properties,
+          rowData: after.rowData,
           textMeasurementService: measurementService,
         }),
       );
@@ -159,6 +245,73 @@ describe('control definition conformance harness', () => {
             before.properties,
           ),
         ).not.toBe('');
+        expect(getControlAccessibleChecked(definition, before.properties)).toBe(true);
+      }
+      if (before.controlType === CONTROL_TYPES.radioButton) {
+        expect(before).toMatchObject({
+          link: { kind: 'external', url: 'https://example.com/preferred' },
+          properties: {
+            bold: true,
+            iconId: 'star',
+            state: 'selected',
+            text: 'Preferred option',
+          },
+        });
+        expect(getControlAccessibleName(definition, before.properties)).toBe('Preferred option');
+        expect(getControlAccessibleChecked(definition, before.properties)).toBe(true);
+        expect(
+          createControlSceneMarkPath(
+            before.controlType,
+            beforeBounds,
+            before.id,
+            before.properties,
+          ),
+        ).not.toBe('');
+      }
+      if (before.controlType === CONTROL_TYPES.dateChooser) {
+        expect(before).toMatchObject({
+          properties: {
+            borderColor: '#445566',
+            italic: true,
+            state: 'disabled',
+            text: '20/01/2010',
+          },
+        });
+        expect(getControlAccessibleName(definition, before.properties)).toBe('20/01/2010');
+        expect(
+          createControlSceneMarkPath(
+            before.controlType,
+            beforeBounds,
+            before.id,
+            before.properties,
+          ),
+        ).not.toBe('');
+      }
+      if (before.controlType === CONTROL_TYPES.numericStepper) {
+        expect(before).toMatchObject({
+          properties: {
+            bold: true,
+            borderColor: '#445566',
+            state: 'disabled',
+            text: '12:35',
+          },
+        });
+        expect(getControlAccessibleName(definition, before.properties)).toBe('12:35');
+        expect(
+          createControlSceneMarkPath(
+            before.controlType,
+            beforeBounds,
+            before.id,
+            before.properties,
+          ),
+        ).not.toBe('');
+      }
+      if (before.controlType === CONTROL_TYPES.link) {
+        expect(before).toMatchObject({
+          link: { kind: 'external', url: 'https://example.com/documentation' },
+          properties: { bold: true, state: 'disabled', text: 'Documentation' },
+        });
+        expect(getControlAccessibleName(definition, before.properties)).toBe('Documentation');
       }
     }
   });

@@ -125,10 +125,7 @@ const exceedsClickMovementThreshold = (start: ViewportPoint, current: ViewportPo
   return deltaX * deltaX + deltaY * deltaY > threshold * threshold;
 };
 
-const getMarqueeMode = (
-  start: ViewportPoint,
-  current: ViewportPoint,
-): DocumentSceneSelectionRegionMode => (current.x >= start.x ? 'contained' : 'intersecting');
+const MARQUEE_MODE: DocumentSceneSelectionRegionMode = 'intersecting';
 
 const getMinimumWorldDimension = (first: number, second: number): number =>
   Number.EPSILON * Math.max(1, Math.abs(first), Math.abs(second)) * 8;
@@ -303,7 +300,7 @@ export class SelectionInteraction {
     const marquee: ActiveMarquee = Object.freeze({
       currentViewportPoint: position.viewportPoint,
       kind: 'marquee',
-      mode: getMarqueeMode(gesture.startViewportPoint, position.viewportPoint),
+      mode: MARQUEE_MODE,
       pointerId: gesture.pointerId,
       previewIds: Object.freeze([]),
       selectionAtPress: gesture.selectionAtPress,
@@ -505,17 +502,16 @@ export class SelectionInteraction {
   }
 
   #updateMarquee(gesture: ActiveMarquee, position: SelectionPointerPosition): ActiveMarquee {
-    const mode = getMarqueeMode(gesture.startViewportPoint, position.viewportPoint);
     const previewIds = copyUniqueIds(
       this.#geometry.querySelectionRegion(
         createMarqueeWorldBounds(gesture.startWorldPoint, position.worldPoint),
-        mode,
+        MARQUEE_MODE,
       ),
     );
     return Object.freeze({
       ...gesture,
       currentViewportPoint: position.viewportPoint,
-      mode,
+      mode: MARQUEE_MODE,
       previewIds,
     });
   }

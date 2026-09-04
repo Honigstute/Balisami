@@ -6,7 +6,7 @@ import {
   selectElementLocation,
   selectOwnerChildIds,
 } from '../document/selectors';
-import type { ElementNode, JsonValue } from '../document/schema';
+import type { ElementLink, ElementNode, JsonValue } from '../document/schema';
 import type { ProjectDocument } from '../document/validation';
 import type { CommandApplication, CommandApplicationFailure } from './application';
 import {
@@ -18,6 +18,8 @@ import {
   type ReorderElementCommand,
   type ReorderElementSiblingsCommand,
   type SetElementFrameCommand,
+  type SetElementAssetsCommand,
+  type SetElementLinkCommand,
   type SetElementLockedCommand,
   type SetElementPropertiesCommand,
   type UngroupElementCommand,
@@ -30,7 +32,7 @@ const createElementRevision = (
   patch: ElementDocumentPatch,
 ): ProjectDocument => Object.freeze({ ...document, ...patch });
 
-const notFound = (noun: 'Element' | 'Owner', id: string): CommandApplicationFailure => ({
+const notFound = (noun: 'Board' | 'Element' | 'Owner', id: string): CommandApplicationFailure => ({
   ok: false,
   code: 'not-found',
   message: `${noun} '${id}' does not exist.`,
@@ -42,11 +44,21 @@ const getOwnerId = (owner: ElementOwner): string =>
 const areOwnersEqual = (left: ElementOwner, right: ElementOwner): boolean =>
   left.kind === right.kind && getOwnerId(left) === getOwnerId(right);
 
-const areElementIdListsEqual = (left: readonly ElementId[], right: readonly ElementId[]): boolean =>
-  left.length === right.length && left.every((id, index) => id === right[index]);
+const areStableIdListsEqual = <Id extends string>(
+  left: readonly Id[],
+  right: readonly Id[],
+): boolean => left.length === right.length && left.every((id, index) => id === right[index]);
 
 const areNumbersNearlyEqual = (left: number, right: number): boolean =>
   Math.abs(left - right) <= Number.EPSILON * Math.max(1, Math.abs(left), Math.abs(right)) * 8;
+
+const areElementLinksEqual = (left: ElementLink | null, right: ElementLink | null): boolean =>
+  left === right ||
+  (left?.kind === 'board' && right?.kind === 'board'
+    ? left.boardId === right.boardId
+    : left?.kind === 'external' && right?.kind === 'external'
+      ? left.url === right.url
+      : false);
 
 const isTranslatedFrame = (
   source: ElementNode['frame'],
@@ -291,7 +303,7 @@ const applyGroupElements = (
 
   const childSet = new Set(command.group.childIds);
   const canonicalChildIds = ownerChildIds.filter((elementId) => childSet.has(elementId));
-  if (!areElementIdListsEqual(canonicalChildIds, command.group.childIds)) {
+  if (!areStableIdListsEqual(canonicalChildIds, command.group.childIds)) {
     return {
       ok: false,
       code: 'conflict',
@@ -448,8 +460,8 @@ const applyUngroupElement = (
   const requestedGroupChildren = command.ownerChildIds.filter((id) => groupChildSet.has(id));
   const requestedUnaffectedIds = command.ownerChildIds.filter((id) => !groupChildSet.has(id));
   if (
-    !areElementIdListsEqual(requestedGroupChildren, group.childIds) ||
-    !areElementIdListsEqual(requestedUnaffectedIds, unaffectedIds) ||
+    !areStableIdListsEqual(requestedGroupChildren, group.childIds) ||
+    !areStableIdListsEqual(requestedUnaffectedIds, unaffectedIds) ||
     command.ownerChildIds.includes(command.groupId)
   ) {
     return {
@@ -583,7 +595,7 @@ const applyReorderElementSiblings = (
       message: "Sibling reordering must preserve the owner's complete child set.",
     };
   }
-  if (areElementIdListsEqual(command.childIds, ownerChildIds)) {
+  if (areStableIdListsEqual(command.childIds, ownerChildIds)) {
     return { ok: true, changed: false, label: 'Reorder elements' };
   }
 
@@ -641,6 +653,88 @@ const applySetElementFrame = (
   };
 };
 
+const applySetElementAssets = (
+  document: ProjectDocument,
+  command: SetElementAssetsCommand,
+): CommandApplication => {
+  const element = document.elementsById[command.elementId];
+  if (element === undefined) {
+    return notFound('Element', command.elementId);
+  }
+  const missingAssetId = command.assetIds.find(
+    (assetId) => document.assetsById[assetId] === undefined,
+  );
+  if (missingAssetId !== undefined) {
+    return {
+      ok: false,
+      code: 'not-found',
+      message: `Asset '${missingAssetId}' does not exist.`,
+    };
+  }
+  if (areStableIdListsEqual(element.assetIds, command.assetIds)) {
+    return { ok: true, changed: false, label: 'Change element assets' };
+  }
+  const updatedElement = Object.freeze({ ...element, assetIds: command.assetIds });
+  return {
+    ok: true,
+    changed: true,
+    candidate: createElementRevision(document, {
+      elementsById: Object.freeze({
+        ...document.elementsById,
+        [element.id]: updatedElement,
+      }),
+    }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.setElementAssets,
+      elementId: element.id,
+      assetIds: element.assetIds,
+    },
+    label: 'Change element assets',
+  };
+};
+
+const applySetElementLink = (
+  document: ProjectDocument,
+  command: SetElementLinkCommand,
+): CommandApplication => {
+  const element = document.elementsById[command.elementId];
+  if (element === undefined) {
+    return notFound('Element', command.elementId);
+  }
+  const definition = getControlSpec(element.controlType);
+  if (command.link !== null && definition?.capabilities.link !== true) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Control type '${element.controlType}' does not support links.`,
+    };
+  }
+  if (command.link?.kind === 'board' && document.boardsById[command.link.boardId] === undefined) {
+    return notFound('Board', command.link.boardId);
+  }
+  if (areElementLinksEqual(element.link, command.link)) {
+    return { ok: true, changed: false, label: 'Edit element link' };
+  }
+
+  const updatedElement = Object.freeze({ ...element, link: command.link });
+  return {
+    ok: true,
+    changed: true,
+    candidate: createElementRevision(document, {
+      elementsById: Object.freeze({
+        ...document.elementsById,
+        [command.elementId]: updatedElement,
+      }),
+    }),
+    inverse: {
+      type: DOCUMENT_COMMAND_TYPES.setElementLink,
+      elementId: command.elementId,
+      link: element.link,
+    },
+    label: 'Edit element link',
+  };
+};
+
 const applySetElementLocked = (
   document: ProjectDocument,
   command: SetElementLockedCommand,
@@ -680,11 +774,45 @@ const applySetElementProperties = (
   if (element === undefined) {
     return notFound('Element', command.elementId);
   }
-  if (areJsonValuesEqual(element.properties, command.properties)) {
+  const definition = getControlSpec(element.controlType);
+  const rowProperty = definition?.rows?.property;
+  const rowSourceChanged =
+    rowProperty !== undefined &&
+    !areJsonValuesEqual(
+      element.properties[rowProperty] ?? null,
+      command.properties[rowProperty] ?? null,
+    );
+  if (rowSourceChanged && command.rowData === undefined) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: 'Parsed row content and its explicit ordered row identities must change atomically.',
+    };
+  }
+  if (
+    definition?.rows === null &&
+    command.rowData !== undefined &&
+    !areJsonValuesEqual(element.rowData, command.rowData)
+  ) {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `Control type '${element.controlType}' cannot change parsed row data.`,
+    };
+  }
+  const nextRowData = command.rowData ?? element.rowData;
+  if (
+    areJsonValuesEqual(element.properties, command.properties) &&
+    areJsonValuesEqual(element.rowData, nextRowData)
+  ) {
     return { ok: true, changed: false, label: 'Edit element properties' };
   }
 
-  const updatedElement = Object.freeze({ ...element, properties: command.properties });
+  const updatedElement = Object.freeze({
+    ...element,
+    properties: command.properties,
+    rowData: nextRowData,
+  });
   return {
     ok: true,
     changed: true,
@@ -698,6 +826,7 @@ const applySetElementProperties = (
       type: DOCUMENT_COMMAND_TYPES.setElementProperties,
       elementId: command.elementId,
       properties: element.properties,
+      rowData: element.rowData,
     },
     label: 'Edit element properties',
   };
@@ -724,6 +853,10 @@ export const applyElementCommand = (
       return applyReorderElementSiblings(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementFrame:
       return applySetElementFrame(document, command);
+    case DOCUMENT_COMMAND_TYPES.setElementAssets:
+      return applySetElementAssets(document, command);
+    case DOCUMENT_COMMAND_TYPES.setElementLink:
+      return applySetElementLink(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementLocked:
       return applySetElementLocked(document, command);
     case DOCUMENT_COMMAND_TYPES.setElementProperties:

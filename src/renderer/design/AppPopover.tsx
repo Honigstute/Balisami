@@ -14,7 +14,7 @@ import { useAnchoredOverlay } from './use-anchored-overlay';
 export interface AppPopoverTriggerProps {
   readonly 'aria-controls': string;
   readonly 'aria-expanded': boolean;
-  readonly 'aria-haspopup': 'dialog';
+  readonly 'aria-haspopup': 'dialog' | 'listbox';
   readonly onClick: MouseEventHandler<HTMLElement>;
   readonly onKeyDown: KeyboardEventHandler<HTMLElement>;
   readonly ref: (node: HTMLElement | null) => void;
@@ -25,10 +25,18 @@ interface AppPopoverProps {
   readonly label: string;
   readonly onOpenChange: (open: boolean) => void;
   readonly open: boolean;
+  readonly role?: 'dialog' | 'listbox';
   readonly trigger: (triggerProps: AppPopoverTriggerProps) => ReactElement;
 }
 
-export const AppPopover = ({ children, label, onOpenChange, open, trigger }: AppPopoverProps) => {
+export const AppPopover = ({
+  children,
+  label,
+  onOpenChange,
+  open,
+  role = 'dialog',
+  trigger,
+}: AppPopoverProps) => {
   const popoverId = `app-popover-${useId()}`;
   const triggerRef = useRef<HTMLElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -56,7 +64,7 @@ export const AppPopover = ({ children, label, onOpenChange, open, trigger }: App
   const triggerElement = trigger({
     'aria-controls': popoverId,
     'aria-expanded': open,
-    'aria-haspopup': 'dialog',
+    'aria-haspopup': role,
     onClick: () => onOpenChange(!open),
     onKeyDown: (event) => {
       if (event.key === 'Escape' && open) {
@@ -86,7 +94,7 @@ export const AppPopover = ({ children, label, onOpenChange, open, trigger }: App
                 }
               }}
               ref={surfaceRef}
-              role="dialog"
+              role={role}
               style={{
                 left: position.left,
                 top: position.top,

@@ -10,6 +10,7 @@ import {
   redoDocumentHistory,
   undoDocumentHistory,
   type DocumentHistoryState,
+  type AssetId,
   type HistoryOperationResult,
   type HistorySaveSnapshot,
   type HistoryTransactionOptions,
@@ -31,6 +32,11 @@ import type {
   UserOperationProblem,
   UserOperationWarning,
 } from '../../shared/user-operation';
+import {
+  acceptOpenedProjectAssetBytes,
+  createLiveProjectAssetBytes,
+  stageProjectAssetBytes,
+} from './project-asset-bytes';
 
 export type ProjectSaveTone = 'problem' | 'quiet' | 'ready';
 
@@ -59,6 +65,17 @@ export interface ProjectSessionView {
   readonly isSaving: boolean;
   readonly isTransitioning: boolean;
   readonly source: ProjectOpenedValue['source'] | undefined;
+  readonly startup:
+    | {
+        readonly status: 'loading';
+      }
+    | {
+        readonly ignoredEvidenceCount: number;
+        readonly problem: UserOperationProblem | undefined;
+        readonly recentProjects: readonly RecentProjectSummary[];
+        readonly status: 'ready';
+      }
+    | undefined;
   readonly statusLabel: string;
   readonly statusTone: ProjectSaveTone;
 }
@@ -82,14 +99,6 @@ const createDefaultInitialDocument = (): ProjectDocument => {
     throw new Error('The default project document could not be created.');
   }
   return result.value;
-};
-
-const copyAssets = (assetsById: ProjectAssetBytes): ProjectAssetBytes => {
-  const copied: Record<string, Uint8Array> = Object.create(null) as Record<string, Uint8Array>;
-  for (const [assetId, bytes] of Object.entries(assetsById)) {
-    copied[assetId] = Uint8Array.from(bytes);
-  }
-  return Object.freeze(copied);
 };
 
 const createSnapshotRequest = (
@@ -116,6 +125,15 @@ const createRecoveryRequest = (
 const describeProblem = (problem: UserOperationProblem | undefined): string | undefined =>
   problem === undefined ? undefined : `${problem.title}: ${problem.message}`;
 
+const failAssetTransaction = (
+  history: DocumentHistoryState,
+  message: string,
+): HistoryOperationResult => ({
+  ok: false,
+  history,
+  error: { code: 'invalid-transaction', message },
+});
+
 /**
  * Single renderer authority for live document/history and save-token state.
  * Main receives immutable snapshots only and never sends live mutations back.
@@ -125,7 +143,8 @@ export class ProjectSession {
   readonly #desktop: DesktopApi;
   readonly #listeners = new Set<() => void>();
 
-  #assetsById: ProjectAssetBytes = Object.freeze({});
+  /** Superset retained across history so undo/redo never needs binary I/O. */
+  #assetPoolById: ProjectAssetBytes = Object.freeze({});
   #closeSnapshot: HistorySaveSnapshot | undefined;
   #closingRequestId: string | undefined;
   #displayName = 'Untitled project';
@@ -136,6 +155,8 @@ export class ProjectSession {
   #lastWarnings: readonly UserOperationWarning[] = Object.freeze([]);
   #recoveryRevision = 0;
   #recoveryState: RecoveryState = 'idle';
+  #recentProjects: readonly RecentProjectSummary[] = Object.freeze([]);
+  #ignoredRecoveryEvidenceCount = 0;
   #savePromise: Promise<void> | undefined;
   #startPromise: Promise<void> | undefined;
   #starting = true;
@@ -150,6 +171,15 @@ export class ProjectSession {
   }
 
   getSnapshot = (): ProjectSessionView => this.#view;
+
+  /** Returns a defensive copy; renderer consumers never receive mutable pool authority. */
+  getAssetBytes(assetId: AssetId): Uint8Array | undefined {
+    if (this.#history?.document.assetsById[assetId] === undefined) {
+      return undefined;
+    }
+    const bytes = this.#assetPoolById[assetId];
+    return bytes === undefined ? undefined : Uint8Array.from(bytes);
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener);
@@ -172,6 +202,9 @@ export class ProjectSession {
       const result = await this.#desktop.getProjectStartupOptions();
       if (result.status === 'completed') {
         this.#lastWarnings = result.warnings;
+        this.#recentProjects = result.value.recentProjects;
+        this.#ignoredRecoveryEvidenceCount = result.value.ignoredRecoveryEvidenceCount;
+        this.#starting = false;
         if (result.value.recoveries.length > 0) {
           this.#dialog = Object.freeze({
             ignoredEvidenceCount: result.value.ignoredRecoveryEvidenceCount,
@@ -181,7 +214,7 @@ export class ProjectSession {
           this.#publish();
           return;
         }
-        await this.#startNewProject();
+        this.#publish();
         return;
       }
       this.#lastProblem =
@@ -199,6 +232,7 @@ export class ProjectSession {
         message: 'Choose Start New to continue without changing existing recovery files.',
       };
     }
+    this.#starting = false;
     this.#dialog = Object.freeze({ kind: 'startup-problem', problem: this.#lastProblem });
     this.#publish();
   }
@@ -239,7 +273,7 @@ export class ProjectSession {
         this.#publish();
         return;
       }
-      this.#installOpenedProject(result.value, result.warnings);
+      await this.#installOpenedProject(result.value, result.warnings);
     } catch {
       this.#starting = false;
       this.#lastProblem = {
@@ -257,7 +291,7 @@ export class ProjectSession {
       try {
         const result = await this.#desktop.restoreProjectRecovery({ recoveryId });
         if (result.status === 'completed') {
-          this.#installOpenedProject(result.value, result.warnings);
+          await this.#installOpenedProject(result.value, result.warnings);
         } else if (result.status === 'failed') {
           this.#lastProblem = result.problem;
         }
@@ -291,7 +325,9 @@ export class ProjectSession {
         }
         const recoveries = current.recoveries.filter((choice) => choice.id !== recoveryId);
         if (recoveries.length === 0) {
-          await this.#startNewProject();
+          this.#dialog = undefined;
+          this.#lastProblem = undefined;
+          this.#publish();
           return;
         }
         this.#dialog = Object.freeze({ ...current, recoveries: Object.freeze(recoveries) });
@@ -366,12 +402,68 @@ export class ProjectSession {
     }
     const result = dispatchHistoryTransaction(history, inputs, options);
     if (result.ok && result.changed) {
+      const liveAssets = createLiveProjectAssetBytes(result.history.document, this.#assetPoolById);
+      if (!liveAssets.ok) {
+        return failAssetTransaction(history, liveAssets.message);
+      }
       this.#history = result.history;
       this.#lastProblem = undefined;
       this.#lastWarnings = Object.freeze([]);
       this.#publish();
       this.#scheduleRecovery();
     }
+    return result;
+  }
+
+  /**
+   * Commits metadata/element commands only after their new binary sidecars
+   * pass the same size and digest contract used by project persistence.
+   */
+  async dispatchTransactionWithAssets(
+    inputs: readonly unknown[],
+    additions: ProjectAssetBytes,
+    options: HistoryTransactionOptions = {},
+  ): Promise<HistoryOperationResult | undefined> {
+    const history = this.#history;
+    if (
+      history === undefined ||
+      this.#closingRequestId !== undefined ||
+      this.#interactionFrozen ||
+      this.#dialog !== undefined
+    ) {
+      return undefined;
+    }
+    const result = dispatchHistoryTransaction(history, inputs, options);
+    if (!result.ok || !result.changed) {
+      return result;
+    }
+    const staged = await stageProjectAssetBytes(
+      history.document,
+      result.history.document,
+      this.#assetPoolById,
+      additions,
+    );
+    if (!staged.ok) {
+      return failAssetTransaction(history, staged.message);
+    }
+    if (
+      this.#history !== history ||
+      this.#closingRequestId !== undefined ||
+      this.#interactionFrozen ||
+      this.#dialog !== undefined
+    ) {
+      return failAssetTransaction(
+        this.#history ?? history,
+        'The project changed while the asset was being checked. Retry the import.',
+      );
+    }
+
+    this.#assetPoolById = staged.value;
+    this.#history = result.history;
+    this.#lastProblem = undefined;
+    this.#lastWarnings = Object.freeze([]);
+    this.#publish();
+    this.#scheduleRecovery();
     return result;
   }
 
@@ -404,6 +496,16 @@ export class ProjectSession {
       return false;
     }
     if (!result.changed) {
+      return false;
+    }
+    const liveAssets = createLiveProjectAssetBytes(result.history.document, this.#assetPoolById);
+    if (!liveAssets.ok) {
+      this.#lastProblem = Object.freeze({
+        code: 'unexpected-native-failure',
+        message: liveAssets.message,
+        title: 'Asset history could not be restored',
+      });
+      this.#publish();
       return false;
     }
     this.#history = result.history;
@@ -461,7 +563,7 @@ export class ProjectSession {
     ) => Promise<Awaited<ReturnType<DesktopApi['openProject']>>>,
   ): Promise<void> {
     if (this.#history === undefined) {
-      return Promise.resolve();
+      return this.#openFromHome(open);
     }
     return this.#runTransition(async () => {
       await this.#savePromise;
@@ -482,12 +584,16 @@ export class ProjectSession {
           };
           return;
         }
+        const liveAssets = this.#selectLiveAssetBytes(started.snapshot.document);
+        if (liveAssets === undefined) {
+          return;
+        }
         this.#history = started.history;
         replacementSnapshot = started.snapshot;
         replacementRequest = Object.freeze({
           dirty: true,
           projectDisplayName: this.#displayName,
-          saveSnapshot: createSnapshotRequest(started.snapshot, this.#assetsById),
+          saveSnapshot: createSnapshotRequest(started.snapshot, liveAssets),
         });
       } else {
         replacementRequest = Object.freeze({
@@ -500,8 +606,9 @@ export class ProjectSession {
       try {
         const result = await open(replacementRequest);
         if (result.status === 'completed') {
-          this.#installOpenedProject(result.value, result.warnings);
-          return;
+          if (await this.#installOpenedProject(result.value, result.warnings)) {
+            return;
+          }
         }
         if (result.status === 'failed') {
           this.#lastProblem = result.problem;
@@ -520,6 +627,36 @@ export class ProjectSession {
         if (restored.ok) {
           this.#history = restored.history;
         }
+      }
+      this.#publish();
+    });
+  }
+
+  #openFromHome(
+    open: (
+      currentProject: ProjectReplacementRequest,
+    ) => Promise<Awaited<ReturnType<DesktopApi['openProject']>>>,
+  ): Promise<void> {
+    return this.#runTransition(async () => {
+      this.#lastProblem = undefined;
+      this.#publish();
+      try {
+        const result = await open(
+          Object.freeze({ dirty: false, projectDisplayName: 'No project open' }),
+        );
+        if (result.status === 'completed') {
+          await this.#installOpenedProject(result.value, result.warnings);
+          return;
+        }
+        if (result.status === 'failed') {
+          this.#lastProblem = result.problem;
+        }
+      } catch {
+        this.#lastProblem = {
+          code: 'open-failed',
+          title: 'The desktop open action did not finish',
+          message: 'No project was opened. Retry or start a new project.',
+        };
       }
       this.#publish();
     });
@@ -559,6 +696,11 @@ export class ProjectSession {
       this.#publish();
       return;
     }
+    const liveAssets = this.#selectLiveAssetBytes(started.snapshot.document);
+    if (liveAssets === undefined) {
+      this.#publish();
+      return;
+    }
     this.#history = started.history;
     this.#lastProblem = undefined;
     this.#lastWarnings = Object.freeze([]);
@@ -566,7 +708,7 @@ export class ProjectSession {
 
     let succeeded = false;
     try {
-      const request = createSnapshotRequest(started.snapshot, this.#assetsById);
+      const request = createSnapshotRequest(started.snapshot, liveAssets);
       const result = forceSaveAs
         ? await this.#desktop.saveProjectAs(request)
         : await this.#desktop.saveProject(request);
@@ -619,10 +761,16 @@ export class ProjectSession {
     if (history === undefined) {
       return;
     }
+    const liveAssets = this.#selectLiveAssetBytes(history.document);
+    if (liveAssets === undefined) {
+      this.#recoveryState = 'problem';
+      this.#publish();
+      return;
+    }
     const revision = ++this.#recoveryRevision;
     this.#recoveryState = 'queued';
     this.#publish();
-    const request = createRecoveryRequest(history, this.#assetsById);
+    const request = createRecoveryRequest(history, liveAssets);
     void this.#desktop
       .scheduleProjectRecovery(request)
       .then((result) => {
@@ -700,6 +848,11 @@ export class ProjectSession {
       });
       return;
     }
+    const liveAssets = this.#selectLiveAssetBytes(started.snapshot.document);
+    if (liveAssets === undefined) {
+      this.#desktop.respondToProjectClose({ requestId: request.requestId, status: 'rejected' });
+      return;
+    }
     this.#history = started.history;
     this.#closeSnapshot = started.snapshot;
     this.#publish();
@@ -707,7 +860,7 @@ export class ProjectSession {
       dirty: true,
       projectDisplayName: this.#displayName,
       requestId: request.requestId,
-      saveSnapshot: createSnapshotRequest(started.snapshot, this.#assetsById),
+      saveSnapshot: createSnapshotRequest(started.snapshot, liveAssets),
       status: 'prepared',
     });
   }
@@ -732,11 +885,11 @@ export class ProjectSession {
     this.#publish();
   }
 
-  #installOpenedProject(
+  async #installOpenedProject(
     value: ProjectOpenedValue,
     warnings: readonly UserOperationWarning[],
-  ): boolean {
-    const accepted = this.#acceptOpenedProject(value);
+  ): Promise<boolean> {
+    const accepted = await this.#acceptOpenedProject(value);
     if (accepted === undefined) {
       this.#starting = false;
       this.#lastProblem = {
@@ -751,7 +904,7 @@ export class ProjectSession {
     this.#history = createDocumentHistory(accepted.document, {
       initiallySaved: accepted.source === 'project-file',
     });
-    this.#assetsById = accepted.assetsById;
+    this.#assetPoolById = accepted.assetsById;
     this.#displayName = accepted.displayName;
     this.#dialog = undefined;
     this.#lastProblem = undefined;
@@ -766,24 +919,42 @@ export class ProjectSession {
     return true;
   }
 
-  #acceptOpenedProject(value: ProjectOpenedValue):
+  async #acceptOpenedProject(value: ProjectOpenedValue): Promise<
     | {
         readonly assetsById: ProjectAssetBytes;
         readonly displayName: string;
         readonly document: ProjectDocument;
         readonly source: ProjectOpenedValue['source'];
       }
-    | undefined {
+    | undefined
+  > {
     const parsed = parseProjectDocument(value.document);
     if (!parsed.ok) {
       return undefined;
     }
+    const assets = await acceptOpenedProjectAssetBytes(parsed.value, value.assetsById);
+    if (!assets.ok) {
+      return undefined;
+    }
     return Object.freeze({
-      assetsById: copyAssets(value.assetsById),
+      assetsById: assets.value,
       displayName: value.displayName,
       document: parsed.value,
       source: value.source,
     });
+  }
+
+  #selectLiveAssetBytes(document: ProjectDocument): ProjectAssetBytes | undefined {
+    const selected = createLiveProjectAssetBytes(document, this.#assetPoolById);
+    if (selected.ok) {
+      return selected.value;
+    }
+    this.#lastProblem = Object.freeze({
+      code: 'unexpected-native-failure',
+      message: selected.message,
+      title: 'Project asset data is unavailable',
+    });
+    return undefined;
   }
 
   #createView(): ProjectSessionView {
@@ -827,10 +998,24 @@ export class ProjectSession {
       history,
       isClosing: this.#closingRequestId !== undefined,
       isDirty,
-      isReady: !this.#starting && history !== undefined,
+      // Ready means renderer commands are accepted, not merely that a document
+      // has arrived. Native project replacement publishes once before its
+      // transition finally releases the interaction freeze.
+      isReady: !this.#starting && !this.#interactionFrozen && history !== undefined,
       isSaving: this.#savePromise !== undefined,
       isTransitioning: this.#transitionPromise !== undefined,
       source: this.#source,
+      startup:
+        history !== undefined
+          ? undefined
+          : this.#starting
+            ? Object.freeze({ status: 'loading' as const })
+            : Object.freeze({
+                ignoredEvidenceCount: this.#ignoredRecoveryEvidenceCount,
+                problem: this.#lastProblem,
+                recentProjects: this.#recentProjects,
+                status: 'ready' as const,
+              }),
       statusLabel,
       statusTone,
     });

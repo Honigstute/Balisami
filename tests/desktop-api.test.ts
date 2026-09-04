@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DESKTOP_ACKNOWLEDGEMENT,
   isDesktopAcknowledgement,
+  isExternalUrlRequest,
   isProjectCloseOutcome,
   isProjectCloseResponse,
   isProjectHistorySnapshotRequest,
@@ -25,6 +26,14 @@ describe('desktop API boundary validation', () => {
     expect(isDesktopAcknowledgement(DESKTOP_ACKNOWLEDGEMENT)).toBe(true);
     expect(isDesktopAcknowledgement({ accepted: false })).toBe(false);
     expect(isDesktopAcknowledgement(null)).toBe(false);
+  });
+
+  it('allows only bounded HTTP(S) external URLs', () => {
+    expect(isExternalUrlRequest({ url: 'https://example.com/path?item=1' })).toBe(true);
+    expect(isExternalUrlRequest({ url: 'http://localhost:3000/demo' })).toBe(true);
+    expect(isExternalUrlRequest({ url: 'file:///private/project' })).toBe(false);
+    expect(isExternalUrlRequest({ url: 'https://user:secret@example.com' })).toBe(true);
+    expect(isExternalUrlRequest({ url: 'https://example.com', extra: true })).toBe(false);
   });
 
   it('rejects unsupported runtime platforms and malformed values', () => {

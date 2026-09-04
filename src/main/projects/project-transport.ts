@@ -7,12 +7,12 @@ import {
   type HistoryStateId,
   type ProjectDocument,
 } from '../../domain';
+import { copyBytes, isUint8Array } from '../../persistence/project-file/binary';
 import {
   MAX_PROJECT_ASSET_BYTES,
   MAX_PROJECT_FILE_ENTRY_COUNT,
   MAX_PROJECT_FILE_TOTAL_BYTES,
-} from '../../persistence';
-import { copyBytes, isUint8Array } from '../../persistence/project-file/binary';
+} from '../../shared/project-file-limits';
 import {
   isProjectHistorySnapshotRequest,
   isProjectRecoverySnapshotRequest,

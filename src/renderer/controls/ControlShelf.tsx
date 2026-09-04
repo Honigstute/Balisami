@@ -1,23 +1,65 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 
-import { listPaletteControlSpecs, type ControlTypeId } from '../../domain';
+import {
+  ComponentInstancePropertiesSchema,
+  CONTROL_TYPES,
+  type ComponentDefinition,
+  type ComponentId,
+  type ControlTypeId,
+  type ProjectDocument,
+} from '../../domain';
 import { ControlThumbnail } from './ControlThumbnail';
+import { ComponentShelfItem } from './ComponentShelfItem';
+import { CONTROL_DRAG_MIME_TYPE } from './control-drag-transfer';
+import {
+  normalizeControlLibrarySearchText,
+  queryControlLibraryEntries,
+  type ControlLibraryCategory,
+} from './control-library-query';
 import {
   getBrowserControlTextMeasurementService,
   type ControlTextMeasurementService,
 } from './control-text-measurement';
 
 interface ControlShelfProps {
-  readonly onInsert: (controlType: ControlTypeId) => boolean;
+  readonly assetUrls?: Readonly<Record<string, string>>;
+  readonly category?: ControlLibraryCategory;
+  readonly components?: readonly ComponentDefinition[];
+  readonly projectDocument?: ProjectDocument;
+  readonly onImportImage?: (file: File) => void;
+  readonly onDeleteComponent?: (componentId: ComponentId) => boolean;
+  readonly onDuplicateComponent?: (componentId: ComponentId) => boolean;
+  readonly onInsert: (controlType: ControlTypeId, presetId?: string) => boolean;
+  readonly onInsertComponent?: (componentId: ComponentId) => boolean;
+  readonly onRenameComponent?: (componentId: ComponentId, name: string) => boolean;
+  readonly onReorderComponent?: (componentId: ComponentId, toIndex: number) => boolean;
+  readonly query?: string;
   /** Tests and non-browser hosts may inject the canonical synchronous service. */
   readonly textMeasurementService?: ControlTextMeasurementService;
 }
 
 /** Fixed slots prevent labels and preview geometry from resizing the shelf. */
-export const ControlShelf = ({ onInsert, textMeasurementService }: ControlShelfProps) => {
+export const ControlShelf = ({
+  assetUrls = {},
+  category = 'All',
+  components = [],
+  projectDocument,
+  onDeleteComponent,
+  onDuplicateComponent,
+  onImportImage,
+  onInsert,
+  onInsertComponent,
+  onRenameComponent,
+  onReorderComponent,
+  query = '',
+  textMeasurementService,
+}: ControlShelfProps) => {
   const [browserMeasurementService, setBrowserMeasurementService] = useState<
     ControlTextMeasurementService | undefined
   >();
+  const [focusedKey, setFocusedKey] = useState<string>();
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (textMeasurementService !== undefined || document.fonts === undefined) {
@@ -40,27 +82,150 @@ export const ControlShelf = ({ onInsert, textMeasurementService }: ControlShelfP
   }, [textMeasurementService]);
 
   const measurementService = textMeasurementService ?? browserMeasurementService;
+  const entries = queryControlLibraryEntries({ category, query });
+  const normalizedQuery = normalizeControlLibrarySearchText(query);
+  const matchingComponents =
+    category !== 'All' && category !== 'Components'
+      ? []
+      : components.filter((component) => {
+          if (normalizedQuery.length === 0) return true;
+          const normalizedName = normalizeControlLibrarySearchText(component.name);
+          return normalizedQuery.split(' ').every((token) => normalizedName.includes(token));
+        });
+  const availableComponents =
+    projectDocument === undefined || onInsertComponent === undefined ? [] : matchingComponents;
+  const itemKeys = [
+    ...entries.map((entry) => `control:${entry.id}`),
+    ...availableComponents.map((component) => `component:${component.id}`),
+  ];
+  const focusedIndex = itemKeys.indexOf(focusedKey ?? '');
+  const activeIndex = focusedIndex < 0 ? 0 : focusedIndex;
+  const focusItem = (index: number): void => {
+    const key = itemKeys[index];
+    if (key === undefined) {
+      return;
+    }
+    const item = rootRef.current?.querySelector<HTMLElement>(`[data-control-library-key='${key}']`);
+    setFocusedKey(key);
+    item?.focus({ preventScroll: true });
+    item?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  };
+  const handleItemKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
+    let targetIndex: number | undefined;
+    if (event.key === 'ArrowRight') {
+      targetIndex = Math.min(index + 1, itemKeys.length - 1);
+    } else if (event.key === 'ArrowLeft') {
+      targetIndex = Math.max(index - 1, 0);
+    } else if (event.key === 'Home') {
+      targetIndex = 0;
+    } else if (event.key === 'End') {
+      targetIndex = itemKeys.length - 1;
+    }
+    if (targetIndex === undefined || targetIndex === index) {
+      return;
+    }
+    event.preventDefault();
+    focusItem(targetIndex);
+  };
   return (
-    <div aria-label="Available controls" className="control-library" role="toolbar">
-      {listPaletteControlSpecs().map((spec) => {
+    <div aria-label="Available controls" className="control-library" ref={rootRef} role="toolbar">
+      {onImportImage === undefined ? null : (
+        <input
+          accept=".gif,.jpeg,.jpg,.png,image/gif,image/jpeg,image/png"
+          aria-label="Choose image file"
+          hidden
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (file !== null && file !== undefined) {
+              onImportImage(file);
+            }
+          }}
+          ref={imageInputRef}
+          type="file"
+        />
+      )}
+      {itemKeys.length === 0 ? (
+        <div className="control-library__empty" role="status">
+          No matching controls
+        </div>
+      ) : null}
+      {entries.map((entry, index) => {
+        const spec = entry.definition;
         const palette = spec.palette;
         if (palette === null) {
           return null;
         }
         return (
           <button
-            aria-label={`Insert ${palette.label}`}
+            aria-label={`Insert ${entry.label}`}
             className="control-library__item"
-            key={spec.type}
-            onClick={() => onInsert(spec.type)}
-            title={`Insert ${palette.label}`}
+            data-control-library-key={`control:${entry.id}`}
+            data-control-library-type={spec.type}
+            draggable
+            key={entry.id}
+            onDragStart={(event: DragEvent<HTMLButtonElement>) => {
+              event.dataTransfer.effectAllowed = 'copy';
+              event.dataTransfer.setData(
+                CONTROL_DRAG_MIME_TYPE,
+                JSON.stringify({ controlType: spec.type, presetId: entry.presetId }),
+              );
+            }}
+            onFocus={() => setFocusedKey(`control:${entry.id}`)}
+            onKeyDown={(event) => handleItemKeyDown(event, index)}
+            onClick={() => {
+              if (spec.type === CONTROL_TYPES.imagePlaceholder && onImportImage !== undefined) {
+                imageInputRef.current?.click();
+              } else {
+                onInsert(spec.type, entry.presetId ?? undefined);
+              }
+            }}
+            tabIndex={index === activeIndex ? 0 : -1}
+            title={`Insert ${entry.label}`}
             type="button"
           >
-            <ControlThumbnail definition={spec} textMeasurementService={measurementService} />
-            <span className="control-library__label">{palette.label}</span>
+            <ControlThumbnail
+              definition={spec}
+              identity={entry.id}
+              properties={entry.properties}
+              textMeasurementService={measurementService}
+            />
+            <span className="control-library__label">{entry.label}</span>
           </button>
         );
       })}
+      {projectDocument === undefined || onInsertComponent === undefined
+        ? null
+        : availableComponents.map((component, componentIndex) => {
+            const index = entries.length + componentIndex;
+            const componentPosition = projectDocument.componentIds.indexOf(component.id);
+            const referenceCount = Object.values(projectDocument.elementsById).filter((element) => {
+              if (element.controlType !== CONTROL_TYPES.componentInstance) return false;
+              const parsed = ComponentInstancePropertiesSchema.safeParse(element.properties);
+              return parsed.success && parsed.data.componentId === component.id;
+            }).length;
+            return (
+              <ComponentShelfItem
+                assetUrls={assetUrls}
+                component={component}
+                componentCount={projectDocument.componentIds.length}
+                componentPosition={componentPosition}
+                index={index}
+                isActive={index === activeIndex}
+                key={component.id}
+                measurementService={measurementService}
+                onDeleteComponent={onDeleteComponent}
+                onDuplicateComponent={onDuplicateComponent}
+                onFocus={() => setFocusedKey(`component:${component.id}`)}
+                onInsertComponent={onInsertComponent}
+                onItemKeyDown={handleItemKeyDown}
+                onRenameComponent={onRenameComponent}
+                onReorderComponent={onReorderComponent}
+                projectDocument={projectDocument}
+                referenceCount={referenceCount}
+              />
+            );
+          })}
     </div>
   );
 };

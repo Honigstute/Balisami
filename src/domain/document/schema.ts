@@ -1,8 +1,15 @@
 import { z } from 'zod';
 
-import { AssetIdSchema, BoardIdSchema, ElementIdSchema, ProjectIdSchema } from './ids';
+import {
+  AssetIdSchema,
+  BoardIdSchema,
+  ComponentIdSchema,
+  ElementIdSchema,
+  ElementRowIdSchema,
+  ProjectIdSchema,
+} from './ids';
 
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 2 as const;
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 6 as const;
 
 export const DocumentTitleSchema = z.string().trim().min(1).max(120);
 const PropertyKeySchema = z
@@ -74,6 +81,46 @@ export const ElementLinkSchema = z.discriminatedUnion('kind', [
     .readonly(),
 ]);
 
+export const ELEMENT_ROW_DATA_VERSION = 1 as const;
+export const MAX_ELEMENT_ROW_BINDINGS = 512;
+
+export const ElementRowBindingSchema = z
+  .strictObject({
+    generation: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    id: ElementRowIdSchema,
+    link: ElementLinkSchema.nullable(),
+  })
+  .readonly();
+
+export const ElementRowDataSchema = z
+  .strictObject({
+    version: z.literal(ELEMENT_ROW_DATA_VERSION),
+    /** Monotonic allocation generation; deleted row identities are never reused. */
+    nextId: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    bindings: z
+      .array(ElementRowBindingSchema)
+      .max(MAX_ELEMENT_ROW_BINDINGS)
+      .refine(
+        (bindings) => new Set(bindings.map((binding) => binding.id)).size === bindings.length,
+        {
+          message: 'Element row IDs must be unique within their owning element.',
+        },
+      )
+      .refine(
+        (bindings) =>
+          new Set(bindings.map((binding) => binding.generation)).size === bindings.length,
+        { message: 'Element row generations must be unique within their owning element.' },
+      )
+      .readonly(),
+  })
+  .readonly();
+
+export const EMPTY_ELEMENT_ROW_DATA = ElementRowDataSchema.parse({
+  version: ELEMENT_ROW_DATA_VERSION,
+  nextId: 0,
+  bindings: [],
+});
+
 export const AssetReferenceSchema = z
   .strictObject({
     id: AssetIdSchema,
@@ -101,6 +148,8 @@ const ElementNodeObjectSchema = z.strictObject({
   childIds: z.array(ElementIdSchema).readonly(),
   assetIds: z.array(AssetIdSchema).readonly(),
   link: ElementLinkSchema.nullable(),
+  /** Versioned stable identity and first-class links for registry-parsed rows. */
+  rowData: ElementRowDataSchema,
 });
 
 export const ElementNodeSchema = ElementNodeObjectSchema.readonly();
@@ -111,6 +160,18 @@ export const BoardSchema = z
     name: DocumentTitleSchema,
     note: BoardNoteSchema,
     childIds: z.array(ElementIdSchema).readonly(),
+    /** Hidden board-shaped version records owned by this canonical board. */
+    alternateIds: z.array(BoardIdSchema).readonly(),
+    /** Null selects Official; non-null selects one ID from alternateIds. */
+    selectedAlternateId: BoardIdSchema.nullable(),
+  })
+  .readonly();
+
+export const ComponentDefinitionSchema = z
+  .strictObject({
+    id: ComponentIdSchema,
+    name: DocumentTitleSchema,
+    rootElementId: ElementIdSchema,
   })
   .readonly();
 
@@ -120,7 +181,10 @@ export const ProjectDocumentShapeSchema = z
     id: ProjectIdSchema,
     name: DocumentTitleSchema,
     boardIds: z.array(BoardIdSchema).readonly(),
+    componentIds: z.array(ComponentIdSchema).readonly(),
+    trashedBoardIds: z.array(BoardIdSchema).readonly(),
     boardsById: z.record(BoardIdSchema, BoardSchema).readonly(),
+    componentsById: z.record(ComponentIdSchema, ComponentDefinitionSchema).readonly(),
     elementsById: z.record(ElementIdSchema, ElementNodeSchema).readonly(),
     assetsById: z.record(AssetIdSchema, AssetReferenceSchema).readonly(),
   })
@@ -129,9 +193,12 @@ export const ProjectDocumentShapeSchema = z
 export type WorldRect = z.infer<typeof WorldRectSchema>;
 export type BoardNote = z.infer<typeof BoardNoteSchema>;
 export type ElementLink = z.infer<typeof ElementLinkSchema>;
+export type ElementRowBinding = z.infer<typeof ElementRowBindingSchema>;
+export type ElementRowData = z.infer<typeof ElementRowDataSchema>;
 export type AssetReference = z.infer<typeof AssetReferenceSchema>;
 export type ControlTypeId = z.infer<typeof ControlTypeIdSchema>;
 export type ElementProperties = z.infer<typeof ElementPropertiesSchema>;
 export type ElementNode = z.infer<typeof ElementNodeSchema>;
 export type Board = z.infer<typeof BoardSchema>;
+export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>;
 export type ProjectDocumentShape = z.infer<typeof ProjectDocumentShapeSchema>;

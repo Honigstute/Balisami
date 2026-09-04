@@ -189,6 +189,8 @@ Circular imports and renderer imports from `main` or Node built-ins fail CI.
 
 The normalized model contains `Project`, ordered `Board` records, `ElementNode` records, content-addressed assets, symbols/components, links, notes, and alternates. Every record has a stable identifier. Every stored number and enum is validated and finite.
 
+An alternate is a hidden board-shaped version record referenced by one canonical board; it never enters the project's top-level board or trash order. The canonical board ID remains the stable navigator identity and the only valid board-link target. Canonical boards own ordered alternate IDs plus one persisted selected-version ID because that choice controls link resolution, presentation, and export. Each version record reuses the ordinary board child ownership, note, element commands, and asset references, while invariants prohibit nesting or sharing an alternate across board families. This keeps one element-tree model and one board-link namespace instead of introducing parallel alternate geometry or ownership systems.
+
 `ProjectDocumentSchema` is the authoritative runtime structure, while `parseProjectDocument` is the public untrusted-input boundary. It returns stable field paths and caps surfaced issues so one malformed document cannot create an error-message storm. Cross-record ownership, ordering, identity, link, asset, and cycle rules are validated with the shape rather than repaired silently.
 
 Each board or group owns one ordered `childIds` list. That list alone defines parent membership and stacking order; parent indexes and z-order values are derived at runtime and are never persisted as competing copies.
@@ -716,6 +718,9 @@ A feature is done only when:
 | D-013 | Brand-neutral deterministic v1 logical file entries        | Keep schema, assets, tests, and future archive adapters stable while the public product name and extension can change | Accepted                                  |
 | D-014 | Pinned asynchronous `fflate` ZIP adapter                   | Produce portable deterministic archives without blocking the renderer or implementing security-sensitive ZIP logic    | Accepted                                  |
 | D-015 | Renderer-owned project history with opaque validated IPC   | Keep one live document authority while main exclusively owns paths, dialogs, durability, recovery, and native close   | Accepted                                  |
+| D-016 | Hidden board-shaped records for alternate versions         | Preserve canonical board/link identity while reusing validated board ownership, notes, elements, assets, and commands | Accepted                                  |
+| D-017 | Custom icons reference ordinary content-addressed assets   | Keep one authenticated byte, reachability, cleanup, undo, persistence, and rendering authority for images and icons   | Accepted                                  |
+| D-018 | Component definitions own hidden canonical element roots   | Reuse canonical geometry, controls, assets, ownership, migration, and rendering while instances stay lightweight      | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 

@@ -11,8 +11,10 @@ import {
   createWorldVector,
 } from '../src/renderer/editor/viewport-transform';
 import {
+  createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
   DOCUMENT_FIXTURE_IDS,
+  getFixtureControlProperties,
   getFixtureControlVersion,
 } from './fixtures/project-document';
 
@@ -106,10 +108,11 @@ describe('scene snap candidate adapter', () => {
       controlVersion: getFixtureControlVersion(FOUNDATION_CONTROL_TYPES.rectangle),
       frame: { x, y: 300, width: id === movingId ? 20 : 40, height: 20 },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: createEmptyElementRowDataInput(),
     });
     input.elementsById[beforeId] = createRectangle(beforeId, 0);
     input.elementsById[movingId] = createRectangle(movingId, 58);

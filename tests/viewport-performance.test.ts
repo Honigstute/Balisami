@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BoardIdSchema,
   ElementIdSchema,
+  EMPTY_ELEMENT_ROW_DATA,
   FOUNDATION_CONTROL_TYPES,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
   parseProjectDocument,
@@ -28,7 +29,7 @@ import {
   createWorldVector,
 } from '../src/renderer/editor/viewport-transform';
 import { createEditorSpatialFixture } from './fixtures/editor-spatial-fixture';
-import { getFixtureControlVersion } from './fixtures/project-document';
+import { getFixtureControlProperties, getFixtureControlVersion } from './fixtures/project-document';
 
 const percentile95 = (samples: readonly number[]): number => {
   const ordered = [...samples].sort((first, second) => first - second);
@@ -55,10 +56,11 @@ const createHitTestFixture = (elementCount: number) => {
         height: 12,
       },
       locked: false,
-      properties: {},
+      properties: { ...getFixtureControlProperties(FOUNDATION_CONTROL_TYPES.rectangle) },
       childIds: [],
       assetIds: [],
       link: null,
+      rowData: EMPTY_ELEMENT_ROW_DATA,
     };
   }
   const parsed = parseProjectDocument({
@@ -66,9 +68,19 @@ const createHitTestFixture = (elementCount: number) => {
     id: projectId,
     name: 'Hit-test performance fixture',
     boardIds: [boardId],
+    componentIds: [],
+    trashedBoardIds: [],
     boardsById: {
-      [boardId]: { id: boardId, name: 'Dense board', note: { text: '' }, childIds },
+      [boardId]: {
+        id: boardId,
+        name: 'Dense board',
+        note: { text: '' },
+        childIds,
+        alternateIds: [],
+        selectedAlternateId: null,
+      },
     },
+    componentsById: {},
     elementsById,
     assetsById: {},
   });
