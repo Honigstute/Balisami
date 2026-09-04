@@ -9,6 +9,8 @@ import { MAX_PROJECT_ASSET_BYTES } from './project-file-limits';
 export const DESKTOP_CHANNELS = {
   clipboardRead: 'desktop:clipboard-read',
   clipboardWrite: 'desktop:clipboard-write',
+  editCommand: 'desktop:edit-command',
+  editCommandNative: 'desktop:edit-command-native',
   exportFile: 'desktop:export-file',
   getRuntimeInfo: 'desktop:get-runtime-info',
   openExternalUrl: 'desktop:open-external-url',
@@ -60,6 +62,18 @@ export interface DesktopExportedFileValue {
 }
 
 export type DesktopExportFileResult = UserOperationResult<DesktopExportedFileValue>;
+
+export const DESKTOP_EDIT_COMMANDS = Object.freeze({
+  copy: 'copy',
+  cut: 'cut',
+  delete: 'delete',
+  duplicate: 'duplicate',
+  paste: 'paste',
+  redo: 'redo',
+  selectAll: 'select-all',
+  undo: 'undo',
+} as const);
+export type DesktopEditCommand = (typeof DESKTOP_EDIT_COMMANDS)[keyof typeof DESKTOP_EDIT_COMMANDS];
 
 export type RuntimePlatform = 'darwin' | 'win32';
 
@@ -200,8 +214,10 @@ export interface DesktopApi {
   writeClipboard(request: DesktopClipboardWriteRequest): Promise<DesktopAcknowledgement>;
   getRuntimeInfo(): Promise<RuntimeInfo>;
   openExternalUrl(request: ExternalUrlRequest): Promise<DesktopAcknowledgement>;
+  performNativeEditCommand(command: DesktopEditCommand): Promise<DesktopAcknowledgement>;
   onProjectCloseOutcome(listener: (outcome: ProjectCloseOutcome) => void): DesktopEventUnsubscribe;
   onProjectCloseRequest(listener: (request: ProjectCloseRequest) => void): DesktopEventUnsubscribe;
+  onEditCommand(listener: (command: DesktopEditCommand) => void): DesktopEventUnsubscribe;
   onProjectCommand(listener: (command: ProjectCommand) => void): DesktopEventUnsubscribe;
   discardProjectRecovery(
     request: ProjectRecoveryChoiceRequest,
@@ -555,6 +571,11 @@ export const isProjectCommand = (value: unknown): value is ProjectCommand =>
     hasExactKeys(value, ['recentProjectId', 'type']) &&
     value.type === 'open-recent-id' &&
     isRecentProjectId(value.recentProjectId));
+
+const DESKTOP_EDIT_COMMAND_SET = new Set<string>(Object.values(DESKTOP_EDIT_COMMANDS));
+
+export const isDesktopEditCommand = (value: unknown): value is DesktopEditCommand =>
+  typeof value === 'string' && DESKTOP_EDIT_COMMAND_SET.has(value);
 
 export const isRuntimeInfo = (value: unknown): value is RuntimeInfo => {
   if (!isRecord(value)) {

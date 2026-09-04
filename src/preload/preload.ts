@@ -5,6 +5,7 @@ import {
   type DesktopApi,
   type DesktopClipboardWriteRequest,
   type DesktopExportFileRequest,
+  type DesktopEditCommand,
   type ExternalUrlRequest,
   type ProjectCloseOutcome,
   type ProjectCloseRequest,
@@ -21,6 +22,7 @@ import {
   isDesktopClipboardWriteRequest,
   isDesktopExportFileRequest,
   isDesktopExportFileResult,
+  isDesktopEditCommand,
   isExternalUrlRequest,
   isProjectCloseOutcome,
   isProjectCloseRequest,
@@ -100,6 +102,19 @@ const desktopApi: DesktopApi = Object.freeze({
       throw new Error('The desktop runtime did not acknowledge the external URL.');
     }
     return response;
+  },
+  async performNativeEditCommand(command: DesktopEditCommand) {
+    if (!isDesktopEditCommand(command)) {
+      throw new TypeError('The native edit command is invalid.');
+    }
+    const response: unknown = await ipcRenderer.invoke(DESKTOP_CHANNELS.editCommandNative, command);
+    if (!isDesktopAcknowledgement(response)) {
+      throw new Error('The desktop runtime did not acknowledge the native edit command.');
+    }
+    return response;
+  },
+  onEditCommand(listener: (command: DesktopEditCommand) => void) {
+    return createValidatedListener(DESKTOP_CHANNELS.editCommand, isDesktopEditCommand, listener);
   },
   onProjectCloseOutcome(listener: (outcome: ProjectCloseOutcome) => void) {
     return createValidatedListener(

@@ -1,4 +1,12 @@
-import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/renderer/app/App';
@@ -38,8 +46,10 @@ const createDesktopApi = (overrides: Partial<DesktopApi> = {}): DesktopApi => {
     }),
     onProjectCloseOutcome: () => () => undefined,
     onProjectCloseRequest: () => () => undefined,
+    onEditCommand: () => () => undefined,
     onProjectCommand: () => () => undefined,
     openExternalUrl: vi.fn().mockResolvedValue({ accepted: true }),
+    performNativeEditCommand: vi.fn().mockResolvedValue({ accepted: true }),
     openProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     openRecentProject: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     reportRendererReady: vi.fn().mockResolvedValue(undefined),
@@ -183,6 +193,43 @@ describe('application shell', () => {
     fireEvent.click(undo);
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Redo Insert Button' })).toBeEnabled();
+  });
+
+  it('routes native Edit menu commands to canvas history or the focused text field once', async () => {
+    let editListener: Parameters<DesktopApi['onEditCommand']>[0] | undefined;
+    const performNativeEditCommand = vi
+      .fn<DesktopApi['performNativeEditCommand']>()
+      .mockResolvedValue({ accepted: true });
+    const writeClipboard = vi
+      .fn<DesktopApi['writeClipboard']>()
+      .mockResolvedValue({ accepted: true });
+    const onEditCommand: DesktopApi['onEditCommand'] = (listener) => {
+      editListener = listener;
+      return () => {
+        editListener = undefined;
+      };
+    };
+    installDesktopApi(
+      createDesktopApi({ onEditCommand, performNativeEditCommand, writeClipboard }),
+    );
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    await screen.findByRole('main', { name: 'Canvas viewport' });
+    fireEvent.click(screen.getByRole('button', { name: 'Insert Button' }));
+
+    act(() => editListener?.('copy'));
+    await waitFor(() => expect(writeClipboard).toHaveBeenCalledOnce());
+    act(() => editListener?.('undo'));
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    act(() => editListener?.('redo'));
+    expect(screen.getByRole('button', { name: 'Undo Insert Button' })).toBeEnabled();
+
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const search = screen.getByRole('combobox', { name: 'Find a control' });
+    search.focus();
+    act(() => editListener?.('copy'));
+    expect(performNativeEditCommand).toHaveBeenCalledExactlyOnceWith('copy');
   });
 
   it('publishes selected controls to the desktop clipboard and reads them before paste', async () => {

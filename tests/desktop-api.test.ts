@@ -10,6 +10,7 @@ import {
   isDesktopClipboardWriteRequest,
   isDesktopExportFileRequest,
   isDesktopExportFileResult,
+  isDesktopEditCommand,
   isExternalUrlRequest,
   isProjectCloseOutcome,
   isProjectCloseResponse,
@@ -32,6 +33,13 @@ describe('desktop API boundary validation', () => {
     expect(isDesktopAcknowledgement(DESKTOP_ACKNOWLEDGEMENT)).toBe(true);
     expect(isDesktopAcknowledgement({ accepted: false })).toBe(false);
     expect(isDesktopAcknowledgement(null)).toBe(false);
+  });
+
+  it('accepts only canonical native Edit commands', () => {
+    expect(isDesktopEditCommand('undo')).toBe(true);
+    expect(isDesktopEditCommand('select-all')).toBe(true);
+    expect(isDesktopEditCommand('selectAll')).toBe(false);
+    expect(isDesktopEditCommand({ command: 'copy' })).toBe(false);
   });
 
   it('allows only bounded HTTP(S) external URLs', () => {

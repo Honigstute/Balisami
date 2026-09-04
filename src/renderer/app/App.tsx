@@ -22,6 +22,7 @@ import {
   type ProjectDocument,
   type WorldRect,
 } from '../../domain';
+import type { DesktopEditCommand } from '../../shared/desktop-api';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
 import { isM11PerformanceProbeRequested } from '../../shared/m11-performance';
 import { isViewportPerformanceProbeRequested } from '../../shared/viewport-performance';
@@ -99,6 +100,7 @@ import {
   getRenderableBoardWorldBounds,
 } from '../editor/document-scene-model';
 import { KeyboardNudgeInteraction } from '../editor/keyboard-nudge-interaction';
+import { isNativeTextEditTarget } from '../editor/native-edit-routing';
 import { captureMoveTargets } from '../editor/move-geometry';
 import { MoveInteraction } from '../editor/move-interaction';
 import { captureResizeTarget, hitTestResizeHandle } from '../editor/resize-geometry';
@@ -1095,6 +1097,49 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     });
   });
   const document = view.history?.document;
+  useEffect(() => {
+    return window.balsamicDesktop.onEditCommand((command: DesktopEditCommand) => {
+      if (isNativeTextEditTarget(globalThis.document.activeElement)) {
+        if (command !== 'duplicate') {
+          void window.balsamicDesktop.performNativeEditCommand(command).catch(() => {
+            noticeStore.report({
+              key: 'edit-menu:native-command',
+              message: 'The active text field is unchanged. Retry the Edit menu command.',
+              title: 'The native Edit command was unavailable',
+              tone: 'warning',
+            });
+          });
+        }
+        return;
+      }
+      switch (command) {
+        case 'copy':
+          editor.copySelection();
+          break;
+        case 'cut':
+          editor.cutSelection();
+          break;
+        case 'delete':
+          editor.deleteSelection();
+          break;
+        case 'duplicate':
+          editor.duplicateSelection();
+          break;
+        case 'paste':
+          editor.pasteSelection();
+          break;
+        case 'redo':
+          session.redo();
+          break;
+        case 'select-all':
+          editor.selectionInteraction.selectAllWhenIdle();
+          break;
+        case 'undo':
+          session.undo();
+          break;
+      }
+    });
+  }, [editor, noticeStore, session]);
   const assetUrls = useProjectAssetUrls(session, document);
   const assetsById = document?.assetsById;
   const projectImageIcons = useMemo(

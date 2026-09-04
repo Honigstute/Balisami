@@ -36,6 +36,7 @@ import { ProjectSession } from '../src/renderer/projects/project-session';
 import { planBoardDuplicate } from '../src/renderer/projects/board-duplicate';
 import type {
   DesktopApi,
+  DesktopEditCommand,
   ProjectCloseOutcome,
   ProjectCloseRequest,
   ProjectCloseResponse,
@@ -83,6 +84,7 @@ class FakeDesktopApi implements DesktopApi {
   readonly closeRequests = new Set<(request: ProjectCloseRequest) => void>();
   readonly closeResponses: ProjectCloseResponse[] = [];
   readonly commands = new Set<(command: ProjectCommand) => void>();
+  readonly editCommands = new Set<(command: DesktopEditCommand) => void>();
   readonly recoveryRequests: ProjectRecoverySnapshotRequest[] = [];
   readonly saveRequests: ProjectHistorySnapshotRequest[] = [];
   readonly openRequests: unknown[] = [];
@@ -104,6 +106,9 @@ class FakeDesktopApi implements DesktopApi {
   getRuntimeInfo = (): Promise<never> => Promise.reject(new Error('Not used by project session.'));
 
   openExternalUrl: DesktopApi['openExternalUrl'] = () => Promise.resolve({ accepted: true });
+
+  performNativeEditCommand: DesktopApi['performNativeEditCommand'] = () =>
+    Promise.resolve({ accepted: true });
 
   discardProjectRecovery: DesktopApi['discardProjectRecovery'] = (request) =>
     Promise.resolve(
@@ -134,6 +139,11 @@ class FakeDesktopApi implements DesktopApi {
   onProjectCloseRequest = (listener: (request: ProjectCloseRequest) => void): (() => void) => {
     this.closeRequests.add(listener);
     return () => this.closeRequests.delete(listener);
+  };
+
+  onEditCommand = (listener: (command: DesktopEditCommand) => void): (() => void) => {
+    this.editCommands.add(listener);
+    return () => this.editCommands.delete(listener);
   };
 
   onProjectCommand = (listener: (command: ProjectCommand) => void): (() => void) => {

@@ -1,10 +1,15 @@
 import { app, BrowserWindow, dialog, Menu, shell, type MenuItemConstructorOptions } from 'electron';
 import path from 'node:path';
 
-import { DESKTOP_CHANNELS, type ProjectCommand } from '../../shared/desktop-api';
+import {
+  DESKTOP_CHANNELS,
+  type DesktopEditCommand,
+  type ProjectCommand,
+} from '../../shared/desktop-api';
 
 export interface ApplicationMenuActions {
   readonly appName: string;
+  readonly executeEditCommand: (command: DesktopEditCommand) => void;
   readonly openDiagnosticsFolder: () => void;
   readonly openThirdPartyNotices: () => void;
   readonly platform: NodeJS.Platform;
@@ -98,6 +103,53 @@ export const createApplicationMenuTemplate = (
       ],
     },
     {
+      label: 'Edit',
+      submenu: [
+        {
+          label: 'Undo',
+          accelerator: 'CmdOrCtrl+Z',
+          click: () => actions.executeEditCommand('undo'),
+        },
+        {
+          label: 'Redo',
+          accelerator: actions.platform === 'darwin' ? 'CmdOrCtrl+Shift+Z' : 'CmdOrCtrl+Y',
+          click: () => actions.executeEditCommand('redo'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Cut',
+          accelerator: 'CmdOrCtrl+X',
+          click: () => actions.executeEditCommand('cut'),
+        },
+        {
+          label: 'Copy',
+          accelerator: 'CmdOrCtrl+C',
+          click: () => actions.executeEditCommand('copy'),
+        },
+        {
+          label: 'Paste',
+          accelerator: 'CmdOrCtrl+V',
+          click: () => actions.executeEditCommand('paste'),
+        },
+        {
+          label: 'Delete',
+          accelerator: 'Delete',
+          click: () => actions.executeEditCommand('delete'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Duplicate',
+          accelerator: 'CmdOrCtrl+D',
+          click: () => actions.executeEditCommand('duplicate'),
+        },
+        {
+          label: 'Select All',
+          accelerator: 'CmdOrCtrl+A',
+          click: () => actions.executeEditCommand('select-all'),
+        },
+      ],
+    },
+    {
       label: 'View',
       submenu: [{ role: 'togglefullscreen' }],
     },
@@ -160,6 +212,12 @@ export const installApplicationMenu = ({
 
   const template = createApplicationMenuTemplate({
     appName: app.name,
+    executeEditCommand: (command) => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (focusedWindow !== null && !focusedWindow.isDestroyed()) {
+        focusedWindow.webContents.send(DESKTOP_CHANNELS.editCommand, command);
+      }
+    },
     openDiagnosticsFolder: () => openPath('diagnostics-folder', diagnosticsDirectory),
     openThirdPartyNotices: () => openPath('third-party-notices', resolveNoticesDirectory()),
     platform: process.platform,

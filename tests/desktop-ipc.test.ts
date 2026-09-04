@@ -10,6 +10,13 @@ const electron = vi.hoisted(() => ({
   readImage: vi.fn(),
   readText: vi.fn<() => string>(),
   write: vi.fn(),
+  copy: vi.fn(),
+  cut: vi.fn(),
+  delete: vi.fn(),
+  paste: vi.fn(),
+  redo: vi.fn(),
+  selectAll: vi.fn(),
+  undo: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -34,7 +41,19 @@ import { registerDesktopIpc } from '../src/main/ipc';
 import { DESKTOP_ACKNOWLEDGEMENT, DESKTOP_CHANNELS } from '../src/shared/desktop-api';
 
 const TRUSTED_URL = 'http://localhost:5173/editor';
-const createEvent = (url: string) => ({ sender: { id: 1 }, senderFrame: { url } });
+const createEvent = (url: string) => ({
+  sender: {
+    id: 1,
+    copy: electron.copy,
+    cut: electron.cut,
+    delete: electron.delete,
+    paste: electron.paste,
+    redo: electron.redo,
+    selectAll: electron.selectAll,
+    undo: electron.undo,
+  },
+  senderFrame: { url },
+});
 
 describe('desktop external URL IPC', () => {
   beforeEach(() => {
@@ -49,7 +68,26 @@ describe('desktop external URL IPC', () => {
     });
     electron.readText.mockReset().mockReturnValue('');
     electron.write.mockReset();
+    electron.copy.mockReset();
+    electron.cut.mockReset();
+    electron.delete.mockReset();
+    electron.paste.mockReset();
+    electron.redo.mockReset();
+    electron.selectAll.mockReset();
+    electron.undo.mockReset();
     registerDesktopIpc({ developmentServerUrl: 'http://localhost:5173' });
+  });
+
+  it('executes validated native text-edit commands only for the trusted sender', () => {
+    const handler = electron.handlers.get(DESKTOP_CHANNELS.editCommandNative);
+    expect(handler?.(createEvent(TRUSTED_URL), 'copy')).toEqual(DESKTOP_ACKNOWLEDGEMENT);
+    expect(electron.copy).toHaveBeenCalledOnce();
+    expect(() => handler?.(createEvent(TRUSTED_URL), 'duplicate')).toThrow(
+      'invalid native edit command',
+    );
+    expect(() => handler?.(createEvent('https://attacker.example'), 'copy')).toThrow(
+      'untrusted renderer',
+    );
   });
 
   it('offers a validated export through a native save dialog', async () => {

@@ -7,6 +7,7 @@ import {
   type RuntimePlatform,
   isDesktopClipboardWriteRequest,
   isDesktopExportFileRequest,
+  isDesktopEditCommand,
   isExternalUrlRequest,
 } from '../shared/desktop-api';
 import { readDesktopClipboard, writeDesktopClipboard } from './desktop-clipboard';
@@ -78,6 +79,37 @@ export const registerDesktopIpc = ({
       throw new TypeError('Rejected an invalid export file request.');
     }
     return saveDesktopExportFile(input);
+  });
+
+  ipcMain.handle(DESKTOP_CHANNELS.editCommandNative, (event, input: unknown) => {
+    assertTrustedRenderer(event.senderFrame?.url, developmentServerUrl);
+    if (!isDesktopEditCommand(input) || input === 'duplicate') {
+      throw new TypeError('Rejected an invalid native edit command.');
+    }
+    switch (input) {
+      case 'copy':
+        event.sender.copy();
+        break;
+      case 'cut':
+        event.sender.cut();
+        break;
+      case 'delete':
+        event.sender.delete();
+        break;
+      case 'paste':
+        event.sender.paste();
+        break;
+      case 'redo':
+        event.sender.redo();
+        break;
+      case 'select-all':
+        event.sender.selectAll();
+        break;
+      case 'undo':
+        event.sender.undo();
+        break;
+    }
+    return DESKTOP_ACKNOWLEDGEMENT;
   });
 
   ipcMain.handle(DESKTOP_CHANNELS.getRuntimeInfo, (event): RuntimeInfo => {
