@@ -18,6 +18,7 @@ import {
   type ControlTextMeasurementService,
 } from '../src/renderer/controls/control-text-measurement';
 import { createWorldRect } from '../src/renderer/editor/viewport-transform';
+import { DESIGN_TOKENS } from '../src/shared/design-tokens';
 
 const ELEMENT_ID = ElementIdSchema.parse('element_rowscene01');
 
@@ -321,6 +322,109 @@ describe('canonical parsed-row scene projection', () => {
       'Open disclosure',
       'Custom slot',
     ]);
+  });
+
+  it('projects measured horizontal tabs, selected seam state, alignment, and border mode', () => {
+    const definition = getControlSpec(CONTROL_TYPES.tabBar);
+    if (definition === undefined) throw new Error('Tab Bar definition is missing.');
+    const initial = createInitialControlRowState(
+      definition,
+      ELEMENT_ID,
+      definition.defaultProperties,
+    );
+    if (initial === undefined) throw new Error('Tab Bar row state is invalid.');
+    const selectedRowId = initial.rowData.bindings[1]?.id;
+    if (selectedRowId === undefined) throw new Error('Tab Bar selection fixture is incomplete.');
+    const bounds = createWorldRect(10, 20, 254, 100);
+    const service = createMeasurementService();
+    const top = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: ELEMENT_ID,
+      properties: Object.freeze({ ...initial.properties, selectedRowId }),
+      rowData: initial.rowData,
+      textMeasurementService: service,
+    });
+
+    expect(top.rows.map((row) => row.label)).toEqual(['One', 'Two', 'Three', 'Four']);
+    expect(top.rows[0]?.bounds.x).toBe(bounds.x);
+    expect(top.rows.map((row) => row.bounds.width)).toEqual([25, 25, 31, 28]);
+    expect(top.primitiveBounds).toEqual({ height: 72, width: 254, x: 10, y: 48 });
+    expect(top.fillColor).toBe(DESIGN_TOKENS.color.panel);
+    expect(top.fillPath.match(/M /gu)).toHaveLength(5);
+    expect(top.rowSeparatorPath).toBe('');
+    expect(top.selectedRow).toMatchObject({
+      color: DESIGN_TOKENS.color.canvas,
+      fillOpacity: 1,
+      id: selectedRowId,
+    });
+    expect(top.outlinePath).not.toBe('');
+
+    const bottom = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: ELEMENT_ID,
+      properties: Object.freeze({
+        ...initial.properties,
+        showBorder: false,
+        tabsAlignment: 'center',
+        tabsPosition: 'bottom',
+      }),
+      rowData: initial.rowData,
+      textMeasurementService: service,
+    });
+    expect(bottom.rows[0]?.bounds.x).toBe(82.5);
+    expect(bottom.rows[0]?.bounds.y).toBe(91);
+    expect(bottom.primitiveBounds).toEqual({ height: 72, width: 254, x: 10, y: 20 });
+    expect(bottom.fillPath.match(/M /gu)).toHaveLength(4);
+    expect(bottom.outlinePath).not.toBe(top.outlinePath);
+  });
+
+  it('projects vertical tabs on either side without stretching rows through the pane', () => {
+    const definition = getControlSpec(CONTROL_TYPES.verticalTabs);
+    if (definition === undefined) throw new Error('V.Tabs definition is missing.');
+    const initial = createInitialControlRowState(
+      definition,
+      ELEMENT_ID,
+      definition.defaultProperties,
+    );
+    if (initial === undefined) throw new Error('V.Tabs row state is invalid.');
+    const selectedRowId = initial.rowData.bindings[2]?.id;
+    if (selectedRowId === undefined) throw new Error('V.Tabs selection fixture is incomplete.');
+    const bounds = createWorldRect(10, 20, 200, 194);
+    const service = createMeasurementService();
+    const left = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: ELEMENT_ID,
+      properties: Object.freeze({ ...initial.properties, selectedRowId }),
+      rowData: initial.rowData,
+      textMeasurementService: service,
+    });
+
+    expect(left.rows.map((row) => row.label)).toEqual([
+      'First Tab',
+      'Second Tab',
+      'Third Tab',
+      'Fourth Tab',
+    ]);
+    expect(left.rows.map((row) => row.bounds.height)).toEqual([29, 29, 29, 29]);
+    expect(left.rows[0]?.bounds).toEqual({ height: 29, width: 81, x: 10, y: 20 });
+    expect(left.primitiveBounds).toEqual({ height: 194, width: 120, x: 90, y: 20 });
+    expect(left.selectedRow).toMatchObject({ fillOpacity: 1, id: selectedRowId });
+    expect(left.textLayout?.textAnchor).toBe('start');
+
+    const right = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: ELEMENT_ID,
+      properties: Object.freeze({ ...initial.properties, tabsPosition: 'right' }),
+      rowData: initial.rowData,
+      textMeasurementService: service,
+    });
+    expect(right.rows[0]?.bounds.x).toBe(129);
+    expect(right.primitiveBounds).toEqual({ height: 194, width: 120, x: 10, y: 20 });
+    expect(right.outlinePath).not.toBe(left.outlinePath);
   });
 
   it('keeps dense deep Tree Pane adornment geometry finite at minimum height', () => {

@@ -58,6 +58,8 @@ describe('control definition registry', () => {
       CONTROL_TYPES.buttonBar,
       CONTROL_TYPES.linkBar,
       CONTROL_TYPES.treePane,
+      CONTROL_TYPES.tabBar,
+      CONTROL_TYPES.verticalTabs,
       CONTROL_TYPES.searchBox,
       CONTROL_TYPES.textArea,
       CONTROL_TYPES.fieldSet,
@@ -132,6 +134,8 @@ describe('control definition registry', () => {
       'Popover',
       'H.Curly Brace',
       'V.Curly Brace',
+      'Tab Bar',
+      'V.Tabs',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -1371,6 +1375,91 @@ describe('control definition registry', () => {
         .success,
     ).toBe(false);
   });
+
+  it.each([
+    [
+      CONTROL_TYPES.tabBar,
+      'Tab Bar',
+      { height: 100, width: 254 },
+      'One, Two, Three, Four',
+      'segments',
+      ',',
+      {
+        alignmentProperty: 'tabsAlignment',
+        orientation: 'horizontal',
+        positionProperty: 'tabsPosition',
+      },
+      { tabsAlignment: 'start', tabsPosition: 'top' },
+    ],
+    [
+      CONTROL_TYPES.verticalTabs,
+      'V.Tabs',
+      { height: 194, width: 200 },
+      'First Tab\nSecond Tab\nThird Tab\nFourth Tab',
+      'stack',
+      '\n',
+      { alignmentProperty: null, orientation: 'vertical', positionProperty: 'tabsPosition' },
+      { tabsPosition: 'left' },
+    ],
+  ] as const)(
+    'owns the evidence-backed %s tab schema and parsed-row contract',
+    (controlType, label, defaultSize, items, layout, separator, tabs, positionDefaults) => {
+      const definition = getControlSpec(controlType);
+
+      expect(definition).toMatchObject({
+        accessibility: { role: 'group' },
+        autoSize: null,
+        capabilities: {
+          border: true,
+          fill: true,
+          grouping: 'leaf',
+          link: false,
+          resizeAxes: 'both',
+        },
+        defaultProperties: {
+          color: 'default',
+          items,
+          opacity: 1,
+          scrollbar: false,
+          selectedRowId: null,
+          showBorder: true,
+          ...positionDefaults,
+        },
+        defaultSize,
+        palette: { category: 'Layout', label },
+        rows: {
+          display: 'labels',
+          layout,
+          links: true,
+          selection: { allowNone: true, default: 'none' },
+          separator,
+        },
+        scene: { colorTarget: 'fill', kind: 'tabs', tabs },
+      });
+      expect(definition?.inspector.flatMap((section) => section.fields)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: 'boolean', property: 'showBorder' }),
+          expect.objectContaining({ kind: 'color', property: 'color' }),
+          expect.objectContaining({ kind: 'range', property: 'opacity' }),
+          expect.objectContaining({ kind: 'boolean', property: 'scrollbar' }),
+          expect.objectContaining({ kind: 'choice', property: 'tabsPosition' }),
+          expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+          expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+          expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+          expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+        ]),
+      );
+      expect(definition?.propertiesSchema.safeParse(definition.defaultProperties).success).toBe(
+        true,
+      );
+      expect(
+        definition?.propertiesSchema.safeParse({
+          ...definition.defaultProperties,
+          tabsPosition: controlType === CONTROL_TYPES.tabBar ? 'left' : 'top',
+        }).success,
+      ).toBe(false);
+    },
+  );
 
   it.each([
     [

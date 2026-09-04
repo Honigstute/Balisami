@@ -122,6 +122,10 @@ const REGISTRY_H_CURLY_TOP_ID = ElementIdSchema.parse('element_registryhcurlytop
 const REGISTRY_H_CURLY_BOTTOM_ID = ElementIdSchema.parse('element_registryhcurlybottom');
 const REGISTRY_V_CURLY_LEFT_ID = ElementIdSchema.parse('element_registryvcurlyleft');
 const REGISTRY_V_CURLY_RIGHT_ID = ElementIdSchema.parse('element_registryvcurlyright');
+const REGISTRY_TAB_TOP_ID = ElementIdSchema.parse('element_registrytabtop');
+const REGISTRY_TAB_BOTTOM_ID = ElementIdSchema.parse('element_registrytabbottom');
+const REGISTRY_V_TABS_LEFT_ID = ElementIdSchema.parse('element_registryvtabsleft');
+const REGISTRY_V_TABS_RIGHT_ID = ElementIdSchema.parse('element_registryvtabsright');
 const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
 const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
@@ -1433,6 +1437,77 @@ const createCatalogCurlyBracesFixtureDocument = (): ReturnType<
   return Object.freeze({ ...fixture, document, selectedId: REGISTRY_V_CURLY_RIGHT_ID });
 };
 
+const createCatalogTabsFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const fixture = createAlphaFixtureDocument();
+  const entries = [
+    {
+      controlType: CONTROL_TYPES.tabBar,
+      frame: { height: 100, width: 254, x: 665, y: 70 },
+      id: REGISTRY_TAB_TOP_ID,
+      overrides: { tabsPosition: 'top' },
+      selectedIndex: 0,
+    },
+    {
+      controlType: CONTROL_TYPES.tabBar,
+      frame: { height: 100, width: 254, x: 665, y: 230 },
+      id: REGISTRY_TAB_BOTTOM_ID,
+      overrides: { showBorder: false, tabsAlignment: 'center', tabsPosition: 'bottom' },
+      selectedIndex: null,
+    },
+    {
+      controlType: CONTROL_TYPES.verticalTabs,
+      frame: { height: 194, width: 200, x: 900, y: 55 },
+      id: REGISTRY_V_TABS_LEFT_ID,
+      overrides: { tabsPosition: 'left' },
+      selectedIndex: 1,
+    },
+    {
+      controlType: CONTROL_TYPES.verticalTabs,
+      frame: { height: 194, width: 200, x: 900, y: 285 },
+      id: REGISTRY_V_TABS_RIGHT_ID,
+      overrides: { color: DESIGN_TOKENS.color.accent, scrollbar: true, tabsPosition: 'right' },
+      selectedIndex: 2,
+    },
+  ] as const;
+  let document = fixture.document;
+  for (const entry of entries) {
+    const definition = getControlSpec(entry.controlType);
+    if (definition === undefined) throw new Error('The deterministic Tabs definition is missing.');
+    const initial = createInitialControlRowState(
+      definition,
+      entry.id,
+      requireControlProperties(entry.controlType, entry.overrides),
+    );
+    if (initial === undefined) throw new Error('The deterministic Tabs row fixture is invalid.');
+    const selectedRowId =
+      entry.selectedIndex === null
+        ? null
+        : (initial.rowData.bindings[entry.selectedIndex]?.id ?? null);
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: entry.controlType,
+        controlVersion: definition.fileVersion,
+        frame: entry.frame,
+        id: entry.id,
+        link: null,
+        locked: false,
+        properties: { ...initial.properties, selectedRowId },
+        rowData: initial.rowData,
+      },
+      index: document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic Tabs visual fixture is invalid.');
+    }
+    document = result.document;
+  }
+  return Object.freeze({ ...fixture, document, selectedId: REGISTRY_V_TABS_RIGHT_ID });
+};
+
 const createRadioButtonFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
   Object.freeze({
     ...createRegistryControlFixtureDocument(),
@@ -1541,6 +1616,7 @@ type SceneFixtureState =
   | 'catalogCallout'
   | 'catalogPopover'
   | 'catalogCurlyBraces'
+  | 'catalogTabs'
   | 'radioButton'
   | 'dateChooser'
   | 'numericStepper'
@@ -1570,6 +1646,7 @@ const SceneFixture = ({
     state === 'catalogCallout' ||
     state === 'catalogPopover' ||
     state === 'catalogCurlyBraces' ||
+    state === 'catalogTabs' ||
     state === 'radioButton' ||
     state === 'dateChooser' ||
     state === 'numericStepper';
@@ -1596,13 +1673,15 @@ const SceneFixture = ({
                         ? createCatalogPopoverFixtureDocument()
                         : state === 'catalogCurlyBraces'
                           ? createCatalogCurlyBracesFixtureDocument()
-                          : state === 'radioButton'
-                            ? createRadioButtonFixtureDocument()
-                            : state === 'dateChooser'
-                              ? createDateChooserFixtureDocument()
-                              : state === 'numericStepper'
-                                ? createNumericStepperFixtureDocument()
-                                : createRegistryControlFixtureDocument()
+                          : state === 'catalogTabs'
+                            ? createCatalogTabsFixtureDocument()
+                            : state === 'radioButton'
+                              ? createRadioButtonFixtureDocument()
+                              : state === 'dateChooser'
+                                ? createDateChooserFixtureDocument()
+                                : state === 'numericStepper'
+                                  ? createNumericStepperFixtureDocument()
+                                  : createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
@@ -2458,6 +2537,24 @@ const CatalogCurlyBracesInspectorFixture = () => {
   );
 };
 
+const CatalogTabsInspectorFixture = () => {
+  const [fixture] = useState(createCatalogTabsFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
 const RadioButtonInspectorFixture = () => {
   const [fixture] = useState(createRadioButtonFixtureDocument);
   const [selection] = useState(() => {
@@ -2723,28 +2820,28 @@ export const VisualConformanceFixture = ({
                                                                 />
                                                               ),
                                                             }
-                                                          : fixture === 'radioButton'
+                                                          : fixture === 'catalogTabs'
                                                             ? {
                                                                 canvas: (
-                                                                  <SceneFixture state="radioButton" />
+                                                                  <SceneFixture state="catalogTabs" />
                                                                 ),
                                                                 inspector: (
-                                                                  <RadioButtonInspectorFixture />
+                                                                  <CatalogTabsInspectorFixture />
                                                                 ),
                                                                 shelf: (
                                                                   <ControlShelf
-                                                                    category="Forms"
+                                                                    category="Layout"
                                                                     onInsert={() => false}
                                                                   />
                                                                 ),
                                                               }
-                                                            : fixture === 'dateChooser'
+                                                            : fixture === 'radioButton'
                                                               ? {
                                                                   canvas: (
-                                                                    <SceneFixture state="dateChooser" />
+                                                                    <SceneFixture state="radioButton" />
                                                                   ),
                                                                   inspector: (
-                                                                    <DateChooserInspectorFixture />
+                                                                    <RadioButtonInspectorFixture />
                                                                   ),
                                                                   shelf: (
                                                                     <ControlShelf
@@ -2753,13 +2850,13 @@ export const VisualConformanceFixture = ({
                                                                     />
                                                                   ),
                                                                 }
-                                                              : fixture === 'numericStepper'
+                                                              : fixture === 'dateChooser'
                                                                 ? {
                                                                     canvas: (
-                                                                      <SceneFixture state="numericStepper" />
+                                                                      <SceneFixture state="dateChooser" />
                                                                     ),
                                                                     inspector: (
-                                                                      <NumericStepperInspectorFixture />
+                                                                      <DateChooserInspectorFixture />
                                                                     ),
                                                                     shelf: (
                                                                       <ControlShelf
@@ -2768,27 +2865,46 @@ export const VisualConformanceFixture = ({
                                                                       />
                                                                     ),
                                                                   }
-                                                                : fixture === 'controls'
-                                                                  ? { inspector: <ControlStates /> }
-                                                                  : fixture === 'feedback'
+                                                                : fixture === 'numericStepper'
+                                                                  ? {
+                                                                      canvas: (
+                                                                        <SceneFixture state="numericStepper" />
+                                                                      ),
+                                                                      inspector: (
+                                                                        <NumericStepperInspectorFixture />
+                                                                      ),
+                                                                      shelf: (
+                                                                        <ControlShelf
+                                                                          category="Forms"
+                                                                          onInsert={() => false}
+                                                                        />
+                                                                      ),
+                                                                    }
+                                                                  : fixture === 'controls'
                                                                     ? {
-                                                                        canvas: (
-                                                                          <StaticRegionFailure />
+                                                                        inspector: (
+                                                                          <ControlStates />
                                                                         ),
                                                                       }
-                                                                    : fixture === 'tooltip'
+                                                                    : fixture === 'feedback'
                                                                       ? {
                                                                           canvas: (
-                                                                            <TooltipFixture />
+                                                                            <StaticRegionFailure />
                                                                           ),
                                                                         }
-                                                                      : fixture === 'popover'
+                                                                      : fixture === 'tooltip'
                                                                         ? {
                                                                             canvas: (
-                                                                              <PopoverFixture />
+                                                                              <TooltipFixture />
                                                                             ),
                                                                           }
-                                                                        : undefined;
+                                                                        : fixture === 'popover'
+                                                                          ? {
+                                                                              canvas: (
+                                                                                <PopoverFixture />
+                                                                              ),
+                                                                            }
+                                                                          : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -2831,13 +2947,15 @@ export const VisualConformanceFixture = ({
                         ? CONTROL_TYPES.popover
                         : fixture === 'catalogCurlyBraces'
                           ? CONTROL_TYPES.vCurlyBrace
-                          : fixture === 'radioButton'
-                            ? CONTROL_TYPES.radioButton
-                            : fixture === 'dateChooser'
-                              ? CONTROL_TYPES.dateChooser
-                              : fixture === 'numericStepper'
-                                ? CONTROL_TYPES.numericStepper
-                                : undefined;
+                          : fixture === 'catalogTabs'
+                            ? CONTROL_TYPES.verticalTabs
+                            : fixture === 'radioButton'
+                              ? CONTROL_TYPES.radioButton
+                              : fixture === 'dateChooser'
+                                ? CONTROL_TYPES.dateChooser
+                                : fixture === 'numericStepper'
+                                  ? CONTROL_TYPES.numericStepper
+                                  : undefined;
   const inspectorTitle =
     fixture === 'components'
       ? 'Reusable Card'

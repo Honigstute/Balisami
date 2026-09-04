@@ -59,7 +59,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(53);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(55);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -116,6 +116,8 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.popover,
       CONTROL_TYPES.hCurlyBrace,
       CONTROL_TYPES.vCurlyBrace,
+      CONTROL_TYPES.tabBar,
+      CONTROL_TYPES.verticalTabs,
     ]);
   });
 

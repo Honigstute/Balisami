@@ -3,6 +3,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } 
 import type { BoardId, ElementLink, ProjectDocument } from '../../domain';
 import { ControlSceneIcon } from '../controls/CatalogIcon';
 import { ControlSelectedRowFill, ControlSelectedRowText } from '../controls/ControlSelectedRow';
+import { ControlSceneFill } from '../controls/ControlSceneFill';
 import { ControlRowMarkers } from '../controls/ControlRowMarkers';
 import { getBrowserControlTextMeasurementService } from '../controls/control-text-measurement';
 import { Icon } from '../shell/Icon';
@@ -253,18 +254,7 @@ export const PresentationView = ({
                       y={item.bounds.y}
                     />
                   ) : null}
-                  {item.hasFill ? (
-                    <rect
-                      className="scene-control__fill"
-                      height={item.primitiveBounds.height}
-                      rx={item.fillRadiusX}
-                      ry={item.fillRadiusY}
-                      style={item.fillColor === undefined ? undefined : { fill: item.fillColor }}
-                      width={item.primitiveBounds.width}
-                      x={item.primitiveBounds.x}
-                      y={item.primitiveBounds.y}
-                    />
-                  ) : null}
+                  {item.hasFill ? <ControlSceneFill projection={item} /> : null}
                   <ControlSelectedRowFill
                     projection={item.selectedRow}
                     textLayout={item.textLayout}

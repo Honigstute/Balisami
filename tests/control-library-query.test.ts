@@ -95,6 +95,14 @@ describe('control library query', () => {
       CONTROL_TYPES.popover,
       CONTROL_TYPES.hCurlyBrace,
       CONTROL_TYPES.vCurlyBrace,
+      CONTROL_TYPES.tabBar,
+      CONTROL_TYPES.verticalTabs,
+    ]);
+    expect(queryControlLibrary({ category: 'Layout' }).map(({ type }) => type)).toEqual([
+      CONTROL_TYPES.hSplitter,
+      CONTROL_TYPES.vSplitter,
+      CONTROL_TYPES.tabBar,
+      CONTROL_TYPES.verticalTabs,
     ]);
     expect(queryControlLibrary({ category: 'Containers' }).map(({ type }) => type)).toEqual([
       CONTROL_TYPES.browser,

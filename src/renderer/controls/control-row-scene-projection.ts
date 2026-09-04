@@ -8,6 +8,7 @@ import {
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import { createWorldRect, type WorldRect } from '../editor/viewport-transform';
 import type { ControlSceneTextLayout } from './control-scene-text-layout';
+import { getControlTabsStripExtent } from './control-tabs-scene';
 import {
   roundControlTextWorldUnit,
   type ControlTextMeasurementService,
@@ -166,6 +167,115 @@ export const createControlRowSceneProjections = (
     mode: 'single-line' as const,
   };
   const line = textLayout.lines[0]!;
+  const tabs = definition.scene.tabs;
+  if (definition.scene.kind === 'tabs' && tabs !== undefined) {
+    const stripExtent = getControlTabsStripExtent(definition, bounds, properties);
+    if (tabs.orientation === 'horizontal') {
+      const measurements = parsed.map((row) =>
+        textMeasurementService.measure({ ...request, text: row.label }),
+      );
+      const naturalWidths = measurements.map(
+        (measurement) => measurement.width + DESIGN_TOKENS.space[4],
+      );
+      const naturalTotal = naturalWidths.reduce((total, width) => total + width, 0);
+      const scale = naturalTotal > bounds.width ? bounds.width / naturalTotal : 1;
+      const widths = naturalWidths.map((width) => width * scale);
+      const totalWidth = widths.reduce((total, width) => total + width, 0);
+      const alignment =
+        tabs.alignmentProperty === null ? 'start' : properties[tabs.alignmentProperty];
+      const startX =
+        alignment === 'center'
+          ? bounds.x + (bounds.width - totalWidth) / 2
+          : alignment === 'end'
+            ? bounds.x + bounds.width - totalWidth
+            : bounds.x;
+      const rowY =
+        properties[tabs.positionProperty] === 'bottom'
+          ? bounds.y + bounds.height - stripExtent
+          : bounds.y;
+      let cursorX = startX;
+      return Object.freeze(
+        parsed.map((row, index) => {
+          const binding = rowData.bindings[index]!;
+          const measurement = measurements[index]!;
+          const width = widths[index]!;
+          const rowBounds = createWorldRect(
+            roundControlTextWorldUnit(cursorX),
+            rowY,
+            index === parsed.length - 1
+              ? roundControlTextWorldUnit(startX + totalWidth - cursorX)
+              : roundControlTextWorldUnit(width),
+            stripExtent,
+          );
+          cursorX += width;
+          const labelX = roundControlTextWorldUnit(rowBounds.x + rowBounds.width / 2);
+          return Object.freeze({
+            adornment: null,
+            baselineY: roundControlTextWorldUnit(
+              rowBounds.y +
+                (rowBounds.height - measurement.height) / 2 +
+                (measurement.baselineOffsets[0] ?? 0),
+            ),
+            bounds: rowBounds,
+            disabled: false,
+            id: binding.id,
+            label: row.label,
+            labelBounds: createWorldRect(
+              roundControlTextWorldUnit(labelX - measurement.width / 2),
+              rowBounds.y,
+              measurement.width,
+              rowBounds.height,
+            ),
+            labelX,
+            link: binding.link,
+            marker: null,
+          });
+        }),
+      );
+    }
+    const rowHeight = Math.min(
+      textLayout.fontSize + DESIGN_TOKENS.space[4],
+      bounds.height / parsed.length,
+    );
+    const rowX =
+      properties[tabs.positionProperty] === 'right'
+        ? bounds.x + bounds.width - stripExtent
+        : bounds.x;
+    return Object.freeze(
+      parsed.map((row, index) => {
+        const binding = rowData.bindings[index]!;
+        const measurement = textMeasurementService.measure({ ...request, text: row.label });
+        const rowBounds = createWorldRect(
+          rowX,
+          roundControlTextWorldUnit(bounds.y + rowHeight * index),
+          stripExtent,
+          roundControlTextWorldUnit(rowHeight),
+        );
+        const labelX = roundControlTextWorldUnit(rowBounds.x + DESIGN_TOKENS.space[2]);
+        return Object.freeze({
+          adornment: null,
+          baselineY: roundControlTextWorldUnit(
+            rowBounds.y +
+              (rowBounds.height - measurement.height) / 2 +
+              (measurement.baselineOffsets[0] ?? 0),
+          ),
+          bounds: rowBounds,
+          disabled: false,
+          id: binding.id,
+          label: row.label,
+          labelBounds: createWorldRect(
+            labelX,
+            rowBounds.y,
+            Math.max(0, rowBounds.width - DESIGN_TOKENS.space[4]),
+            rowBounds.height,
+          ),
+          labelX,
+          link: binding.link,
+          marker: null,
+        });
+      }),
+    );
+  }
   if (rows.layout === 'stack') {
     const rowHeight = bounds.height / parsed.length;
     return Object.freeze(

@@ -105,6 +105,10 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; exact default, top/bottom direction, text bounds, inspector, and shared brace geometry',
   'wireframe.v-curly-brace':
     'common harness; exact default, left/right direction, text bounds, inspector, and shared brace geometry',
+  'wireframe.tab-bar':
+    'common harness; exact comma rows, stable selection/links, top/bottom geometry, inspector, and projection',
+  'wireframe.v-tabs':
+    'common harness; exact newline rows, stable selection/links, left/right geometry, inspector, and projection',
 });
 
 const code = (value: string): string => `\`${value}\``;

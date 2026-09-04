@@ -403,6 +403,61 @@ describe('registry parsed-row identity contract', () => {
     );
   });
 
+  it.each([CONTROL_TYPES.tabBar, CONTROL_TYPES.verticalTabs])(
+    'round-trips %s row edits, links, and optional stable selection',
+    (controlType) => {
+      const { definition, document, element } = createSelectionFixture(controlType);
+      const edits = createControlRowEdits(definition, element);
+      if (edits === undefined) throw new Error(`Tab rows for '${controlType}' did not parse.`);
+      const selectedRowId = edits[1]?.id;
+      if (selectedRowId === undefined) throw new Error('Tab selection fixture is incomplete.');
+      const update = createControlRowsUpdate(
+        definition,
+        element,
+        edits.map((edit, index) =>
+          index === 1
+            ? Object.freeze({
+                ...edit,
+                label: 'Selected destination',
+                link: Object.freeze({
+                  kind: 'external' as const,
+                  url: 'https://example.com/tab',
+                }),
+              })
+            : edit,
+        ),
+        element.rowData.nextId,
+      );
+      if (update === undefined) throw new Error('Tab row update is invalid.');
+      const selected = createControlRowSelectionUpdate(
+        definition,
+        { ...element, properties: update.properties, rowData: update.rowData },
+        selectedRowId,
+      );
+      if (selected === undefined) throw new Error('Tab selection update is invalid.');
+      const committed = dispatchDocumentCommand(document, {
+        type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+        elementId: ELEMENT_ID,
+        properties: selected.properties,
+        rowData: update.rowData,
+      });
+      if (!committed.ok || !committed.changed) throw new Error('Tab update did not commit.');
+
+      const encoded = encodeProjectFileEnvelope(committed.document, {});
+      if (!encoded.ok) throw new Error('Tab document could not be encoded.');
+      const decoded = decodeProjectFileEnvelope(encoded.value);
+      if (!decoded.ok) throw new Error('Tab document could not be reopened.');
+      const reopened = decoded.value.document.elementsById[ELEMENT_ID];
+      expect(reopened?.properties.selectedRowId).toBe(selectedRowId);
+      expect(reopened?.properties.items).toContain('Selected destination');
+      expect(reopened?.rowData.bindings[1]).toEqual({
+        generation: 1,
+        id: selectedRowId,
+        link: { kind: 'external', url: 'https://example.com/tab' },
+      });
+    },
+  );
+
   it('round-trips Tree Pane hierarchy, adornments, links, and stable selection', () => {
     const { definition, document, element } = createSelectionFixture(CONTROL_TYPES.treePane);
     const edits = createControlRowEdits(definition, element);

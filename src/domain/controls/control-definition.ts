@@ -47,6 +47,7 @@ export type ControlVisualKind =
   | 'search-box'
   | 'squiggly-block'
   | 'street-map'
+  | 'tabs'
   | 'text'
   | 'tooltip'
   | 'toolbar'
@@ -243,6 +244,12 @@ export interface ControlSceneDefinition {
   readonly curlyBrace?: Readonly<{ orientation: 'horizontal' | 'vertical' }>;
   /** Radio dimensions are world units and ignored by other scene primitives. */
   readonly radio?: Readonly<{ diameter: number; gap: number }>;
+  /** Shared container/tab-strip geometry for horizontal and vertical tab controls. */
+  readonly tabs?: Readonly<{
+    readonly alignmentProperty: string | null;
+    readonly orientation: 'horizontal' | 'vertical';
+    readonly positionProperty: string;
+  }>;
   /** Optional fixed trailing affordance that leaves the editable body as canonical geometry. */
   readonly trailingAdornment?:
     | Readonly<{
@@ -274,6 +281,8 @@ export interface ControlSceneDefinition {
     readonly borderHiddenValues: readonly string[];
     borderModeProperty: string | null;
     borderVisibilityProperty: string | null;
+    /** Token-owned fallback used when the persisted fill color is `default`. */
+    defaultFillColor?: string | null;
     fillColorProperty: string | null;
     /** Optional discrete icon-size binding shared by icon-bearing scene projections. */
     iconSizeProperty?: string | null;
@@ -354,9 +363,15 @@ const listPropertyReferences = (definition: ControlDefinition): readonly string[
         )),
     ...(definition.scene.style === undefined
       ? []
-      : Object.values(definition.scene.style).filter(
-          (property): property is string => typeof property === 'string',
-        )),
+      : [
+          definition.scene.style.borderModeProperty,
+          definition.scene.style.borderVisibilityProperty,
+          definition.scene.style.fillColorProperty,
+          definition.scene.style.iconSizeProperty,
+          definition.scene.style.opacityProperty,
+          definition.scene.style.scrollbarVisibilityProperty,
+          definition.scene.style.strokeColorProperty,
+        ].filter((property): property is string => typeof property === 'string')),
     ...(definition.scene.style?.state === undefined ? [] : [definition.scene.style.state.property]),
     ...(definition.accessibility.nameProperty === null
       ? []
@@ -453,7 +468,10 @@ export const assertControlDefinitionsConform = (
             !['checkbox', 'radio'].includes(rows.marker.kind) ||
             rows.marker.defaultState !== 'unchecked')) ||
         (rows.marker !== null && rows.adornment !== null) ||
-        (rows.layout === 'stack' && rows.marker === null && rows.adornment === null) ||
+        (rows.layout === 'stack' &&
+          rows.marker === null &&
+          rows.adornment === null &&
+          definition.scene.tabs?.orientation !== 'vertical') ||
         (rows.selection !== null &&
           (rows.selection.property.trim().length === 0 ||
             !['fill', 'text'].includes(rows.selection.appearance.kind) ||
@@ -680,6 +698,13 @@ export const assertControlDefinitionsConform = (
       throw new Error(`Control '${definition.type}' has invalid scene-style metadata.`);
     }
     if (
+      definition.scene.style?.defaultFillColor !== undefined &&
+      definition.scene.style.defaultFillColor !== null &&
+      typeof definition.scene.style.defaultFillColor !== 'string'
+    ) {
+      throw new Error(`Control '${definition.type}' has invalid default-fill metadata.`);
+    }
+    if (
       definition.scene.style !== undefined &&
       ((definition.scene.style.borderModeProperty === null &&
         definition.scene.style.borderHiddenValues.length > 0) ||
@@ -740,6 +765,35 @@ export const assertControlDefinitionsConform = (
       }
     } else if (definition.scene.curlyBrace !== undefined) {
       throw new Error(`Control '${definition.type}' has unexpected curly-brace geometry.`);
+    }
+    if (definition.scene.kind === 'tabs') {
+      const tabs = definition.scene.tabs;
+      const position =
+        tabs === undefined ? undefined : definition.defaultProperties[tabs.positionProperty];
+      const alignment =
+        tabs?.alignmentProperty === null || tabs?.alignmentProperty === undefined
+          ? undefined
+          : definition.defaultProperties[tabs.alignmentProperty];
+      if (
+        tabs === undefined ||
+        (tabs.orientation !== 'horizontal' && tabs.orientation !== 'vertical') ||
+        definition.rows === null ||
+        definition.rows.display !== 'labels' ||
+        definition.rows.marker !== null ||
+        definition.rows.adornment !== null ||
+        (tabs.orientation === 'horizontal' &&
+          (definition.rows.layout !== 'segments' ||
+            (position !== 'top' && position !== 'bottom') ||
+            (alignment !== 'start' && alignment !== 'center' && alignment !== 'end'))) ||
+        (tabs.orientation === 'vertical' &&
+          (definition.rows.layout !== 'stack' ||
+            (position !== 'left' && position !== 'right') ||
+            tabs.alignmentProperty !== null))
+      ) {
+        throw new Error(`Control '${definition.type}' has invalid tab geometry.`);
+      }
+    } else if (definition.scene.tabs !== undefined) {
+      throw new Error(`Control '${definition.type}' has unexpected tab geometry.`);
     }
 
     if (

@@ -747,12 +747,14 @@ describe('document SVG scene', () => {
       view.container.querySelector(`[data-scene-element-id="${DOCUMENT_FIXTURE_IDS.group}"]`),
     ).toBeNull();
     expect(model.getItem(DOCUMENT_FIXTURE_IDS.group)?.kind).toBe('container');
-    const initialPath = initialElement?.querySelector('path')?.getAttribute('d');
+    const initialPath = initialElement?.querySelector('.scene-control__outline')?.getAttribute('d');
 
     camera.scheduleTransform(createViewportTransform({ panX: 25, panY: 15, zoom: 1 }));
     scheduler.flushNext();
     expect(view.container.querySelector(selector)).toBe(initialElement);
-    expect(initialElement?.querySelector('path')?.getAttribute('d')).toBe(initialPath);
+    expect(initialElement?.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      initialPath,
+    );
 
     const movedDocument = parseFixture(30);
     view.rerender(
@@ -769,7 +771,9 @@ describe('document SVG scene', () => {
       />,
     );
     expect(view.container.querySelector(selector)).toBe(initialElement);
-    expect(initialElement?.querySelector('path')?.getAttribute('d')).not.toBe(initialPath);
+    expect(initialElement?.querySelector('.scene-control__outline')?.getAttribute('d')).not.toBe(
+      initialPath,
+    );
 
     camera.scheduleTransform(createViewportTransform({ panX: -10_000, panY: -10_000, zoom: 1 }));
     scheduler.flushNext();
@@ -832,8 +836,8 @@ describe('document SVG scene', () => {
     if (moved === null || unrelated === null) {
       throw new Error('Move preview scene elements did not mount.');
     }
-    const movedPath = moved.querySelector('path')?.getAttribute('d');
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const movedPath = moved.querySelector('.scene-control__outline')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
 
     move.begin({
@@ -856,9 +860,11 @@ describe('document SVG scene', () => {
     moveScheduler.flushNext();
 
     expect(moved).toHaveAttribute('transform', 'translate(50 25)');
-    expect(moved.querySelector('path')?.getAttribute('d')).toBe(movedPath);
+    expect(moved.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(movedPath);
     expect(unrelated).not.toHaveAttribute('transform');
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     expect(sceneRenderCount).toBe(1);
 
@@ -924,8 +930,8 @@ describe('document SVG scene', () => {
     if (nudged === null || unrelated === null) {
       throw new Error('Keyboard nudge preview scene elements did not mount.');
     }
-    const nudgedPath = nudged.querySelector('path')?.getAttribute('d');
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const nudgedPath = nudged.querySelector('.scene-control__outline')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
 
     nudge.begin([DOCUMENT_FIXTURE_IDS.child], 'ArrowRight', false);
@@ -937,9 +943,11 @@ describe('document SVG scene', () => {
     nudgeScheduler.flushNext();
 
     expect(nudged).toHaveAttribute('transform', 'translate(500 10)');
-    expect(nudged.querySelector('path')?.getAttribute('d')).toBe(nudgedPath);
+    expect(nudged.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(nudgedPath);
     expect(unrelated).not.toHaveAttribute('transform');
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     expect(sceneRenderCount).toBe(1);
 
@@ -993,7 +1001,7 @@ describe('document SVG scene', () => {
     if (deleted === null || unrelated === null) {
       throw new Error('Delete preview scene elements did not mount.');
     }
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
     const result = dispatchDocumentCommand(document, {
       type: DOCUMENT_COMMAND_TYPES.deleteElement,
@@ -1006,7 +1014,9 @@ describe('document SVG scene', () => {
     view.rerender(renderScene(result.document));
     expect(view.container.querySelector(deletedSelector)).toBeNull();
     expect(view.container.querySelector(unrelatedSelector)).toBe(unrelated);
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     camera.dispose();
   });
@@ -1055,9 +1065,9 @@ describe('document SVG scene', () => {
     if (source === null || unrelated === null) {
       throw new Error('Duplicate preview source elements did not mount.');
     }
-    const sourcePath = source.querySelector('path')?.getAttribute('d');
+    const sourcePath = source.querySelector('.scene-control__outline')?.getAttribute('d');
     const sourceRevision = source.dataset.sceneRevision;
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
     const sourceElement = document.elementsById[DOCUMENT_FIXTURE_IDS.child];
     if (sourceElement === undefined) {
@@ -1081,10 +1091,12 @@ describe('document SVG scene', () => {
     view.rerender(renderScene(result.document));
     expect(view.container.querySelector(cloneSelector)).not.toBeNull();
     expect(view.container.querySelector(sourceSelector)).toBe(source);
-    expect(source.querySelector('path')?.getAttribute('d')).toBe(sourcePath);
+    expect(source.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(sourcePath);
     expect(source.dataset.sceneRevision).toBe(sourceRevision);
     expect(view.container.querySelector(unrelatedSelector)).toBe(unrelated);
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     camera.dispose();
   });
@@ -1145,10 +1157,10 @@ describe('document SVG scene', () => {
       throw new Error('Resize preview scene elements did not mount.');
     }
     const resizedFill = resized.querySelector<SVGRectElement>('rect');
-    const resizedPath = resized.querySelector<SVGPathElement>('path');
+    const resizedPath = resized.querySelector<SVGPathElement>('.scene-control__outline');
     const originalPath = resizedPath?.getAttribute('d');
     const originalRevision = resized.dataset.sceneRevision;
-    const unrelatedPath = unrelated.querySelector('path')?.getAttribute('d');
+    const unrelatedPath = unrelated.querySelector('.scene-control__outline')?.getAttribute('d');
     const unrelatedRevision = unrelated.dataset.sceneRevision;
 
     resize.begin({
@@ -1177,7 +1189,9 @@ describe('document SVG scene', () => {
     expect(resizedFill).toHaveAttribute('height', '73');
     expect(resizedPath?.getAttribute('d')).not.toBe(originalPath);
     expect(resized.dataset.sceneRevision).toBe(originalRevision);
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(unrelated.dataset.sceneRevision).toBe(unrelatedRevision);
     expect(sceneRenderCount).toBe(1);
 
@@ -1185,7 +1199,9 @@ describe('document SVG scene', () => {
     expect(resizedFill).toHaveAttribute('width', '120');
     expect(resizedFill).toHaveAttribute('height', '48');
     expect(resizedPath?.getAttribute('d')).toBe(originalPath);
-    expect(unrelated.querySelector('path')?.getAttribute('d')).toBe(unrelatedPath);
+    expect(unrelated.querySelector('.scene-control__outline')?.getAttribute('d')).toBe(
+      unrelatedPath,
+    );
     expect(sceneRenderCount).toBe(1);
     camera.dispose();
   });

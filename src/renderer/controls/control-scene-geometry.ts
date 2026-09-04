@@ -7,6 +7,7 @@ import {
 } from '../../domain';
 import { createSeededSketchLinePath, createSeededSketchRectPath } from '../editor/seeded-sketch';
 import { createWorldPoint, createWorldRect, type WorldRect } from '../editor/viewport-transform';
+import { getControlTabsBodyBounds } from './control-tabs-scene';
 
 const requireDefinition = (controlType: ControlTypeId): ControlDefinition => {
   const definition = getControlSpec(controlType);
@@ -139,6 +140,9 @@ export const getControlScenePrimitiveBounds = (
       properties ?? definition.defaultProperties,
     );
   }
+  if (definition.scene.kind === 'tabs') {
+    return getControlTabsBodyBounds(definition, bounds, properties ?? definition.defaultProperties);
+  }
   if (definition.scene.kind === 'radio-button') {
     const radio = definition.scene.radio;
     if (radio === undefined) {
@@ -208,6 +212,7 @@ export const createControlSceneOutlinePath = (
     definition.scene.kind === 'comment' ||
     definition.scene.kind === 'curly-brace' ||
     definition.scene.kind === 'text' ||
+    definition.scene.kind === 'tabs' ||
     definition.scene.kind === 'popover' ||
     definition.scene.kind === 'tooltip' ||
     definition.scene.kind === 'transparent'
