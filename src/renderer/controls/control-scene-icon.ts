@@ -11,6 +11,7 @@ import {
   type IconNode,
 } from '../../shared/icons/icon-catalog';
 import type { WorldRect } from '../editor/viewport-transform';
+import { getControlSceneTextX } from './control-scene-geometry';
 import { resolveControlSceneIconSize } from './control-scene-icon-size';
 import type { ControlSceneTextLayout } from './control-scene-text-layout';
 
@@ -83,7 +84,9 @@ export const createControlSceneIconProjection = (
             DESIGN_TOKENS.space[1]
           : text?.alignment === 'center' && textLayout !== undefined
             ? bounds.x + (bounds.width - (size + DESIGN_TOKENS.space[1] + textLayout.width)) / 2
-            : bounds.x + (text?.inset ?? DESIGN_TOKENS.space[2]);
+            : text === null
+              ? bounds.x + DESIGN_TOKENS.space[2]
+              : getControlSceneTextX(definition, bounds, properties, 'start');
   const y =
     circleLabelPosition === 'below' && hasCircleLabel
       ? bounds.y + DESIGN_TOKENS.space[2]

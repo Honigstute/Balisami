@@ -192,6 +192,8 @@ export const calculateControlSceneTextLayout = (
           : bounds.y + (bounds.height - measurement.height) / 2;
   const hasCenteredIcon =
     definition.capabilities.icon && alignment === 'center' && typeof properties.iconId === 'string';
+  const hasStartIcon =
+    definition.capabilities.icon && alignment === 'start' && typeof properties.iconId === 'string';
   const iconSize = resolveControlSceneIconSize(definition, bounds, properties);
   const x = roundControlTextWorldUnit(
     circleLabelPosition === 'below'
@@ -206,7 +208,8 @@ export const calculateControlSceneTextLayout = (
             iconSize +
             DESIGN_TOKENS.space[1] +
             measurement.width / 2
-          : getControlSceneTextX(definition, bounds, properties, alignment),
+          : getControlSceneTextX(definition, bounds, properties, alignment) +
+            (hasStartIcon ? iconSize + DESIGN_TOKENS.space[1] : 0),
   );
   const colorValue = style.colorProperty === null ? undefined : properties[style.colorProperty];
   return Object.freeze({

@@ -1,4 +1,5 @@
 import {
+  getControlAccessibleChecked,
   getControlAccessibleName,
   getControlSpec,
   selectBoardPresentationId,
@@ -117,7 +118,6 @@ export const createBoardPresentationProjection = (
     if (definition === undefined) {
       throw new Error(`Board presentation received unknown control '${item.controlType}'.`);
     }
-    const checkedProperty = definition.accessibility.checkedProperty;
     const strokeStyle = item.properties.strokeStyle;
     const projection = createControlSceneProjection({
       bounds: item.bounds,
@@ -144,7 +144,7 @@ export const createBoardPresentationProjection = (
       ...projection,
       accessibleName: getControlAccessibleName(definition, item.properties),
       assetIds: item.assetIds,
-      checked: checkedProperty === null ? undefined : item.properties[checkedProperty] === true,
+      checked: getControlAccessibleChecked(definition, item.properties),
       controlType: item.controlType,
       hasFill:
         controlSceneHasFill(definition) &&

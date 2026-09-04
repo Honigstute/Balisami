@@ -54,6 +54,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; shared link and state inspector; deterministic Switch geometry',
   'wireframe.radio-button-group':
     'common harness; exact marker grammar, stable row identity, inspector, and stacked scene geometry',
+  'wireframe.radio-button':
+    'common harness; exact default, state, icon, accessibility, auto-size, and circular scene geometry',
   'wireframe.squiggly-block-of-text':
     'common harness; registry visual fixture; deterministic Markup scene geometry',
   'wireframe.street-map':

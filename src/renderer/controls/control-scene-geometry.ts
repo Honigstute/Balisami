@@ -52,6 +52,14 @@ export const getControlScenePrimitiveBounds = (
       Math.max(0, bounds.height - tailSize),
     );
   }
+  if (definition.scene.kind === 'radio-button') {
+    const radio = definition.scene.radio;
+    if (radio === undefined) {
+      throw new Error(`Radio Button control '${controlType}' is missing geometry metadata.`);
+    }
+    const diameter = Math.min(radio.diameter, bounds.height);
+    return createWorldRect(bounds.x, bounds.y + (bounds.height - diameter) / 2, diameter, diameter);
+  }
   if (definition.scene.kind !== 'checkbox') {
     return bounds;
   }
@@ -82,6 +90,14 @@ export const getControlSceneTextX = (
     }
     const box = getControlScenePrimitiveBounds(definition.type, bounds);
     return box.x + box.width + checkbox.gap;
+  }
+  if (definition.scene.kind === 'radio-button') {
+    const radio = definition.scene.radio;
+    if (radio === undefined) {
+      throw new Error(`Radio Button control '${definition.type}' is missing geometry metadata.`);
+    }
+    const circle = getControlScenePrimitiveBounds(definition.type, bounds);
+    return circle.x + circle.width + radio.gap;
   }
   if (
     definition.scene.kind === 'arrow' &&
@@ -202,6 +218,15 @@ export const createControlSceneOutlinePath = (
       circle.width * 0.48,
       elementId,
       'circle-button-outline',
+    );
+  }
+  if (definition.scene.kind === 'radio-button') {
+    const circle = getControlScenePrimitiveBounds(controlType, bounds);
+    return createSeededCirclePath(
+      createWorldPoint(circle.x + circle.width / 2, circle.y + circle.height / 2),
+      circle.width * 0.48,
+      elementId,
+      'radio-button-outline',
     );
   }
   if (definition.scene.kind === 'callout') {
@@ -1156,6 +1181,16 @@ export const createControlSceneMarkPath = (
   }
   if (definition.scene.kind === 'webcam') {
     return createWebcamMarkPath(bounds, elementId);
+  }
+  if (definition.scene.kind === 'radio-button') {
+    if (properties.state !== 'selected') return '';
+    const circle = getControlScenePrimitiveBounds(controlType, bounds);
+    return createSeededCirclePath(
+      createWorldPoint(circle.x + circle.width / 2, circle.y + circle.height / 2),
+      circle.width * 0.23,
+      elementId,
+      'radio-button-selected',
+    );
   }
   if (definition.scene.kind !== 'checkbox' || properties.checked !== true) {
     return '';

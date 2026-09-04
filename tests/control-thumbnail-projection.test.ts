@@ -920,4 +920,65 @@ describe('control thumbnail projection', () => {
     expect(projection.outlinePath).toContain('C');
     expect(projection.outlinePath).not.toMatch(/NaN|Infinity/u);
   });
+
+  it('projects Radio Button state, icon, text, and circular indicator without overlap', () => {
+    const definition = getControlSpec(CONTROL_TYPES.radioButton);
+    if (definition === undefined) throw new Error('Radio Button definition is missing.');
+    const bounds = createWorldRect(0, 0, 121, 23);
+    const unselected = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: 'radio-up',
+      properties: definition.defaultProperties,
+      textMeasurementService: measurementService,
+    });
+    const selected = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: 'radio-selected',
+      properties: { ...definition.defaultProperties, iconId: 'star', state: 'selected' },
+      textMeasurementService: measurementService,
+    });
+    const disabled = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: 'radio-disabled',
+      properties: { ...definition.defaultProperties, state: 'disabled' },
+      textMeasurementService: measurementService,
+    });
+
+    expect(unselected).toMatchObject({
+      markPath: '',
+      primitiveBounds: { height: 18, width: 18, x: 0, y: 2.5 },
+      textLayout: { lines: [{ text: 'Radio Button', x: 26 }], textAnchor: 'start' },
+    });
+    expect(unselected.outlinePath).not.toBe('');
+    expect(selected).toMatchObject({
+      icon: { id: 'star', size: 16, x: 26, y: 3.5 },
+      markFillColor: DESIGN_TOKENS.color.ink,
+      markStrokeColor: DESIGN_TOKENS.color.ink,
+      textLayout: { lines: [{ text: 'Radio Button', x: 46 }], textAnchor: 'start' },
+    });
+    expect(selected.markPath).not.toBe('');
+    expect(selected.markPath).not.toMatch(/NaN|Infinity/u);
+    expect(disabled.opacity).toBe(0.45);
+  });
+
+  it('keeps a Checkbox icon after its marker through the shared leading-decoration layout', () => {
+    const definition = getControlSpec(CONTROL_TYPES.checkbox);
+    if (definition === undefined) throw new Error('Checkbox definition is missing.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 160, 32),
+      definition,
+      identity: 'checkbox-icon-layout',
+      properties: { ...definition.defaultProperties, checked: true, iconId: 'star' },
+      textMeasurementService: measurementService,
+    });
+
+    expect(projection).toMatchObject({
+      icon: { id: 'star', size: 16, x: 26, y: 8 },
+      primitiveBounds: { height: 18, width: 18, x: 0, y: 7 },
+      textLayout: { lines: [{ text: 'Checkbox', x: 46 }], textAnchor: 'start' },
+    });
+  });
 });

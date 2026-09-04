@@ -26,7 +26,7 @@ export const resolveControlSceneIconSize = (
     typeof iconSizeValue === 'string' && iconSizeValue in CONTROL_ICON_SIZE_BY_PRESET
       ? CONTROL_ICON_SIZE_BY_PRESET[iconSizeValue as keyof typeof CONTROL_ICON_SIZE_BY_PRESET]
       : DESIGN_TOKENS.control.iconSize;
-  const inset = DESIGN_TOKENS.space[2] * 2;
+  const inset = (definition.scene.iconInset ?? DESIGN_TOKENS.space[2]) * 2;
   return Math.min(
     requestedSize,
     Math.max(0, bounds.width - inset),

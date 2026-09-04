@@ -9,6 +9,7 @@ import {
   createEmptyProjectDocument,
   containsControlHitPoint,
   dispatchDocumentCommand,
+  getControlAccessibleChecked,
   getControlAccessibleName,
   getControlSpec,
   listPaletteControlSpecs,
@@ -72,6 +73,31 @@ describe('control definition conformance harness', () => {
           throw new Error('Checkbox conformance state could not be applied.');
         }
         document = checked.document;
+      }
+      if (definition.type === CONTROL_TYPES.radioButton) {
+        const selected = dispatchDocumentCommand(document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId,
+          properties: {
+            ...definition.defaultProperties,
+            bold: true,
+            iconId: 'star',
+            state: 'selected',
+            text: 'Preferred option',
+          },
+        });
+        if (!selected.ok || !selected.changed) {
+          throw new Error('Radio Button conformance state could not be applied.');
+        }
+        const linked = dispatchDocumentCommand(selected.document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementLink,
+          elementId,
+          link: { kind: 'external', url: 'https://example.com/preferred' },
+        });
+        if (!linked.ok || !linked.changed) {
+          throw new Error('Radio Button conformance link could not be applied.');
+        }
+        document = linked.document;
       }
       if (definition.type === CONTROL_TYPES.link) {
         const styled = dispatchDocumentCommand(document, {
@@ -177,6 +203,28 @@ describe('control definition conformance harness', () => {
       );
       if (before.controlType === CONTROL_TYPES.checkbox) {
         expect(getControlAccessibleName(definition, before.properties)).toBe('Remember me');
+        expect(
+          createControlSceneMarkPath(
+            before.controlType,
+            beforeBounds,
+            before.id,
+            before.properties,
+          ),
+        ).not.toBe('');
+        expect(getControlAccessibleChecked(definition, before.properties)).toBe(true);
+      }
+      if (before.controlType === CONTROL_TYPES.radioButton) {
+        expect(before).toMatchObject({
+          link: { kind: 'external', url: 'https://example.com/preferred' },
+          properties: {
+            bold: true,
+            iconId: 'star',
+            state: 'selected',
+            text: 'Preferred option',
+          },
+        });
+        expect(getControlAccessibleName(definition, before.properties)).toBe('Preferred option');
+        expect(getControlAccessibleChecked(definition, before.properties)).toBe(true);
         expect(
           createControlSceneMarkPath(
             before.controlType,
