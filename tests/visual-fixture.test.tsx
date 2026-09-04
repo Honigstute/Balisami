@@ -77,6 +77,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=searchBox')).toBe('searchBox');
     expect(getRequestedVisualFixture('?visualFixture=textArea')).toBe('textArea');
     expect(getRequestedVisualFixture('?visualFixture=textHeadings')).toBe('textHeadings');
+    expect(getRequestedVisualFixture('?visualFixture=circleButton')).toBe('circleButton');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -437,6 +438,52 @@ describe('visual conformance fixture contract', () => {
       expect(
         title?.querySelector(
           '.scene-control__link-hint[data-link-target="https://example.com/title"]',
+        ),
+      ).not.toBeNull();
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders exact Circle Button variants with the complete selected inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('circleButton');
+
+    expect(screen.getByRole('button', { name: 'Insert Circle Button' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.circle-button"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Circle Button' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Show Border' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Icon' })).toHaveTextContent('Arrow Right');
+    expect(screen.getByRole('button', { name: 'Icon Size' })).toHaveTextContent('L');
+    expect(screen.getByRole('button', { name: 'Icon Right' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Link type' })).toHaveTextContent('Web address');
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Normal');
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="circle-button"]');
+      expect(controls).toHaveLength(4);
+      expect(
+        view.container.querySelector(
+          '[data-scene-element-id="element_registrycirclebuttonright"] .scene-control__link-hint[data-link-target="https://example.com/go"]',
         ),
       ).not.toBeNull();
     });

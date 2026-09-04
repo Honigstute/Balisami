@@ -85,6 +85,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; exact default, state, link activation, persistence, and text projection',
   'wireframe.multiline-button':
     'common harness; exact two-tier text, icon, auto-size, inspector, and cross-surface projection',
+  'wireframe.circle-button':
+    'common harness; exact circle, icon scale, label positions, state, inspector, and projection',
 });
 
 const code = (value: string): string => `\`${value}\``;

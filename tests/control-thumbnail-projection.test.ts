@@ -720,4 +720,77 @@ describe('control thumbnail projection', () => {
     expect(projection.outlinePath).toContain('Q');
     expect(projection.outlinePath).not.toContain('NaN');
   });
+
+  it('projects Circle Button icon scale, label positions, border, and state from registry values', () => {
+    const definition = getControlSpec(CONTROL_TYPES.circleButton);
+    if (definition === undefined) throw new Error('Circle Button definition is missing.');
+    const bounds = createWorldRect(0, 0, 48, 48);
+    const project = (labelPosition: 'below' | 'icon-left' | 'icon-right') =>
+      createControlSceneProjection({
+        bounds,
+        definition,
+        identity: `circle-button-${labelPosition}`,
+        properties: {
+          ...definition.defaultProperties,
+          iconId: 'shopping-cart',
+          labelPosition,
+          text: 'cart',
+        },
+        textMeasurementService: measurementService,
+      });
+
+    const below = project('below');
+    const iconLeft = project('icon-left');
+    const iconRight = project('icon-right');
+    expect(below).toMatchObject({
+      fillRadiusX: 24,
+      fillRadiusY: 24,
+      icon: { size: 16, x: 16, y: 8 },
+      primitiveBounds: { height: 48, width: 48, x: 0, y: 0 },
+      textLayout: { lines: [{ baselineY: 37.4, text: 'cart', x: 24 }] },
+    });
+    expect(iconLeft).toMatchObject({
+      icon: { size: 16, x: 1, y: 16 },
+      textLayout: { lines: [{ baselineY: 29.2, text: 'cart', x: 34 }] },
+    });
+    expect(iconRight).toMatchObject({
+      icon: { size: 16, x: 31, y: 16 },
+      textLayout: { lines: [{ baselineY: 29.2, text: 'cart', x: 14 }] },
+    });
+    expect(below.outlinePath).not.toBe('');
+
+    const disabledWithoutBorder = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 80, 80),
+      definition,
+      identity: 'circle-button-disabled',
+      properties: {
+        ...definition.defaultProperties,
+        iconSize: 'xxl',
+        showBorder: false,
+        state: 'disabled',
+      },
+      textMeasurementService: measurementService,
+    });
+    expect(disabledWithoutBorder).toMatchObject({
+      borderVisible: false,
+      disabled: true,
+      icon: { size: 48, x: 16, y: 16 },
+      opacity: 0.45,
+    });
+
+    const tallDenseControl = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 32, 80),
+      definition,
+      identity: 'circle-button-tall-dense',
+      properties: {
+        ...definition.defaultProperties,
+        iconSize: 'xxl',
+      },
+      textMeasurementService: measurementService,
+    });
+    expect(tallDenseControl).toMatchObject({
+      icon: { size: 16, x: 8, y: 32 },
+      primitiveBounds: { height: 32, width: 32, x: 0, y: 24 },
+    });
+  });
 });

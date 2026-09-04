@@ -47,6 +47,8 @@ export const ControlThumbnail = ({
         <rect
           className="scene-control__fill"
           height={projection.primitiveBounds.height}
+          rx={projection.fillRadiusX}
+          ry={projection.fillRadiusY}
           width={projection.primitiveBounds.width}
           x={projection.primitiveBounds.x}
           y={projection.primitiveBounds.y}

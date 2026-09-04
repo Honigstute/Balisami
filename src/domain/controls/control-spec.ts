@@ -76,6 +76,7 @@ export const CONTROL_TYPES = Object.freeze({
   fieldSet: ControlTypeIdSchema.parse('wireframe.field-set'),
   link: ControlTypeIdSchema.parse('wireframe.link'),
   multilineButton: ControlTypeIdSchema.parse('wireframe.multiline-button'),
+  circleButton: ControlTypeIdSchema.parse('wireframe.circle-button'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -285,6 +286,18 @@ const multilineButtonPropertiesSchema = z
     color: sceneColorSchema,
     iconId: controlIconIdSchema.nullable(),
     opacity: z.number().min(0).max(1),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const circleButtonPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    iconId: controlIconIdSchema.nullable(),
+    iconSize: z.enum(['xs', 's', 'm', 'l', 'xl', 'xxl']),
+    labelPosition: z.enum(['below', 'icon-left', 'icon-right']),
+    showBorder: z.boolean(),
+    state: controlStateSchema,
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
@@ -2928,6 +2941,114 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['action', 'button', 'description', 'multiline'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.multilineButton,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Circle Button', 'button', 'text'),
+    aliases: ['fab', 'floating action button', 'round button'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('center', 13, 4, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      iconId: 'plus',
+      iconSize: 'm',
+      labelPosition: 'below',
+      showBorder: true,
+      state: 'normal',
+      text: '',
+    },
+    defaultSize: createSize(48, 48),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Show Border', property: 'showBorder' },
+        ]),
+        label: 'Border',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+          {
+            kind: 'select',
+            label: 'Icon Size',
+            options: Object.freeze(
+              ['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((label) =>
+                Object.freeze({ label, value: label.toLowerCase() }),
+              ),
+            ),
+            property: 'iconSize',
+          },
+          {
+            kind: 'choice',
+            label: 'Label Position',
+            options: Object.freeze([
+              Object.freeze({ label: 'Below', value: 'below' }),
+              Object.freeze({ label: 'Icon Left', value: 'icon-left' }),
+              Object.freeze({ label: 'Icon Right', value: 'icon-right' }),
+            ]),
+            property: 'labelPosition',
+          },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(32, 32),
+    palette: createPalette('Circle Button', 'Buttons', 400),
+    propertiesSchema: circleButtonPropertiesSchema,
+    scene: createScene(
+      'circle-button',
+      ['iconId', 'iconSize', 'labelPosition', 'showBorder', 'state', 'text'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: 'showBorder',
+        fillColorProperty: 'color',
+        iconSizeProperty: 'iconSize',
+        opacityProperty: null,
+        strokeColorProperty: null,
+        state: createDisabledState(),
+      },
+    ),
+    tags: ['action', 'button', 'circle', 'fab', 'floating'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.circleButton,
   }),
 ]);
 

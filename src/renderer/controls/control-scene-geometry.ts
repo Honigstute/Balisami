@@ -22,6 +22,15 @@ export const getControlScenePrimitiveBounds = (
   bounds: WorldRect,
 ): WorldRect => {
   const definition = requireDefinition(controlType);
+  if (definition.scene.kind === 'circle-button') {
+    const size = Math.min(bounds.width, bounds.height);
+    return createWorldRect(
+      bounds.x + (bounds.width - size) / 2,
+      bounds.y + (bounds.height - size) / 2,
+      size,
+      size,
+    );
+  }
   if (definition.scene.kind !== 'checkbox') {
     return bounds;
   }
@@ -158,6 +167,15 @@ export const createControlSceneOutlinePath = (
       radius,
       elementId,
       'help-button-outline',
+    );
+  }
+  if (definition.scene.kind === 'circle-button') {
+    const circle = getControlScenePrimitiveBounds(controlType, bounds);
+    return createSeededCirclePath(
+      createWorldPoint(circle.x + circle.width / 2, circle.y + circle.height / 2),
+      circle.width * 0.48,
+      elementId,
+      'circle-button-outline',
     );
   }
   if (definition.scene.kind === 'field-set' && legend !== undefined) {

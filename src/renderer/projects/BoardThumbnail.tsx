@@ -52,6 +52,8 @@ export const ThumbnailSceneSvg = ({
             <rect
               className="scene-control__fill"
               height={item.primitiveBounds.height}
+              rx={item.fillRadiusX}
+              ry={item.fillRadiusY}
               width={item.primitiveBounds.width}
               x={item.primitiveBounds.x}
               y={item.primitiveBounds.y}

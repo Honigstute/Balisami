@@ -59,6 +59,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.fieldSet,
       CONTROL_TYPES.link,
       CONTROL_TYPES.multilineButton,
+      CONTROL_TYPES.circleButton,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -111,6 +112,7 @@ describe('control definition registry', () => {
       'Field Set',
       'Link',
       'Multiline Button',
+      'Circle Button',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -957,5 +959,52 @@ describe('control definition registry', () => {
         expect.objectContaining({ property: 'text' }),
       ]),
     );
+  });
+
+  it('owns the evidence-backed Circle Button defaults and complete inspector vocabulary', () => {
+    const circleButton = getControlSpec(CONTROL_TYPES.circleButton);
+
+    expect(circleButton).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'button' },
+      autoSize: null,
+      capabilities: { border: true, fill: true, icon: true, link: true, state: true },
+      defaultProperties: {
+        color: 'default',
+        fontSize: 13,
+        iconId: 'plus',
+        iconSize: 'm',
+        labelPosition: 'below',
+        showBorder: true,
+        state: 'normal',
+        text: '',
+      },
+      defaultSize: { height: 48, width: 48 },
+      scene: { kind: 'circle-button' },
+    });
+    const fields = circleButton?.inspector.flatMap((section) => section.fields) ?? [];
+    expect(fields).toEqual([
+      expect.objectContaining({ kind: 'boolean', property: 'showBorder' }),
+      expect.objectContaining({ kind: 'color', property: 'color' }),
+      expect.objectContaining({ kind: 'icon', property: 'iconId' }),
+      expect.objectContaining({ kind: 'select', property: 'iconSize' }),
+      expect.objectContaining({ kind: 'choice', property: 'labelPosition' }),
+      expect.objectContaining({ kind: 'select', property: 'state' }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(
+      fields.find((field) => field.property === 'iconSize' && field.kind === 'select'),
+    ).toMatchObject({
+      options: [
+        { label: 'XS', value: 'xs' },
+        { label: 'S', value: 's' },
+        { label: 'M', value: 'm' },
+        { label: 'L', value: 'l' },
+        { label: 'XL', value: 'xl' },
+        { label: 'XXL', value: 'xxl' },
+      ],
+    });
   });
 });

@@ -11,6 +11,7 @@ import {
   type IconNode,
 } from '../../shared/icons/icon-catalog';
 import type { WorldRect } from '../editor/viewport-transform';
+import { resolveControlSceneIconSize } from './control-scene-icon-size';
 import type { ControlSceneTextLayout } from './control-scene-text-layout';
 
 export const CATALOG_ICON_VIEW_BOX_SIZE = 24;
@@ -58,19 +59,35 @@ export const createControlSceneIconProjection = (
   const catalogIcon =
     customAssetId === undefined ? getCatalogIcon(definition, properties) : undefined;
   if (customAssetId === undefined && catalogIcon === undefined) return undefined;
-  const size = Math.min(
-    DESIGN_TOKENS.control.iconSize,
-    Math.max(0, bounds.height - DESIGN_TOKENS.space[2] * 2),
-  );
+  const size = resolveControlSceneIconSize(definition, bounds, properties);
   if (size <= 0) {
     return undefined;
   }
   const text = definition.capabilities.text;
+  const circleLabelPosition =
+    definition.scene.kind === 'circle-button' ? properties.labelPosition : undefined;
+  const hasCircleLabel =
+    circleLabelPosition !== undefined &&
+    textLayout !== undefined &&
+    textLayout.lines.some((line) => line.text.length > 0);
+  const centeredIconX = bounds.x + (bounds.width - size) / 2;
   const x =
-    text?.alignment === 'center' && textLayout !== undefined
-      ? bounds.x + (bounds.width - (size + DESIGN_TOKENS.space[1] + textLayout.width)) / 2
-      : bounds.x + (text?.inset ?? DESIGN_TOKENS.space[2]);
-  const y = bounds.y + (bounds.height - size) / 2;
+    definition.scene.kind === 'circle-button' && !hasCircleLabel
+      ? centeredIconX
+      : circleLabelPosition === 'below'
+        ? centeredIconX
+        : circleLabelPosition === 'icon-right' && textLayout !== undefined
+          ? bounds.x +
+            (bounds.width - (textLayout.width + DESIGN_TOKENS.space[1] + size)) / 2 +
+            textLayout.width +
+            DESIGN_TOKENS.space[1]
+          : text?.alignment === 'center' && textLayout !== undefined
+            ? bounds.x + (bounds.width - (size + DESIGN_TOKENS.space[1] + textLayout.width)) / 2
+            : bounds.x + (text?.inset ?? DESIGN_TOKENS.space[2]);
+  const y =
+    circleLabelPosition === 'below' && hasCircleLabel
+      ? bounds.y + DESIGN_TOKENS.space[2]
+      : bounds.y + (bounds.height - size) / 2;
   const geometry = {
     id: properties.iconId,
     size,
