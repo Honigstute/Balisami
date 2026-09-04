@@ -240,12 +240,19 @@ export interface ControlSceneDefinition {
   /** Radio dimensions are world units and ignored by other scene primitives. */
   readonly radio?: Readonly<{ diameter: number; gap: number }>;
   /** Optional fixed trailing affordance that leaves the editable body as canonical geometry. */
-  readonly trailingAdornment?: Readonly<{
-    bodyInset: number;
-    gap: number;
-    kind: 'calendar';
-    size: number;
-  }>;
+  readonly trailingAdornment?:
+    | Readonly<{
+        bodyInset: number;
+        gap: number;
+        kind: 'calendar';
+        size: number;
+      }>
+    | Readonly<{
+        bodyInset: number;
+        gap: number;
+        kind: 'stepper';
+        width: number;
+      }>;
   /** Exact selectable geometry applied after the spatial index's AABB broad phase. */
   readonly hitShape: ControlHitShape;
   /** Optional per-definition inner clearance for dense icon-bearing controls. */
@@ -634,14 +641,20 @@ export const assertControlDefinitionsConform = (
       throw new Error(`Control '${definition.type}' has an invalid hit shape.`);
     }
     const trailingAdornment = definition.scene.trailingAdornment;
+    const trailingAdornmentWidth =
+      trailingAdornment?.kind === 'calendar'
+        ? trailingAdornment.size
+        : trailingAdornment?.kind === 'stepper'
+          ? trailingAdornment.width
+          : undefined;
     if (
       trailingAdornment !== undefined &&
-      (trailingAdornment.kind !== 'calendar' ||
+      (trailingAdornmentWidth === undefined ||
         !isNonNegativeFinite(trailingAdornment.bodyInset) ||
         !isNonNegativeFinite(trailingAdornment.gap) ||
-        !isPositiveFinite(trailingAdornment.size) ||
+        !isPositiveFinite(trailingAdornmentWidth) ||
         trailingAdornment.bodyInset * 2 >= definition.minimumSize.height ||
-        trailingAdornment.size + trailingAdornment.gap >= definition.minimumSize.width)
+        trailingAdornmentWidth + trailingAdornment.gap >= definition.minimumSize.width)
     ) {
       throw new Error(`Control '${definition.type}' has invalid trailing-adornment metadata.`);
     }

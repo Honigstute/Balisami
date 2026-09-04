@@ -116,6 +116,23 @@ describe('control definition conformance harness', () => {
         }
         document = edited.document;
       }
+      if (definition.type === CONTROL_TYPES.numericStepper) {
+        const edited = dispatchDocumentCommand(document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId,
+          properties: {
+            ...definition.defaultProperties,
+            bold: true,
+            borderColor: '#445566',
+            state: 'disabled',
+            text: '12:35',
+          },
+        });
+        if (!edited.ok || !edited.changed) {
+          throw new Error('Num. Stepper conformance state could not be applied.');
+        }
+        document = edited.document;
+      }
       if (definition.type === CONTROL_TYPES.link) {
         const styled = dispatchDocumentCommand(document, {
           type: DOCUMENT_COMMAND_TYPES.setElementProperties,
@@ -261,6 +278,25 @@ describe('control definition conformance harness', () => {
           },
         });
         expect(getControlAccessibleName(definition, before.properties)).toBe('20/01/2010');
+        expect(
+          createControlSceneMarkPath(
+            before.controlType,
+            beforeBounds,
+            before.id,
+            before.properties,
+          ),
+        ).not.toBe('');
+      }
+      if (before.controlType === CONTROL_TYPES.numericStepper) {
+        expect(before).toMatchObject({
+          properties: {
+            bold: true,
+            borderColor: '#445566',
+            state: 'disabled',
+            text: '12:35',
+          },
+        });
+        expect(getControlAccessibleName(definition, before.properties)).toBe('12:35');
         expect(
           createControlSceneMarkPath(
             before.controlType,

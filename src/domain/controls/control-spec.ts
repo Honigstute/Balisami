@@ -42,6 +42,7 @@ export const CONTROL_TYPES = Object.freeze({
   checkbox: ControlTypeIdSchema.parse('wireframe.checkbox'),
   radioButton: ControlTypeIdSchema.parse('wireframe.radio-button'),
   dateChooser: ControlTypeIdSchema.parse('wireframe.date-chooser'),
+  numericStepper: ControlTypeIdSchema.parse('wireframe.numeric-stepper'),
   checkboxGroup: ControlTypeIdSchema.parse('wireframe.checkbox-group'),
   radioButtonGroup: ControlTypeIdSchema.parse('wireframe.radio-button-group'),
   imagePlaceholder: ControlTypeIdSchema.parse('wireframe.image-placeholder'),
@@ -171,6 +172,14 @@ const radioButtonPropertiesSchema = z
   })
   .readonly();
 const dateChooserPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    borderColor: sceneColorSchema,
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const numericStepperPropertiesSchema = z
   .strictObject({
     ...textStyleSchemaShape,
     borderColor: sceneColorSchema,
@@ -1435,6 +1444,91 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['calendar', 'date', 'form', 'input', 'masked input'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.dateChooser,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Num. Stepper', 'textbox', 'text'),
+    aliases: ['number stepper', 'numeric stepper', 'spinner'],
+    autoSize: createAutoSize('horizontal', 8, 26, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('center', 13, 0, {
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      borderColor: 'default',
+      state: 'normal',
+      text: '3',
+    },
+    defaultSize: createSize(41, 24),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Border Color', property: 'borderColor' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(41, 24),
+    maximumSize: null,
+    palette: createPalette('Num. Stepper', 'Forms', 55),
+    propertiesSchema: numericStepperPropertiesSchema,
+    scene: createScene(
+      'input',
+      ['state', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: 'borderColor',
+        state: createDisabledState(),
+      },
+      Object.freeze({ fillColor: DESIGN_TOKENS.color.ink, strokeColor: null }),
+      Object.freeze({
+        trailingAdornment: Object.freeze({
+          bodyInset: 0,
+          gap: 0,
+          kind: 'stepper',
+          width: 15,
+        }),
+      }),
+    ),
+    tags: ['form', 'input', 'number', 'numeric', 'spinner', 'stepper'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.numericStepper,
   }),
   createDefinition({
     accessibility: createAccessibility('Checkbox Group', 'group'),

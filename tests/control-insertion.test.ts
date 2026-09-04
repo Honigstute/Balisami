@@ -59,7 +59,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(49);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(50);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -74,6 +74,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.radioButton,
       CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.dateChooser,
+      CONTROL_TYPES.numericStepper,
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
       CONTROL_TYPES.arrow,

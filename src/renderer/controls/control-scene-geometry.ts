@@ -16,6 +16,12 @@ const requireDefinition = (controlType: ControlTypeId): ControlDefinition => {
   return definition;
 };
 
+const getTrailingAdornmentWidth = (definition: ControlDefinition): number | undefined => {
+  const adornment = definition.scene.trailingAdornment;
+  if (adornment === undefined) return undefined;
+  return adornment.kind === 'calendar' ? adornment.size : adornment.width;
+};
+
 /** Bounds of the definition's primary outlined primitive, separate from its hit bounds. */
 export const getControlScenePrimitiveBounds = (
   controlType: ControlTypeId,
@@ -26,10 +32,14 @@ export const getControlScenePrimitiveBounds = (
   const trailingAdornment = definition.scene.trailingAdornment;
   if (trailingAdornment !== undefined) {
     const bodyInset = Math.min(trailingAdornment.bodyInset, bounds.height / 2);
+    const adornmentWidth = getTrailingAdornmentWidth(definition);
+    if (adornmentWidth === undefined) {
+      throw new Error(`Control '${controlType}' has invalid trailing-adornment geometry.`);
+    }
     return createWorldRect(
       bounds.x,
       bounds.y + bodyInset,
-      Math.max(0, bounds.width - trailingAdornment.size - trailingAdornment.gap),
+      Math.max(0, bounds.width - adornmentWidth - trailingAdornment.gap),
       Math.max(0, bounds.height - bodyInset * 2),
     );
   }
@@ -398,6 +408,39 @@ const createCalendarAdornmentMarkPath = (
     );
   }
   return paths.join(' ');
+};
+
+const createStepperAdornmentMarkPath = (
+  bounds: WorldRect,
+  elementId: string,
+  width: number,
+): string => {
+  const stepper = createWorldRect(bounds.x + bounds.width - width, bounds.y, width, bounds.height);
+  const left = stepper.x;
+  const right = stepper.x + stepper.width;
+  const top = stepper.y;
+  const bottom = stepper.y + stepper.height;
+  const centerX = left + stepper.width / 2;
+  const middleY = top + stepper.height / 2;
+  const halfTriangleWidth = Math.min(4, stepper.width * 0.28);
+  const triangleHeight = Math.min(5, stepper.height * 0.21);
+  const line = (startX: number, startY: number, endX: number, endY: number, salt: string) =>
+    createSeededSketchLinePath({
+      end: createWorldPoint(endX, endY),
+      seed: `${elementId}:stepper:${salt}`,
+      start: createWorldPoint(startX, startY),
+    });
+  const upPointY = top + stepper.height * 0.18;
+  const downPointY = bottom - stepper.height * 0.18;
+  return [
+    line(left, top, right, top, 'top'),
+    line(right, top, right, bottom, 'right'),
+    line(right, bottom, left, bottom, 'bottom'),
+    line(left, bottom, left, top, 'left'),
+    line(left, middleY, right, middleY, 'divider'),
+    `M ${String(centerX)} ${String(upPointY)} L ${String(centerX + halfTriangleWidth)} ${String(upPointY + triangleHeight)} L ${String(centerX - halfTriangleWidth)} ${String(upPointY + triangleHeight)} Z`,
+    `M ${String(centerX - halfTriangleWidth)} ${String(downPointY - triangleHeight)} L ${String(centerX + halfTriangleWidth)} ${String(downPointY - triangleHeight)} L ${String(centerX)} ${String(downPointY)} Z`,
+  ].join(' ');
 };
 
 /** Small registry-bound decoration shared by live, thumbnail, presentation, and export projections. */
@@ -1152,6 +1195,9 @@ export const createControlSceneMarkPath = (
   const trailingAdornment = definition.scene.trailingAdornment;
   if (trailingAdornment?.kind === 'calendar') {
     return createCalendarAdornmentMarkPath(bounds, elementId, trailingAdornment.size);
+  }
+  if (trailingAdornment?.kind === 'stepper') {
+    return createStepperAdornmentMarkPath(bounds, elementId, trailingAdornment.width);
   }
   if (definition.scene.kind === 'comment') {
     const left = bounds.x + bounds.width * 0.28;

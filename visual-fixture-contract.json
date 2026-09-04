@@ -34,6 +34,7 @@
     "catalogCallout",
     "radioButton",
     "dateChooser",
+    "numericStepper",
     "controls",
     "feedback",
     "tooltip",

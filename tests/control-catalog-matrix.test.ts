@@ -58,6 +58,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; exact default, state, icon, accessibility, auto-size, and circular scene geometry',
   'wireframe.date-chooser':
     'common harness; exact default mask, state, auto-size, inspector, and trailing calendar geometry',
+  'wireframe.numeric-stepper':
+    'common harness; exact default, editable text, state, auto-size, inspector, and fixed button geometry',
   'wireframe.squiggly-block-of-text':
     'common harness; registry visual fixture; deterministic Markup scene geometry',
   'wireframe.street-map':

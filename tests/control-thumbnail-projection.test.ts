@@ -1015,4 +1015,38 @@ describe('control thumbnail projection', () => {
     expect(projection.markPath).not.toBe('');
     expect(projection.markPath).not.toMatch(/NaN|Infinity/u);
   });
+
+  it('projects the Num. Stepper body and fixed buttons through the shared trailing-adornment contract', () => {
+    const definition = getControlSpec(CONTROL_TYPES.numericStepper);
+    if (definition === undefined) throw new Error('Num. Stepper definition is missing.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 66, 24),
+      definition,
+      identity: 'numeric-stepper-edited',
+      properties: {
+        ...definition.defaultProperties,
+        bold: true,
+        borderColor: '#445566',
+        state: 'disabled',
+        text: '12:35',
+      },
+      textMeasurementService: measurementService,
+    });
+
+    expect(projection).toMatchObject({
+      disabled: true,
+      markFillColor: DESIGN_TOKENS.color.ink,
+      opacity: 0.45,
+      primitiveBounds: { height: 24, width: 51, x: 0, y: 0 },
+      strokeColor: '#445566',
+      textLayout: {
+        fontWeight: 'bold',
+        lines: [{ text: '12:35', x: 25.5 }],
+        textAnchor: 'middle',
+      },
+    });
+    expect(projection.outlinePath).not.toBe('');
+    expect(projection.markPath).toMatch(/Z/u);
+    expect(projection.markPath).not.toMatch(/NaN|Infinity/u);
+  });
 });
