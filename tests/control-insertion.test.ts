@@ -59,7 +59,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(45);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(46);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -108,6 +108,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.multilineButton,
       CONTROL_TYPES.circleButton,
       CONTROL_TYPES.comment,
+      CONTROL_TYPES.tooltip,
     ]);
   });
 
@@ -210,6 +211,53 @@ describe('registry-backed control insertion', () => {
     if (!reopened.ok) throw new Error('Text Area project did not reopen.');
     expect(reopened.value.document.elementsById[elementId]).toEqual(
       linked.document.elementsById[elementId],
+    );
+  });
+
+  it('round-trips an edited Tooltip direction and text style through the current project format', () => {
+    const boardId = BoardIdSchema.parse('board_tooltip_codec');
+    const elementId = ElementIdSchema.parse('element_tooltip_codec');
+    const created = createEmptyProjectDocument({
+      boardId,
+      projectId: ProjectIdSchema.parse('project_tooltip_codec'),
+    });
+    const definition = getControlSpec(CONTROL_TYPES.tooltip);
+    if (!created.ok || definition === undefined) {
+      throw new Error('Tooltip codec fixture is incomplete.');
+    }
+    const inserted = dispatchDocumentCommand(
+      created.value,
+      createControlInsertionCommand({
+        boardId,
+        center: createWorldPoint(300, 240),
+        controlType: definition.type,
+        document: created.value,
+        elementId,
+      }),
+    );
+    if (!inserted.ok || !inserted.changed) throw new Error('Tooltip did not insert.');
+    const styled = dispatchDocumentCommand(inserted.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId,
+      properties: {
+        ...definition.defaultProperties,
+        bold: true,
+        direction: 'NW',
+        fontSize: 18,
+        italic: true,
+        text: 'More details',
+        textAlignment: 'end',
+        underline: true,
+      },
+    });
+    if (!styled.ok || !styled.changed) throw new Error('Tooltip style did not commit.');
+
+    const encoded = encodeProjectFileEnvelope(styled.document, {});
+    if (!encoded.ok) throw new Error('Tooltip project did not encode.');
+    const reopened = decodeProjectFileEnvelope(encoded.value);
+    if (!reopened.ok) throw new Error('Tooltip project did not reopen.');
+    expect(reopened.value.document.elementsById[elementId]).toEqual(
+      styled.document.elementsById[elementId],
     );
   });
 

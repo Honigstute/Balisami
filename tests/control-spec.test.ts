@@ -62,6 +62,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.multilineButton,
       CONTROL_TYPES.circleButton,
       CONTROL_TYPES.comment,
+      CONTROL_TYPES.tooltip,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -116,6 +117,7 @@ describe('control definition registry', () => {
       'Multiline Button',
       'Circle Button',
       'Comment',
+      'Tooltip',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -1051,5 +1053,60 @@ describe('control definition registry', () => {
       expect.objectContaining({ kind: 'number', property: 'fontSize' }),
     ]);
     expect(comment?.propertiesSchema.safeParse(comment.defaultProperties).success).toBe(true);
+  });
+
+  it('owns the official Tooltip default and exact compass directions', () => {
+    const tooltip = getControlSpec(CONTROL_TYPES.tooltip);
+
+    expect(tooltip).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'img' },
+      autoSize: null,
+      capabilities: {
+        border: false,
+        fill: true,
+        icon: false,
+        link: false,
+        state: false,
+      },
+      defaultProperties: {
+        bold: false,
+        direction: 'SE',
+        fontSize: 13,
+        italic: false,
+        text: 'a tooltip',
+        textAlignment: 'center',
+        underline: false,
+      },
+      defaultSize: { height: 33, width: 87 },
+      scene: {
+        kind: 'tooltip',
+        markStyle: {
+          fillColor: DESIGN_TOKENS.color.canvas,
+          strokeColor: DESIGN_TOKENS.color.ink,
+        },
+      },
+    });
+    expect(tooltip?.inspector.flatMap((section) => section.fields)).toEqual([
+      expect.objectContaining({
+        kind: 'choice',
+        options: [
+          { label: 'SE', value: 'SE' },
+          { label: 'SW', value: 'SW' },
+          { label: 'NE', value: 'NE' },
+          { label: 'NW', value: 'NW' },
+        ],
+        property: 'direction',
+      }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'choice', property: 'textAlignment' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(tooltip?.propertiesSchema.safeParse(tooltip.defaultProperties).success).toBe(true);
+    expect(
+      tooltip?.propertiesSchema.safeParse({ ...tooltip.defaultProperties, direction: 'top' })
+        .success,
+    ).toBe(false);
   });
 });

@@ -78,6 +78,7 @@ export const CONTROL_TYPES = Object.freeze({
   multilineButton: ControlTypeIdSchema.parse('wireframe.multiline-button'),
   circleButton: ControlTypeIdSchema.parse('wireframe.circle-button'),
   comment: ControlTypeIdSchema.parse('wireframe.comment'),
+  tooltip: ControlTypeIdSchema.parse('wireframe.tooltip'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -306,6 +307,13 @@ const commentPropertiesSchema = z
   .strictObject({
     ...centeredTextStyleSchemaShape,
     color: sceneColorSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const tooltipPropertiesSchema = z
+  .strictObject({
+    ...centeredTextStyleSchemaShape,
+    direction: z.enum(['SE', 'SW', 'NE', 'NW']),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
@@ -3129,6 +3137,66 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['annotation', 'comment', 'note', 'sticky'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.comment,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Tooltip', 'img', 'text'),
+    aliases: ['hint', 'hover help'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText('center', 13, 8, {
+        alignmentProperty: 'textAlignment',
+        boldProperty: 'bold',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13, 'center'),
+      direction: 'SE',
+      text: 'a tooltip',
+    },
+    defaultSize: createSize(87, 33),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Direction',
+            options: Object.freeze([
+              Object.freeze({ label: 'SE', value: 'SE' }),
+              Object.freeze({ label: 'SW', value: 'SW' }),
+              Object.freeze({ label: 'NE', value: 'NE' }),
+              Object.freeze({ label: 'NW', value: 'NW' }),
+            ]),
+            property: 'direction',
+          },
+        ]),
+        label: 'Direction',
+      }),
+      Object.freeze({ fields: createTextStyleFields(true), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(48, 24),
+    palette: createPalette('Tooltip', 'Markup', 420),
+    propertiesSchema: tooltipPropertiesSchema,
+    scene: createScene('tooltip', ['direction', 'text'], undefined, undefined, 'fill', undefined, {
+      fillColor: DESIGN_TOKENS.color.canvas,
+      strokeColor: DESIGN_TOKENS.color.ink,
+    }),
+    tags: ['annotation', 'help', 'hint', 'hover'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.tooltip,
   }),
 ]);
 
