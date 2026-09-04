@@ -73,6 +73,30 @@ describe('control definition conformance harness', () => {
         }
         document = checked.document;
       }
+      if (definition.type === CONTROL_TYPES.link) {
+        const styled = dispatchDocumentCommand(document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId,
+          properties: {
+            ...definition.defaultProperties,
+            bold: true,
+            state: 'disabled',
+            text: 'Documentation',
+          },
+        });
+        if (!styled.ok || !styled.changed) {
+          throw new Error('Link conformance state could not be applied.');
+        }
+        const linked = dispatchDocumentCommand(styled.document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementLink,
+          elementId,
+          link: { kind: 'external', url: 'https://example.com/documentation' },
+        });
+        if (!linked.ok || !linked.changed) {
+          throw new Error('Link conformance target could not be applied.');
+        }
+        document = linked.document;
+      }
       elementIds.push(elementId);
     }
 
@@ -161,6 +185,13 @@ describe('control definition conformance harness', () => {
             before.properties,
           ),
         ).not.toBe('');
+      }
+      if (before.controlType === CONTROL_TYPES.link) {
+        expect(before).toMatchObject({
+          link: { kind: 'external', url: 'https://example.com/documentation' },
+          properties: { bold: true, state: 'disabled', text: 'Documentation' },
+        });
+        expect(getControlAccessibleName(definition, before.properties)).toBe('Documentation');
       }
     }
   });

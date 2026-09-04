@@ -6,6 +6,7 @@ import {
   type AssetId,
   type ControlTypeId,
   type ControlVisualKind,
+  type ControlAccessibilityRole,
   type ElementId,
   type ElementLink,
   type ProjectDocument,
@@ -31,7 +32,7 @@ export interface BoardPresentationItem extends ControlSceneProjection {
   readonly id: ElementId;
   readonly link: ElementLink | null;
   readonly opacity: number | undefined;
-  readonly role: 'button' | 'checkbox' | 'group' | 'img' | 'textbox';
+  readonly role: ControlAccessibilityRole;
   readonly rowLinks: readonly BoardPresentationRowLink[];
   readonly strokeStyle: string | undefined;
   readonly visualKind: ControlVisualKind;

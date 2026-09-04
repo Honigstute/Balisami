@@ -81,6 +81,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
   'wireframe.webcam': 'common harness; registry visual fixture; deterministic Media scene geometry',
   'wireframe.link-bar':
     'common harness; optional stable row selection, links, inspector, and measured scene geometry',
+  'wireframe.link':
+    'common harness; exact default, state, link activation, persistence, and text projection',
 });
 
 const code = (value: string): string => `\`${value}\``;

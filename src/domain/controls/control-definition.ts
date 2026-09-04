@@ -128,7 +128,7 @@ export interface ControlCapabilities {
   readonly text: ControlTextCapability | null;
 }
 
-export type ControlAccessibilityRole = 'button' | 'checkbox' | 'group' | 'img' | 'textbox';
+export type ControlAccessibilityRole = 'button' | 'checkbox' | 'group' | 'img' | 'link' | 'textbox';
 
 export interface ControlAccessibilityDefinition {
   /** Used when the configured name property is absent or blank. */
@@ -562,7 +562,9 @@ export const assertControlDefinitionsConform = (
     }
     if (
       definition.accessibility.fallbackLabel.trim().length === 0 ||
-      !['button', 'checkbox', 'group', 'img', 'textbox'].includes(definition.accessibility.role) ||
+      !['button', 'checkbox', 'group', 'img', 'link', 'textbox'].includes(
+        definition.accessibility.role,
+      ) ||
       (definition.accessibility.nameProperty !== null &&
         typeof definition.defaultProperties[definition.accessibility.nameProperty] !== 'string') ||
       (definition.accessibility.checkedProperty !== null &&

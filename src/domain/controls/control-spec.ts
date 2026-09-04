@@ -74,6 +74,7 @@ export const CONTROL_TYPES = Object.freeze({
   searchBox: ControlTypeIdSchema.parse('wireframe.search-box'),
   textArea: ControlTypeIdSchema.parse('wireframe.text-area'),
   fieldSet: ControlTypeIdSchema.parse('wireframe.field-set'),
+  link: ControlTypeIdSchema.parse('wireframe.link'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -267,6 +268,14 @@ const fieldSetPropertiesSchema = z
     color: sceneColorSchema,
     opacity: z.number().min(0).max(1),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const linkPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
   })
   .readonly();
 
@@ -2773,6 +2782,71 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['container', 'field', 'form', 'group'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.fieldSet,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Link', 'link', 'text'),
+    aliases: ['anchor', 'hyperlink', 'text link'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 13, 0, {
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      state: 'normal',
+      text: 'a link',
+      textColor: DESIGN_TOKENS.color.accentStrong,
+      underline: true,
+    },
+    defaultSize: createSize(31, 21),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Normal', value: 'normal' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(16, 16),
+    palette: createPalette('Link', 'Common', 380),
+    propertiesSchema: linkPropertiesSchema,
+    scene: createScene('text', ['state', 'text'], undefined, undefined, 'stroke', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: null,
+      opacityProperty: null,
+      strokeColorProperty: null,
+      state: createDisabledState(),
+    }),
+    tags: ['anchor', 'hyperlink', 'navigation', 'text'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.link,
   }),
 ]);
 
