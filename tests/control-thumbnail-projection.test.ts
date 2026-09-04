@@ -50,7 +50,7 @@ describe('control thumbnail projection', () => {
       expect(first.primitiveBounds).toEqual(
         getControlScenePrimitiveBounds(definition.type, bounds),
       );
-      if (definition.scene.kind === 'tabs') {
+      if (definition.scene.kind === 'tabs' || definition.scene.kind === 'accordion') {
         expect(first.outlinePath).not.toBe('');
       } else {
         expect(first.outlinePath).toBe(

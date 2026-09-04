@@ -62,6 +62,58 @@ export const calculateControlAutoSizeFrame = (
   } as const;
   const parsedRows =
     definition.rows === null ? undefined : parseControlRows(definition.rows, element.properties);
+  if (policy.basis === 'accordion') {
+    const rowSelection = definition.rows?.selection;
+    if (parsedRows === undefined || rowSelection === null || rowSelection === undefined) {
+      return undefined;
+    }
+    const selectedValue = element.properties[rowSelection.property];
+    const selectedIndex =
+      typeof selectedValue === 'string'
+        ? element.rowData.bindings.findIndex((binding) => binding.id === selectedValue)
+        : -1;
+    let activeParentIndex = selectedIndex;
+    while (activeParentIndex >= 0 && parsedRows[activeParentIndex]?.depth !== 0) {
+      activeParentIndex -= 1;
+    }
+    let currentParentIndex = -1;
+    const visibleRows = parsedRows.filter((row, index) => {
+      if (row.depth === 0) {
+        currentParentIndex = index;
+        return true;
+      }
+      return currentParentIndex === activeParentIndex;
+    });
+    const labelWidth = Math.max(
+      ...visibleRows
+        .map((row) =>
+          measurementService.measure({
+            ...measurementRequest,
+            mode: 'single-line',
+            text: row.label,
+          }),
+        )
+        .map(
+          (measurement, index) =>
+            measurement.width +
+            DESIGN_TOKENS.space[5] +
+            (visibleRows[index]?.depth ?? 0) * DESIGN_TOKENS.control.accordionChildIndent,
+        ),
+    );
+    const width = Math.max(definition.defaultSize.width, definition.minimumSize.width, labelWidth);
+    const height = Math.max(
+      definition.minimumSize.height,
+      visibleRows.length * DESIGN_TOKENS.control.accordionRowHeight +
+        DESIGN_TOKENS.control.accordionPaneMinimumHeight,
+    );
+    return Object.freeze({
+      ...element.frame,
+      height:
+        definition.maximumSize === null ? height : Math.min(height, definition.maximumSize.height),
+      width:
+        definition.maximumSize === null ? width : Math.min(width, definition.maximumSize.width),
+    });
+  }
   const measurement =
     definition.scene.kind === 'multiline-button'
       ? measureMultilineButtonText(

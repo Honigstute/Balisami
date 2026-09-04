@@ -93,6 +93,9 @@ export const DESIGN_TOKENS = {
     tooltipWidth: 240,
   },
   control: {
+    accordionChildIndent: 16,
+    accordionPaneMinimumHeight: 78,
+    accordionRowHeight: 27,
     height: 24,
     borderWidth: 1,
     iconSize: 16,

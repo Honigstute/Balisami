@@ -8,6 +8,7 @@ import {
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
 import { createWorldRect, type WorldRect } from '../editor/viewport-transform';
 import type { ControlSceneTextLayout } from './control-scene-text-layout';
+import { createAccordionLayout } from './control-accordion-scene';
 import { getControlTabsStripExtent } from './control-tabs-scene';
 import {
   roundControlTextWorldUnit,
@@ -167,6 +168,54 @@ export const createControlRowSceneProjections = (
     mode: 'single-line' as const,
   };
   const line = textLayout.lines[0]!;
+  if (definition.scene.kind === 'accordion') {
+    const selectedProperty = rows.selection?.property;
+    const selectedValue = selectedProperty === undefined ? undefined : properties[selectedProperty];
+    const layout = createAccordionLayout(
+      parsed,
+      rowData,
+      typeof selectedValue === 'string' ? selectedValue : undefined,
+      bounds,
+    );
+    return Object.freeze(
+      layout.rows.map((geometry) => {
+        const row = parsed[geometry.sourceIndex]!;
+        const binding = rowData.bindings[geometry.sourceIndex]!;
+        const measurement = textMeasurementService.measure({ ...request, text: row.label });
+        const labelX = roundControlTextWorldUnit(
+          geometry.bounds.x +
+            DESIGN_TOKENS.space[2] +
+            row.depth * DESIGN_TOKENS.control.accordionChildIndent,
+        );
+        return Object.freeze({
+          adornment: null,
+          baselineY: roundControlTextWorldUnit(
+            geometry.bounds.y +
+              (geometry.bounds.height - measurement.height) / 2 +
+              (measurement.baselineOffsets[0] ?? 0),
+          ),
+          bounds: geometry.bounds,
+          disabled: false,
+          id: binding.id,
+          label: row.label,
+          labelBounds: createWorldRect(
+            labelX,
+            geometry.bounds.y,
+            Math.max(
+              0,
+              geometry.bounds.width -
+                DESIGN_TOKENS.space[4] -
+                row.depth * DESIGN_TOKENS.control.accordionChildIndent,
+            ),
+            geometry.bounds.height,
+          ),
+          labelX,
+          link: binding.link,
+          marker: null,
+        });
+      }),
+    );
+  }
   const tabs = definition.scene.tabs;
   if (definition.scene.kind === 'tabs' && tabs !== undefined) {
     const stripExtent = getControlTabsStripExtent(definition, bounds, properties);

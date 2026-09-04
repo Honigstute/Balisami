@@ -128,12 +128,27 @@ const parseTreeRowSource = (source: string): ParsedControlRow | undefined => {
   return Object.freeze({ adornment, depth, disabled: false, label, marker: null });
 };
 
+const parseAccordionRowSource = (source: string): ParsedControlRow | undefined => {
+  const trimmed = source.trim();
+  const isChild = trimmed.startsWith('- ');
+  const label = (isChild ? trimmed.slice(2) : trimmed).trim();
+  if (label.length === 0 || label.length > MAX_CONTROL_ROW_LABEL_LENGTH) return undefined;
+  return Object.freeze({
+    adornment: null,
+    depth: isChild ? 1 : 0,
+    disabled: false,
+    label,
+    marker: null,
+  });
+};
+
 /** Parses one row using only the definition-owned marker grammar. */
 export const parseControlRowSource = (
   rows: ControlRowsDefinition,
   source: string,
 ): ParsedControlRow | undefined => {
   if (rows.adornment?.kind === 'tree') return parseTreeRowSource(source);
+  if (rows.hierarchy?.kind === 'accordion') return parseAccordionRowSource(source);
   let remaining = source.trim();
   let marker: ParsedControlRow['marker'] = null;
   if (rows.marker !== null) {
@@ -176,6 +191,9 @@ export const formatControlRowSource = (
     const token = row.adornment === null ? '' : `${TREE_TOKEN_BY_ADORNMENT[row.adornment]} `;
     return `${'.'.repeat(row.depth)}${token}${row.label.trim()}`;
   }
+  if (rows.hierarchy?.kind === 'accordion') {
+    return `${row.depth === 1 ? '- ' : ''}${row.label.trim()}`;
+  }
   const prefix =
     rows.marker === null || row.marker === null
       ? ''
@@ -216,9 +234,12 @@ export const parseControlRows = (
     return undefined;
   }
   const parsed = sources.map((rowSource) => parseControlRowSource(rows, rowSource));
-  return parsed.some((row) => row === undefined)
-    ? undefined
-    : Object.freeze(parsed as readonly ParsedControlRow[]);
+  if (parsed.some((row) => row === undefined)) return undefined;
+  const complete = parsed as readonly ParsedControlRow[];
+  if (rows.hierarchy?.kind === 'accordion' && complete[0]?.depth !== 0) {
+    return undefined;
+  }
+  return Object.freeze(complete);
 };
 
 const hashStableText = (value: string): string => {
@@ -361,7 +382,10 @@ export const createControlRowsUpdate = (
         !Number.isSafeInteger(edit.depth) ||
         edit.depth < 0 ||
         edit.depth > MAX_CONTROL_ROW_DEPTH ||
-        (rows.adornment === null && (edit.adornment !== null || edit.depth !== 0)) ||
+        (rows.adornment === null && edit.adornment !== null) ||
+        (rows.hierarchy?.kind === 'accordion'
+          ? edit.depth !== 0 && edit.depth !== 1
+          : rows.adornment === null && edit.depth !== 0) ||
         (edit.adornment !== null && TREE_TOKEN_BY_ADORNMENT[edit.adornment] === undefined) ||
         (rows.adornment !== null && (edit.marker !== null || edit.disabled)) ||
         (rows.marker === null && (edit.marker !== null || edit.disabled)) ||
@@ -370,6 +394,9 @@ export const createControlRowsUpdate = (
           !['unchecked', 'selected', 'indeterminate'].includes(edit.marker)),
     )
   ) {
+    return undefined;
+  }
+  if (rows.hierarchy?.kind === 'accordion' && edits[0]?.depth !== 0) {
     return undefined;
   }
   const existingById = new Map(

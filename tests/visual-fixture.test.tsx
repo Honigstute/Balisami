@@ -87,6 +87,7 @@ describe('visual conformance fixture contract', () => {
       'catalogCurlyBraces',
     );
     expect(getRequestedVisualFixture('?visualFixture=catalogTabs')).toBe('catalogTabs');
+    expect(getRequestedVisualFixture('?visualFixture=catalogAccordion')).toBe('catalogAccordion');
     expect(getRequestedVisualFixture('?visualFixture=radioButton')).toBe('radioButton');
     expect(getRequestedVisualFixture('?visualFixture=dateChooser')).toBe('dateChooser');
     expect(getRequestedVisualFixture('?visualFixture=numericStepper')).toBe('numericStepper');
@@ -799,6 +800,53 @@ describe('visual conformance fixture contract', () => {
         expect(selectedRow?.style.fillOpacity).toBe('1');
         expect(selected?.querySelectorAll('.scene-control__text tspan')).toHaveLength(4);
       }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders open, closed, and nested Accordion states with the generic inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogAccordion');
+
+    expect(screen.getByRole('button', { name: 'Insert Accordion' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.accordion"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Accordion' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Scrollbar' })).getByRole('button', {
+        name: 'Checked',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="accordion"]');
+      expect(controls).toHaveLength(3);
+      const selected = view.container.querySelector(
+        '[data-scene-element-id="element_registryaccordionnested"]',
+      );
+      if (document.fonts !== undefined) {
+        expect(selected?.querySelectorAll('.scene-control__text tspan')).toHaveLength(6);
+        expect(selected?.querySelector('.scene-control__row-selection')).toHaveAttribute(
+          'display',
+          'inline',
+        );
+      }
+      expect(selected?.querySelector('.scene-control__mark')).toHaveAttribute('d');
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

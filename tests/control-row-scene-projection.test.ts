@@ -11,6 +11,7 @@ import {
   type ElementProperties,
 } from '../src/domain';
 import { createControlRowSceneProjections } from '../src/renderer/controls/control-row-scene-projection';
+import { createAccordionLayout } from '../src/renderer/controls/control-accordion-scene';
 import { createControlSceneProjection } from '../src/renderer/controls/control-scene-projection';
 import type { ControlSceneTextLayout } from '../src/renderer/controls/control-scene-text-layout';
 import {
@@ -425,6 +426,64 @@ describe('canonical parsed-row scene projection', () => {
     expect(right.rows[0]?.bounds.x).toBe(129);
     expect(right.primitiveBounds).toEqual({ height: 194, width: 120, x: 10, y: 20 });
     expect(right.outlinePath).not.toBe(left.outlinePath);
+  });
+
+  it('projects Accordion headers, open pane, child selection, and dense geometry once', () => {
+    const definition = getControlSpec(CONTROL_TYPES.accordion);
+    if (definition === undefined) throw new Error('Accordion definition is missing.');
+    const properties = Object.freeze({
+      ...definition.defaultProperties,
+      items: 'Parent\n- First child\n- Second child\nOther',
+      scrollbar: true,
+    });
+    const initial = createInitialControlRowState(definition, ELEMENT_ID, properties);
+    if (initial === undefined) throw new Error('Accordion row state is invalid.');
+    const childId = initial.rowData.bindings[2]?.id;
+    if (childId === undefined) throw new Error('Accordion child selection is missing.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 150, 186),
+      definition,
+      identity: ELEMENT_ID,
+      properties: Object.freeze({ ...initial.properties, selectedRowId: childId }),
+      rowData: initial.rowData,
+      textMeasurementService: createRealMeasurementService(),
+    });
+
+    expect(projection.rows.map((row) => [row.label, row.bounds.y, row.bounds.height])).toEqual([
+      ['Parent', 0, 27],
+      ['First child', 27, 27],
+      ['Second child', 54, 27],
+      ['Other', 159, 27],
+    ]);
+    expect(projection.rows[1]?.labelX).toBe(DESIGN_TOKENS.space[2] + 16);
+    expect(
+      createAccordionLayout(
+        [
+          { adornment: null, depth: 0, disabled: false, label: 'Parent', marker: null },
+          { adornment: null, depth: 1, disabled: false, label: 'First child', marker: null },
+          { adornment: null, depth: 1, disabled: false, label: 'Second child', marker: null },
+          { adornment: null, depth: 0, disabled: false, label: 'Other', marker: null },
+        ],
+        initial.rowData,
+        childId,
+        createWorldRect(0, 0, 150, 186),
+      ).paneBounds,
+    ).toEqual({ height: 132, width: 150, x: 0, y: 27 });
+    expect(projection.selectedRow?.id).toBe(childId);
+    expect(projection.markPath).toContain('M 0 0 H 150 V 27 H 0 Z');
+    expect(projection.outlinePath).not.toMatch(/NaN|Infinity/u);
+
+    const dense = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 80, 27),
+      definition,
+      identity: `${ELEMENT_ID}:dense`,
+      properties: initial.properties,
+      rowData: initial.rowData,
+      textMeasurementService: createRealMeasurementService(),
+    });
+    expect(dense.rows).toHaveLength(4);
+    expect(dense.rows.every((row) => row.bounds.height === 6.75)).toBe(true);
+    expect(dense.outlinePath).not.toMatch(/NaN|Infinity/u);
   });
 
   it('keeps dense deep Tree Pane adornment geometry finite at minimum height', () => {

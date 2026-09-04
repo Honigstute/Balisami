@@ -26,6 +26,11 @@ import {
   type ControlRowSceneProjection,
 } from './control-row-scene-projection';
 import { createControlTabsFillPath, createControlTabsOutlinePath } from './control-tabs-scene';
+import {
+  createAccordionActiveHeaderPath,
+  createAccordionLayout,
+  createAccordionOutlinePath,
+} from './control-accordion-scene';
 
 export interface ControlSelectedRowProjection extends ControlRowSceneProjection {
   readonly appearance: 'fill' | 'text';
@@ -177,6 +182,15 @@ export const createControlSceneProjection = ({
     typeof selectedValue !== 'string' || rowSelection === null || rowSelection === undefined
       ? undefined
       : rowProjections.find((row) => row.id === selectedValue);
+  const accordionLayout =
+    definition.scene.kind === 'accordion' && parsedRows !== undefined && rowData !== undefined
+      ? createAccordionLayout(
+          parsedRows,
+          rowData,
+          typeof selectedValue === 'string' ? selectedValue : undefined,
+          bounds,
+        )
+      : undefined;
   const rowSeparatorPath =
     definition.rows?.layout !== 'segments' || definition.scene.kind === 'tabs'
       ? ''
@@ -208,6 +222,16 @@ export const createControlSceneProjection = ({
           selectedRow?.id,
         )
       : undefined;
+  const accordionOutlinePath =
+    accordionLayout === undefined || parsedRows === undefined || rowData === undefined
+      ? undefined
+      : createAccordionOutlinePath(parsedRows, rowData, accordionLayout, identity, bounds);
+  const scrollbarBounds =
+    definition.scene.kind === 'tabs'
+      ? primitiveBounds
+      : definition.scene.kind === 'accordion'
+        ? accordionLayout?.paneBounds
+        : bounds;
   return Object.freeze({
     borderVisible:
       borderVisibility === false ||
@@ -222,14 +246,10 @@ export const createControlSceneProjection = ({
     fillRadiusY: fillRadii?.y,
     icon: createControlSceneIconProjection(definition, contentBounds, properties, textLayout),
     markPath: [
+      ...(accordionLayout === undefined ? [] : [createAccordionActiveHeaderPath(accordionLayout)]),
       createControlSceneMarkPath(definition.type, bounds, identity, properties),
-      ...(scrollbarVisible
-        ? [
-            createControlSceneScrollbarPath(
-              definition.scene.kind === 'tabs' ? primitiveBounds : bounds,
-              identity,
-            ),
-          ]
+      ...(scrollbarVisible && scrollbarBounds !== undefined
+        ? [createControlSceneScrollbarPath(scrollbarBounds, identity)]
         : []),
       rowSeparatorPath,
     ]
@@ -242,6 +262,7 @@ export const createControlSceneProjection = ({
     markStrokeColor: definition.scene.markStyle?.strokeColor ?? undefined,
     outlinePath:
       tabsOutlinePath ??
+      accordionOutlinePath ??
       createControlSceneOutlinePath(
         definition.type,
         bounds,
@@ -269,11 +290,18 @@ export const createControlSceneProjection = ({
         ? undefined
         : Object.freeze({
             ...selectedRow,
-            appearance: rowSelection.appearance.kind,
+            appearance:
+              definition.scene.kind === 'accordion' &&
+              selectedRow.id === accordionLayout?.activeParentId
+                ? ('text' as const)
+                : rowSelection.appearance.kind,
             color:
               definition.scene.kind === 'tabs'
                 ? DESIGN_TOKENS.color.canvas
-                : resolveColor(rowSelection.appearance.colorProperty),
+                : definition.scene.kind === 'accordion' &&
+                    selectedRow.id === accordionLayout?.activeParentId
+                  ? DESIGN_TOKENS.color.canvas
+                  : resolveColor(rowSelection.appearance.colorProperty),
             fillOpacity: definition.scene.kind === 'tabs' ? 1 : undefined,
           }),
     strokeColor:

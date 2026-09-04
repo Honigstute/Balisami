@@ -76,6 +76,7 @@ export const CONTROL_TYPES = Object.freeze({
   treePane: ControlTypeIdSchema.parse('wireframe.tree-pane'),
   tabBar: ControlTypeIdSchema.parse('wireframe.tab-bar'),
   verticalTabs: ControlTypeIdSchema.parse('wireframe.v-tabs'),
+  accordion: ControlTypeIdSchema.parse('wireframe.accordion'),
   searchBox: ControlTypeIdSchema.parse('wireframe.search-box'),
   textArea: ControlTypeIdSchema.parse('wireframe.text-area'),
   fieldSet: ControlTypeIdSchema.parse('wireframe.field-set'),
@@ -302,6 +303,14 @@ const verticalTabsPropertiesSchema = z
     tabsPosition: z.enum(['left', 'right']),
   })
   .readonly();
+const accordionPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    items: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    scrollbar: z.boolean(),
+    selectedRowId: ElementRowIdSchema.nullable(),
+  })
+  .readonly();
 const searchBoxPropertiesSchema = z
   .strictObject({
     ...textStyleSchemaShape,
@@ -429,6 +438,13 @@ const createIntrinsicAutoSize = (axis: ControlAutoSizePolicy['axis']): ControlAu
   Object.freeze({
     axis,
     basis: 'intrinsic',
+    insets: Object.freeze({ bottom: 0, left: 0, right: 0, top: 0 }),
+  });
+
+const createAccordionAutoSize = (): ControlAutoSizePolicy =>
+  Object.freeze({
+    axis: 'both',
+    basis: 'accordion',
     insets: Object.freeze({ bottom: 0, left: 0, right: 0, top: 0 }),
   });
 
@@ -3205,6 +3221,98 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['container', 'navigation', 'side', 'tabs', 'vertical'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.verticalTabs,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Accordion', 'group'),
+    aliases: ['collapsible panels', 'disclosure group', 'expander'],
+    autoSize: createAccordionAutoSize(),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'start',
+        13,
+        DESIGN_TOKENS.space[2],
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'items',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      items: 'Item One\nItem Two\nItem Three\nItem Four',
+      scrollbar: false,
+      selectedRowId: null,
+    },
+    defaultSize: createSize(150, 186),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'boolean', label: 'Scrollbar', property: 'scrollbar' },
+        ]),
+        label: 'Layout',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(80, 27),
+    maximumSize: null,
+    palette: createPalette('Accordion', 'Layout', 490),
+    propertiesSchema: accordionPropertiesSchema,
+    rows: Object.freeze({
+      adornment: null,
+      display: 'labels',
+      hierarchy: Object.freeze({ childPrefix: '-', kind: 'accordion' }),
+      layout: 'stack',
+      links: true,
+      marker: null,
+      maximum: 64,
+      minimum: 1,
+      property: 'items',
+      selection: Object.freeze({
+        allowNone: true,
+        appearance: Object.freeze({ colorProperty: null, kind: 'fill' }),
+        default: 'first',
+        property: 'selectedRowId',
+      }),
+      separator: '\n',
+    }),
+    scene: createScene(
+      'accordion',
+      ['items'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        defaultFillColor: DESIGN_TOKENS.color.panel,
+        fillColorProperty: null,
+        opacityProperty: null,
+        scrollbarVisibilityProperty: 'scrollbar',
+        strokeColorProperty: null,
+      },
+      Object.freeze({
+        fillColor: DESIGN_TOKENS.color.accentStrong,
+        strokeColor: DESIGN_TOKENS.color.accentStrong,
+      }),
+    ),
+    tags: ['collapse', 'container', 'disclosure', 'expand', 'navigation'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.accordion,
   }),
   createDefinition({
     accessibility: createAccessibility('Search Box', 'textbox', 'text'),

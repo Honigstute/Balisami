@@ -178,6 +178,36 @@ describe('registry parsed-row identity contract', () => {
     ).toBe('..- Leaf');
   });
 
+  it('parses Accordion parent/child syntax without borrowing Tree Pane grammar', () => {
+    const accordion = getControlSpec(CONTROL_TYPES.accordion);
+    if (accordion?.rows === null || accordion?.rows === undefined) {
+      throw new Error('Accordion rows are missing.');
+    }
+    expect(
+      parseControlRows(accordion.rows, {
+        items: 'Parent\n- First child\n- Second child\nOther parent',
+      }),
+    ).toEqual([
+      expect.objectContaining({ depth: 0, label: 'Parent' }),
+      expect.objectContaining({ depth: 1, label: 'First child' }),
+      expect.objectContaining({ depth: 1, label: 'Second child' }),
+      expect.objectContaining({ depth: 0, label: 'Other parent' }),
+    ]);
+    expect(parseControlRows(accordion.rows, { items: '- Orphan child\nParent' })).toBeUndefined();
+    expect(parseControlRowSource(accordion.rows, '..- Not tree syntax')).toEqual(
+      expect.objectContaining({ depth: 0, label: '..- Not tree syntax' }),
+    );
+    expect(
+      formatControlRowSource(accordion.rows, {
+        adornment: null,
+        depth: 1,
+        disabled: false,
+        label: 'Child',
+        marker: null,
+      }),
+    ).toBe('- Child');
+  });
+
   it('preserves marker and disabled state through atomic edits, reorder, append, undo, and redo', () => {
     const { definition, document, element } = createSelectionFixture(CONTROL_TYPES.checkboxGroup);
     const edits = createControlRowEdits(definition, element);
@@ -517,6 +547,56 @@ describe('registry parsed-row identity contract', () => {
       adornment: 'file',
       depth: 3,
       label: 'Nested archive leaf',
+    });
+  });
+
+  it('round-trips Accordion hierarchy, per-row links, and child selection', () => {
+    const { definition, document, element } = createSelectionFixture(CONTROL_TYPES.accordion);
+    const edits = createControlRowEdits(definition, element);
+    if (edits === undefined) throw new Error('Accordion rows did not parse.');
+    const childId = edits[1]?.id;
+    if (childId === undefined) throw new Error('Accordion child fixture is incomplete.');
+    const update = createControlRowsUpdate(
+      definition,
+      element,
+      edits.map((edit, index) =>
+        index === 1
+          ? Object.freeze({
+              ...edit,
+              depth: 1,
+              label: 'Linked child',
+              link: Object.freeze({ kind: 'external' as const, url: 'https://example.com/child' }),
+            })
+          : edit,
+      ),
+      element.rowData.nextId,
+    );
+    if (update === undefined) throw new Error('Accordion row update is invalid.');
+    const selected = createControlRowSelectionUpdate(
+      definition,
+      { ...element, properties: update.properties, rowData: update.rowData },
+      childId,
+    );
+    if (selected === undefined) throw new Error('Accordion selection update is invalid.');
+    const committed = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId: ELEMENT_ID,
+      properties: selected.properties,
+      rowData: selected.rowData,
+    });
+    if (!committed.ok || !committed.changed) throw new Error('Accordion update did not commit.');
+    const encoded = encodeProjectFileEnvelope(committed.document, {});
+    if (!encoded.ok) throw new Error('Accordion document could not be encoded.');
+    const decoded = decodeProjectFileEnvelope(encoded.value);
+    if (!decoded.ok) throw new Error('Accordion document could not be reopened.');
+    const reopened = decoded.value.document.elementsById[ELEMENT_ID];
+    expect(reopened?.properties).toMatchObject({
+      items: 'Item One\n- Linked child\nItem Three\nItem Four',
+      selectedRowId: childId,
+    });
+    expect(reopened?.rowData.bindings[1]).toMatchObject({
+      id: childId,
+      link: { kind: 'external', url: 'https://example.com/child' },
     });
   });
 
