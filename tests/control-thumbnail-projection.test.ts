@@ -981,4 +981,38 @@ describe('control thumbnail projection', () => {
       textLayout: { lines: [{ text: 'Checkbox', x: 46 }], textAnchor: 'start' },
     });
   });
+
+  it('projects the Date Chooser body and calendar affordance through one trailing-adornment contract', () => {
+    const definition = getControlSpec(CONTROL_TYPES.dateChooser);
+    if (definition === undefined) throw new Error('Date Chooser definition is missing.');
+    const bounds = createWorldRect(0, 0, 106, 25);
+    const projection = createControlSceneProjection({
+      bounds,
+      definition,
+      identity: 'date-chooser-edited',
+      properties: {
+        ...definition.defaultProperties,
+        borderColor: '#445566',
+        italic: true,
+        state: 'disabled',
+        text: '20/01/2010',
+      },
+      textMeasurementService: measurementService,
+    });
+
+    expect(projection).toMatchObject({
+      disabled: true,
+      opacity: 0.45,
+      primitiveBounds: { height: 21, width: 73, x: 0, y: 2 },
+      strokeColor: '#445566',
+      textLayout: {
+        fontStyle: 'italic',
+        lines: [{ text: '20/01/2010', x: 8 }],
+        textAnchor: 'start',
+      },
+    });
+    expect(projection.outlinePath).not.toBe('');
+    expect(projection.markPath).not.toBe('');
+    expect(projection.markPath).not.toMatch(/NaN|Infinity/u);
+  });
 });

@@ -99,6 +99,23 @@ describe('control definition conformance harness', () => {
         }
         document = linked.document;
       }
+      if (definition.type === CONTROL_TYPES.dateChooser) {
+        const edited = dispatchDocumentCommand(document, {
+          type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+          elementId,
+          properties: {
+            ...definition.defaultProperties,
+            borderColor: '#445566',
+            italic: true,
+            state: 'disabled',
+            text: '20/01/2010',
+          },
+        });
+        if (!edited.ok || !edited.changed) {
+          throw new Error('Date Chooser conformance state could not be applied.');
+        }
+        document = edited.document;
+      }
       if (definition.type === CONTROL_TYPES.link) {
         const styled = dispatchDocumentCommand(document, {
           type: DOCUMENT_COMMAND_TYPES.setElementProperties,
@@ -225,6 +242,25 @@ describe('control definition conformance harness', () => {
         });
         expect(getControlAccessibleName(definition, before.properties)).toBe('Preferred option');
         expect(getControlAccessibleChecked(definition, before.properties)).toBe(true);
+        expect(
+          createControlSceneMarkPath(
+            before.controlType,
+            beforeBounds,
+            before.id,
+            before.properties,
+          ),
+        ).not.toBe('');
+      }
+      if (before.controlType === CONTROL_TYPES.dateChooser) {
+        expect(before).toMatchObject({
+          properties: {
+            borderColor: '#445566',
+            italic: true,
+            state: 'disabled',
+            text: '20/01/2010',
+          },
+        });
+        expect(getControlAccessibleName(definition, before.properties)).toBe('20/01/2010');
         expect(
           createControlSceneMarkPath(
             before.controlType,

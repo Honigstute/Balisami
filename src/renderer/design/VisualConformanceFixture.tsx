@@ -104,6 +104,10 @@ const REGISTRY_CALLOUT_EDITED_ID = ElementIdSchema.parse('element_registrycallou
 const REGISTRY_RADIO_DEFAULT_ID = ElementIdSchema.parse('element_registryradiodefault');
 const REGISTRY_RADIO_SELECTED_ID = ElementIdSchema.parse('element_registryradioselected');
 const REGISTRY_RADIO_DISABLED_ID = ElementIdSchema.parse('element_registryradiodisabled');
+const REGISTRY_DATE_CHOOSER_DEFAULT_ID = ElementIdSchema.parse(
+  'element_registrydatechooserdefault',
+);
+const REGISTRY_DATE_CHOOSER_EDITED_ID = ElementIdSchema.parse('element_registrydatechooseredited');
 const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
 const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
@@ -1177,6 +1181,45 @@ const createRegistryControlFixtureDocument = (): ReturnType<typeof createSceneFi
       index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 27,
       owner: { boardId: fixture.boardId, kind: 'board' },
     },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.dateChooser,
+        controlVersion: requireControlVersion(CONTROL_TYPES.dateChooser),
+        frame: { x: 700, y: 570, width: 90, height: 25 },
+        id: REGISTRY_DATE_CHOOSER_DEFAULT_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.dateChooser),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 28,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
+    {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.dateChooser,
+        controlVersion: requireControlVersion(CONTROL_TYPES.dateChooser),
+        frame: { x: 820, y: 570, width: 106, height: 25 },
+        id: REGISTRY_DATE_CHOOSER_EDITED_ID,
+        link: null,
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.dateChooser, {
+          borderColor: DESIGN_TOKENS.color.accent,
+          italic: true,
+          state: 'disabled',
+          text: '20/01/2010',
+        }),
+      },
+      index: (fixture.document.boardsById[fixture.boardId]?.childIds.length ?? 0) + 29,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    },
   ] as const;
   for (const command of commands) {
     const result = dispatchDocumentCommand(document, command);
@@ -1234,6 +1277,12 @@ const createRadioButtonFixtureDocument = (): ReturnType<typeof createSceneFixtur
   Object.freeze({
     ...createRegistryControlFixtureDocument(),
     selectedId: REGISTRY_RADIO_SELECTED_ID,
+  });
+
+const createDateChooserFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
+  Object.freeze({
+    ...createRegistryControlFixtureDocument(),
+    selectedId: REGISTRY_DATE_CHOOSER_EDITED_ID,
   });
 
 const createGroupSelectionFixtureDocument = (
@@ -1325,6 +1374,7 @@ type SceneFixtureState =
   | 'catalogTooltip'
   | 'catalogCallout'
   | 'radioButton'
+  | 'dateChooser'
   | 'resize'
   | 'selection'
   | 'smartGuides'
@@ -1349,7 +1399,8 @@ const SceneFixture = ({
     state === 'comment' ||
     state === 'catalogTooltip' ||
     state === 'catalogCallout' ||
-    state === 'radioButton';
+    state === 'radioButton' ||
+    state === 'dateChooser';
   const camera = useViewportCameraStore(isRegistryFixture ? 0.8 : 1);
   const [fixture] = useState(() =>
     state === 'alpha' || state === 'customIcon'
@@ -1371,7 +1422,9 @@ const SceneFixture = ({
                       ? createCatalogCalloutFixtureDocument()
                       : state === 'radioButton'
                         ? createRadioButtonFixtureDocument()
-                        : createRegistryControlFixtureDocument()
+                        : state === 'dateChooser'
+                          ? createDateChooserFixtureDocument()
+                          : createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
@@ -2210,6 +2263,24 @@ const RadioButtonInspectorFixture = () => {
   );
 };
 
+const DateChooserInspectorFixture = () => {
+  const [fixture] = useState(createDateChooserFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
 const AlphaNavigatorFixture = () => {
   const [fixture] = useState(createAlphaFixtureDocument);
   const [thumbnailStore] = useState(
@@ -2405,15 +2476,30 @@ export const VisualConformanceFixture = ({
                                                               />
                                                             ),
                                                           }
-                                                        : fixture === 'controls'
-                                                          ? { inspector: <ControlStates /> }
-                                                          : fixture === 'feedback'
-                                                            ? { canvas: <StaticRegionFailure /> }
-                                                            : fixture === 'tooltip'
-                                                              ? { canvas: <TooltipFixture /> }
-                                                              : fixture === 'popover'
-                                                                ? { canvas: <PopoverFixture /> }
-                                                                : undefined;
+                                                        : fixture === 'dateChooser'
+                                                          ? {
+                                                              canvas: (
+                                                                <SceneFixture state="dateChooser" />
+                                                              ),
+                                                              inspector: (
+                                                                <DateChooserInspectorFixture />
+                                                              ),
+                                                              shelf: (
+                                                                <ControlShelf
+                                                                  category="Forms"
+                                                                  onInsert={() => false}
+                                                                />
+                                                              ),
+                                                            }
+                                                          : fixture === 'controls'
+                                                            ? { inspector: <ControlStates /> }
+                                                            : fixture === 'feedback'
+                                                              ? { canvas: <StaticRegionFailure /> }
+                                                              : fixture === 'tooltip'
+                                                                ? { canvas: <TooltipFixture /> }
+                                                                : fixture === 'popover'
+                                                                  ? { canvas: <PopoverFixture /> }
+                                                                  : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -2454,7 +2540,9 @@ export const VisualConformanceFixture = ({
                       ? CONTROL_TYPES.callout
                       : fixture === 'radioButton'
                         ? CONTROL_TYPES.radioButton
-                        : undefined;
+                        : fixture === 'dateChooser'
+                          ? CONTROL_TYPES.dateChooser
+                          : undefined;
   const inspectorTitle =
     fixture === 'components'
       ? 'Reusable Card'
