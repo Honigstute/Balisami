@@ -104,7 +104,7 @@ describe('application shell', () => {
     expect(screen.getByRole('navigation', { name: 'Control categories' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Wireframes' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Inspector' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Export current wireframe as PNG' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Export wireframe' })).toBeEnabled();
     expect(startProject).toHaveBeenCalledOnce();
     for (const region of Object.values(SHELL_REGIONS)) {
       expect(document.querySelectorAll(`[${SHELL_REGION_ATTRIBUTE}="${region}"]`)).toHaveLength(1);

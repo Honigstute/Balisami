@@ -11,6 +11,13 @@ import { AppNoticeCenter } from '../design/AppNoticeCenter';
 import { NoticeCenterStore } from '../design/notice-center';
 import { RegionErrorBoundary } from '../design/RegionErrorBoundary';
 import { ViewportEmptyState } from '../editor/ViewportScene';
+import type { SelectionStore } from '../editor/selection-store';
+import {
+  ExportMenu,
+  type BoardExportFormat,
+  type BoardExportMenuScope,
+  type ExportMenuBoard,
+} from '../projects/ExportMenu';
 import { FoundationMark, Icon, type IconName } from './Icon';
 import { PaneResizeHandle } from './PaneResizeHandle';
 import { useShellPreferences } from './use-shell-preferences';
@@ -33,8 +40,15 @@ export interface ControlCategoryNavigation {
 interface AppShellProps {
   readonly controlCategoryNavigation?: ControlCategoryNavigation;
   readonly exportControls?: {
+    readonly boards: readonly ExportMenuBoard[];
+    readonly currentBoardId: ExportMenuBoard['id'];
     readonly disabled?: boolean;
-    readonly onExportPng: () => void;
+    readonly onExport: (
+      format: BoardExportFormat,
+      scope: BoardExportMenuScope,
+      boardIds?: readonly ExportMenuBoard['id'][],
+    ) => void;
+    readonly selectionStore: SelectionStore;
   };
   readonly historyControls?: {
     readonly canRedo: boolean;
@@ -210,16 +224,27 @@ export const AppShell = ({
             </>
           )}
           {viewportControls ?? <DisabledToolbarActions actions={defaultViewportActions} />}
-          <button
-            aria-label="Export current wireframe as PNG"
-            className="icon-button icon-button--dark"
-            disabled={exportControls === undefined || exportControls.disabled}
-            onClick={exportControls?.onExportPng}
-            title="Export PNG"
-            type="button"
-          >
-            <Icon name="export" />
-          </button>
+          {exportControls === undefined ? (
+            <button
+              aria-label="Export wireframe"
+              className="icon-button icon-button--dark"
+              disabled
+              title="Export"
+              type="button"
+            >
+              <Icon name="export" />
+            </button>
+          ) : (
+            <ExportMenu
+              boards={exportControls.boards}
+              currentBoardId={exportControls.currentBoardId}
+              {...(exportControls.disabled === undefined
+                ? {}
+                : { disabled: exportControls.disabled })}
+              onExport={exportControls.onExport}
+              selectionStore={exportControls.selectionStore}
+            />
+          )}
           <button
             aria-label="Present"
             className="icon-button icon-button--dark"

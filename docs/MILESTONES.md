@@ -1,6 +1,6 @@
 # Balsamic milestones
 
-Status: M12 active — clipboard, import/export, print, and interoperability
+Status: M13 active — native desktop integration and release pipeline
 Last reviewed: 2026-09-04
 
 This file is the only source of truth for roadmap order and progress. Do not mirror its checklist elsewhere.
@@ -618,7 +618,7 @@ Exit gate:
 - Updating a component definition updates instances deterministically; invalid cycles are rejected without document damage.
 - Every promoted catalog control passes the same registry contract and visual matrix; there are no one-off inspector branches.
 
-### [~] M12 — Clipboard, import/export, print, and interoperability
+### [x] M12 — Clipboard, import/export, print, and interoperability
 
 Depends on: M10, M11
 
@@ -632,6 +632,7 @@ Current progress (2026-09-04):
 - Native-payload precedence now falls through to a safe external plain-text path only when no valid Balsamic graph or legacy selection is present. Bounded non-empty text is normalized to the registry Text Label's single-line contract and inserted once at the active presented board's viewport center; empty, whitespace-only, oversized, unavailable-board, or invalid-command input remains non-mutating, and editable fields retain their native paste routing before the viewport shortcut. The main process rejects oversized text instead of truncating it into a deceptively valid project mutation. Focused native transport, fallback planner, application, and portable-clipboard verification passes 5 files / 29 tests plus formatting, ESLint, strict TypeScript, and 235-module boundaries. The rebuilt macOS arm64 package passes fuse verification and packaged smoke. External image paste and export remain incomplete, and no GitHub-hosted Windows job was started.
 - Standard native images now follow the richer-before-plain-text clipboard order: Balsamic graph, legacy Balsamic payload, bounded image, then bounded text. Electron reads only a non-empty PNG representation whose native dimensions and encoded bytes fit shared project limits; the narrow exact-shape preload response copies those bytes before the existing renderer import pipeline rechecks PNG signature, decode dimensions, digest, asset metadata, and placement. An accepted paste uses the same authenticated asset-plus-element transaction as picker/drop import at the active presented-board viewport center, while empty, oversized, malformed, or undecodable images cannot mutate the project. Focused desktop contract/IPC, native transport, image import, application, and project-session verification passes 6 files / 62 tests plus formatting, ESLint, strict TypeScript, and 236-module boundaries. The rebuilt macOS arm64 package passes fuse verification and packaged smoke. Export remains incomplete, and no GitHub-hosted Windows job was started.
 - Current-wireframe PNG export now reuses the uncapped presentation projection and its canonical-board-to-selected-alternate routing instead of introducing a second scene renderer. A deterministic SVG serializer carries registry geometry, text layout, row state, catalog/custom icons, image assets, opacity, and design-token styling into a self-contained source; the PNG service embeds all four bundled wireframe font faces, enforces explicit 1×–4× scale and shared dimension/byte limits, then rasterizes through a browser canvas. A path-free, exact-shape preload/main request owns the native save dialog and atomic bounded file write; cancellation and every prepare/encode/write failure leave project/history untouched and surface through one deduplicated notice. The fixed toolbar exposes a visible 2× “Export PNG” action. Focused projection, encoding, boundary, native-write, shell, and application verification passes 7 files / 45 tests plus formatting, ESLint, strict TypeScript, and 239-module boundaries. The rebuilt macOS arm64 package passes fuse verification and packaged smoke. Selection/all/subset scope, direct SVG/PDF output, print, and public-format documentation remain incomplete; no GitHub-hosted Windows job was started.
+- One immutable export plan now owns current, selected-control, chosen-board subset, and all-board scope. It preserves canonical navigator order, resolves each persisted selected alternate once, expands selected groups to their visible descendants, rejects empty/foreign/duplicate scopes, and feeds every format the same projection. The portalled toolbar menu offers current/selection PNG and editable self-contained SVG, plus current/chosen/all PDF. PDF raster pages use the embedded font and exact projection bounds at 2×, while internal board links become page destinations and HTTP(S) links become URI annotations; missing assets, invalid rasters, size limits, cancellations, and native write errors cannot mutate the project. `docs/PROJECT_FORMAT.md` publishes the deterministic v6 ZIP entries, compatibility/migration policy, security limits, asset contract, and interoperability boundary. The M12 gate passes formatting, ESLint, 243-module boundaries, strict TypeScript, 136 files / 958 tests, and runtime audit with zero vulnerabilities. The rebuilt macOS arm64 package passes fuses, smoke, the 1,170-byte create/edit/undo/redo/save/close/reopen workflow, forced-crash recovery with its 579-byte prior user file unchanged, the complete packaged visual/scale matrix, asset/component performance (50.3/27.3/93.7 ms and 24.2/19.3/136.1 ms save/open/render), and viewport performance at 1.8 ms p95 frame work / 18.5 ms p95 input latency. A local Windows x64 package and native executable fuse readback pass; per the owner's direction no GitHub-hosted Windows job was started.
 
 Deliverables:
 
@@ -647,7 +648,7 @@ Exit gate:
 - Copy/paste within and between projects remaps IDs/assets/links without collisions or loss.
 - Export failures preserve the document and produce one actionable message.
 
-### [ ] M13 — Native desktop integration and release pipeline
+### [~] M13 — Native desktop integration and release pipeline
 
 Depends on: M12
 
@@ -689,4 +690,4 @@ Exit gate:
 
 ## Next action
 
-Define one bounded export-plan model for selection/current/subset/all scopes, with current-board as the existing default and explicit canonical-board/selected-alternate resolution. Reuse the proven self-contained SVG projection and native save boundary for direct SVG output, then compose those same planned board projections into one-board-per-page PDF with link annotations; do not create independent geometry renderers. Add print only through the completed PDF plan, publish the project-format compatibility contract, and run focused projection/native/persistence tests while developing. Reserve the milestone-wide package/export matrix for the M12 gate or a concrete integration regression. M7 and the post-core catalog backlog remain deferred.
+Audit the existing Forge main-process/window lifecycle and packaging configuration against M13 in dependency order. Start with the smallest user-visible native slice: one instance, open-with/file-association routing into the existing staged project replacement flow, and native recent-document integration without leaking paths to the renderer. Then finalize production app identity/icons and traceable versioned artifacts before adding signing/notarization/update steps that require external credentials. Keep credential-dependent release gates explicit rather than simulating them; use local macOS arm64 and Windows x64 package evidence, and do not start or comment on GitHub-hosted Windows jobs. M7 and the post-core catalog backlog remain deferred.

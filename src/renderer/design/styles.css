@@ -2498,6 +2498,73 @@ p {
   scrollbar-gutter: stable;
 }
 
+.export-menu {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.export-menu > strong {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+.export-menu > span,
+.export-menu small {
+  color: var(--color-muted-ink);
+  font-size: var(--font-size-caption);
+}
+
+.export-menu__actions {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.export-menu__actions button {
+  display: grid;
+  gap: var(--space-1);
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  text-align: left;
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-compact);
+}
+
+.export-menu__actions button:not(:disabled):hover,
+.export-menu__actions button:not(:disabled):focus-visible {
+  background: var(--color-accent);
+  border-color: var(--color-accent-strong);
+}
+
+.export-menu__actions button:disabled {
+  opacity: var(--opacity-disabled);
+}
+
+.export-menu__boards {
+  display: grid;
+  max-height: calc(var(--control-height) * 5);
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  overflow: auto;
+  border: var(--border-width) solid var(--color-divider);
+  border-radius: var(--radius-compact);
+}
+
+.export-menu__boards legend {
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.export-menu__boards label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+}
+
 .visual-control-fixture {
   display: grid;
   gap: var(--space-2);

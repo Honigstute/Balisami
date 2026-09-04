@@ -1,8 +1,3 @@
-import comicBoldItalicDataUrl from '@fontsource/comic-neue/files/comic-neue-latin-700-italic.woff2?inline';
-import comicBoldDataUrl from '@fontsource/comic-neue/files/comic-neue-latin-700-normal.woff2?inline';
-import comicItalicDataUrl from '@fontsource/comic-neue/files/comic-neue-latin-400-italic.woff2?inline';
-import comicRegularDataUrl from '@fontsource/comic-neue/files/comic-neue-latin-400-normal.woff2?inline';
-
 import type { AssetId, BoardId, ProjectDocument } from '../../domain';
 import {
   MAX_IMPORTED_IMAGE_DIMENSION,
@@ -10,7 +5,14 @@ import {
 } from '../../shared/image-import-limits';
 import { MAX_PROJECT_ASSET_BYTES } from '../../shared/project-file-limits';
 import type { ControlTextMeasurementService } from '../controls/control-text-measurement';
-import { createBoardPresentationProjection } from './board-presentation-projection';
+import {
+  collectBoardExportAssetDataUrls,
+  loadEmbeddedWireframeFontCss,
+} from './board-export-resources';
+import {
+  createBoardPresentationProjection,
+  type BoardPresentationProjection,
+} from './board-presentation-projection';
 import { serializeBoardProjectionToSvg } from './board-svg-export';
 
 export const BOARD_PNG_EXPORT_SCALES = Object.freeze([1, 2, 3, 4] as const);
@@ -37,35 +39,6 @@ export type BoardPngExportResult =
       readonly message: string;
     };
 
-const encodeBytes = (bytes: Uint8Array): string => {
-  const chunkSize = 24 * 1_024;
-  let encoded = '';
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    encoded += globalThis.btoa(String.fromCharCode(...bytes.subarray(offset, offset + chunkSize)));
-  }
-  return encoded;
-};
-
-const toDataUrl = (bytes: Uint8Array, mediaType: string): string =>
-  `data:${mediaType};base64,${encodeBytes(bytes)}`;
-
-const fontSources = Object.freeze([
-  Object.freeze({ style: 'normal', url: comicRegularDataUrl, weight: 400 }),
-  Object.freeze({ style: 'italic', url: comicItalicDataUrl, weight: 400 }),
-  Object.freeze({ style: 'normal', url: comicBoldDataUrl, weight: 700 }),
-  Object.freeze({ style: 'italic', url: comicBoldItalicDataUrl, weight: 700 }),
-]);
-
-const EMBEDDED_WIREFRAME_FONT_CSS = fontSources
-  .map(
-    ({ style, url, weight }) =>
-      `@font-face{font-family:"Comic Neue";font-style:${style};font-weight:${String(weight)};src:url(${url}) format("woff2")}`,
-  )
-  .join('\n');
-
-export const loadEmbeddedWireframeFontCss = (): Promise<string> =>
-  Promise.resolve(EMBEDDED_WIREFRAME_FONT_CSS);
-
 export const createBrowserSvgPngRasterizer = (): SvgPngRasterizer =>
   Object.freeze({
     async rasterize(svg: string, width: number, height: number) {
@@ -88,49 +61,23 @@ export const createBrowserSvgPngRasterizer = (): SvgPngRasterizer =>
     },
   });
 
-const collectAssetDataUrls = (
-  document: ProjectDocument,
-  assetIds: ReadonlySet<AssetId>,
-  readAssetBytes: (assetId: AssetId) => Uint8Array | undefined,
-): Readonly<Record<string, string>> | undefined => {
-  const result: Record<string, string> = Object.create(null) as Record<string, string>;
-  for (const assetId of assetIds) {
-    const reference = document.assetsById[assetId];
-    const bytes = readAssetBytes(assetId);
-    if (
-      reference === undefined ||
-      bytes === undefined ||
-      bytes.byteLength !== reference.byteLength
-    ) {
-      return undefined;
-    }
-    result[assetId] = toDataUrl(bytes, reference.mediaType);
-  }
-  return Object.freeze(result);
-};
-
 const hasPngSignature = (bytes: Uint8Array): boolean =>
   [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte);
 
-/** Creates one self-contained, explicit-scale PNG from the canonical selected alternate. */
-export const exportBoardToPng = async (
+/** Creates one self-contained, explicit-scale PNG from an already planned page. */
+export const exportBoardProjectionToPng = async (
   input: Readonly<{
-    boardId: BoardId;
     document: ProjectDocument;
     fontCss?: string;
     loadFontCss?: () => Promise<string>;
+    projection: BoardPresentationProjection;
     rasterizer?: SvgPngRasterizer;
     readAssetBytes: (assetId: AssetId) => Uint8Array | undefined;
     scale: BoardPngExportScale;
-    textMeasurementService?: ControlTextMeasurementService;
   }>,
 ): Promise<BoardPngExportResult> => {
-  const projection = createBoardPresentationProjection(
-    input.document,
-    input.boardId,
-    input.textMeasurementService,
-  );
-  if (projection === undefined || !BOARD_PNG_EXPORT_SCALES.includes(input.scale)) {
+  const projection = input.projection;
+  if (!BOARD_PNG_EXPORT_SCALES.includes(input.scale)) {
     return {
       code: 'invalid-board',
       message: 'Choose an active wireframe and a supported export scale.',
@@ -152,13 +99,11 @@ export const exportBoardToPng = async (
       ok: false,
     };
   }
-  const assetIds = new Set(
-    projection.items.flatMap((item) => [
-      ...(item.visualKind === 'image' ? item.assetIds : []),
-      ...(item.icon?.kind === 'asset' ? [item.icon.assetId] : []),
-    ]),
+  const assetDataUrls = collectBoardExportAssetDataUrls(
+    input.document,
+    [projection],
+    input.readAssetBytes,
   );
-  const assetDataUrls = collectAssetDataUrls(input.document, assetIds, input.readAssetBytes);
   if (assetDataUrls === undefined) {
     return {
       code: 'asset-unavailable',
@@ -215,4 +160,40 @@ export const exportBoardToPng = async (
       ok: false,
     };
   }
+};
+
+/** Convenience wrapper for the common current-board export path. */
+export const exportBoardToPng = async (
+  input: Readonly<{
+    boardId: BoardId;
+    document: ProjectDocument;
+    fontCss?: string;
+    loadFontCss?: () => Promise<string>;
+    rasterizer?: SvgPngRasterizer;
+    readAssetBytes: (assetId: AssetId) => Uint8Array | undefined;
+    scale: BoardPngExportScale;
+    textMeasurementService?: ControlTextMeasurementService;
+  }>,
+): Promise<BoardPngExportResult> => {
+  const projection = createBoardPresentationProjection(
+    input.document,
+    input.boardId,
+    input.textMeasurementService,
+  );
+  if (projection === undefined) {
+    return {
+      code: 'invalid-board',
+      message: 'Choose an active wireframe and a supported export scale.',
+      ok: false,
+    };
+  }
+  return exportBoardProjectionToPng({
+    document: input.document,
+    ...(input.fontCss === undefined ? {} : { fontCss: input.fontCss }),
+    ...(input.loadFontCss === undefined ? {} : { loadFontCss: input.loadFontCss }),
+    projection,
+    ...(input.rasterizer === undefined ? {} : { rasterizer: input.rasterizer }),
+    readAssetBytes: input.readAssetBytes,
+    scale: input.scale,
+  });
 };

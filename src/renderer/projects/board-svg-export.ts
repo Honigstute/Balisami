@@ -1,5 +1,11 @@
 import { DESIGN_TOKENS } from '../../shared/design-tokens';
+import { MAX_PROJECT_ASSET_BYTES } from '../../shared/project-file-limits';
 import type { IconNode } from '../../shared/icons/icon-catalog';
+import type { AssetId, ProjectDocument } from '../../domain';
+import {
+  collectBoardExportAssetDataUrls,
+  loadEmbeddedWireframeFontCss,
+} from './board-export-resources';
 import type {
   BoardPresentationItem,
   BoardPresentationProjection,
@@ -12,6 +18,17 @@ export interface BoardSvgExportOptions {
   readonly title?: string;
   readonly width: number;
 }
+
+export type BoardSvgFileExportResult =
+  | Readonly<{
+      ok: true;
+      value: Readonly<{ bytes: Uint8Array; suggestedName: string }>;
+    }>
+  | Readonly<{
+      code: 'asset-unavailable' | 'encode-failed' | 'font-unavailable' | 'too-large';
+      message: string;
+      ok: false;
+    }>;
 
 const SUPPORTED_ICON_NODE_TAGS = new Set([
   'circle',
@@ -168,4 +185,73 @@ export const serializeBoardProjectionToSvg = (
   const style = createStyle(options.embeddedFontCss ?? '');
   const viewBox = projection.viewBox;
   return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" role="img"${attribute('aria-label', title)}${attribute('width', options.width)}${attribute('height', options.height)}${attribute('viewBox', `${String(viewBox.x)} ${String(viewBox.y)} ${String(viewBox.width)} ${String(viewBox.height)}`)} preserveAspectRatio="xMidYMid meet"><title>${escapeText(title)}</title><style>${style}</style><rect${attribute('x', viewBox.x)}${attribute('y', viewBox.y)}${attribute('width', viewBox.width)}${attribute('height', viewBox.height)} fill="${DESIGN_TOKENS.color.canvas}"/>${projection.items.map((item) => serializeItem(item, assets)).join('')}</svg>`;
+};
+
+/** Encodes one already planned board page as a self-contained editable SVG file. */
+export const exportBoardProjectionToSvg = async (
+  input: Readonly<{
+    document: ProjectDocument;
+    fontCss?: string;
+    loadFontCss?: () => Promise<string>;
+    projection: BoardPresentationProjection;
+    readAssetBytes: (assetId: AssetId) => Uint8Array | undefined;
+  }>,
+): Promise<BoardSvgFileExportResult> => {
+  const assetDataUrls = collectBoardExportAssetDataUrls(
+    input.document,
+    [input.projection],
+    input.readAssetBytes,
+  );
+  if (assetDataUrls === undefined) {
+    return {
+      code: 'asset-unavailable',
+      message: 'One or more wireframe images are unavailable. Reopen the project and retry.',
+      ok: false,
+    };
+  }
+  let fontCss: string;
+  try {
+    fontCss = input.fontCss ?? (await (input.loadFontCss ?? loadEmbeddedWireframeFontCss)());
+  } catch {
+    return {
+      code: 'font-unavailable',
+      message: 'The bundled wireframe font could not be prepared for export.',
+      ok: false,
+    };
+  }
+  try {
+    const projection = input.projection;
+    const width = Math.max(1, Math.ceil(projection.viewBox.width));
+    const height = Math.max(1, Math.ceil(projection.viewBox.height));
+    const title =
+      projection.versionName === 'Official'
+        ? projection.canonicalBoardName
+        : `${projection.canonicalBoardName} · ${projection.versionName}`;
+    const bytes = new TextEncoder().encode(
+      serializeBoardProjectionToSvg(projection, {
+        assetDataUrls,
+        embeddedFontCss: fontCss,
+        height,
+        title,
+        width,
+      }),
+    );
+    if (bytes.byteLength === 0 || bytes.byteLength > MAX_PROJECT_ASSET_BYTES) {
+      return {
+        code: 'too-large',
+        message: 'The SVG output exceeds the supported export size.',
+        ok: false,
+      };
+    }
+    return {
+      ok: true,
+      value: Object.freeze({ bytes, suggestedName: projection.canonicalBoardName }),
+    };
+  } catch {
+    return {
+      code: 'encode-failed',
+      message: 'The wireframe could not be encoded as an SVG image.',
+      ok: false,
+    };
+  }
 };

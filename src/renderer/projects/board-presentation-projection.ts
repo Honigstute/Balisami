@@ -57,7 +57,7 @@ export interface BoardPresentationProjection {
 }
 
 const getContentBounds = (
-  items: ReturnType<typeof createBoardSceneItems>,
+  items: readonly Readonly<{ bounds: WorldRect }>[],
 ): WorldRect | undefined => {
   const first = items[0];
   if (first === undefined) {
@@ -74,6 +74,19 @@ const getContentBounds = (
     bottom = Math.max(bottom, item.bounds.y + item.bounds.height);
   }
   return createWorldRect(left, top, right - left, bottom - top);
+};
+
+const createPaddedViewBox = (items: readonly Readonly<{ bounds: WorldRect }>[]): WorldRect => {
+  const contentBounds = getContentBounds(items);
+  if (contentBounds === undefined) return createWorldRect(0, 0, 4, 3);
+  const padding =
+    Math.max(contentBounds.width, contentBounds.height) * BOARD_PRESENTATION_PADDING_RATIO;
+  return createWorldRect(
+    contentBounds.x - padding,
+    contentBounds.y - padding,
+    contentBounds.width + padding * 2,
+    contentBounds.height + padding * 2,
+  );
 };
 
 /** Registry-backed, uncapped projection shared by live presentation and later export. */
@@ -99,20 +112,7 @@ export const createBoardPresentationProjection = (
   const sceneItems = createBoardSceneItems(document, presentationBoardId).filter(
     (item) => item.kind === 'object',
   );
-  const contentBounds = getContentBounds(sceneItems);
-  const viewBox =
-    contentBounds === undefined
-      ? createWorldRect(0, 0, 4, 3)
-      : (() => {
-          const padding =
-            Math.max(contentBounds.width, contentBounds.height) * BOARD_PRESENTATION_PADDING_RATIO;
-          return createWorldRect(
-            contentBounds.x - padding,
-            contentBounds.y - padding,
-            contentBounds.width + padding * 2,
-            contentBounds.height + padding * 2,
-          );
-        })();
+  const viewBox = createPaddedViewBox(sceneItems);
   const items = sceneItems.map((item): BoardPresentationItem => {
     const definition = getControlSpec(item.controlType);
     if (definition === undefined) {
@@ -165,5 +165,19 @@ export const createBoardPresentationProjection = (
     presentationBoardId,
     versionName: presentationBoardId === canonicalBoardId ? 'Official' : presentationBoard.name,
     viewBox,
+  });
+};
+
+/** Derives a selection-only page without re-projecting or changing canonical geometry. */
+export const filterBoardPresentationProjection = (
+  projection: BoardPresentationProjection,
+  includedIds: ReadonlySet<ElementId>,
+): BoardPresentationProjection | undefined => {
+  const items = projection.items.filter((item) => includedIds.has(item.id));
+  if (items.length === 0) return undefined;
+  return Object.freeze({
+    ...projection,
+    items: Object.freeze(items),
+    viewBox: createPaddedViewBox(items),
   });
 };

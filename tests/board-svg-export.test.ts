@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { CONTROL_TYPES, parseProjectDocument } from '../src/domain';
 import { createBoardPresentationProjection } from '../src/renderer/projects/board-presentation-projection';
-import { serializeBoardProjectionToSvg } from '../src/renderer/projects/board-svg-export';
+import {
+  exportBoardProjectionToSvg,
+  serializeBoardProjectionToSvg,
+} from '../src/renderer/projects/board-svg-export';
 import {
   DOCUMENT_FIXTURE_IDS,
   createValidProjectDocumentInput,
@@ -65,5 +68,25 @@ describe('board SVG export', () => {
     expect(() => serializeBoardProjectionToSvg(projection, { height: 0, width: 480 })).toThrow(
       'positive safe integers',
     );
+  });
+
+  it('encodes a self-contained SVG file from the planned projection', async () => {
+    const projection = createProjection();
+    const parsed = parseProjectDocument(createValidProjectDocumentInput());
+    if (!parsed.ok) throw new Error('SVG file export fixture is invalid.');
+    const result = await exportBoardProjectionToSvg({
+      document: parsed.value,
+      fontCss: '@font-face{font-family:"Comic Neue"}',
+      projection,
+      readAssetBytes: () => undefined,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.message);
+    const svg = new TextDecoder().decode(result.value.bytes);
+    expect(result.value.suggestedName).toBe('Main & "Export"');
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('@font-face');
+    expect(svg).not.toContain('blob:');
   });
 });
