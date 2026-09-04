@@ -2,24 +2,24 @@
 
 Balsamic is the working title for a free, offline-first desktop wireframing editor for macOS and Windows. The product target is the speed and clarity of a Balsamiq-style editor, implemented with original branding, artwork, and assets.
 
-The repository now contains a testable MVP alpha on top of the editor foundation. The current vertical slice can insert Rectangle, Text Label, Button, and Text Input controls; select, move, resize, snap, and edit them; undo/redo; and save/reopen a portable local project. The deliberately deferred catalog and product features remain listed in the canonical milestones.
+The repository now contains a broad testable desktop alpha on top of the editor foundation. The verified product baseline includes 56 registry-backed controls, multi-board navigation and alternates, reusable components, image assets and icons, presentation, native clipboard interoperability, and PNG/SVG/PDF export. Projects save as portable `.balsamic` files with crash recovery. Deliberately deferred work remains listed in the canonical milestones.
 
 ## Test the MVP alpha
 
 Open the latest successful [Quality workflow](https://github.com/Honigstute/Balisami/actions/workflows/quality.yml) and download the artifact for your computer:
 
-- `balsamic-alpha-macos-26-arm64` contains a ZIP with `Balsamic.app` for Apple-silicon Macs.
+- `balsamic-alpha-macos-26-arm64` contains a ZIP with `Balsamic.app` for Apple Silicon Macs.
 - `balsamic-alpha-windows-2025-x64` contains the Windows x64 `Setup.exe` installer and its update metadata.
 
-These are unsigned trusted-tester builds. On macOS, unzip the application and use Control-click → Open the first time; macOS may instead require **System Settings → Privacy & Security → Open Anyway**. On Windows, SmartScreen may show **Unknown publisher**; proceed only when the file came from this repository's successful workflow artifact. Signing, notarization, polished icons, and public distribution are later release work.
+Quality-workflow artifacts are unsigned trusted-tester builds. Tagged release drafts use the separate signed-release gate and remain unavailable to automatic updates until explicitly promoted.
 
 Suggested five-minute test:
 
 1. Launch Balsamic and confirm `Wireframe 1` is selected.
-2. Insert all four controls from the shelf.
+2. Browse all shelf categories, search the catalog, and insert several different controls.
 3. Select a control, drag/resize it, edit its position, size, or text in the inspector, and try undo/redo.
-4. Use Save As, close the app, reopen the saved project, and confirm the controls are unchanged.
-5. Report the operating system and exact action sequence with any problem.
+4. Use Save As, close the app, reopen the `.balsamic` project, and confirm the controls are unchanged.
+5. Export the current wireframe as PNG/SVG/PDF and report the operating system and exact action sequence with any problem.
 
 macOS and Windows run the same application code and project format, but desktop software needs a separate native deliverable for each operating system: a macOS `.app` distributed in a ZIP now (a `.dmg` later), and a Windows installer.
 

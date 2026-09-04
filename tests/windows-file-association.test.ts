@@ -5,9 +5,14 @@ import { describe, expect, it } from 'vitest';
 import {
   createWindowsFileAssociationCommands,
   parseWindowsSquirrelEvent,
+  WINDOWS_APP_USER_MODEL_ID,
 } from '../src/main/windows-file-association';
 
 describe('Windows project-file association', () => {
+  it('matches Squirrel package and executable identity for taskbar integration', () => {
+    expect(WINDOWS_APP_USER_MODEL_ID).toBe('com.squirrel.Balsamic.Balsamic');
+  });
+
   it('recognizes only association-relevant Squirrel lifecycle events', () => {
     expect(parseWindowsSquirrelEvent(['Balsamic.exe', '--squirrel-install'])).toBe('install');
     expect(parseWindowsSquirrelEvent(['Balsamic.exe', '--squirrel-updated'])).toBe('update');

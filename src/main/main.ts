@@ -60,10 +60,20 @@ import {
   measureM11ProjectPersistence,
   runPackagedM11PerformanceProbe,
 } from './m11-performance-probe';
-import { applyWindowsFileAssociation, parseWindowsSquirrelEvent } from './windows-file-association';
+import {
+  applyWindowsFileAssociation,
+  parseWindowsSquirrelEvent,
+  WINDOWS_APP_USER_MODEL_ID,
+} from './windows-file-association';
+import {
+  createApplicationUpdateEnvironment,
+  createElectronUpdateRuntime,
+  installApplicationUpdates,
+} from './updates/application-updates';
 
 const windowsSquirrelEvent =
   process.platform === 'win32' ? parseWindowsSquirrelEvent(process.argv) : undefined;
+if (process.platform === 'win32') app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
 if (
   windowsSquirrelEvent !== undefined &&
   !applyWindowsFileAssociation(windowsSquirrelEvent, process.execPath)
@@ -382,7 +392,17 @@ const startApplication = async (): Promise<void> => {
   logger = await createAppLogger(app.getPath('logs'), app.getPath('home'));
   installProcessErrorLogging(logger, () => app.exit(1));
   configureSessionSecurity(session.defaultSession);
-  installApplicationMenu();
+  const updates = installApplicationUpdates(
+    createApplicationUpdateEnvironment(isAutomatedTest),
+    createElectronUpdateRuntime(logger),
+    (error) => logger?.error('updates', 'Update notification failed.', error),
+  );
+  app.once('will-quit', updates.stop);
+  installApplicationMenu({
+    diagnosticsDirectory: app.getPath('logs'),
+    reportFailure: (scope, error) =>
+      logger?.error(scope, 'Native information surface failed to open.', error),
+  });
 
   if (developmentServerUrl === undefined) {
     installAppProtocol(rendererRoot);

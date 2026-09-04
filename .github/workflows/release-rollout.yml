@@ -1,0 +1,36 @@
+name: Release rollout control
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact release tag, for example v0.1.0
+        required: true
+        type: string
+      action:
+        description: Publish a reviewed draft or halt a rollout by returning it to draft
+        required: true
+        type: choice
+        options:
+          - promote
+          - halt
+
+permissions:
+  contents: write
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Promote reviewed release
+        if: inputs.action == 'promote'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ inputs.tag }}" --draft=false --latest
+
+      - name: Halt release discovery
+        if: inputs.action == 'halt'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ inputs.tag }}" --draft=true --latest=false

@@ -3,6 +3,7 @@
   "productName": "Balsamic",
   "version": "0.1.0",
   "description": "An offline-first desktop wireframing editor for macOS and Windows.",
+  "repository": "https://github.com/Honigstute/Balisami",
   "main": ".vite/build/main.js",
   "private": true,
   "license": "UNLICENSED",
@@ -14,6 +15,7 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
+    "make:macos-dmg": "node --no-warnings scripts/make-macos-dmg.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "check:boundaries": "node scripts/check-boundaries.mjs",
@@ -39,6 +41,7 @@
     "fflate": "0.8.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "update-electron-app": "3.3.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

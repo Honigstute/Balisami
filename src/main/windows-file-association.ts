@@ -4,6 +4,7 @@ import { PROJECT_FILE_IDENTITY } from '../shared/project-file-identity';
 
 const WINDOWS_PROJECT_CLASS = 'Balsamic.Project';
 const USER_CLASSES_ROOT = 'HKCU\\Software\\Classes';
+export const WINDOWS_APP_USER_MODEL_ID = 'com.squirrel.Balsamic.Balsamic';
 
 export type WindowsSquirrelEvent = 'install' | 'update' | 'uninstall';
 

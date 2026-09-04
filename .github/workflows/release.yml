@@ -1,0 +1,165 @@
+name: Signed release draft
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS ${{ matrix.arch }}
+    runs-on: macos-26
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - name: Check out exact tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Use pinned Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import Developer ID certificate
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          certificate_path="$RUNNER_TEMP/balsamic-release.p12"
+          keychain_path="$RUNNER_TEMP/balsamic-release.keychain-db"
+          keychain_password="$(uuidgen)"
+          printf '%s' "$MACOS_CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain_path"
+          security list-keychain -d user -s "$keychain_path"
+
+      - name: Verify source
+        run: npm run verify
+
+      - name: Build signed update ZIP
+        env:
+          BALSAMIC_RELEASE: '1'
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: npm run make -- --platform=darwin --arch=${{ matrix.arch }}
+
+      - name: Verify packaged app
+        run: |
+          npm run verify:fuses -- darwin
+          npm run smoke:packaged
+          codesign --verify --deep --strict --verbose=2 "out/Balsamic-darwin-${{ matrix.arch }}/Balsamic.app"
+
+      - name: Build signed and notarized DMG
+        env:
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          BALSAMIC_RELEASE: '1'
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: npm run make:macos-dmg -- --arch=${{ matrix.arch }}
+
+      - name: Upload signed macOS artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: balsamic-release-macos-${{ matrix.arch }}
+          path: |
+            out/make/zip/darwin/${{ matrix.arch }}/
+            out/make/dmg/darwin/${{ matrix.arch }}/
+            out/make/manifests/*darwin-${{ matrix.arch }}-*.manifest.json
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Use pinned Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare Authenticode certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+        run: |
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'balsamic-release.pfx'
+          [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+          "WINDOWS_CERTIFICATE_FILE=$certificatePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Verify source
+        run: npm run verify
+
+      - name: Build signed installer and update package
+        env:
+          BALSAMIC_RELEASE: '1'
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: npm run make -- --platform=win32 --arch=x64
+
+      - name: Verify packaged app
+        run: |
+          npm run verify:fuses -- win32
+          npm run smoke:packaged
+
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $targets = @('out/Balsamic-win32-x64/Balsamic.exe') + (Get-ChildItem 'out/make/squirrel.windows/x64/*.exe').FullName
+          foreach ($target in $targets) {
+            $signature = Get-AuthenticodeSignature $target
+            if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode signature: $target ($($signature.Status))" }
+          }
+
+      - name: Upload signed Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: balsamic-release-windows-x64
+          path: |
+            out/make/squirrel.windows/x64/
+            out/make/manifests/*win32-x64-*.manifest.json
+          if-no-files-found: error
+
+  draft:
+    name: Create reviewed release draft
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download signed artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: balsamic-release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -t assets < <(find release-assets -type f -print)
+          test "${#assets[@]}" -gt 0
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" --draft --generate-notes --title "Balsamic $GITHUB_REF_NAME"

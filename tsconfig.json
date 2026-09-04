@@ -5,7 +5,7 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "allowImportingTsExtensions": false,
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "esModuleInterop": true,
@@ -26,6 +26,7 @@
   "include": [
     "forge.config.ts",
     "forge.env.d.ts",
+    "scripts/**/*.ts",
     "vite.*.config.mts",
     "vitest.config.mts",
     "src",
