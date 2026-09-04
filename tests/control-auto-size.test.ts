@@ -381,4 +381,25 @@ describe('registry-driven control auto-size', () => {
       ),
     ).toEqual({ ...stepper.frame, width: 66 });
   });
+
+  it('restores the official Popover intrinsic size without text measurement', () => {
+    const popover = createElement(CONTROL_TYPES.popover);
+    if (popover === undefined) throw new Error('Popover Auto-Size fixture is missing.');
+    const resized = {
+      ...popover,
+      frame: { ...popover.frame, height: 79, width: 563 },
+      properties: { ...popover.properties, text: 'Name: Thor' },
+    };
+    const measurement = {
+      measure: () => {
+        throw new Error('Intrinsic Popover Auto-Size must not measure text.');
+      },
+    };
+
+    expect(calculateControlAutoSizeFrame(resized, measurement)).toEqual({
+      ...resized.frame,
+      height: 187,
+      width: 222,
+    });
+  });
 });

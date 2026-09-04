@@ -99,6 +99,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; exact default, four compass directions, text inspector, and projection',
   'wireframe.callout':
     'common harness; exact default, text Auto-Size, color/opacity, inspector, and projection',
+  'wireframe.popover':
+    'common harness; exact intrinsic size, direction/position geometry, inspector, and cross-surface projection',
 });
 
 const code = (value: string): string => `\`${value}\``;

@@ -83,6 +83,7 @@ export const CONTROL_TYPES = Object.freeze({
   comment: ControlTypeIdSchema.parse('wireframe.comment'),
   tooltip: ControlTypeIdSchema.parse('wireframe.tooltip'),
   callout: ControlTypeIdSchema.parse('wireframe.callout'),
+  popover: ControlTypeIdSchema.parse('wireframe.popover'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -351,6 +352,15 @@ const calloutPropertiesSchema = z
     ...textStyleSchemaShape,
     color: sceneColorSchema,
     opacity: z.number().min(0).max(1),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const popoverPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    direction: z.enum(['top', 'right', 'bottom', 'left']),
+    position: z.enum(['0', '1', '2', '3', '4']),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
@@ -3581,6 +3591,102 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['annotation', 'badge', 'callout', 'number', 'markup'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.callout,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Popover', 'group', 'text'),
+    aliases: ['callout container', 'detail bubble', 'ipad popover'],
+    autoSize: createIntrinsicAutoSize('both'),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        12,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      direction: 'top',
+      position: '2',
+      text: '',
+    },
+    defaultSize: createSize(222, 187),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([{ kind: 'color', label: 'Color', property: 'color' }]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Direction',
+            options: Object.freeze([
+              Object.freeze({ label: 'Top', value: 'top' }),
+              Object.freeze({ label: 'Right', value: 'right' }),
+              Object.freeze({ label: 'Bottom', value: 'bottom' }),
+              Object.freeze({ label: 'Left', value: 'left' }),
+            ]),
+            property: 'direction',
+          },
+          {
+            kind: 'choice',
+            label: 'Position',
+            options: Object.freeze([
+              Object.freeze({ label: 'Start', value: '0' }),
+              Object.freeze({ label: 'Near', value: '1' }),
+              Object.freeze({ label: 'Center', value: '2' }),
+              Object.freeze({ label: 'Far', value: '3' }),
+              Object.freeze({ label: 'End', value: '4' }),
+            ]),
+            property: 'position',
+          },
+        ]),
+        label: 'Popover',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(64, 48),
+    palette: createPalette('Popover', 'Containers', 440),
+    propertiesSchema: popoverPropertiesSchema,
+    scene: createScene(
+      'popover',
+      ['direction', 'position', 'text'],
+      undefined,
+      undefined,
+      'fill',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: 'color',
+        opacityProperty: null,
+        strokeColorProperty: null,
+      },
+      Object.freeze({ fillColor: null, strokeColor: DESIGN_TOKENS.color.ink }),
+    ),
+    tags: ['bubble', 'callout', 'container', 'detail', 'overlay', 'popover'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.popover,
   }),
 ]);
 

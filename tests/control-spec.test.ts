@@ -67,6 +67,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.comment,
       CONTROL_TYPES.tooltip,
       CONTROL_TYPES.callout,
+      CONTROL_TYPES.popover,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -126,6 +127,7 @@ describe('control definition registry', () => {
       'Comment',
       'Tooltip',
       'Callout',
+      'Popover',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -1283,6 +1285,85 @@ describe('control definition registry', () => {
     expect(callout?.propertiesSchema.safeParse(callout.defaultProperties).success).toBe(true);
     expect(
       callout?.propertiesSchema.safeParse({ ...callout.defaultProperties, textAlignment: 'center' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('owns the official Popover default and discrete direction and position vocabulary', () => {
+    const popover = getControlSpec(CONTROL_TYPES.popover);
+
+    expect(popover).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'group' },
+      autoSize: { axis: 'both', basis: 'intrinsic' },
+      capabilities: {
+        border: false,
+        fill: true,
+        grouping: 'container',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      defaultProperties: {
+        bold: false,
+        color: 'default',
+        direction: 'top',
+        fontSize: 13,
+        italic: false,
+        position: '2',
+        text: '',
+        underline: false,
+      },
+      defaultSize: { height: 187, width: 222 },
+      minimumSize: { height: 48, width: 64 },
+      palette: { category: 'Containers', label: 'Popover' },
+      scene: {
+        colorTarget: 'fill',
+        hitShape: { kind: 'bounds' },
+        kind: 'popover',
+        propertyKeys: [
+          'direction',
+          'position',
+          'text',
+          'bold',
+          'fontSize',
+          'italic',
+          'underline',
+          'color',
+        ],
+      },
+    });
+    expect(popover?.inspector.flatMap((section) => section.fields)).toEqual([
+      expect.objectContaining({ kind: 'color', property: 'color' }),
+      expect.objectContaining({
+        kind: 'choice',
+        options: [
+          { label: 'Top', value: 'top' },
+          { label: 'Right', value: 'right' },
+          { label: 'Bottom', value: 'bottom' },
+          { label: 'Left', value: 'left' },
+        ],
+        property: 'direction',
+      }),
+      expect.objectContaining({
+        kind: 'choice',
+        options: [
+          { label: 'Start', value: '0' },
+          { label: 'Near', value: '1' },
+          { label: 'Center', value: '2' },
+          { label: 'Far', value: '3' },
+          { label: 'End', value: '4' },
+        ],
+        property: 'position',
+      }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(popover?.propertiesSchema.safeParse(popover.defaultProperties).success).toBe(true);
+    expect(
+      popover?.propertiesSchema.safeParse({ ...popover.defaultProperties, position: 'continuous' })
         .success,
     ).toBe(false);
   });

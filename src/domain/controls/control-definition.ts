@@ -35,6 +35,7 @@ export type ControlVisualKind =
   | 'input'
   | 'ios-picker'
   | 'playback'
+  | 'popover'
   | 'radio-button'
   | 'modal-screen'
   | 'multiline-button'
