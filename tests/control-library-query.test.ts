@@ -32,6 +32,7 @@ describe('control library query', () => {
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
       CONTROL_TYPES.checkboxGroup,
+      CONTROL_TYPES.radioButton,
       CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,
@@ -47,6 +48,7 @@ describe('control library query', () => {
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
       CONTROL_TYPES.checkboxGroup,
+      CONTROL_TYPES.radioButton,
       CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.imagePlaceholder,
       CONTROL_TYPES.browser,
@@ -108,6 +110,9 @@ describe('control library query', () => {
     expect(queryControlLibrary({ query: 'numbered annotation' })[0]?.type).toBe(
       CONTROL_TYPES.callout,
     );
+    expect(queryControlLibrary({ query: 'single choice' })[0]?.type).toBe(
+      CONTROL_TYPES.radioButton,
+    );
     expect(queryControlLibrary({ query: 'photo' })[0]?.type).toBe(CONTROL_TYPES.imagePlaceholder);
     expect(queryControlLibrary({ query: 'website' })[0]?.type).toBe(CONTROL_TYPES.browser);
     expect(queryControlLibrary({ query: '  BROWSER-window ' })[0]?.type).toBe(
@@ -125,6 +130,7 @@ describe('control library query', () => {
       `${CONTROL_TYPES.textInput}:underline`,
       CONTROL_TYPES.checkbox,
       CONTROL_TYPES.checkboxGroup,
+      CONTROL_TYPES.radioButton,
       CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.colorPicker,
       CONTROL_TYPES.onOffSwitch,

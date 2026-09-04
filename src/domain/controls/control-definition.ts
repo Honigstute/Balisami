@@ -35,6 +35,7 @@ export type ControlVisualKind =
   | 'input'
   | 'ios-picker'
   | 'playback'
+  | 'radio-button'
   | 'modal-screen'
   | 'multiline-button'
   | 'on-off-switch'
@@ -133,7 +134,8 @@ export interface ControlCapabilities {
   readonly text: ControlTextCapability | null;
 }
 
-export type ControlAccessibilityRole = 'button' | 'checkbox' | 'group' | 'img' | 'link' | 'textbox';
+export type ControlAccessibilityRole =
+  'button' | 'checkbox' | 'group' | 'img' | 'link' | 'radio' | 'textbox';
 
 export interface ControlAccessibilityDefinition {
   /** Used when the configured name property is absent or blank. */
@@ -141,8 +143,10 @@ export interface ControlAccessibilityDefinition {
   /** Optional string property used as the instance's accessible name. */
   readonly nameProperty: string | null;
   readonly role: ControlAccessibilityRole;
-  /** Optional boolean property exposed as aria-checked. */
+  /** Optional boolean or string-enum property exposed as aria-checked. */
   readonly checkedProperty: string | null;
+  /** Exact property values exposed as aria-checked=true; empty when no checked property exists. */
+  readonly checkedValues: readonly (boolean | string)[];
 }
 
 export interface ControlHitShapePoint {
@@ -233,8 +237,12 @@ export interface ControlRowsDefinition {
 export interface ControlSceneDefinition {
   /** Checkbox dimensions are world units and ignored by other scene primitives. */
   readonly checkbox?: Readonly<{ boxSize: number; gap: number }>;
+  /** Radio dimensions are world units and ignored by other scene primitives. */
+  readonly radio?: Readonly<{ diameter: number; gap: number }>;
   /** Exact selectable geometry applied after the spatial index's AABB broad phase. */
   readonly hitShape: ControlHitShape;
+  /** Optional per-definition inner clearance for dense icon-bearing controls. */
+  readonly iconInset?: number;
   readonly kind: ControlVisualKind;
   /** Registry-owned destination for a non-default `color` property. */
   readonly colorTarget: 'fill' | 'stroke';
@@ -574,15 +582,31 @@ export const assertControlDefinitionsConform = (
     }
     if (
       definition.accessibility.fallbackLabel.trim().length === 0 ||
-      !['button', 'checkbox', 'group', 'img', 'link', 'textbox'].includes(
+      !['button', 'checkbox', 'group', 'img', 'link', 'radio', 'textbox'].includes(
         definition.accessibility.role,
       ) ||
       (definition.accessibility.nameProperty !== null &&
         typeof definition.defaultProperties[definition.accessibility.nameProperty] !== 'string') ||
-      (definition.accessibility.checkedProperty !== null &&
-        typeof definition.defaultProperties[definition.accessibility.checkedProperty] !==
-          'boolean') ||
-      (definition.accessibility.role === 'checkbox' &&
+      (definition.accessibility.checkedProperty === null
+        ? definition.accessibility.checkedValues.length !== 0
+        : (() => {
+            const defaultCheckedValue =
+              definition.defaultProperties[definition.accessibility.checkedProperty];
+            return (
+              (typeof defaultCheckedValue !== 'boolean' &&
+                typeof defaultCheckedValue !== 'string') ||
+              definition.accessibility.checkedValues.length === 0 ||
+              new Set(definition.accessibility.checkedValues).size !==
+                definition.accessibility.checkedValues.length ||
+              !definition.accessibility.checkedValues.every(
+                (value) =>
+                  typeof value === typeof defaultCheckedValue &&
+                  (typeof value === 'boolean' || (typeof value === 'string' && value.length > 0)),
+              )
+            );
+          })()) ||
+      ((definition.accessibility.role === 'checkbox' ||
+        definition.accessibility.role === 'radio') &&
         definition.accessibility.checkedProperty === null)
     ) {
       throw new Error(`Control '${definition.type}' has invalid accessibility metadata.`);
@@ -593,6 +617,8 @@ export const assertControlDefinitionsConform = (
     }
     if (
       !['bounds', 'ellipse', 'line'].includes(hitShape.kind) ||
+      (definition.scene.iconInset !== undefined &&
+        !isNonNegativeFinite(definition.scene.iconInset)) ||
       (hitShape.kind === 'line' &&
         (!isNormalizedPoint(hitShape.start) ||
           !isNormalizedPoint(hitShape.end) ||

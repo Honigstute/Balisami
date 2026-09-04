@@ -312,4 +312,27 @@ describe('registry-driven control auto-size', () => {
       ),
     ).toEqual({ ...callout.frame, height: 56.4, width: 112 });
   });
+
+  it('keeps the official Radio Button width and reserves a leading icon after its indicator', () => {
+    const radio = createElement(CONTROL_TYPES.radioButton);
+    if (radio === undefined) throw new Error('Radio Button Auto-Size fixture is missing.');
+    const measurement = {
+      measure: ({ text }: { text: string }) => ({
+        baselineOffsets: [13],
+        height: 15.6,
+        lineCount: 1,
+        lineHeight: 15.6,
+        lines: [text],
+        width: 71,
+      }),
+    };
+
+    expect(calculateControlAutoSizeFrame(radio, measurement)).toEqual(radio.frame);
+    expect(
+      calculateControlAutoSizeFrame(
+        { ...radio, properties: { ...radio.properties, iconId: 'star' } },
+        measurement,
+      ),
+    ).toEqual({ ...radio.frame, width: 117 });
+  });
 });

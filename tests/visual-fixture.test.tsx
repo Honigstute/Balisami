@@ -82,6 +82,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=comment')).toBe('comment');
     expect(getRequestedVisualFixture('?visualFixture=catalogTooltip')).toBe('catalogTooltip');
     expect(getRequestedVisualFixture('?visualFixture=catalogCallout')).toBe('catalogCallout');
+    expect(getRequestedVisualFixture('?visualFixture=radioButton')).toBe('radioButton');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -641,6 +642,73 @@ describe('visual conformance fixture contract', () => {
       if (document.fonts !== undefined) {
         expect(editedCallout?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
       }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders unselected, selected, and disabled Radio Buttons with the exact inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('radioButton');
+
+    expect(screen.getByRole('button', { name: 'Insert Radio Button' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.radio-button"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Radio Button' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Icon' })).toHaveTextContent('Star');
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Selected');
+    expect(screen.getByRole('button', { name: 'Link type' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Label' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="radio-button"]');
+      expect(controls).toHaveLength(3);
+      const defaultRadio = view.container.querySelector(
+        '[data-scene-element-id="element_registryradiodefault"]',
+      );
+      const selectedRadio = view.container.querySelector(
+        '[data-scene-element-id="element_registryradioselected"]',
+      );
+      const disabledRadio = view.container.querySelector(
+        '[data-scene-element-id="element_registryradiodisabled"]',
+      );
+      expect(defaultRadio).toHaveAttribute('role', 'radio');
+      expect(defaultRadio).toHaveAttribute('aria-checked', 'false');
+      expect(defaultRadio?.querySelector('.scene-control__mark')).toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(selectedRadio).toHaveAttribute('aria-label', 'Preferred option');
+      expect(selectedRadio).toHaveAttribute('aria-checked', 'true');
+      expect(selectedRadio?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(selectedRadio?.querySelector('.scene-control__catalog-icon')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(
+        selectedRadio?.querySelector(
+          '.scene-control__link-hint[data-link-target="https://example.com/preferred"]',
+        ),
+      ).not.toBeNull();
+      expect(disabledRadio).toHaveStyle({ opacity: '0.45' });
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

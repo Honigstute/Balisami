@@ -123,3 +123,14 @@ export const getControlAccessibleName = (
     ? candidate
     : definition.accessibility.fallbackLabel;
 };
+
+/** Resolves optional checkbox/radio state without renderer-side control branching. */
+export const getControlAccessibleChecked = (
+  definition: ControlDefinition,
+  properties: ElementProperties,
+): boolean | undefined => {
+  const property = definition.accessibility.checkedProperty;
+  if (property === null) return undefined;
+  const value = properties[property];
+  return definition.accessibility.checkedValues.some((checkedValue) => checkedValue === value);
+};

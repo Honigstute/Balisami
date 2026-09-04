@@ -40,6 +40,7 @@ export const CONTROL_TYPES = Object.freeze({
   button: ControlTypeIdSchema.parse('wireframe.button'),
   textInput: ControlTypeIdSchema.parse('wireframe.text-input'),
   checkbox: ControlTypeIdSchema.parse('wireframe.checkbox'),
+  radioButton: ControlTypeIdSchema.parse('wireframe.radio-button'),
   checkboxGroup: ControlTypeIdSchema.parse('wireframe.checkbox-group'),
   radioButtonGroup: ControlTypeIdSchema.parse('wireframe.radio-button-group'),
   imagePlaceholder: ControlTypeIdSchema.parse('wireframe.image-placeholder'),
@@ -155,6 +156,15 @@ const checkboxPropertiesSchema = z
     checked: z.boolean(),
     iconId: controlIconIdSchema.nullable(),
     state: controlStateSchema,
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const radioButtonPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    iconId: controlIconIdSchema.nullable(),
+    state: z.enum(['up', 'selected', 'disabled']),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
     textColor: sceneColorSchema,
   })
@@ -450,8 +460,15 @@ const createAccessibility = (
   role: ControlAccessibilityDefinition['role'],
   nameProperty: string | null = null,
   checkedProperty: string | null = null,
+  checkedValues: readonly (boolean | string)[] = checkedProperty === null ? [] : [true],
 ): ControlAccessibilityDefinition =>
-  Object.freeze({ checkedProperty, fallbackLabel, nameProperty, role });
+  Object.freeze({
+    checkedProperty,
+    checkedValues: Object.freeze([...checkedValues]),
+    fallbackLabel,
+    nameProperty,
+    role,
+  });
 
 const createThumbnail = (kind: ControlThumbnailDefinition['kind']): ControlThumbnailDefinition =>
   Object.freeze({ kind });
@@ -467,13 +484,17 @@ const createScene = (
   colorTarget: ControlSceneDefinition['colorTarget'] = 'stroke',
   style?: ControlSceneDefinition['style'],
   markStyle?: ControlSceneDefinition['markStyle'],
+  radio?: ControlSceneDefinition['radio'],
+  iconInset?: number,
 ): ControlSceneDefinition =>
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
     colorTarget,
     hitShape: Object.freeze(hitShape),
+    ...(iconInset === undefined ? {} : { iconInset }),
     kind,
     ...(markStyle === undefined ? {} : { markStyle: Object.freeze(markStyle) }),
+    ...(radio === undefined ? {} : { radio: Object.freeze(radio) }),
     propertyKeys: Object.freeze([...new Set(propertyKeys)]),
     ...(style === undefined ? {} : { style: Object.freeze(style) }),
   });
@@ -1225,6 +1246,98 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     type: CONTROL_TYPES.checkbox,
   }),
   createDefinition({
+    accessibility: createAccessibility(
+      'Radio Button',
+      'radio',
+      'text',
+      'state',
+      Object.freeze(['selected']),
+    ),
+    aliases: ['radio', 'option', 'single choice'],
+    autoSize: createAutoSize('horizontal', 26, 0, 0, 0),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: true,
+      },
+      createText('start', 13, 0, {
+        boldProperty: 'bold',
+        colorProperty: 'textColor',
+        fontSizeProperty: 'fontSize',
+        italicProperty: 'italic',
+        underlineProperty: 'underline',
+      }),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      iconId: null,
+      state: 'up',
+      text: 'Radio Button',
+      textColor: 'default',
+    },
+    defaultSize: createSize(97, 23),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'select',
+            label: 'State',
+            options: Object.freeze([
+              Object.freeze({ label: 'Unselected', value: 'up' }),
+              Object.freeze({ label: 'Selected', value: 'selected' }),
+              Object.freeze({ label: 'Disabled', value: 'disabled' }),
+            ]),
+            property: 'state',
+          },
+        ]),
+        label: 'State',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    minimumSize: createSize(48, 23),
+    maximumSize: null,
+    palette: createPalette('Radio Button', 'Forms', 52),
+    propertiesSchema: radioButtonPropertiesSchema,
+    scene: createScene(
+      'radio-button',
+      ['iconId', 'state', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      {
+        borderHiddenValues: Object.freeze([]),
+        borderModeProperty: null,
+        borderVisibilityProperty: null,
+        fillColorProperty: null,
+        opacityProperty: null,
+        strokeColorProperty: null,
+        state: createDisabledState(),
+      },
+      Object.freeze({
+        fillColor: DESIGN_TOKENS.color.ink,
+        strokeColor: DESIGN_TOKENS.color.ink,
+      }),
+      Object.freeze({ diameter: 18, gap: 8 }),
+      0,
+    ),
+    tags: ['form', 'option', 'selection', 'single choice'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.radioButton,
+  }),
+  createDefinition({
     accessibility: createAccessibility('Checkbox Group', 'group'),
     aliases: ['checkbox list', 'check group'],
     autoSize: createAutoSize('both', 4, 4, 4, 4),
@@ -1353,7 +1466,7 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     ]),
     minimumSize: createSize(72, 28),
     maximumSize: null,
-    palette: createPalette('Radio Button Group', 'Forms', 52),
+    palette: createPalette('Radio Button Group', 'Forms', 53),
     propertiesSchema: markerGroupPropertiesSchema,
     rows: Object.freeze({
       adornment: null,

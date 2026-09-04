@@ -16,6 +16,7 @@ import {
   createBoardThumbnailProjection,
 } from '../src/renderer/projects/board-thumbnail-projection';
 import { createBoardPresentationProjection } from '../src/renderer/projects/board-presentation-projection';
+import { DESIGN_TOKENS } from '../src/shared/design-tokens';
 import {
   createEmptyElementRowDataInput,
   createValidProjectDocumentInput,
@@ -279,6 +280,70 @@ describe('board thumbnail projection', () => {
       role: 'img',
       textLayout: thumbnail?.textLayout,
       visualKind: thumbnail?.visualKind,
+    });
+  });
+
+  it('keeps selected Radio Button geometry and enum-backed accessibility identical across surfaces', () => {
+    const input = createValidProjectDocumentInput();
+    const radio = getControlSpec(CONTROL_TYPES.radioButton);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (radio === undefined || child === undefined) {
+      throw new Error('Radio Button cross-surface fixture is incomplete.');
+    }
+    child.controlType = radio.type;
+    child.controlVersion = radio.fileVersion;
+    child.frame = { x: 16, y: 24, width: 121, height: 23 };
+    child.properties = {
+      ...radio.defaultProperties,
+      bold: true,
+      iconId: 'star',
+      state: 'selected',
+      text: 'Preferred option',
+    };
+    child.link = { kind: 'external', url: 'https://example.com/preferred' };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Radio Button cross-surface fixture is invalid.');
+    const textMeasurementService = {
+      measure: ({ fontSize, text }: { fontSize: number; text: string }) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      }),
+    };
+
+    const thumbnail = createBoardThumbnailProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+    const presentation = createBoardPresentationProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+    expect(thumbnail).toMatchObject({
+      hasFill: true,
+      hasOutline: true,
+      icon: { id: 'star', x: 22 },
+      markFillColor: DESIGN_TOKENS.color.ink,
+      visualKind: 'radio-button',
+    });
+    expect(thumbnail?.markPath).not.toBe('');
+    expect(presentation).toMatchObject({
+      accessibleName: 'Preferred option',
+      checked: true,
+      icon: thumbnail?.icon,
+      link: { kind: 'external', url: 'https://example.com/preferred' },
+      markPath: thumbnail?.markPath,
+      role: 'radio',
+      textLayout: thumbnail?.textLayout,
+      visualKind: 'radio-button',
     });
   });
 

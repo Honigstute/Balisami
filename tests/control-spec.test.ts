@@ -24,6 +24,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.button,
       CONTROL_TYPES.textInput,
       CONTROL_TYPES.checkbox,
+      CONTROL_TYPES.radioButton,
       CONTROL_TYPES.checkboxGroup,
       CONTROL_TYPES.radioButtonGroup,
       CONTROL_TYPES.imagePlaceholder,
@@ -81,6 +82,7 @@ describe('control definition registry', () => {
       'Text Input',
       'Checkbox',
       'Checkbox Group',
+      'Radio Button',
       'Radio Button Group',
       'Image',
       'Browser Window',
@@ -175,6 +177,56 @@ describe('control definition registry', () => {
     expect(getControlSpec(CONTROL_TYPES.checkbox)?.scene.propertyKeys).toEqual(
       expect.arrayContaining(['checked', 'text', 'textColor', 'state', 'iconId']),
     );
+    expect(getControlSpec(CONTROL_TYPES.radioButton)).toMatchObject({
+      accessibility: {
+        checkedProperty: 'state',
+        checkedValues: ['selected'],
+        fallbackLabel: 'Radio Button',
+        nameProperty: 'text',
+        role: 'radio',
+      },
+      autoSize: { axis: 'horizontal', insets: { left: 26 } },
+      capabilities: {
+        icon: true,
+        link: true,
+        state: true,
+        text: { fontSize: 13, property: 'text' },
+      },
+      defaultProperties: {
+        iconId: null,
+        state: 'up',
+        text: 'Radio Button',
+        textColor: 'default',
+      },
+      defaultSize: { height: 23, width: 97 },
+      inspector: [{ label: 'Appearance' }, { label: 'State' }, { label: 'Text' }],
+      minimumSize: { height: 23, width: 48 },
+      palette: { category: 'Forms', label: 'Radio Button' },
+      scene: {
+        hitShape: { kind: 'bounds' },
+        kind: 'radio-button',
+        radio: { diameter: 18, gap: 8 },
+      },
+    });
+    expect(
+      getControlSpec(CONTROL_TYPES.radioButton)?.inspector.flatMap((section) => section.fields),
+    ).toEqual([
+      expect.objectContaining({ kind: 'color', property: 'textColor' }),
+      expect.objectContaining({ kind: 'icon', property: 'iconId' }),
+      expect.objectContaining({
+        kind: 'select',
+        options: [
+          { label: 'Unselected', value: 'up' },
+          { label: 'Selected', value: 'selected' },
+          { label: 'Disabled', value: 'disabled' },
+        ],
+        property: 'state',
+      }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
     expect(getControlSpec(FOUNDATION_CONTROL_TYPES.group)).toMatchObject({
       export: { kind: 'transparent-container' },
       thumbnail: { kind: 'none' },

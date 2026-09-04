@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
 import {
+  getControlAccessibleChecked,
   getControlAccessibleName,
   getControlSpec,
   type BoardId,
@@ -281,11 +282,11 @@ class DocumentScenePresenter {
     element.dataset.controlVisual = item.visualKind;
     element.setAttribute('aria-label', getControlAccessibleName(spec, item.properties));
     element.setAttribute('role', spec.accessibility.role);
-    const checkedProperty = spec.accessibility.checkedProperty;
-    if (checkedProperty === null) {
+    const checked = getControlAccessibleChecked(spec, item.properties);
+    if (checked === undefined) {
       element.removeAttribute('aria-checked');
     } else {
-      element.setAttribute('aria-checked', String(item.properties[checkedProperty] === true));
+      element.setAttribute('aria-checked', String(checked));
     }
     this.#updateElementGeometry(element, item.bounds, item.properties, item);
     element.dataset.sceneRevision = item.revision;

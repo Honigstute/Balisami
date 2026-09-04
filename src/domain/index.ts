@@ -88,6 +88,7 @@ export {
 export {
   containsControlHitPoint,
   getControlAccessibleName,
+  getControlAccessibleChecked,
   getControlHitSegments,
   getControlHitShapePadding,
   type ControlHitBounds,
