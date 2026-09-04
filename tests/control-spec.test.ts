@@ -58,6 +58,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.textArea,
       CONTROL_TYPES.fieldSet,
       CONTROL_TYPES.link,
+      CONTROL_TYPES.multilineButton,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -109,6 +110,7 @@ describe('control definition registry', () => {
       'Text Area',
       'Field Set',
       'Link',
+      'Multiline Button',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -912,5 +914,48 @@ describe('control definition registry', () => {
       ]),
     );
     expect(link?.propertiesSchema.safeParse(link.defaultProperties).success).toBe(true);
+  });
+
+  it('owns the screenshot-backed Multiline Button contract without inferred state or border fields', () => {
+    const multilineButton = getControlSpec(CONTROL_TYPES.multilineButton);
+
+    expect(multilineButton).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'button' },
+      autoSize: { axis: 'both', basis: 'text' },
+      capabilities: {
+        border: true,
+        fill: true,
+        icon: true,
+        link: true,
+        state: false,
+      },
+      defaultProperties: {
+        color: 'default',
+        fontSize: 13,
+        iconId: null,
+        opacity: 1,
+        text: 'Multiline Button\nSecond line of text',
+      },
+      defaultSize: { height: 66, width: 136 },
+      scene: { kind: 'multiline-button' },
+    });
+    const fields = multilineButton?.inspector.flatMap((section) => section.fields) ?? [];
+    expect(fields).toEqual([
+      expect.objectContaining({ kind: 'color', property: 'color' }),
+      expect.objectContaining({ kind: 'range', property: 'opacity' }),
+      expect.objectContaining({ kind: 'icon', property: 'iconId' }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(fields).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: 'borderMode' }),
+        expect.objectContaining({ property: 'state' }),
+        expect.objectContaining({ property: 'textAlignment' }),
+        expect.objectContaining({ property: 'text' }),
+      ]),
+    );
   });
 });

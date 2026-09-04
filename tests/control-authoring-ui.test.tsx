@@ -151,6 +151,7 @@ describe('alpha control authoring UI', () => {
       'Text Area',
       'Field Set',
       'Link',
+      'Multiline Button',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -197,7 +198,42 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.textArea,
       CONTROL_TYPES.fieldSet,
       CONTROL_TYPES.link,
+      CONTROL_TYPES.multilineButton,
     ]);
+  });
+
+  it('renders Multiline Button hierarchy in the normal shelf thumbnail', () => {
+    const textMeasurementService: ControlTextMeasurementService = {
+      measure: ({ fontSize, mode, text }) => {
+        const lines =
+          mode === 'multiline'
+            ? text.replace(/\r\n?/gu, '\n').split('\n')
+            : [text.replace(/\n/gu, ' ')];
+        return {
+          baselineOffsets: lines.map((_, index) => fontSize + index * fontSize * 1.2),
+          height: lines.length * fontSize * 1.2,
+          lineCount: lines.length,
+          lineHeight: fontSize * 1.2,
+          lines,
+          width: Math.max(0, ...lines.map((line) => line.length * fontSize * 0.5)),
+        };
+      },
+    };
+    render(
+      <ControlShelf
+        category="Buttons"
+        onInsert={() => true}
+        textMeasurementService={textMeasurementService}
+      />,
+    );
+
+    const button = screen.getByRole('button', { name: 'Insert Multiline Button' });
+    const lines = button.querySelectorAll('tspan');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveAttribute('font-size', '13');
+    expect(lines[0]).toHaveAttribute('font-weight', 'bold');
+    expect(lines[1]).toHaveAttribute('font-size', '10');
+    expect(lines[1]).toHaveAttribute('font-weight', 'normal');
   });
 
   it('makes every palette control a typed draggable shelf source', () => {

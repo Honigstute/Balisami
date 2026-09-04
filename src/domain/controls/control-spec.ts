@@ -75,6 +75,7 @@ export const CONTROL_TYPES = Object.freeze({
   textArea: ControlTypeIdSchema.parse('wireframe.text-area'),
   fieldSet: ControlTypeIdSchema.parse('wireframe.field-set'),
   link: ControlTypeIdSchema.parse('wireframe.link'),
+  multilineButton: ControlTypeIdSchema.parse('wireframe.multiline-button'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -276,6 +277,15 @@ const linkPropertiesSchema = z
     state: controlStateSchema,
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
     textColor: sceneColorSchema,
+  })
+  .readonly();
+const multilineButtonPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    iconId: controlIconIdSchema.nullable(),
+    opacity: z.number().min(0).max(1),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
 
@@ -2847,6 +2857,77 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['anchor', 'hyperlink', 'navigation', 'text'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.link,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Multiline Button', 'button', 'text'),
+    aliases: ['descriptive button', 'multi line button', 'two line button'],
+    autoSize: createAutoSize('both', 16, 16, 12, 12),
+    capabilities: createCapabilities(
+      {
+        border: true,
+        fill: true,
+        grouping: 'leaf',
+        icon: true,
+        link: true,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        12,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: 'default',
+      iconId: null,
+      opacity: 1,
+      text: 'Multiline Button\nSecond line of text',
+    },
+    defaultSize: createSize(136, 66),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+          { kind: 'icon', label: 'Icon', property: 'iconId' },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(80, 48),
+    palette: createPalette('Multiline Button', 'Buttons', 390),
+    propertiesSchema: multilineButtonPropertiesSchema,
+    scene: createScene('multiline-button', ['iconId', 'text'], undefined, undefined, 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      strokeColorProperty: null,
+    }),
+    tags: ['action', 'button', 'description', 'multiline'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.multilineButton,
   }),
 ]);
 

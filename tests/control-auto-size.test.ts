@@ -173,6 +173,29 @@ describe('registry-driven control auto-size', () => {
     },
   );
 
+  it('measures Multiline Button primary and supporting copy with their distinct hierarchy', () => {
+    const element = createElement(CONTROL_TYPES.multilineButton);
+    if (element === undefined) throw new Error('Multiline Button Auto-Size fixture is missing.');
+    const measure = vi.fn((request: { fontSize: number; fontWeight?: string; text: string }) => ({
+      baselineOffsets: [request.fontSize],
+      height: request.fontSize === 13 ? 16 : 12,
+      lineCount: 1,
+      lineHeight: request.fontSize === 13 ? 16 : 12,
+      lines: [request.text],
+      width: request.text === 'Multiline Button' ? 100 : 80,
+    }));
+
+    expect(calculateControlAutoSizeFrame(element, { measure })).toEqual({
+      ...element.frame,
+      height: 56,
+      width: 132,
+    });
+    expect(measure.mock.calls.map(([request]) => request)).toEqual([
+      expect.objectContaining({ fontSize: 13, fontWeight: 'bold', text: 'Multiline Button' }),
+      expect.objectContaining({ fontSize: 10, fontWeight: 'normal', text: 'Second line of text' }),
+    ]);
+  });
+
   it('reserves both evidenced Search Box decoration slots during Auto-Size', () => {
     const element = createElement(CONTROL_TYPES.searchBox);
     if (element === undefined) throw new Error('Search Box fixture is missing.');

@@ -687,4 +687,37 @@ describe('control thumbnail projection', () => {
     });
     expect(disabled).toMatchObject({ disabled: true, opacity: 0.45 });
   });
+
+  it('projects the Multiline Button hierarchy and rounded frame deterministically', () => {
+    const definition = getControlSpec(CONTROL_TYPES.multilineButton);
+    if (definition === undefined) throw new Error('Multiline Button definition is missing.');
+
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 136, 66),
+      definition,
+      identity: 'multiline-button-projection',
+      properties: definition.defaultProperties,
+      textMeasurementService: measurementService,
+    });
+
+    expect(projection).toMatchObject({
+      opacity: 1,
+      textLayout: {
+        lines: [
+          { baselineY: 30.2, fontSize: 13, fontWeight: 'bold', text: 'Multiline Button', x: 68 },
+          {
+            baselineY: 46.8,
+            fontSize: 10,
+            fontWeight: 'normal',
+            text: 'Second line of text',
+            x: 68,
+          },
+        ],
+        textAnchor: 'middle',
+        width: 104,
+      },
+    });
+    expect(projection.outlinePath).toContain('Q');
+    expect(projection.outlinePath).not.toContain('NaN');
+  });
 });

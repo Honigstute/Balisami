@@ -11,6 +11,7 @@ import {
   calculateControlTextAutoSize,
   type ControlTextMeasurementService,
 } from './control-text-measurement';
+import { measureMultilineButtonText } from './control-scene-text-layout';
 
 /**
  * Projects one element frame entirely from its registered policy and the shared
@@ -62,45 +63,53 @@ export const calculateControlAutoSizeFrame = (
   const parsedRows =
     definition.rows === null ? undefined : parseControlRows(definition.rows, element.properties);
   const measurement =
-    definition.rows?.display === 'labels' && parsedRows !== undefined
-      ? (() => {
-          const labels = parsedRows.map((row) =>
-            measurementService.measure({ ...measurementRequest, text: row.label }),
-          );
-          const first = labels[0];
-          if (first === undefined)
-            return measurementService.measure({ ...measurementRequest, text: '' });
-          if (definition.rows.layout === 'stack') {
-            const decorationWidth = DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1];
+    definition.scene.kind === 'multiline-button'
+      ? measureMultilineButtonText(
+          value,
+          measurementRequest.fontSize,
+          measurementRequest.fontStyle,
+          measurementRequest.fontWeight === 'bold',
+          measurementService,
+        )
+      : definition.rows?.display === 'labels' && parsedRows !== undefined
+        ? (() => {
+            const labels = parsedRows.map((row) =>
+              measurementService.measure({ ...measurementRequest, text: row.label }),
+            );
+            const first = labels[0];
+            if (first === undefined)
+              return measurementService.measure({ ...measurementRequest, text: '' });
+            if (definition.rows.layout === 'stack') {
+              const decorationWidth = DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1];
+              return Object.freeze({
+                ...first,
+                height:
+                  Math.max(
+                    ...labels.map((label) => label.height),
+                    DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1],
+                  ) * labels.length,
+                width: Math.max(
+                  ...labels.map(
+                    (label, index) =>
+                      label.width +
+                      (parsedRows[index]?.depth ?? 0) * decorationWidth +
+                      (parsedRows[index]?.marker === null && parsedRows[index]?.adornment === null
+                        ? 0
+                        : decorationWidth),
+                  ),
+                ),
+              });
+            }
             return Object.freeze({
               ...first,
-              height:
-                Math.max(
-                  ...labels.map((label) => label.height),
-                  DESIGN_TOKENS.control.iconSize + DESIGN_TOKENS.space[1],
-                ) * labels.length,
-              width: Math.max(
-                ...labels.map(
-                  (label, index) =>
-                    label.width +
-                    (parsedRows[index]?.depth ?? 0) * decorationWidth +
-                    (parsedRows[index]?.marker === null && parsedRows[index]?.adornment === null
-                      ? 0
-                      : decorationWidth),
-                ),
-              ),
+              width:
+                (definition.rows.layout === 'segments'
+                  ? Math.max(...labels.map((label) => label.width)) * labels.length
+                  : labels.reduce((total, label) => total + label.width, 0)) +
+                (parsedRows.length - 1) * (policy.insets.left + policy.insets.right),
             });
-          }
-          return Object.freeze({
-            ...first,
-            width:
-              (definition.rows.layout === 'segments'
-                ? Math.max(...labels.map((label) => label.width)) * labels.length
-                : labels.reduce((total, label) => total + label.width, 0)) +
-              (parsedRows.length - 1) * (policy.insets.left + policy.insets.right),
-          });
-        })()
-      : measurementService.measure({ ...measurementRequest, text: value });
+          })()
+        : measurementService.measure({ ...measurementRequest, text: value });
   const iconId = element.properties.iconId;
   const iconWidth =
     definition.capabilities.icon &&

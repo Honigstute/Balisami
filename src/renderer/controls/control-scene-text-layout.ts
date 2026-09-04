@@ -4,6 +4,7 @@ import type { WorldRect } from '../editor/viewport-transform';
 import { getControlSceneTextX } from './control-scene-geometry';
 import {
   roundControlTextWorldUnit,
+  type ControlTextMeasurement,
   type ControlTextMeasurementService,
 } from './control-text-measurement';
 
@@ -12,9 +13,59 @@ export interface ControlSceneTextLine {
   readonly baselineY: number;
   /** Per-row disabled styling; undefined inherits the control opacity. */
   readonly opacity?: number;
+  /** Optional per-line hierarchy used by controls with primary and secondary copy. */
+  readonly fontSize?: number;
+  readonly fontWeight?: 'bold' | 'normal';
   readonly text: string;
   readonly x: number;
 }
+
+interface MultilineButtonMeasuredLine {
+  readonly fontSize: number;
+  readonly fontWeight: 'bold' | 'normal';
+  readonly measurement: ControlTextMeasurement;
+  readonly text: string;
+}
+
+export interface MultilineButtonTextMeasurement {
+  readonly height: number;
+  readonly lines: readonly MultilineButtonMeasuredLine[];
+  readonly width: number;
+}
+
+/** The documented control uses a bold primary line and smaller supporting copy. */
+export const measureMultilineButtonText = (
+  value: string,
+  fontSize: number,
+  fontStyle: 'italic' | 'normal',
+  bold: boolean,
+  measurementService: ControlTextMeasurementService,
+): MultilineButtonTextMeasurement => {
+  const values = value.replace(/\r\n?|\n/gu, '\n').split('\n');
+  const lines = values.map((line, index): MultilineButtonMeasuredLine => {
+    const lineFontSize = index === 0 ? fontSize : Math.max(8, fontSize - 3);
+    const fontWeight = index === 0 || bold ? 'bold' : 'normal';
+    return Object.freeze({
+      fontSize: lineFontSize,
+      fontWeight,
+      measurement: measurementService.measure({
+        fontSize: lineFontSize,
+        fontStyle,
+        fontWeight,
+        mode: 'single-line',
+        text: line,
+      }),
+      text: line,
+    });
+  });
+  return Object.freeze({
+    height:
+      lines.reduce((total, line) => total + line.measurement.height, 0) +
+      Math.max(0, lines.length - 1) * DESIGN_TOKENS.space[1],
+    lines: Object.freeze(lines),
+    width: Math.max(0, ...lines.map((line) => line.measurement.width)),
+  });
+};
 
 export interface ControlSceneTextLayout {
   readonly color: string | undefined;
@@ -57,14 +108,65 @@ export const calculateControlSceneTextLayout = (
     alignmentValue === 'center' || alignmentValue === 'end' || alignmentValue === 'start'
       ? alignmentValue
       : text.alignment;
+  const fontStyle =
+    style.italicProperty !== null && properties[style.italicProperty] === true
+      ? 'italic'
+      : 'normal';
+  const bold = style.boldProperty !== null && properties[style.boldProperty] === true;
+  if (definition.scene.kind === 'multiline-button') {
+    const measurement = measureMultilineButtonText(
+      value,
+      fontSize,
+      fontStyle,
+      bold,
+      measurementService,
+    );
+    const hasIcon = definition.capabilities.icon && typeof properties.iconId === 'string';
+    const iconSize = Math.min(
+      DESIGN_TOKENS.control.iconSize,
+      Math.max(0, bounds.height - DESIGN_TOKENS.space[2] * 2),
+    );
+    const x = roundControlTextWorldUnit(
+      hasIcon
+        ? bounds.x +
+            (bounds.width - (iconSize + DESIGN_TOKENS.space[1] + measurement.width)) / 2 +
+            iconSize +
+            DESIGN_TOKENS.space[1] +
+            measurement.width / 2
+        : bounds.x + bounds.width / 2,
+    );
+    let lineTop = bounds.y + (bounds.height - measurement.height) / 2;
+    const lines = measurement.lines.map((line) => {
+      const baselineY = roundControlTextWorldUnit(
+        lineTop + (line.measurement.baselineOffsets[0] ?? 0),
+      );
+      lineTop += line.measurement.height + DESIGN_TOKENS.space[1];
+      return Object.freeze({
+        baselineY,
+        fontSize: line.fontSize,
+        fontWeight: line.fontWeight,
+        text: line.text,
+        x,
+      });
+    });
+    return Object.freeze({
+      color: undefined,
+      fontSize,
+      fontStyle,
+      fontWeight: bold ? 'bold' : 'normal',
+      lines: Object.freeze(lines),
+      textAnchor: 'middle' as const,
+      textDecoration:
+        style.underlineProperty !== null && properties[style.underlineProperty] === true
+          ? ('underline' as const)
+          : ('none' as const),
+      width: measurement.width,
+    });
+  }
   const measurement = measurementService.measure({
     fontSize,
-    fontStyle:
-      style.italicProperty !== null && properties[style.italicProperty] === true
-        ? 'italic'
-        : 'normal',
-    fontWeight:
-      style.boldProperty !== null && properties[style.boldProperty] === true ? 'bold' : 'normal',
+    fontStyle,
+    fontWeight: bold ? 'bold' : 'normal',
     mode: text.mode,
     text: value,
   });
@@ -100,12 +202,8 @@ export const calculateControlSceneTextLayout = (
   return Object.freeze({
     color: typeof colorValue === 'string' && colorValue !== 'default' ? colorValue : undefined,
     fontSize,
-    fontStyle:
-      style.italicProperty !== null && properties[style.italicProperty] === true
-        ? 'italic'
-        : 'normal',
-    fontWeight:
-      style.boldProperty !== null && properties[style.boldProperty] === true ? 'bold' : 'normal',
+    fontStyle: fontStyle,
+    fontWeight: bold ? 'bold' : 'normal',
     lines: Object.freeze(
       measurement.lines.map((line, index) =>
         Object.freeze({

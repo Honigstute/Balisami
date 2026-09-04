@@ -59,7 +59,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(42);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(43);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -105,6 +105,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.textArea,
       CONTROL_TYPES.fieldSet,
       CONTROL_TYPES.link,
+      CONTROL_TYPES.multilineButton,
     ]);
   });
 
