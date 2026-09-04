@@ -19,6 +19,7 @@ import {
   type ComponentId,
   type ControlTypeId,
   type ElementId,
+  type ProjectDocument,
   type WorldRect,
 } from '../../domain';
 import { getRequestedVisualFixture } from '../../shared/visual-fixture';
@@ -112,6 +113,12 @@ import {
   serializeSelectionClipboardPayload,
   type SelectionPasteSource,
 } from '../editor/selection-clipboard';
+import {
+  createPortableSelectionClipboardPayload,
+  parsePortableSelectionClipboardPayload,
+  planPortableSelectionPaste,
+  serializePortableSelectionClipboardPayload,
+} from '../editor/portable-selection-clipboard';
 import { deleteSelectedElements, type SelectionDeleteSource } from '../editor/selection-delete';
 import {
   duplicateSelectedElements,
@@ -225,6 +232,8 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
   const packagedProbeProjectStarted = useRef(false);
   const [editor] = useState(() => {
     const clipboard = new SelectionClipboardStore();
+    let desktopClipboardPayload: string | undefined;
+    let desktopClipboardPasteCount = 0;
     let desktopPastePending = false;
     const activeBoard = new ActiveBoardStore();
     const model = new DocumentSceneModel();
@@ -621,12 +630,34 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         duplicateSelectionSource,
       );
     };
-    const publishSelectionClipboard = (): void => {
+    const publishSelectionClipboard = (sourceDocument?: ProjectDocument): void => {
       const payload = clipboard.getSnapshot().payload;
       if (payload === undefined) return;
+      const currentDocument = sourceDocument ?? session.getSnapshot().history?.document;
+      const portable =
+        currentDocument === undefined
+          ? undefined
+          : createPortableSelectionClipboardPayload(currentDocument, payload, (assetId) =>
+              session.getAssetBytes(assetId),
+            );
+      const serialized =
+        portable === undefined
+          ? serializeSelectionClipboardPayload(payload)
+          : serializePortableSelectionClipboardPayload(portable);
+      if (serialized === undefined) {
+        noticeStore.report({
+          key: 'clipboard:size',
+          message: 'Copy fewer controls or smaller images and retry. No project data changed.',
+          title: 'The selection is too large to copy',
+          tone: 'warning',
+        });
+        return;
+      }
+      desktopClipboardPayload = serialized;
+      desktopClipboardPasteCount = 0;
       void window.balsamicDesktop
         .writeClipboard({
-          payload: serializeSelectionClipboardPayload(payload),
+          payload: serialized,
           text: createSelectionClipboardPlainText(payload),
         })
         .catch(() => {
@@ -669,7 +700,9 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         clipboard,
         cutSelectionSource,
       );
-      if (cut) publishSelectionClipboard();
+      // The portable payload needs the source hierarchy to convert local frames
+      // to board coordinates, so capture it from the accepted pre-cut snapshot.
+      if (cut) publishSelectionClipboard(currentDocument);
       return cut;
     };
     const pasteSelectionSource: SelectionPasteSource = {
@@ -692,16 +725,64 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             pasteSelectionSource,
           );
     };
+    const pastePortableSelection = async (
+      payload: ReturnType<typeof parsePortableSelectionClipboardPayload>,
+    ): Promise<boolean> => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const canonicalBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
+      const boardId =
+        currentDocument === undefined || canonicalBoardId === undefined
+          ? undefined
+          : selectBoardPresentationId(currentDocument, canonicalBoardId);
+      if (payload === undefined || currentDocument === undefined || boardId === undefined) {
+        return false;
+      }
+      const plan = planPortableSelectionPaste(
+        currentDocument,
+        payload,
+        boardId,
+        desktopClipboardPasteCount,
+        allocateEditorElementId,
+        () => allocateEditorAssetId(),
+      );
+      if (plan === undefined) return false;
+      const result = await session.dispatchTransactionWithAssets(plan.commands, plan.additions, {
+        label: plan.cloneIds.length === 1 ? 'Paste element' : 'Paste elements',
+      });
+      if (
+        result?.ok !== true ||
+        !result.changed ||
+        plan.cloneIds.some((id) => result.history.document.elementsById[id] === undefined)
+      ) {
+        return false;
+      }
+      desktopClipboardPasteCount += 1;
+      selection.replace(plan.cloneIds, plan.primaryCloneId);
+      return true;
+    };
     const pasteSelection = (): boolean => {
       if (desktopPastePending) return false;
       desktopPastePending = true;
       void window.balsamicDesktop
         .readClipboard()
-        .then((value) => {
-          const payload = parseSerializedSelectionClipboardPayload(value.payload);
+        .then(async (value) => {
+          const portable = parsePortableSelectionClipboardPayload(value.payload);
+          const payload =
+            portable?.selection ?? parseSerializedSelectionClipboardPayload(value.payload);
           if (payload === undefined) return;
-          clipboard.write(payload);
-          pasteStoredSelection();
+          if (
+            value.payload !== desktopClipboardPayload ||
+            clipboard.getSnapshot().payload === undefined
+          ) {
+            clipboard.write(payload);
+            desktopClipboardPayload = value.payload ?? undefined;
+            desktopClipboardPasteCount = 0;
+          }
+          if (payload.projectId === session.getSnapshot().history?.document.id) {
+            pasteStoredSelection();
+            return;
+          }
+          await pastePortableSelection(portable);
         })
         .catch(() => {
           noticeStore.report({
