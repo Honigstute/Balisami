@@ -217,6 +217,31 @@ const sha256 = async (bytes: Uint8Array): Promise<string> => {
 };
 
 describe('renderer project session', () => {
+  it('routes a path-free operating-system open command through staged recent-project replacement', async () => {
+    const document = createAssetFreeProjectDocument();
+    const desktop = new FakeDesktopApi(document);
+    const recentProjectId = 'b'.repeat(64);
+    desktop.nextOpen = {
+      status: 'completed',
+      value: {
+        assetsById: {},
+        displayName: 'Opened from Finder',
+        document,
+        source: 'project-file',
+      },
+      warnings: [],
+    };
+    const session = new ProjectSession({ createInitialDocument: () => document, desktop });
+    await session.start();
+    const unbind = session.bindDesktopEvents();
+
+    desktop.commands.forEach((listener) => listener({ recentProjectId, type: 'open-recent-id' }));
+    await vi.waitFor(() => expect(desktop.recentOpenRequests).toHaveLength(1));
+    expect(desktop.recentOpenRequests[0]).toMatchObject({ recentProjectId });
+    await vi.waitFor(() => expect(session.getSnapshot().displayName).toBe('Opened from Finder'));
+    unbind();
+  });
+
   it('does not report a project ready until its transition accepts renderer commands', async () => {
     const document = createAssetFreeProjectDocument();
     const desktop = new FakeDesktopApi(document);

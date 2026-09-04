@@ -1,6 +1,6 @@
 # Balsamic project format
 
-Balsamic projects are portable, deterministic ZIP containers. The native file picker owns the user-facing file name; readers must identify a project from its manifest rather than its extension.
+Balsamic projects are portable, deterministic ZIP containers saved with the public `.balsamic` extension. Native integrations use MIME type `application/vnd.balsamic.project+zip` and Apple uniform type identifier `app.balsamic.project`; readers still identify and validate a project from its manifest rather than trusting its extension.
 
 ## Current container contract
 

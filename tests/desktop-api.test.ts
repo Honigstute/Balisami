@@ -23,6 +23,7 @@ import {
   isProjectStartupOptionsResult,
   isRecentProjectsResult,
   isRuntimeInfo,
+  isProjectCommand,
 } from '../src/shared/desktop-api';
 import { createAssetFreeProjectDocument } from './fixtures/project-file';
 
@@ -115,6 +116,18 @@ describe('desktop API boundary validation', () => {
       isRuntimeInfo({ appVersion: '0.1.0', arch: 'x64', isPackaged: true, platform: 'linux' }),
     ).toBe(false);
     expect(isRuntimeInfo({ appVersion: 1 })).toBe(false);
+  });
+
+  it('validates path-free native open commands', () => {
+    expect(isProjectCommand({ recentProjectId: 'a'.repeat(64), type: 'open-recent-id' })).toBe(
+      true,
+    );
+    expect(isProjectCommand({ recentProjectId: '/tmp/project', type: 'open-recent-id' })).toBe(
+      false,
+    );
+    expect(
+      isProjectCommand({ recentProjectId: 'a'.repeat(64), type: 'open-recent-id', path: '/tmp/a' }),
+    ).toBe(false);
   });
 
   it('validates exact path-free project results and immutable snapshot identities', () => {

@@ -67,6 +67,7 @@ export interface ProjectNativeWorkflowOptions {
   readonly dialogs: NativeProjectDialogs;
   readonly lifecycle: ProjectLifecycleController;
   readonly recentProjects: RecentProjectStore;
+  readonly nativeRecentDocuments?: Readonly<{ add: (filePath: string) => void }>;
   readonly reportFailure?: NativeProjectFailureReporter;
 }
 
@@ -185,6 +186,7 @@ const toRecentSummary = ({
 export class ProjectNativeWorkflow {
   readonly #dialogs: NativeProjectDialogs;
   readonly #lifecycle: ProjectLifecycleController;
+  readonly #nativeRecentDocuments: Readonly<{ add: (filePath: string) => void }> | undefined;
   readonly #recentProjects: RecentProjectStore;
   readonly #reportFailure: NativeProjectFailureReporter | undefined;
 
@@ -194,6 +196,7 @@ export class ProjectNativeWorkflow {
   constructor(options: ProjectNativeWorkflowOptions) {
     this.#dialogs = options.dialogs;
     this.#lifecycle = options.lifecycle;
+    this.#nativeRecentDocuments = options.nativeRecentDocuments;
     this.#recentProjects = options.recentProjects;
     this.#reportFailure = options.reportFailure;
   }
@@ -468,7 +471,7 @@ export class ProjectNativeWorkflow {
     const prepared = await this.#lifecycle.prepareProjectFile(filePath);
     if (!prepared.ok) {
       this.#reportFailure?.('open', prepared.error);
-      if (prepared.error.code === 'file-not-found' && recentIdToForget !== undefined) {
+      if (recentIdToForget !== undefined) {
         const forgotten = await this.#recentProjects.forget(recentIdToForget);
         if (!forgotten.ok) {
           this.#reportFailure?.('recent', forgotten.error);
@@ -594,6 +597,16 @@ export class ProjectNativeWorkflow {
       appendWarning(warnings, {
         code: 'recent-files-update-failed',
         message: 'The project succeeded, but the recent-project list could not update.',
+      });
+      return;
+    }
+    try {
+      this.#nativeRecentDocuments?.add(filePath);
+    } catch (error) {
+      this.#reportFailure?.('recent', error);
+      appendWarning(warnings, {
+        code: 'recent-files-update-failed',
+        message: 'The project succeeded, but the operating-system recent list did not update.',
       });
     }
   }

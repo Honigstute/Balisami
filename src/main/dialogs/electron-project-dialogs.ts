@@ -12,19 +12,32 @@ import type {
   UnsavedCloseDialogResult,
 } from './project-dialogs';
 import { isValidAbsoluteNonRootPath } from '../files/path-validation';
+import { createProjectFileName, PROJECT_FILE_IDENTITY } from '../../shared/project-file-identity';
 
 const CLOSE_BUTTON_INDEX = Object.freeze({ save: 0, cancel: 1, discard: 2 });
 
 export const createOpenProjectDialogOptions = (): OpenDialogOptions => ({
   title: 'Open Wireframe Project',
   buttonLabel: 'Open',
+  filters: [
+    {
+      name: PROJECT_FILE_IDENTITY.displayName,
+      extensions: [PROJECT_FILE_IDENTITY.extension],
+    },
+  ],
   properties: ['openFile', 'dontAddToRecent'],
 });
 
 export const createSaveProjectDialogOptions = (suggestedFileName: string): SaveDialogOptions => ({
   title: 'Save Wireframe Project',
   buttonLabel: 'Save',
-  defaultPath: suggestedFileName,
+  defaultPath: createProjectFileName(suggestedFileName),
+  filters: [
+    {
+      name: PROJECT_FILE_IDENTITY.displayName,
+      extensions: [PROJECT_FILE_IDENTITY.extension],
+    },
+  ],
   properties: ['createDirectory', 'showOverwriteConfirmation', 'dontAddToRecent'],
 });
 

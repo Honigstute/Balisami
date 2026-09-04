@@ -5,6 +5,10 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import path from 'node:path';
 
+import { PROJECT_FILE_IDENTITY } from './src/shared/project-file-identity';
+
+const appIconPath = path.resolve(__dirname, 'resources', 'app-icon');
+
 const resolvePackagedExecutable = (outputPath: string, platform: string): string => {
   if (platform === 'darwin') {
     return path.join(outputPath, 'Balsamic.app', 'Contents', 'MacOS', 'Balsamic');
@@ -21,6 +25,29 @@ const config: ForgeConfig = {
     appBundleId: 'app.balsamic.desktop',
     asar: true,
     executableName: 'Balsamic',
+    extendInfo: {
+      CFBundleDocumentTypes: [
+        {
+          CFBundleTypeExtensions: [PROJECT_FILE_IDENTITY.extension],
+          CFBundleTypeName: PROJECT_FILE_IDENTITY.displayName,
+          CFBundleTypeRole: 'Editor',
+          LSHandlerRank: 'Owner',
+          LSItemContentTypes: [PROJECT_FILE_IDENTITY.uniformTypeIdentifier],
+        },
+      ],
+      UTExportedTypeDeclarations: [
+        {
+          UTTypeConformsTo: ['public.archive', 'public.data'],
+          UTTypeDescription: PROJECT_FILE_IDENTITY.displayName,
+          UTTypeIdentifier: PROJECT_FILE_IDENTITY.uniformTypeIdentifier,
+          UTTypeTagSpecification: {
+            'public.filename-extension': [PROJECT_FILE_IDENTITY.extension],
+            'public.mime-type': PROJECT_FILE_IDENTITY.mimeType,
+          },
+        },
+      ],
+    },
+    icon: appIconPath,
     name: 'Balsamic',
   },
   rebuildConfig: {},
@@ -53,6 +80,7 @@ const config: ForgeConfig = {
       authors: 'Balsamic contributors',
       description: 'An offline-first desktop wireframing editor.',
       name: 'Balsamic',
+      setupIcon: `${appIconPath}.ico`,
     }),
     new MakerZIP({}, ['darwin']),
   ],

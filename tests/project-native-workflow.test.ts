@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   beginDocumentHistorySave,
@@ -71,6 +71,7 @@ const createWorkflow = (
   root: string,
   dialogs: NativeProjectDialogs,
   reportFailure?: NativeProjectFailureReporter,
+  nativeRecentDocuments?: Readonly<{ add: (filePath: string) => void }>,
 ) => {
   const lifecycle = new ProjectLifecycleController({ recoveryRoot: root });
   const recentProjects = new RecentProjectStore(root);
@@ -79,6 +80,7 @@ const createWorkflow = (
     lifecycle,
     recentProjects,
     ...(reportFailure === undefined ? {} : { reportFailure }),
+    ...(nativeRecentDocuments === undefined ? {} : { nativeRecentDocuments }),
   });
   return { lifecycle, recentProjects, workflow };
 };
@@ -276,6 +278,21 @@ describe('project native workflow', () => {
 
     const reopened = await openProjectFile(filePath);
     expect(reopened).toMatchObject({ ok: true, value: { document: snapshot.document } });
+  });
+
+  it('adds successfully saved projects to the operating-system recent list', async () => {
+    const root = await createWorkflowRoot();
+    const filePath = path.join(root, 'Native Recent.balsamic');
+    const dialogs = new QueuedProjectDialogs();
+    dialogs.saveResults.push({ status: 'selected', filePath });
+    const add = vi.fn();
+    const { lifecycle, workflow } = createWorkflow(root, dialogs, undefined, { add });
+    const snapshot = createSaveSnapshot();
+    expect(lifecycle.startNewProject(snapshot.document)).toMatchObject({ ok: true });
+
+    await expect(workflow.save(snapshot)).resolves.toMatchObject({ status: 'completed' });
+    expect(add).toHaveBeenCalledOnce();
+    expect(add).toHaveBeenCalledWith(filePath);
   });
 
   it('keeps the project open when unsaved close or its Save As is cancelled', async () => {

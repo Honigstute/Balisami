@@ -6,9 +6,20 @@ import {
   createSaveProjectDialogOptions,
   createUnsavedCloseDialogOptions,
 } from '../src/main/dialogs/electron-project-dialogs';
+import { createProjectFileName, PROJECT_FILE_IDENTITY } from '../src/shared/project-file-identity';
 
 describe('native project dialog contracts', () => {
-  it('creates safe cross-platform filename suggestions without deciding an extension', () => {
+  it('keeps one public project-file identity for native integrations', () => {
+    expect(PROJECT_FILE_IDENTITY).toEqual({
+      displayName: 'Balsamic Project',
+      extension: 'balsamic',
+      mimeType: 'application/vnd.balsamic.project+zip',
+      uniformTypeIdentifier: 'app.balsamic.project',
+    });
+    expect(createProjectFileName('Checkout')).toBe('Checkout.balsamic');
+  });
+
+  it('creates safe cross-platform filename suggestions before applying the public extension', () => {
     expect(createSuggestedProjectFileName('  Customer: Portal / Draft*  ')).toBe(
       'Customer Portal Draft',
     );
@@ -22,12 +33,14 @@ describe('native project dialog contracts', () => {
     expect(createOpenProjectDialogOptions()).toEqual({
       title: 'Open Wireframe Project',
       buttonLabel: 'Open',
+      filters: [{ name: 'Balsamic Project', extensions: ['balsamic'] }],
       properties: ['openFile', 'dontAddToRecent'],
     });
     expect(createSaveProjectDialogOptions('Project Name')).toEqual({
       title: 'Save Wireframe Project',
       buttonLabel: 'Save',
-      defaultPath: 'Project Name',
+      defaultPath: 'Project Name.balsamic',
+      filters: [{ name: 'Balsamic Project', extensions: ['balsamic'] }],
       properties: ['createDirectory', 'showOverwriteConfirmation', 'dontAddToRecent'],
     });
   });

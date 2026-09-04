@@ -52,9 +52,24 @@ import { runPackagedViewportPerformanceProbe } from './viewport-performance-prob
 import { installWindowDiagnostics, type WindowProblem } from './window-diagnostics';
 import { createMainWindowOptions } from './window-options';
 import {
+  extractNativeProjectFileArguments,
+  NativeProjectOpenRouter,
+  type NativeProjectOpenTarget,
+} from './native-project-open';
+import {
   measureM11ProjectPersistence,
   runPackagedM11PerformanceProbe,
 } from './m11-performance-probe';
+import { applyWindowsFileAssociation, parseWindowsSquirrelEvent } from './windows-file-association';
+
+const windowsSquirrelEvent =
+  process.platform === 'win32' ? parseWindowsSquirrelEvent(process.argv) : undefined;
+if (
+  windowsSquirrelEvent !== undefined &&
+  !applyWindowsFileAssociation(windowsSquirrelEvent, process.execPath)
+) {
+  process.stderr.write('Balsamic could not update its Windows project-file association.\n');
+}
 
 const isSmokeTest = process.argv.includes(smokeTestContract.argument);
 const recoveryProbeInvocation = parseRecoveryProbeInvocation(process.argv, recoveryProbeContract);
@@ -78,6 +93,28 @@ const isAutomatedTest =
   isVisualFixture ||
   isViewportPerformanceProbe ||
   isM11PerformanceProbe;
+
+const ownsSingleInstanceLock = !started && (isAutomatedTest || app.requestSingleInstanceLock());
+const pendingNativeProjectPaths: string[] = [];
+let nativeProjectOpenRouter: NativeProjectOpenRouter | undefined;
+
+const queueNativeProjectPath = (filePath: string): void => {
+  if (nativeProjectOpenRouter === undefined) pendingNativeProjectPaths.push(filePath);
+  else nativeProjectOpenRouter.enqueue(filePath);
+};
+
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  queueNativeProjectPath(filePath);
+});
+
+if (ownsSingleInstanceLock) {
+  app.on('second-instance', (_event, argv) => {
+    const candidates = extractNativeProjectFileArguments(argv, app.isPackaged ? 1 : 2);
+    candidates.forEach(queueNativeProjectPath);
+    nativeProjectOpenRouter?.focus();
+  });
+}
 
 registerAppScheme();
 app.enableSandbox();
@@ -125,6 +162,7 @@ const createWindow = async (options: CreateWindowOptions = {}): Promise<BrowserW
     dialogs: options.projectDialogs ?? createElectronProjectDialogs(window),
     lifecycle,
     recentProjects: new RecentProjectStore(app.getPath('userData')),
+    nativeRecentDocuments: { add: (filePath) => app.addRecentDocument(filePath) },
     reportFailure: (scope, error) => {
       logger?.error(`project-${scope}`, 'Native project operation failed.', error);
     },
@@ -350,11 +388,39 @@ const startApplication = async (): Promise<void> => {
     installAppProtocol(rendererRoot);
   }
 
+  const resolveNativeProjectOpenTarget = (): NativeProjectOpenTarget | undefined => {
+    const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    if (target === undefined || target.isDestroyed() || target.webContents.isDestroyed()) {
+      return undefined;
+    }
+    return {
+      focus: () => {
+        if (target.isMinimized()) target.restore();
+        target.focus();
+      },
+      sendProjectCommand: (command) =>
+        target.webContents.send(DESKTOP_CHANNELS.projectCommand, command),
+    };
+  };
+  nativeProjectOpenRouter = new NativeProjectOpenRouter({
+    getTarget: resolveNativeProjectOpenTarget,
+    recentProjects: new RecentProjectStore(app.getPath('userData')),
+    reportFailure: (error) =>
+      logger?.error('native-open', 'Operating-system project open failed.', error),
+  });
+  extractNativeProjectFileArguments(process.argv, app.isPackaged ? 1 : 2).forEach(
+    queueNativeProjectPath,
+  );
+  pendingNativeProjectPaths
+    .splice(0)
+    .forEach((filePath) => nativeProjectOpenRouter?.enqueue(filePath));
+
   registerDesktopIpc({
     ...(developmentServerUrl === undefined ? {} : { developmentServerUrl }),
-    ...(startupHealth === undefined
-      ? {}
-      : { onRendererReady: () => startupHealth.reportRendererReady() }),
+    onRendererReady: () => {
+      startupHealth?.reportRendererReady();
+      nativeProjectOpenRouter?.setReady();
+    },
     onProjectBridgeFailure: (error) => {
       logger?.error('project-bridge', 'Project IPC failed.', error);
     },
@@ -471,15 +537,20 @@ const startApplication = async (): Promise<void> => {
   });
 };
 
-void startApplication().catch((error: unknown) => {
-  if (logger === undefined || isAutomatedTest) {
-    process.stderr.write(`Balsamic failed to start: ${String(error)}\n`);
-  }
-  if (logger !== undefined) {
-    logger.error('startup', 'Application startup failed.', error);
-  }
-  app.exit(1);
-});
+if (!ownsSingleInstanceLock) {
+  app.quit();
+}
+
+if (ownsSingleInstanceLock)
+  void startApplication().catch((error: unknown) => {
+    if (logger === undefined || isAutomatedTest) {
+      process.stderr.write(`Balsamic failed to start: ${String(error)}\n`);
+    }
+    if (logger !== undefined) {
+      logger.error('startup', 'Application startup failed.', error);
+    }
+    app.exit(1);
+  });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !isProjectWorkflowProbe) {

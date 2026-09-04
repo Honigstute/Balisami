@@ -74,7 +74,12 @@ export interface ExternalUrlRequest {
   readonly url: string;
 }
 
-export type ProjectCommand = 'open' | 'open-recent' | 'save' | 'save-as';
+export type ProjectCommand =
+  | 'open'
+  | 'open-recent'
+  | 'save'
+  | 'save-as'
+  | Readonly<{ recentProjectId: string; type: 'open-recent-id' }>;
 
 export interface ProjectAssetBytes {
   readonly [assetId: string]: Uint8Array;
@@ -542,7 +547,14 @@ export const isProjectOpenRecentRequest = (value: unknown): value is ProjectOpen
   isRecentProjectId(value.recentProjectId);
 
 export const isProjectCommand = (value: unknown): value is ProjectCommand =>
-  value === 'open' || value === 'open-recent' || value === 'save' || value === 'save-as';
+  value === 'open' ||
+  value === 'open-recent' ||
+  value === 'save' ||
+  value === 'save-as' ||
+  (isRecord(value) &&
+    hasExactKeys(value, ['recentProjectId', 'type']) &&
+    value.type === 'open-recent-id' &&
+    isRecentProjectId(value.recentProjectId));
 
 export const isRuntimeInfo = (value: unknown): value is RuntimeInfo => {
   if (!isRecord(value)) {

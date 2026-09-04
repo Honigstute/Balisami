@@ -539,7 +539,9 @@ export class ProjectSession {
   bindDesktopEvents(): () => void {
     const subscriptions = [
       this.#desktop.onProjectCommand((command) => {
-        if (command === 'open') {
+        if (typeof command === 'object') {
+          void this.openRecentProject(command.recentProjectId);
+        } else if (command === 'open') {
           void this.openProject();
         } else if (command === 'open-recent') {
           void this.showRecentProjects();

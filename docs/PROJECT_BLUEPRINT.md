@@ -387,9 +387,9 @@ Guides are ephemeral overlays and never export or enter history. Align/distribut
 
 ## 9. Persistence and recovery
 
-The project file is a portable container with a manifest, versioned project JSON, and deduplicated assets. Exact extension/name is decided before public alpha; internal code does not depend on marketing naming.
+The project file is a portable container with a manifest, versioned project JSON, and deduplicated assets. Its public extension is `.balsamic`, with MIME type `application/vnd.balsamic.project+zip` and Apple uniform type identifier `app.balsamic.project`. Native integration owns that public identity; codecs still identify and validate files from the manifest rather than trusting a suffix.
 
-The version-1 logical container contract is deliberately independent of its eventual extension:
+The original version-1 logical container contract remains deliberately independent of the public extension:
 
 | Entry                    | Contract                                                                                                                           |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -491,8 +491,8 @@ failure.
 
 Electron owns project path selection through one window-scoped native-dialog adapter. Open and Save
 As cancellations are ordinary outcomes, not errors; malformed native responses fail without changing
-the active session. Suggested names are bounded and safe on macOS and Windows, but the dialog does not
-invent a public extension or file filter before that product decision is recorded. One exclusive
+the active session. Suggested names are bounded and safe on macOS and Windows; native dialogs apply
+the single shared `.balsamic` file identity and filter. One exclusive
 main-process workflow coordinates open, save, Save As, recent projects, and close. Its renderer-facing
 result vocabulary contains completed, cancelled, or one stable problem plus at most three deduplicated
 warnings. It never returns filesystem paths, native exceptions, archive details, or recovery paths;
@@ -701,26 +701,27 @@ A feature is done only when:
 
 ## 14. Decision log
 
-| ID    | Decision                                                   | Rationale                                                                                                             | Status                                    |
-| ----- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| D-001 | Electron, React, TypeScript, and Vite                      | One Chromium engine across macOS/Windows; mature desktop packaging                                                    | Accepted                                  |
-| D-002 | Standard OS window frame initially                         | Avoid premature platform-specific title-bar complexity                                                                | Accepted                                  |
-| D-003 | World-space geometry plus one viewport transform           | Prevent coordinate drift and duplicate conversion logic                                                               | Accepted                                  |
-| D-004 | Command-only persisted mutations                           | Deterministic undo/redo, validation, and tracing                                                                      | Accepted                                  |
-| D-005 | SVG scene with separate overlays first                     | Correct vector behavior and export path; optimize based on measurement                                                | Accepted                                  |
-| D-006 | Schema-driven control definition registry                  | One source for catalog, rendering, inspector, search, and persistence                                                 | Accepted                                  |
-| D-007 | Fixed shell plus overlay feedback                          | Eliminate selection/error-driven layout movement                                                                      | Accepted                                  |
-| D-008 | Portable versioned container with atomic save/recovery     | Offline reliability and safe evolution                                                                                | Accepted                                  |
-| D-009 | Pin the Forge Vite integration exactly                     | Contain the migration risk of Forge's experimental Vite plugin                                                        | Accepted                                  |
-| D-010 | Temporarily accept Forge's dev-only `extract-zip` advisory | No patched upstream release exists; production dependency audit is clean and packaging input is trusted/checksummed   | Temporary; review every dependency update |
-| D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored      | Accepted                                  |
-| D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts     | Accepted                                  |
-| D-013 | Brand-neutral deterministic v1 logical file entries        | Keep schema, assets, tests, and future archive adapters stable while the public product name and extension can change | Accepted                                  |
-| D-014 | Pinned asynchronous `fflate` ZIP adapter                   | Produce portable deterministic archives without blocking the renderer or implementing security-sensitive ZIP logic    | Accepted                                  |
-| D-015 | Renderer-owned project history with opaque validated IPC   | Keep one live document authority while main exclusively owns paths, dialogs, durability, recovery, and native close   | Accepted                                  |
-| D-016 | Hidden board-shaped records for alternate versions         | Preserve canonical board/link identity while reusing validated board ownership, notes, elements, assets, and commands | Accepted                                  |
-| D-017 | Custom icons reference ordinary content-addressed assets   | Keep one authenticated byte, reachability, cleanup, undo, persistence, and rendering authority for images and icons   | Accepted                                  |
-| D-018 | Component definitions own hidden canonical element roots   | Reuse canonical geometry, controls, assets, ownership, migration, and rendering while instances stay lightweight      | Accepted                                  |
+| ID    | Decision                                                   | Rationale                                                                                                                           | Status                                    |
+| ----- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| D-001 | Electron, React, TypeScript, and Vite                      | One Chromium engine across macOS/Windows; mature desktop packaging                                                                  | Accepted                                  |
+| D-002 | Standard OS window frame initially                         | Avoid premature platform-specific title-bar complexity                                                                              | Accepted                                  |
+| D-003 | World-space geometry plus one viewport transform           | Prevent coordinate drift and duplicate conversion logic                                                                             | Accepted                                  |
+| D-004 | Command-only persisted mutations                           | Deterministic undo/redo, validation, and tracing                                                                                    | Accepted                                  |
+| D-005 | SVG scene with separate overlays first                     | Correct vector behavior and export path; optimize based on measurement                                                              | Accepted                                  |
+| D-006 | Schema-driven control definition registry                  | One source for catalog, rendering, inspector, search, and persistence                                                               | Accepted                                  |
+| D-007 | Fixed shell plus overlay feedback                          | Eliminate selection/error-driven layout movement                                                                                    | Accepted                                  |
+| D-008 | Portable versioned container with atomic save/recovery     | Offline reliability and safe evolution                                                                                              | Accepted                                  |
+| D-009 | Pin the Forge Vite integration exactly                     | Contain the migration risk of Forge's experimental Vite plugin                                                                      | Accepted                                  |
+| D-010 | Temporarily accept Forge's dev-only `extract-zip` advisory | No patched upstream release exists; production dependency audit is clean and packaging input is trusted/checksummed                 | Temporary; review every dependency update |
+| D-011 | Configure and read back every packaged Electron fuse       | Forge 7's fuse plugin pins an older schema; a strict post-package hook prevents new Electron fuses being ignored                    | Accepted                                  |
+| D-012 | Derive document types from pinned Zod runtime schemas      | Keep persisted TypeScript types and untrusted-input validation aligned without parallel hand-maintained contracts                   | Accepted                                  |
+| D-013 | Brand-neutral deterministic v1 logical file entries        | Keep schema, assets, tests, and future archive adapters stable while the public product name and extension can change               | Accepted                                  |
+| D-014 | Pinned asynchronous `fflate` ZIP adapter                   | Produce portable deterministic archives without blocking the renderer or implementing security-sensitive ZIP logic                  | Accepted                                  |
+| D-015 | Renderer-owned project history with opaque validated IPC   | Keep one live document authority while main exclusively owns paths, dialogs, durability, recovery, and native close                 | Accepted                                  |
+| D-016 | Hidden board-shaped records for alternate versions         | Preserve canonical board/link identity while reusing validated board ownership, notes, elements, assets, and commands               | Accepted                                  |
+| D-017 | Custom icons reference ordinary content-addressed assets   | Keep one authenticated byte, reachability, cleanup, undo, persistence, and rendering authority for images and icons                 | Accepted                                  |
+| D-018 | Component definitions own hidden canonical element roots   | Reuse canonical geometry, controls, assets, ownership, migration, and rendering while instances stay lightweight                    | Accepted                                  |
+| D-019 | Public `.balsamic` file identity                           | Give dialogs, Finder, Explorer, recent documents, and open-with one stable identity while manifest validation remains authoritative | Accepted                                  |
 
 Replace or substantially revise an accepted decision only through a focused ADR that records evidence, migration impact, and rollback plan.
 

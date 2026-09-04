@@ -654,6 +654,10 @@ Depends on: M12
 
 Objective: ship a normal, trustworthy application on both operating systems.
 
+Current progress (2026-09-04):
+
+- The first native-integration slice gives the packaged app one production identity and one path-safe operating-system open route. Normal launches enforce a single instance; macOS `open-file`, packaged launch arguments, and Windows second-instance arguments remain in main and reach the renderer only as an opaque recent-project ID after its explicit ready signal. The existing staged dirty-project replacement flow performs the actual open, invalid/corrupt targets are forgotten, and successful open/save updates Electron's native recent-document list. `.balsamic`, `application/vnd.balsamic.project+zip`, and `app.balsamic.project` are one shared public file identity used by filtered native dialogs and macOS bundle metadata; Windows Squirrel install/update/uninstall owns equivalent current-user registry keys. A production ICNS/ICO set replaces Electron branding in both packages. The complete source gate passes formatting, ESLint, strict TypeScript, 246-module boundaries, 138 files / 968 tests, and a zero-vulnerability runtime audit. The rebuilt macOS arm64 package passes fuse readback and smoke, with exact Info.plist association/icon evidence; a local Windows x64 package and fuse readback pass with the branded executable. Creating the Squirrel installer on this Mac correctly stops at its external Mono/Wine host prerequisite; no hosted Windows job was started or commented on.
+
 Deliverables:
 
 - Native menus and platform shortcut labels, dock/taskbar integration, app icon set, file association, recent documents, open-with, and single-instance behavior.
@@ -690,4 +694,4 @@ Exit gate:
 
 ## Next action
 
-Audit the existing Forge main-process/window lifecycle and packaging configuration against M13 in dependency order. Start with the smallest user-visible native slice: one instance, open-with/file-association routing into the existing staged project replacement flow, and native recent-document integration without leaking paths to the renderer. Then finalize production app identity/icons and traceable versioned artifacts before adding signing/notarization/update steps that require external credentials. Keep credential-dependent release gates explicit rather than simulating them; use local macOS arm64 and Windows x64 package evidence, and do not start or comment on GitHub-hosted Windows jobs. M7 and the post-core catalog backlog remain deferred.
+Complete the remaining credential-independent M13 product work in release dependency order: expand the native menu and diagnostics/privacy/license surfaces, make versioned artifacts traceable, and validate the macOS architecture strategy. Then define the smallest signed update/install pipeline whose signing/notarization steps fail explicitly when credentials are absent. Treat the Windows installer runtime check and Apple/Windows signing credentials as platform gates rather than simulating them; use local macOS arm64 and Windows x64 package evidence, and do not start or comment on GitHub-hosted Windows jobs. M7 and the post-core catalog backlog remain deferred.
