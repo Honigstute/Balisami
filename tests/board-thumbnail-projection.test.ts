@@ -215,6 +215,72 @@ describe('board thumbnail projection', () => {
     });
   });
 
+  it('keeps edited Popover container geometry identical in navigator and presentation', () => {
+    const input = createValidProjectDocumentInput();
+    const popover = getControlSpec(CONTROL_TYPES.popover);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (popover === undefined || child === undefined) {
+      throw new Error('Popover cross-surface fixture is incomplete.');
+    }
+    child.controlType = popover.type;
+    child.controlVersion = popover.fileVersion;
+    child.frame = { x: 16, y: 24, width: 304, height: 238 };
+    child.properties = {
+      ...popover.defaultProperties,
+      bold: true,
+      color: DESIGN_TOKENS.color.accent,
+      direction: 'left',
+      position: '4',
+      text: 'Name: Thor',
+    };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Popover cross-surface fixture is invalid.');
+    const textMeasurementService = {
+      measure: ({ fontSize, text }: { fontSize: number; text: string }) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      }),
+    };
+
+    const thumbnail = createBoardThumbnailProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+    const presentation = createBoardPresentationProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+    expect(thumbnail).toMatchObject({
+      fillColor: DESIGN_TOKENS.color.accent,
+      hasFill: false,
+      hasOutline: false,
+      markFillColor: DESIGN_TOKENS.color.accent,
+      markStrokeColor: DESIGN_TOKENS.color.ink,
+      visualKind: 'popover',
+    });
+    expect(thumbnail?.markPath).toContain('Z');
+    expect(presentation).toMatchObject({
+      accessibleName: 'Name: Thor',
+      hasFill: false,
+      hasOutline: false,
+      markFillColor: thumbnail?.markFillColor,
+      markPath: thumbnail?.markPath,
+      markStrokeColor: thumbnail?.markStrokeColor,
+      role: 'group',
+      textLayout: thumbnail?.textLayout,
+      visualKind: 'popover',
+    });
+  });
+
   it('keeps edited Callout shape, text, and accessibility identical across surfaces', () => {
     const input = createValidProjectDocumentInput();
     const callout = getControlSpec(CONTROL_TYPES.callout);

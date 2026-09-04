@@ -22,6 +22,32 @@ const getTrailingAdornmentWidth = (definition: ControlDefinition): number | unde
   return adornment.kind === 'calendar' ? adornment.size : adornment.width;
 };
 
+const getPopoverBodyBounds = (bounds: WorldRect, properties: ElementProperties): WorldRect => {
+  const direction = properties.direction;
+  const vertical = direction === 'top' || direction === 'bottom';
+  const tailSize = Math.min(18, (vertical ? bounds.height : bounds.width) * 0.2);
+  if (direction === 'top') {
+    return createWorldRect(
+      bounds.x,
+      bounds.y + tailSize,
+      bounds.width,
+      Math.max(0, bounds.height - tailSize),
+    );
+  }
+  if (direction === 'right') {
+    return createWorldRect(bounds.x, bounds.y, Math.max(0, bounds.width - tailSize), bounds.height);
+  }
+  if (direction === 'bottom') {
+    return createWorldRect(bounds.x, bounds.y, bounds.width, Math.max(0, bounds.height - tailSize));
+  }
+  return createWorldRect(
+    bounds.x + tailSize,
+    bounds.y,
+    Math.max(0, bounds.width - tailSize),
+    bounds.height,
+  );
+};
+
 /** Bounds of the definition's primary outlined primitive, separate from its hit bounds. */
 export const getControlScenePrimitiveBounds = (
   controlType: ControlTypeId,
@@ -71,6 +97,9 @@ export const getControlScenePrimitiveBounds = (
       bounds.width,
       Math.max(0, bounds.height - tailSize),
     );
+  }
+  if (definition.scene.kind === 'popover') {
+    return getPopoverBodyBounds(bounds, properties ?? definition.defaultProperties);
   }
   if (definition.scene.kind === 'radio-button') {
     const radio = definition.scene.radio;
@@ -140,6 +169,7 @@ export const createControlSceneOutlinePath = (
   if (
     definition.scene.kind === 'comment' ||
     definition.scene.kind === 'text' ||
+    definition.scene.kind === 'popover' ||
     definition.scene.kind === 'tooltip' ||
     definition.scene.kind === 'transparent'
   ) {
@@ -363,6 +393,83 @@ const createTooltipMarkPath = (bounds: WorldRect, properties: ElementProperties)
     ...bottomEdge,
     `Q ${String(left)} ${String(bottom)} ${String(left)} ${String(bottom - radius)}`,
     `L ${String(left)} ${String(top + radius)}`,
+    `Q ${String(left)} ${String(top)} ${String(left + radius)} ${String(top)}`,
+    'Z',
+  ].join(' ');
+};
+
+const createPopoverMarkPath = (bounds: WorldRect, properties: ElementProperties): string => {
+  const direction = properties.direction;
+  const body = getPopoverBodyBounds(bounds, properties);
+  const left = body.x;
+  const right = body.x + body.width;
+  const top = body.y;
+  const bottom = body.y + body.height;
+  const radius = Math.max(0, Math.min(14, body.width / 2, body.height / 2));
+  const positionIndex =
+    typeof properties.position === 'string' && /^[0-4]$/u.test(properties.position)
+      ? Number(properties.position)
+      : 2;
+  const positionRatio = [0.12, 0.31, 0.5, 0.69, 0.88][positionIndex] ?? 0.5;
+  const horizontalSpan = Math.max(0, body.width - radius * 2);
+  const verticalSpan = Math.max(0, body.height - radius * 2);
+  const halfTail = Math.min(
+    12,
+    direction === 'top' || direction === 'bottom' ? horizontalSpan / 4 : verticalSpan / 4,
+  );
+  const pointerX = Math.max(
+    left + radius + halfTail,
+    Math.min(right - radius - halfTail, left + body.width * positionRatio),
+  );
+  const pointerY = Math.max(
+    top + radius + halfTail,
+    Math.min(bottom - radius - halfTail, top + body.height * positionRatio),
+  );
+  const topEdge =
+    direction === 'top'
+      ? [
+          `L ${String(pointerX - halfTail)} ${String(top)}`,
+          `L ${String(pointerX)} ${String(bounds.y + 1)}`,
+          `L ${String(pointerX + halfTail)} ${String(top)}`,
+          `L ${String(right - radius)} ${String(top)}`,
+        ]
+      : [`L ${String(right - radius)} ${String(top)}`];
+  const rightEdge =
+    direction === 'right'
+      ? [
+          `L ${String(right)} ${String(pointerY - halfTail)}`,
+          `L ${String(bounds.x + bounds.width - 1)} ${String(pointerY)}`,
+          `L ${String(right)} ${String(pointerY + halfTail)}`,
+          `L ${String(right)} ${String(bottom - radius)}`,
+        ]
+      : [`L ${String(right)} ${String(bottom - radius)}`];
+  const bottomEdge =
+    direction === 'bottom'
+      ? [
+          `L ${String(pointerX + halfTail)} ${String(bottom)}`,
+          `L ${String(pointerX)} ${String(bounds.y + bounds.height - 1)}`,
+          `L ${String(pointerX - halfTail)} ${String(bottom)}`,
+          `L ${String(left + radius)} ${String(bottom)}`,
+        ]
+      : [`L ${String(left + radius)} ${String(bottom)}`];
+  const leftEdge =
+    direction === 'left'
+      ? [
+          `L ${String(left)} ${String(pointerY + halfTail)}`,
+          `L ${String(bounds.x + 1)} ${String(pointerY)}`,
+          `L ${String(left)} ${String(pointerY - halfTail)}`,
+          `L ${String(left)} ${String(top + radius)}`,
+        ]
+      : [`L ${String(left)} ${String(top + radius)}`];
+  return [
+    `M ${String(left + radius)} ${String(top)}`,
+    ...topEdge,
+    `Q ${String(right)} ${String(top)} ${String(right)} ${String(top + radius)}`,
+    ...rightEdge,
+    `Q ${String(right)} ${String(bottom)} ${String(right - radius)} ${String(bottom)}`,
+    ...bottomEdge,
+    `Q ${String(left)} ${String(bottom)} ${String(left)} ${String(bottom - radius)}`,
+    ...leftEdge,
     `Q ${String(left)} ${String(top)} ${String(left + radius)} ${String(top)}`,
     'Z',
   ].join(' ');
@@ -1215,6 +1322,9 @@ export const createControlSceneMarkPath = (
   if (definition.scene.kind === 'tooltip') {
     return createTooltipMarkPath(bounds, properties);
   }
+  if (definition.scene.kind === 'popover') {
+    return createPopoverMarkPath(bounds, properties);
+  }
   if (definition.scene.kind === 'image') {
     return createImagePlaceholderMarkPath(bounds, elementId);
   }
@@ -1320,6 +1430,7 @@ export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
     'arrow',
     'h-rule',
     'help-button',
+    'popover',
     'scratch-out',
     'text',
     'tooltip',
@@ -1328,6 +1439,13 @@ export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
   ].includes(definition.scene.kind);
 
 export const controlSceneHasOutline = (definition: ControlDefinition): boolean =>
-  !['comment', 'red-x', 'scratch-out', 'squiggly-block', 'text', 'tooltip', 'transparent'].includes(
-    definition.scene.kind,
-  );
+  ![
+    'comment',
+    'popover',
+    'red-x',
+    'scratch-out',
+    'squiggly-block',
+    'text',
+    'tooltip',
+    'transparent',
+  ].includes(definition.scene.kind);

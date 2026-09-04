@@ -82,6 +82,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=comment')).toBe('comment');
     expect(getRequestedVisualFixture('?visualFixture=catalogTooltip')).toBe('catalogTooltip');
     expect(getRequestedVisualFixture('?visualFixture=catalogCallout')).toBe('catalogCallout');
+    expect(getRequestedVisualFixture('?visualFixture=catalogPopover')).toBe('catalogPopover');
     expect(getRequestedVisualFixture('?visualFixture=radioButton')).toBe('radioButton');
     expect(getRequestedVisualFixture('?visualFixture=dateChooser')).toBe('dateChooser');
     expect(getRequestedVisualFixture('?visualFixture=numericStepper')).toBe('numericStepper');
@@ -644,6 +645,50 @@ describe('visual conformance fixture contract', () => {
       if (document.fonts !== undefined) {
         expect(editedCallout?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
       }
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders every Popover side with the selected discrete position inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogPopover');
+
+    expect(screen.getByRole('button', { name: 'Insert Popover' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.popover"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Popover' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Left' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'End' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="popover"]');
+      expect(controls).toHaveLength(4);
+      const selected = view.container.querySelector(
+        '[data-scene-element-id="element_registrypopoverleft"]',
+      );
+      expect(selected).toHaveAttribute('aria-label', 'Name: Thor');
+      expect(selected?.querySelector('.scene-control__mark')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.accent,
+        stroke: DESIGN_TOKENS.color.ink,
+      });
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

@@ -114,6 +114,10 @@ const REGISTRY_NUMERIC_STEPPER_DEFAULT_ID = ElementIdSchema.parse(
 const REGISTRY_NUMERIC_STEPPER_EDITED_ID = ElementIdSchema.parse(
   'element_registrynumericstepperedited',
 );
+const REGISTRY_POPOVER_TOP_ID = ElementIdSchema.parse('element_registrypopovertop');
+const REGISTRY_POPOVER_RIGHT_ID = ElementIdSchema.parse('element_registrypopoverright');
+const REGISTRY_POPOVER_BOTTOM_ID = ElementIdSchema.parse('element_registrypopoverbottom');
+const REGISTRY_POPOVER_LEFT_ID = ElementIdSchema.parse('element_registrypopoverleft');
 const REGISTRY_IMAGE_COLOR = DESIGN_TOKENS.color.accent;
 const REGISTRY_IMAGE_DATA_URL = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".2"/><circle cx="42" cy="40" r="17" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".72"/><path d="M12 108 49 68l21 19 18-24 20 45Z" fill="${REGISTRY_IMAGE_COLOR}" fill-opacity=".9"/></svg>`,
@@ -1318,6 +1322,47 @@ const createCatalogCalloutFixtureDocument = (): ReturnType<typeof createSceneFix
     selectedId: REGISTRY_CALLOUT_EDITED_ID,
   });
 
+const createCatalogPopoverFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> => {
+  const fixture = createAlphaFixtureDocument();
+  const entries = [
+    { direction: 'top', id: REGISTRY_POPOVER_TOP_ID, position: '0', x: 700, y: 80 },
+    { direction: 'right', id: REGISTRY_POPOVER_RIGHT_ID, position: '1', x: 850, y: 80 },
+    { direction: 'bottom', id: REGISTRY_POPOVER_BOTTOM_ID, position: '3', x: 700, y: 310 },
+    { direction: 'left', id: REGISTRY_POPOVER_LEFT_ID, position: '4', x: 850, y: 310 },
+  ] as const;
+  let document = fixture.document;
+  for (const entry of entries) {
+    const result = dispatchDocumentCommand(document, {
+      type: DOCUMENT_COMMAND_TYPES.createElement,
+      element: {
+        assetIds: [],
+        childIds: [],
+        controlType: CONTROL_TYPES.popover,
+        controlVersion: requireControlVersion(CONTROL_TYPES.popover),
+        frame: { height: 187, width: 222, x: entry.x, y: entry.y },
+        id: entry.id,
+        link: null,
+        locked: false,
+        properties: requireControlProperties(CONTROL_TYPES.popover, {
+          direction: entry.direction,
+          position: entry.position,
+          ...(entry.direction === 'left'
+            ? { bold: true, color: DESIGN_TOKENS.color.accent, text: 'Name: Thor' }
+            : {}),
+        }),
+        rowData: EMPTY_ELEMENT_ROW_DATA,
+      },
+      index: document.boardsById[fixture.boardId]?.childIds.length ?? 0,
+      owner: { boardId: fixture.boardId, kind: 'board' },
+    });
+    if (!result.ok || !result.changed) {
+      throw new Error('The deterministic Popover visual fixture is invalid.');
+    }
+    document = result.document;
+  }
+  return Object.freeze({ ...fixture, document, selectedId: REGISTRY_POPOVER_LEFT_ID });
+};
+
 const createRadioButtonFixtureDocument = (): ReturnType<typeof createSceneFixtureDocument> =>
   Object.freeze({
     ...createRegistryControlFixtureDocument(),
@@ -1424,6 +1469,7 @@ type SceneFixtureState =
   | 'comment'
   | 'catalogTooltip'
   | 'catalogCallout'
+  | 'catalogPopover'
   | 'radioButton'
   | 'dateChooser'
   | 'numericStepper'
@@ -1451,6 +1497,7 @@ const SceneFixture = ({
     state === 'comment' ||
     state === 'catalogTooltip' ||
     state === 'catalogCallout' ||
+    state === 'catalogPopover' ||
     state === 'radioButton' ||
     state === 'dateChooser' ||
     state === 'numericStepper';
@@ -1473,13 +1520,15 @@ const SceneFixture = ({
                     ? createCatalogTooltipFixtureDocument()
                     : state === 'catalogCallout'
                       ? createCatalogCalloutFixtureDocument()
-                      : state === 'radioButton'
-                        ? createRadioButtonFixtureDocument()
-                        : state === 'dateChooser'
-                          ? createDateChooserFixtureDocument()
-                          : state === 'numericStepper'
-                            ? createNumericStepperFixtureDocument()
-                            : createRegistryControlFixtureDocument()
+                      : state === 'catalogPopover'
+                        ? createCatalogPopoverFixtureDocument()
+                        : state === 'radioButton'
+                          ? createRadioButtonFixtureDocument()
+                          : state === 'dateChooser'
+                            ? createDateChooserFixtureDocument()
+                            : state === 'numericStepper'
+                              ? createNumericStepperFixtureDocument()
+                              : createRegistryControlFixtureDocument()
         : createSceneFixtureDocument(),
   );
   const [document] = useState(() => {
@@ -2299,6 +2348,24 @@ const CatalogCalloutInspectorFixture = () => {
   );
 };
 
+const CatalogPopoverInspectorFixture = () => {
+  const [fixture] = useState(createCatalogPopoverFixtureDocument);
+  const [selection] = useState(() => {
+    const store = new SelectionStore();
+    store.selectOnly(fixture.selectedId);
+    return store;
+  });
+  return (
+    <ControlInspector
+      document={fixture.document}
+      onAutoSize={() => Promise.resolve(false)}
+      onSetFrames={() => false}
+      onSetProperties={() => false}
+      selection={selection}
+    />
+  );
+};
+
 const RadioButtonInspectorFixture = () => {
   const [fixture] = useState(createRadioButtonFixtureDocument);
   const [selection] = useState(() => {
@@ -2534,28 +2601,28 @@ export const VisualConformanceFixture = ({
                                                             />
                                                           ),
                                                         }
-                                                      : fixture === 'radioButton'
+                                                      : fixture === 'catalogPopover'
                                                         ? {
                                                             canvas: (
-                                                              <SceneFixture state="radioButton" />
+                                                              <SceneFixture state="catalogPopover" />
                                                             ),
                                                             inspector: (
-                                                              <RadioButtonInspectorFixture />
+                                                              <CatalogPopoverInspectorFixture />
                                                             ),
                                                             shelf: (
                                                               <ControlShelf
-                                                                category="Forms"
+                                                                category="Containers"
                                                                 onInsert={() => false}
                                                               />
                                                             ),
                                                           }
-                                                        : fixture === 'dateChooser'
+                                                        : fixture === 'radioButton'
                                                           ? {
                                                               canvas: (
-                                                                <SceneFixture state="dateChooser" />
+                                                                <SceneFixture state="radioButton" />
                                                               ),
                                                               inspector: (
-                                                                <DateChooserInspectorFixture />
+                                                                <RadioButtonInspectorFixture />
                                                               ),
                                                               shelf: (
                                                                 <ControlShelf
@@ -2564,13 +2631,13 @@ export const VisualConformanceFixture = ({
                                                                 />
                                                               ),
                                                             }
-                                                          : fixture === 'numericStepper'
+                                                          : fixture === 'dateChooser'
                                                             ? {
                                                                 canvas: (
-                                                                  <SceneFixture state="numericStepper" />
+                                                                  <SceneFixture state="dateChooser" />
                                                                 ),
                                                                 inspector: (
-                                                                  <NumericStepperInspectorFixture />
+                                                                  <DateChooserInspectorFixture />
                                                                 ),
                                                                 shelf: (
                                                                   <ControlShelf
@@ -2579,17 +2646,38 @@ export const VisualConformanceFixture = ({
                                                                   />
                                                                 ),
                                                               }
-                                                            : fixture === 'controls'
-                                                              ? { inspector: <ControlStates /> }
-                                                              : fixture === 'feedback'
-                                                                ? {
-                                                                    canvas: <StaticRegionFailure />,
-                                                                  }
-                                                                : fixture === 'tooltip'
-                                                                  ? { canvas: <TooltipFixture /> }
-                                                                  : fixture === 'popover'
-                                                                    ? { canvas: <PopoverFixture /> }
-                                                                    : undefined;
+                                                            : fixture === 'numericStepper'
+                                                              ? {
+                                                                  canvas: (
+                                                                    <SceneFixture state="numericStepper" />
+                                                                  ),
+                                                                  inspector: (
+                                                                    <NumericStepperInspectorFixture />
+                                                                  ),
+                                                                  shelf: (
+                                                                    <ControlShelf
+                                                                      category="Forms"
+                                                                      onInsert={() => false}
+                                                                    />
+                                                                  ),
+                                                                }
+                                                              : fixture === 'controls'
+                                                                ? { inspector: <ControlStates /> }
+                                                                : fixture === 'feedback'
+                                                                  ? {
+                                                                      canvas: (
+                                                                        <StaticRegionFailure />
+                                                                      ),
+                                                                    }
+                                                                  : fixture === 'tooltip'
+                                                                    ? { canvas: <TooltipFixture /> }
+                                                                    : fixture === 'popover'
+                                                                      ? {
+                                                                          canvas: (
+                                                                            <PopoverFixture />
+                                                                          ),
+                                                                        }
+                                                                      : undefined;
   const projectOverlay =
     fixture === 'feedback' ? (
       <FeedbackOverlay />
@@ -2628,13 +2716,15 @@ export const VisualConformanceFixture = ({
                     ? CONTROL_TYPES.tooltip
                     : fixture === 'catalogCallout'
                       ? CONTROL_TYPES.callout
-                      : fixture === 'radioButton'
-                        ? CONTROL_TYPES.radioButton
-                        : fixture === 'dateChooser'
-                          ? CONTROL_TYPES.dateChooser
-                          : fixture === 'numericStepper'
-                            ? CONTROL_TYPES.numericStepper
-                            : undefined;
+                      : fixture === 'catalogPopover'
+                        ? CONTROL_TYPES.popover
+                        : fixture === 'radioButton'
+                          ? CONTROL_TYPES.radioButton
+                          : fixture === 'dateChooser'
+                            ? CONTROL_TYPES.dateChooser
+                            : fixture === 'numericStepper'
+                              ? CONTROL_TYPES.numericStepper
+                              : undefined;
   const inspectorTitle =
     fixture === 'components'
       ? 'Reusable Card'

@@ -872,6 +872,48 @@ describe('control thumbnail projection', () => {
     expect(projections[0]?.textLayout?.lines[0]?.text).toBe('a tooltip');
   });
 
+  it('projects every Popover side and discrete pointer position through one colored bubble path', () => {
+    const definition = getControlSpec(CONTROL_TYPES.popover);
+    if (definition === undefined) throw new Error('Popover definition is missing.');
+    const directions = ['top', 'right', 'bottom', 'left'] as const;
+    const projections = directions.flatMap((direction) =>
+      ['0', '1', '2', '3', '4'].map((position) =>
+        createControlSceneProjection({
+          bounds: createWorldRect(0, 0, 222, 187),
+          definition,
+          identity: `popover-${direction}-${position}`,
+          properties: {
+            ...definition.defaultProperties,
+            bold: true,
+            color: DESIGN_TOKENS.color.accent,
+            direction,
+            position,
+            text: 'Name: Thor',
+          },
+          textMeasurementService: measurementService,
+        }),
+      ),
+    );
+
+    expect(new Set(projections.map(({ markPath }) => markPath))).toHaveLength(20);
+    for (const projection of projections) {
+      expect(projection).toMatchObject({
+        fillColor: DESIGN_TOKENS.color.accent,
+        markFillColor: DESIGN_TOKENS.color.accent,
+        markStrokeColor: DESIGN_TOKENS.color.ink,
+        outlinePath: '',
+        textLayout: { fontWeight: 'bold', textAnchor: 'middle' },
+      });
+      expect(projection.markPath).toContain('Z');
+      expect(projection.markPath).not.toMatch(/NaN|Infinity/u);
+    }
+    expect(projections[0]?.primitiveBounds).toEqual({ height: 169, width: 222, x: 0, y: 18 });
+    expect(projections[5]?.primitiveBounds).toEqual({ height: 187, width: 204, x: 0, y: 0 });
+    expect(projections[10]?.primitiveBounds).toEqual({ height: 169, width: 222, x: 0, y: 0 });
+    expect(projections[15]?.primitiveBounds).toEqual({ height: 187, width: 204, x: 18, y: 0 });
+    expect(projections[0]?.textLayout?.lines[0]?.text).toBe('Name: Thor');
+  });
+
   it('projects Callout color, opacity, elliptical outline, and centered multiline text', () => {
     const definition = getControlSpec(CONTROL_TYPES.callout);
     if (definition === undefined) throw new Error('Callout definition is missing.');

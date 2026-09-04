@@ -105,6 +105,7 @@ export const createControlSceneProjection = ({
   const contentBounds =
     definition.scene.kind === 'circle-button' ||
     definition.scene.kind === 'comment' ||
+    definition.scene.kind === 'popover' ||
     definition.scene.kind === 'tooltip' ||
     definition.scene.trailingAdornment !== undefined
       ? primitiveBounds
@@ -181,6 +182,12 @@ export const createControlSceneProjection = ({
             return `M ${String(x)} ${String(bounds.y)} L ${String(x)} ${String(bounds.y + bounds.height)}`;
           })
           .join(' ');
+  const fillColor =
+    style === undefined
+      ? definition.scene.colorTarget === 'fill'
+        ? fallbackColor
+        : undefined
+      : resolveColor(style.fillColorProperty);
   return Object.freeze({
     borderVisible:
       borderVisibility === false ||
@@ -189,12 +196,7 @@ export const createControlSceneProjection = ({
         : true,
     bounds,
     disabled,
-    fillColor:
-      style === undefined
-        ? definition.scene.colorTarget === 'fill'
-          ? fallbackColor
-          : undefined
-        : resolveColor(style.fillColorProperty),
+    fillColor,
     fillRadiusX: fillRadii?.x,
     fillRadiusY: fillRadii?.y,
     icon: createControlSceneIconProjection(definition, contentBounds, properties, textLayout),
@@ -205,7 +207,10 @@ export const createControlSceneProjection = ({
     ]
       .filter((path) => path.length > 0)
       .join(' '),
-    markFillColor: definition.scene.markStyle?.fillColor ?? undefined,
+    markFillColor:
+      definition.scene.markStyle === undefined
+        ? undefined
+        : (definition.scene.markStyle.fillColor ?? fillColor),
     markStrokeColor: definition.scene.markStyle?.strokeColor ?? undefined,
     outlinePath: createControlSceneOutlinePath(
       definition.type,

@@ -59,7 +59,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(50);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(51);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -113,6 +113,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.comment,
       CONTROL_TYPES.tooltip,
       CONTROL_TYPES.callout,
+      CONTROL_TYPES.popover,
     ]);
   });
 
@@ -260,6 +261,54 @@ describe('registry-backed control insertion', () => {
     if (!encoded.ok) throw new Error('Tooltip project did not encode.');
     const reopened = decodeProjectFileEnvelope(encoded.value);
     if (!reopened.ok) throw new Error('Tooltip project did not reopen.');
+    expect(reopened.value.document.elementsById[elementId]).toEqual(
+      styled.document.elementsById[elementId],
+    );
+  });
+
+  it('round-trips edited Popover direction, position, color, and text through the current format', () => {
+    const boardId = BoardIdSchema.parse('board_popover_codec');
+    const elementId = ElementIdSchema.parse('element_popover_codec');
+    const created = createEmptyProjectDocument({
+      boardId,
+      projectId: ProjectIdSchema.parse('project_popover_codec'),
+    });
+    const definition = getControlSpec(CONTROL_TYPES.popover);
+    if (!created.ok || definition === undefined) {
+      throw new Error('Popover codec fixture is incomplete.');
+    }
+    const inserted = dispatchDocumentCommand(
+      created.value,
+      createControlInsertionCommand({
+        boardId,
+        center: createWorldPoint(300, 240),
+        controlType: definition.type,
+        document: created.value,
+        elementId,
+      }),
+    );
+    if (!inserted.ok || !inserted.changed) throw new Error('Popover did not insert.');
+    const styled = dispatchDocumentCommand(inserted.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId,
+      properties: {
+        ...definition.defaultProperties,
+        bold: true,
+        color: '#336699',
+        direction: 'left',
+        fontSize: 18,
+        italic: true,
+        position: '4',
+        text: 'Name: Thor',
+        underline: true,
+      },
+    });
+    if (!styled.ok || !styled.changed) throw new Error('Popover style did not commit.');
+
+    const encoded = encodeProjectFileEnvelope(styled.document, {});
+    if (!encoded.ok) throw new Error('Popover project did not encode.');
+    const reopened = decodeProjectFileEnvelope(encoded.value);
+    if (!reopened.ok) throw new Error('Popover project did not reopen.');
     expect(reopened.value.document.elementsById[elementId]).toEqual(
       styled.document.elementsById[elementId],
     );

@@ -159,6 +159,7 @@ describe('alpha control authoring UI', () => {
       'Comment',
       'Tooltip',
       'Callout',
+      'Popover',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -213,6 +214,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.comment,
       CONTROL_TYPES.tooltip,
       CONTROL_TYPES.callout,
+      CONTROL_TYPES.popover,
     ]);
   });
 
@@ -450,6 +452,50 @@ describe('alpha control authoring UI', () => {
     expect(onSetProperties.mock.calls[1]?.[0]?.[0]).toMatchObject({
       elementId,
       properties: { state: 'disabled' },
+    });
+  });
+
+  it('edits the exact Popover direction and discrete position through generic choices', () => {
+    const { document, elementId } = createControlDocument(CONTROL_TYPES.popover);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Popover' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Direction' })).getByRole('button', {
+        name: 'Left',
+      }),
+    );
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Position' })).getByRole('button', {
+        name: 'End',
+      }),
+    );
+
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { direction: 'left' },
+    });
+    expect(onSetProperties.mock.calls[1]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { position: '4' },
     });
   });
 

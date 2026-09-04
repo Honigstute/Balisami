@@ -92,10 +92,15 @@ describe('control library query', () => {
       CONTROL_TYPES.comment,
       CONTROL_TYPES.tooltip,
       CONTROL_TYPES.callout,
+      CONTROL_TYPES.popover,
     ]);
-    expect(queryControlLibrary({ category: 'Containers' }).map(({ type }) => type)).toContain(
+    expect(queryControlLibrary({ category: 'Containers' }).map(({ type }) => type)).toEqual([
+      CONTROL_TYPES.browser,
+      CONTROL_TYPES.modalScreen,
+      CONTROL_TYPES.treePane,
       CONTROL_TYPES.fieldSet,
-    );
+      CONTROL_TYPES.popover,
+    ]);
   });
 
   it('ranks labels, aliases, and tags through one normalized search path', () => {
@@ -121,6 +126,7 @@ describe('control library query', () => {
       CONTROL_TYPES.dateChooser,
     );
     expect(queryControlLibrary({ query: 'spinner' })[0]?.type).toBe(CONTROL_TYPES.numericStepper);
+    expect(queryControlLibrary({ query: 'ipad popover' })[0]?.type).toBe(CONTROL_TYPES.popover);
     expect(queryControlLibrary({ query: 'photo' })[0]?.type).toBe(CONTROL_TYPES.imagePlaceholder);
     expect(queryControlLibrary({ query: 'website' })[0]?.type).toBe(CONTROL_TYPES.browser);
     expect(queryControlLibrary({ query: '  BROWSER-window ' })[0]?.type).toBe(
