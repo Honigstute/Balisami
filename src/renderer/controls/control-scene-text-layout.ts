@@ -75,7 +75,12 @@ export const calculateControlSceneTextLayout = (
     throw new Error('Control text measurement returned inconsistent line geometry.');
   }
 
-  const layoutTop = bounds.y + (bounds.height - measurement.height) / 2;
+  // Field-set legends live on the frame's top edge. Every other text-bearing
+  // primitive retains the shared vertically centered layout.
+  const layoutTop =
+    definition.scene.kind === 'field-set'
+      ? bounds.y
+      : bounds.y + (bounds.height - measurement.height) / 2;
   const hasCenteredIcon =
     definition.capabilities.icon && alignment === 'center' && typeof properties.iconId === 'string';
   const iconSize = Math.min(

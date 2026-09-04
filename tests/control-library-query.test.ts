@@ -79,7 +79,11 @@ describe('control library query', () => {
       CONTROL_TYPES.treePane,
       CONTROL_TYPES.searchBox,
       CONTROL_TYPES.textArea,
+      CONTROL_TYPES.fieldSet,
     ]);
+    expect(queryControlLibrary({ category: 'Containers' }).map(({ type }) => type)).toContain(
+      CONTROL_TYPES.fieldSet,
+    );
   });
 
   it('ranks labels, aliases, and tags through one normalized search path', () => {
@@ -87,6 +91,7 @@ describe('control library query', () => {
     expect(queryControlLibrary({ query: 'cta' })[0]?.type).toBe(CONTROL_TYPES.button);
     expect(queryControlLibrary({ query: 'subheading' })[0]?.type).toBe(CONTROL_TYPES.textSubtitle);
     expect(queryControlLibrary({ query: 'big title' })[0]?.type).toBe(CONTROL_TYPES.textTitle);
+    expect(queryControlLibrary({ query: 'group box' })[0]?.type).toBe(CONTROL_TYPES.fieldSet);
     expect(queryControlLibrary({ query: 'photo' })[0]?.type).toBe(CONTROL_TYPES.imagePlaceholder);
     expect(queryControlLibrary({ query: 'website' })[0]?.type).toBe(CONTROL_TYPES.browser);
     expect(queryControlLibrary({ query: '  BROWSER-window ' })[0]?.type).toBe(

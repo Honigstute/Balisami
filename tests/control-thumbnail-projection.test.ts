@@ -54,6 +54,14 @@ describe('control thumbnail projection', () => {
           definition.type,
           bounds,
           `control-thumbnail:${definition.type}`,
+          definition.defaultProperties,
+          first.textLayout === undefined
+            ? undefined
+            : {
+                fontSize: first.textLayout.fontSize,
+                textWidth: first.textLayout.width,
+                x: first.textLayout.lines[0]?.x ?? bounds.x,
+              },
         ),
       );
       expect(first.viewBox.width).toBeGreaterThan(bounds.width);
@@ -601,5 +609,46 @@ describe('control thumbnail projection', () => {
         textMeasurementService: measurementService,
       }),
     ).toMatchObject({ disabled: true, opacity: 0.45 });
+  });
+
+  it('projects the Field Set legend into one measured gap on the top frame', () => {
+    const definition = getControlSpec(CONTROL_TYPES.fieldSet);
+    if (definition === undefined) throw new Error('Field Set definition is missing.');
+
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 200, 170),
+      definition,
+      identity: 'field-set-projection',
+      properties: { ...definition.defaultProperties, color: '#f2f2f2', opacity: 0.6 },
+      textMeasurementService: measurementService,
+    });
+
+    expect(projection).toMatchObject({
+      fillColor: '#f2f2f2',
+      opacity: 0.6,
+      textLayout: {
+        lines: [{ baselineY: 13, text: 'Group Name', x: 16 }],
+        textAnchor: 'start',
+        width: 65,
+      },
+    });
+    expect(projection.outlinePath).not.toBe(
+      createControlSceneOutlinePath(
+        definition.type,
+        createWorldRect(0, 0, 200, 170),
+        'field-set-projection',
+        definition.defaultProperties,
+      ),
+    );
+    expect(projection.outlinePath).not.toContain('NaN');
+    expect(projection.outlinePath).toBe(
+      createControlSceneProjection({
+        bounds: createWorldRect(0, 0, 200, 170),
+        definition,
+        identity: 'field-set-projection',
+        properties: { ...definition.defaultProperties, color: '#f2f2f2', opacity: 0.6 },
+        textMeasurementService: measurementService,
+      }).outlinePath,
+    );
   });
 });

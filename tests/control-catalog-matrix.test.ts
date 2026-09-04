@@ -27,6 +27,8 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; registry visual fixture; hit-shape, accessibility, and auto-size',
   'wireframe.checkbox-group':
     'common harness; exact marker grammar, stable row identity, inspector, and stacked scene geometry',
+  'wireframe.field-set':
+    'common harness; exact inspector isolation and measured legend frame geometry',
   'wireframe.image-placeholder':
     'common harness; registry visual fixture; image and thumbnail projection',
   'wireframe.h-splitter':

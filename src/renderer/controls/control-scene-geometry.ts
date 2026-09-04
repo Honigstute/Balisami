@@ -68,6 +68,7 @@ export const createControlSceneOutlinePath = (
   bounds: WorldRect,
   elementId: string,
   properties?: ElementProperties,
+  legend?: Readonly<{ fontSize: number; textWidth: number; x: number }>,
 ): string => {
   const definition = requireDefinition(controlType);
   if (definition.scene.kind === 'text' || definition.scene.kind === 'transparent') {
@@ -140,6 +141,56 @@ export const createControlSceneOutlinePath = (
       elementId,
       'help-button-outline',
     );
+  }
+  if (definition.scene.kind === 'field-set' && legend !== undefined) {
+    const left = bounds.x;
+    const right = bounds.x + bounds.width;
+    const bottom = bounds.y + bounds.height;
+    const top = Math.min(bottom, bounds.y + Math.max(0, legend.fontSize) / 2);
+    if (legend.textWidth <= 0) {
+      return createSeededSketchRectPath(
+        createWorldRect(left, top, bounds.width, Math.max(0, bottom - top)),
+        `${elementId}:field-set`,
+      );
+    }
+    const gapStart = Math.max(left, Math.min(right, legend.x - 4));
+    const gapEnd = Math.max(gapStart, Math.min(right, legend.x + legend.textWidth + 4));
+    const segments = [
+      ...(gapStart > left
+        ? [
+            createSeededSketchLinePath({
+              end: createWorldPoint(gapStart, top),
+              seed: `${elementId}:field-set:top-left`,
+              start: createWorldPoint(left, top),
+            }),
+          ]
+        : []),
+      ...(gapEnd < right
+        ? [
+            createSeededSketchLinePath({
+              end: createWorldPoint(right, top),
+              seed: `${elementId}:field-set:top-right`,
+              start: createWorldPoint(gapEnd, top),
+            }),
+          ]
+        : []),
+      createSeededSketchLinePath({
+        end: createWorldPoint(right, bottom),
+        seed: `${elementId}:field-set:right`,
+        start: createWorldPoint(right, top),
+      }),
+      createSeededSketchLinePath({
+        end: createWorldPoint(left, bottom),
+        seed: `${elementId}:field-set:bottom`,
+        start: createWorldPoint(right, bottom),
+      }),
+      createSeededSketchLinePath({
+        end: createWorldPoint(left, top),
+        seed: `${elementId}:field-set:left`,
+        start: createWorldPoint(left, bottom),
+      }),
+    ];
+    return segments.join(' ');
   }
   return createSeededSketchRectPath(
     getControlScenePrimitiveBounds(controlType, bounds),
