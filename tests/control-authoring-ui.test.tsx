@@ -155,6 +155,7 @@ describe('alpha control authoring UI', () => {
       'Circle Button',
       'Comment',
       'Tooltip',
+      'Callout',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -205,6 +206,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.circleButton,
       CONTROL_TYPES.comment,
       CONTROL_TYPES.tooltip,
+      CONTROL_TYPES.callout,
     ]);
   });
 

@@ -29,6 +29,7 @@ export const VISUAL_FIXTURE_NAMES = Object.freeze([
   'circleButton',
   'comment',
   'catalogTooltip',
+  'catalogCallout',
   'controls',
   'feedback',
   'tooltip',

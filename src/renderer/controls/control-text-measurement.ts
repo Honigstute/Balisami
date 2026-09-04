@@ -301,7 +301,11 @@ export const calculateControlTextAutoSize = (input: ControlTextAutoSizeInput): C
     throwInvalidInput('Control auto-size exceeds finite world geometry.');
   }
   const clamp = (value: number, minimum: number, maximum: number | undefined): number =>
-    roundControlTextWorldUnit(Math.min(maximum ?? value, Math.max(minimum, value)));
+    roundControlTextWorldUnit(
+      maximum === undefined
+        ? Math.max(minimum, value)
+        : Math.min(maximum, Math.max(minimum, value)),
+    );
   return Object.freeze({
     height:
       input.axis === 'horizontal'

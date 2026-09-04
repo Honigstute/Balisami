@@ -289,4 +289,27 @@ describe('registry-driven control auto-size', () => {
       )?.width,
     ).toBe(119.125);
   });
+
+  it('keeps the exact Callout default and grows both axes for multiline annotations', () => {
+    const callout = createElement(CONTROL_TYPES.callout);
+    if (callout === undefined) throw new Error('Callout Auto-Size fixture is missing.');
+    const measurement = {
+      measure: ({ text }: { text: string }) => ({
+        baselineOffsets: text.includes('\n') ? [13, 31.2] : [13],
+        height: text.includes('\n') ? 36.4 : 18.2,
+        lineCount: text.includes('\n') ? 2 : 1,
+        lineHeight: 18.2,
+        lines: text.split('\n'),
+        width: text.includes('\n') ? 80 : 7,
+      }),
+    };
+
+    expect(calculateControlAutoSizeFrame(callout, measurement)).toEqual(callout.frame);
+    expect(
+      calculateControlAutoSizeFrame(
+        { ...callout, properties: { ...callout.properties, text: 'Review this\nflow' } },
+        measurement,
+      ),
+    ).toEqual({ ...callout.frame, height: 56.4, width: 112 });
+  });
 });

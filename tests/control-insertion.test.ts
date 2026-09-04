@@ -59,7 +59,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(46);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(47);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -109,6 +109,7 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.circleButton,
       CONTROL_TYPES.comment,
       CONTROL_TYPES.tooltip,
+      CONTROL_TYPES.callout,
     ]);
   });
 
@@ -319,6 +320,52 @@ describe('registry-backed control insertion', () => {
       );
     },
   );
+
+  it('round-trips an edited multiline Callout through the current project format', () => {
+    const boardId = BoardIdSchema.parse('board_callout_codec');
+    const elementId = ElementIdSchema.parse('element_callout_codec');
+    const created = createEmptyProjectDocument({
+      boardId,
+      projectId: ProjectIdSchema.parse('project_callout_codec'),
+    });
+    const definition = getControlSpec(CONTROL_TYPES.callout);
+    if (!created.ok || definition === undefined) {
+      throw new Error('Callout codec fixture is incomplete.');
+    }
+    const inserted = dispatchDocumentCommand(
+      created.value,
+      createControlInsertionCommand({
+        boardId,
+        center: createWorldPoint(300, 240),
+        controlType: CONTROL_TYPES.callout,
+        document: created.value,
+        elementId,
+      }),
+    );
+    if (!inserted.ok || !inserted.changed) throw new Error('Callout did not insert.');
+    const styled = dispatchDocumentCommand(inserted.document, {
+      type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+      elementId,
+      properties: {
+        ...definition.defaultProperties,
+        bold: true,
+        color: '#ffcc00',
+        fontSize: 18,
+        italic: true,
+        opacity: 0.55,
+        text: 'Review this\nflow',
+        underline: true,
+      },
+    });
+    if (!styled.ok || !styled.changed) throw new Error('Callout style did not commit.');
+    const encoded = encodeProjectFileEnvelope(styled.document, {});
+    if (!encoded.ok) throw new Error('Callout project did not encode.');
+    const reopened = decodeProjectFileEnvelope(encoded.value);
+    if (!reopened.ok) throw new Error('Callout project did not reopen.');
+    expect(reopened.value.document.elementsById[elementId]).toEqual(
+      styled.document.elementsById[elementId],
+    );
+  });
 
   it('centers exact drag placement without the click-insertion cascade', () => {
     const boardId = BoardIdSchema.parse('board_controldrag');

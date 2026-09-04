@@ -79,6 +79,7 @@ export const CONTROL_TYPES = Object.freeze({
   circleButton: ControlTypeIdSchema.parse('wireframe.circle-button'),
   comment: ControlTypeIdSchema.parse('wireframe.comment'),
   tooltip: ControlTypeIdSchema.parse('wireframe.tooltip'),
+  callout: ControlTypeIdSchema.parse('wireframe.callout'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -314,6 +315,14 @@ const tooltipPropertiesSchema = z
   .strictObject({
     ...centeredTextStyleSchemaShape,
     direction: z.enum(['SE', 'SW', 'NE', 'NW']),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+  })
+  .readonly();
+const calloutPropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    color: sceneColorSchema,
+    opacity: z.number().min(0).max(1),
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
@@ -3197,6 +3206,75 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['annotation', 'help', 'hint', 'hover'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.tooltip,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Callout', 'img', 'text'),
+    aliases: ['annotation badge', 'numbered annotation', 'numbered callout'],
+    autoSize: createAutoSize('both', 16, 16, 10, 10),
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: true,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        10,
+        {
+          boldProperty: 'bold',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      color: DESIGN_TOKENS.color.wireframeCalloutFill,
+      opacity: 1,
+      text: '1',
+    },
+    defaultSize: createSize(39, 39),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Color', property: 'color' },
+          {
+            kind: 'range',
+            label: 'Opacity',
+            maximum: 1,
+            minimum: 0,
+            property: 'opacity',
+            step: 0.05,
+          },
+        ]),
+        label: 'Appearance',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(39, 39),
+    palette: createPalette('Callout', 'Markup', 430),
+    propertiesSchema: calloutPropertiesSchema,
+    scene: createScene('callout', ['text'], undefined, Object.freeze({ kind: 'ellipse' }), 'fill', {
+      borderHiddenValues: Object.freeze([]),
+      borderModeProperty: null,
+      borderVisibilityProperty: null,
+      fillColorProperty: 'color',
+      opacityProperty: 'opacity',
+      strokeColorProperty: null,
+    }),
+    tags: ['annotation', 'badge', 'callout', 'number', 'markup'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.callout,
   }),
 ]);
 

@@ -19,6 +19,7 @@ export type ControlVisualKind =
   | 'browser'
   | 'button'
   | 'calendar'
+  | 'callout'
   | 'chart-bar'
   | 'chart-line'
   | 'chart-pie'
