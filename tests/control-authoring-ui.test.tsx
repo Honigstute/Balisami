@@ -500,6 +500,46 @@ describe('alpha control authoring UI', () => {
   });
 
   it.each([
+    ['H.Curly Brace', CONTROL_TYPES.hCurlyBrace, 'Bottom'],
+    ['V.Curly Brace', CONTROL_TYPES.vCurlyBrace, 'Right'],
+  ] as const)('edits %s direction through the generic inspector', (_label, controlType, choice) => {
+    const { document, elementId } = createControlDocument(controlType);
+    const selection = new SelectionStore();
+    selection.selectOnly(elementId);
+    const onSetProperties = vi.fn<
+      (updates: readonly ControlInspectorPropertiesUpdate[]) => boolean
+    >(() => true);
+    render(
+      <ControlInspector
+        document={document}
+        onAutoSize={() => Promise.resolve(true)}
+        onSetFrames={() => true}
+        onSetProperties={onSetProperties}
+        selection={selection}
+      />,
+    );
+
+    expect(
+      globalThis.document.body.querySelector(`[data-inspector-control='${String(controlType)}']`),
+    ).not.toBeNull();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Direction' })).getByRole('button', {
+        name: choice,
+      }),
+    );
+
+    expect(onSetProperties.mock.calls[0]?.[0]?.[0]).toMatchObject({
+      elementId,
+      properties: { direction: choice.toLowerCase() },
+    });
+  });
+
+  it.each([
     ['Text Subtitle', CONTROL_TYPES.textSubtitle],
     ['Text Title', CONTROL_TYPES.textTitle],
   ] as const)(

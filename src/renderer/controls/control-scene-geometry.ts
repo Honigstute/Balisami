@@ -48,6 +48,37 @@ const getPopoverBodyBounds = (bounds: WorldRect, properties: ElementProperties):
   );
 };
 
+const getCurlyBraceContentBounds = (
+  definition: ControlDefinition,
+  bounds: WorldRect,
+  properties: ElementProperties,
+): WorldRect => {
+  const orientation = definition.scene.curlyBrace?.orientation;
+  if (orientation === undefined) {
+    throw new Error(`Curly Brace control '${definition.type}' is missing geometry metadata.`);
+  }
+  const perpendicularExtent = orientation === 'horizontal' ? bounds.height : bounds.width;
+  const braceExtent = Math.min(24, perpendicularExtent * 0.32);
+  const gap = Math.min(8, perpendicularExtent * 0.08);
+  const contentInset = braceExtent + gap;
+  if (orientation === 'horizontal') {
+    const contentHeight = Math.max(0, bounds.height - contentInset);
+    return createWorldRect(
+      bounds.x,
+      properties.direction === 'top' ? bounds.y + contentInset : bounds.y,
+      bounds.width,
+      contentHeight,
+    );
+  }
+  const contentWidth = Math.max(0, bounds.width - contentInset);
+  return createWorldRect(
+    properties.direction === 'left' ? bounds.x + contentInset : bounds.x,
+    bounds.y,
+    contentWidth,
+    bounds.height,
+  );
+};
+
 /** Bounds of the definition's primary outlined primitive, separate from its hit bounds. */
 export const getControlScenePrimitiveBounds = (
   controlType: ControlTypeId,
@@ -100,6 +131,13 @@ export const getControlScenePrimitiveBounds = (
   }
   if (definition.scene.kind === 'popover') {
     return getPopoverBodyBounds(bounds, properties ?? definition.defaultProperties);
+  }
+  if (definition.scene.kind === 'curly-brace') {
+    return getCurlyBraceContentBounds(
+      definition,
+      bounds,
+      properties ?? definition.defaultProperties,
+    );
   }
   if (definition.scene.kind === 'radio-button') {
     const radio = definition.scene.radio;
@@ -168,6 +206,7 @@ export const createControlSceneOutlinePath = (
   const definition = requireDefinition(controlType);
   if (
     definition.scene.kind === 'comment' ||
+    definition.scene.kind === 'curly-brace' ||
     definition.scene.kind === 'text' ||
     definition.scene.kind === 'popover' ||
     definition.scene.kind === 'tooltip' ||
@@ -472,6 +511,50 @@ const createPopoverMarkPath = (bounds: WorldRect, properties: ElementProperties)
     ...leftEdge,
     `Q ${String(left)} ${String(top)} ${String(left + radius)} ${String(top)}`,
     'Z',
+  ].join(' ');
+};
+
+const createCurlyBraceMarkPath = (
+  definition: ControlDefinition,
+  bounds: WorldRect,
+  properties: ElementProperties,
+): string => {
+  const orientation = definition.scene.curlyBrace?.orientation;
+  if (orientation === undefined) {
+    throw new Error(`Curly Brace control '${definition.type}' is missing geometry metadata.`);
+  }
+  const horizontal = orientation === 'horizontal';
+  const perpendicularExtent = horizontal ? bounds.height : bounds.width;
+  const braceExtent = Math.min(24, perpendicularExtent * 0.32);
+  const depth = Math.max(0, braceExtent - 2);
+  const positiveSide =
+    (horizontal && properties.direction === 'top') ||
+    (!horizontal && properties.direction === 'left');
+  const edge = horizontal
+    ? positiveSide
+      ? bounds.y + 1
+      : bounds.y + bounds.height - 1
+    : positiveSide
+      ? bounds.x + 1
+      : bounds.x + bounds.width - 1;
+  const sign = positiveSide ? 1 : -1;
+  const majorStart = horizontal ? bounds.x + 1 : bounds.y + 1;
+  const majorExtent = Math.max(0, (horizontal ? bounds.width : bounds.height) - 2);
+  const point = (ratio: number, offset: number): string => {
+    const major = majorStart + majorExtent * ratio;
+    const minor = edge + sign * offset;
+    return horizontal ? `${String(major)} ${String(minor)}` : `${String(minor)} ${String(major)}`;
+  };
+  const shallow = depth * 0.32;
+  const shoulder = depth * 0.12;
+  return [
+    `M ${point(0, 0)}`,
+    `C ${point(0.06, 0)} ${point(0.08, shallow)} ${point(0.22, shallow)}`,
+    `C ${point(0.36, shallow)} ${point(0.4, shoulder)} ${point(0.47, shoulder)}`,
+    `C ${point(0.49, shoulder)} ${point(0.49, depth)} ${point(0.5, depth)}`,
+    `C ${point(0.51, depth)} ${point(0.51, shoulder)} ${point(0.53, shoulder)}`,
+    `C ${point(0.6, shoulder)} ${point(0.64, shallow)} ${point(0.78, shallow)}`,
+    `C ${point(0.92, shallow)} ${point(0.94, 0)} ${point(1, 0)}`,
   ].join(' ');
 };
 
@@ -1325,6 +1408,9 @@ export const createControlSceneMarkPath = (
   if (definition.scene.kind === 'popover') {
     return createPopoverMarkPath(bounds, properties);
   }
+  if (definition.scene.kind === 'curly-brace') {
+    return createCurlyBraceMarkPath(definition, bounds, properties);
+  }
   if (definition.scene.kind === 'image') {
     return createImagePlaceholderMarkPath(bounds, elementId);
   }
@@ -1428,6 +1514,7 @@ export const createControlSceneMarkPath = (
 export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
   ![
     'arrow',
+    'curly-brace',
     'h-rule',
     'help-button',
     'popover',
@@ -1441,6 +1528,7 @@ export const controlSceneHasFill = (definition: ControlDefinition): boolean =>
 export const controlSceneHasOutline = (definition: ControlDefinition): boolean =>
   ![
     'comment',
+    'curly-brace',
     'popover',
     'red-x',
     'scratch-out',

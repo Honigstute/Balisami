@@ -59,7 +59,7 @@ describe('registry-backed control insertion', () => {
       });
     }
 
-    expect(document.boardsById[boardId]?.childIds).toHaveLength(51);
+    expect(document.boardsById[boardId]?.childIds).toHaveLength(53);
     expect(
       document.boardsById[boardId]?.childIds.map((id) => document.elementsById[id]?.controlType),
     ).toEqual([
@@ -114,6 +114,8 @@ describe('registry-backed control insertion', () => {
       CONTROL_TYPES.tooltip,
       CONTROL_TYPES.callout,
       CONTROL_TYPES.popover,
+      CONTROL_TYPES.hCurlyBrace,
+      CONTROL_TYPES.vCurlyBrace,
     ]);
   });
 
@@ -313,6 +315,59 @@ describe('registry-backed control insertion', () => {
       styled.document.elementsById[elementId],
     );
   });
+
+  it.each([
+    ['horizontal', CONTROL_TYPES.hCurlyBrace, 'bottom'],
+    ['vertical', CONTROL_TYPES.vCurlyBrace, 'right'],
+  ] as const)(
+    'round-trips an edited %s Curly Brace through the current format',
+    (orientation, controlType, direction) => {
+      const boardId = BoardIdSchema.parse(`board_${orientation}curly_codec`);
+      const elementId = ElementIdSchema.parse(`element_${orientation}curly_codec`);
+      const created = createEmptyProjectDocument({
+        boardId,
+        projectId: ProjectIdSchema.parse(`project_${orientation}curly_codec`),
+      });
+      const definition = getControlSpec(controlType);
+      if (!created.ok || definition === undefined) {
+        throw new Error(`${orientation} Curly Brace codec fixture is incomplete.`);
+      }
+      const inserted = dispatchDocumentCommand(
+        created.value,
+        createControlInsertionCommand({
+          boardId,
+          center: createWorldPoint(300, 240),
+          controlType,
+          document: created.value,
+          elementId,
+        }),
+      );
+      if (!inserted.ok || !inserted.changed) throw new Error('Curly Brace did not insert.');
+      const styled = dispatchDocumentCommand(inserted.document, {
+        type: DOCUMENT_COMMAND_TYPES.setElementProperties,
+        elementId,
+        properties: {
+          ...definition.defaultProperties,
+          bold: true,
+          direction,
+          fontSize: 18,
+          italic: true,
+          text: 'Edited brace\nannotation',
+          textColor: '#336699',
+          underline: true,
+        },
+      });
+      if (!styled.ok || !styled.changed) throw new Error('Curly Brace style did not commit.');
+
+      const encoded = encodeProjectFileEnvelope(styled.document, {});
+      if (!encoded.ok) throw new Error('Curly Brace project did not encode.');
+      const reopened = decodeProjectFileEnvelope(encoded.value);
+      if (!reopened.ok) throw new Error('Curly Brace project did not reopen.');
+      expect(reopened.value.document.elementsById[elementId]).toEqual(
+        styled.document.elementsById[elementId],
+      );
+    },
+  );
 
   it.each([
     ['subtitle', CONTROL_TYPES.textSubtitle],

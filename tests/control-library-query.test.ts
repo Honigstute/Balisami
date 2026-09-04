@@ -93,6 +93,8 @@ describe('control library query', () => {
       CONTROL_TYPES.tooltip,
       CONTROL_TYPES.callout,
       CONTROL_TYPES.popover,
+      CONTROL_TYPES.hCurlyBrace,
+      CONTROL_TYPES.vCurlyBrace,
     ]);
     expect(queryControlLibrary({ category: 'Containers' }).map(({ type }) => type)).toEqual([
       CONTROL_TYPES.browser,
@@ -127,6 +129,12 @@ describe('control library query', () => {
     );
     expect(queryControlLibrary({ query: 'spinner' })[0]?.type).toBe(CONTROL_TYPES.numericStepper);
     expect(queryControlLibrary({ query: 'ipad popover' })[0]?.type).toBe(CONTROL_TYPES.popover);
+    expect(queryControlLibrary({ query: 'horizontal brace' })[0]?.type).toBe(
+      CONTROL_TYPES.hCurlyBrace,
+    );
+    expect(queryControlLibrary({ query: 'vertical bracket' })[0]?.type).toBe(
+      CONTROL_TYPES.vCurlyBrace,
+    );
     expect(queryControlLibrary({ query: 'photo' })[0]?.type).toBe(CONTROL_TYPES.imagePlaceholder);
     expect(queryControlLibrary({ query: 'website' })[0]?.type).toBe(CONTROL_TYPES.browser);
     expect(queryControlLibrary({ query: '  BROWSER-window ' })[0]?.type).toBe(

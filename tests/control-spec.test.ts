@@ -68,6 +68,8 @@ describe('control definition registry', () => {
       CONTROL_TYPES.tooltip,
       CONTROL_TYPES.callout,
       CONTROL_TYPES.popover,
+      CONTROL_TYPES.hCurlyBrace,
+      CONTROL_TYPES.vCurlyBrace,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -128,6 +130,8 @@ describe('control definition registry', () => {
       'Tooltip',
       'Callout',
       'Popover',
+      'H.Curly Brace',
+      'V.Curly Brace',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -1367,4 +1371,82 @@ describe('control definition registry', () => {
         .success,
     ).toBe(false);
   });
+
+  it.each([
+    [
+      'horizontal',
+      CONTROL_TYPES.hCurlyBrace,
+      { height: 80, width: 200 },
+      { height: 20, width: 24 },
+      'top',
+      [
+        { label: 'Top', value: 'top' },
+        { label: 'Bottom', value: 'bottom' },
+      ],
+    ],
+    [
+      'vertical',
+      CONTROL_TYPES.vCurlyBrace,
+      { height: 140, width: 180 },
+      { height: 24, width: 14 },
+      'left',
+      [
+        { label: 'Left', value: 'left' },
+        { label: 'Right', value: 'right' },
+      ],
+    ],
+  ] as const)(
+    'owns the official %s Curly Brace default and exact direction vocabulary',
+    (orientation, controlType, defaultSize, minimumSize, direction, options) => {
+      const definition = getControlSpec(controlType);
+
+      expect(definition).toMatchObject({
+        accessibility: { nameProperty: 'text', role: 'img' },
+        autoSize: null,
+        capabilities: {
+          border: false,
+          fill: false,
+          grouping: 'leaf',
+          icon: false,
+          link: false,
+          resizeAxes: 'both',
+          state: false,
+        },
+        defaultProperties: {
+          bold: false,
+          direction,
+          fontSize: 13,
+          italic: false,
+          text: 'A paragraph of text.\nA second row of text.',
+          textColor: 'default',
+          underline: false,
+        },
+        defaultSize,
+        minimumSize,
+        scene: {
+          colorTarget: 'stroke',
+          curlyBrace: { orientation },
+          hitShape: { kind: 'bounds' },
+          kind: 'curly-brace',
+        },
+      });
+      expect(definition?.inspector.flatMap((section) => section.fields)).toEqual([
+        expect.objectContaining({ kind: 'color', property: 'textColor' }),
+        expect.objectContaining({ kind: 'choice', options, property: 'direction' }),
+        expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+        expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+        expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+        expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+      ]);
+      expect(definition?.propertiesSchema.safeParse(definition.defaultProperties).success).toBe(
+        true,
+      );
+      expect(
+        definition?.propertiesSchema.safeParse({
+          ...definition.defaultProperties,
+          direction: orientation === 'horizontal' ? 'left' : 'top',
+        }).success,
+      ).toBe(false);
+    },
+  );
 });
