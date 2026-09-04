@@ -410,6 +410,69 @@ describe('board thumbnail projection', () => {
     });
   });
 
+  it('keeps edited Num. Stepper text, buttons, and accessibility identical across surfaces', () => {
+    const input = createValidProjectDocumentInput();
+    const stepper = getControlSpec(CONTROL_TYPES.numericStepper);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (stepper === undefined || child === undefined) {
+      throw new Error('Num. Stepper cross-surface fixture is incomplete.');
+    }
+    child.controlType = stepper.type;
+    child.controlVersion = stepper.fileVersion;
+    child.frame = { x: 16, y: 24, width: 66, height: 24 };
+    child.properties = {
+      ...stepper.defaultProperties,
+      bold: true,
+      borderColor: '#445566',
+      state: 'disabled',
+      text: '12:35',
+    };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Num. Stepper cross-surface fixture is invalid.');
+    const textMeasurementService = {
+      measure: ({ fontSize, text }: { fontSize: number; text: string }) => ({
+        baselineOffsets: [fontSize],
+        height: fontSize * 1.2,
+        lineCount: 1,
+        lineHeight: fontSize * 1.2,
+        lines: [text],
+        width: text.length * fontSize * 0.5,
+      }),
+    };
+
+    const thumbnail = createBoardThumbnailProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+    const presentation = createBoardPresentationProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+    expect(thumbnail).toMatchObject({
+      disabled: true,
+      hasFill: true,
+      hasOutline: true,
+      opacity: 0.45,
+      primitiveBounds: { height: 24, width: 51 },
+      strokeColor: '#445566',
+      visualKind: 'input',
+    });
+    expect(thumbnail?.markPath).not.toBe('');
+    expect(presentation).toMatchObject({
+      accessibleName: '12:35',
+      markPath: thumbnail?.markPath,
+      role: 'textbox',
+      strokeColor: thumbnail?.strokeColor,
+      textLayout: thumbnail?.textLayout,
+      visualKind: 'input',
+    });
+  });
+
   it('keeps styled disabled Text Area geometry and accessibility identical across surfaces', () => {
     const input = createValidProjectDocumentInput();
     const textArea = getControlSpec(CONTROL_TYPES.textArea);

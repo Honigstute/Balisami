@@ -358,4 +358,27 @@ describe('registry-driven control auto-size', () => {
       ),
     ).toEqual({ ...chooser.frame, width: 106 });
   });
+
+  it('keeps the official Num. Stepper default and reserves its fixed button affordance', () => {
+    const stepper = createElement(CONTROL_TYPES.numericStepper);
+    if (stepper === undefined) throw new Error('Num. Stepper Auto-Size fixture is missing.');
+    const measurement = {
+      measure: ({ text }: { text: string }) => ({
+        baselineOffsets: [13],
+        height: 15.6,
+        lineCount: 1,
+        lineHeight: 15.6,
+        lines: [text],
+        width: text === '12:35' ? 32 : 7,
+      }),
+    };
+
+    expect(calculateControlAutoSizeFrame(stepper, measurement)).toEqual(stepper.frame);
+    expect(
+      calculateControlAutoSizeFrame(
+        { ...stepper, properties: { ...stepper.properties, text: '12:35' } },
+        measurement,
+      ),
+    ).toEqual({ ...stepper.frame, width: 66 });
+  });
 });

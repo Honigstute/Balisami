@@ -84,6 +84,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=catalogCallout')).toBe('catalogCallout');
     expect(getRequestedVisualFixture('?visualFixture=radioButton')).toBe('radioButton');
     expect(getRequestedVisualFixture('?visualFixture=dateChooser')).toBe('dateChooser');
+    expect(getRequestedVisualFixture('?visualFixture=numericStepper')).toBe('numericStepper');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -766,6 +767,68 @@ describe('visual conformance fixture contract', () => {
       expect(editedChooser).toHaveAttribute('aria-disabled', 'true');
       expect(editedChooser).toHaveStyle({ opacity: '0.45' });
       expect(editedChooser?.querySelector('.scene-control__outline')).toHaveStyle({
+        stroke: DESIGN_TOKENS.color.accent,
+      });
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders default and edited Num. Steppers with fixed buttons and the exact inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('numericStepper');
+
+    expect(screen.getByRole('button', { name: 'Insert Num. Stepper' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.numeric-stepper"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Num. Stepper' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Border Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'State' })).toHaveTextContent('Disabled');
+    expect(screen.queryByRole('button', { name: 'Icon' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Content' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll(
+        '[data-control-type="wireframe.numeric-stepper"]',
+      );
+      expect(controls).toHaveLength(2);
+      const defaultStepper = view.container.querySelector(
+        '[data-scene-element-id="element_registrynumericstepperdefault"]',
+      );
+      const editedStepper = view.container.querySelector(
+        '[data-scene-element-id="element_registrynumericstepperedited"]',
+      );
+      expect(defaultStepper).toHaveAttribute('role', 'textbox');
+      expect(defaultStepper).toHaveAttribute('aria-label', '3');
+      expect(defaultStepper).toHaveAttribute('aria-disabled', 'false');
+      expect(defaultStepper?.querySelector('.scene-control__fill')).toHaveAttribute('width', '26');
+      expect(defaultStepper?.querySelector('.scene-control__mark')).not.toHaveAttribute(
+        'display',
+        'none',
+      );
+      expect(editedStepper).toHaveAttribute('aria-label', '12:35');
+      expect(editedStepper).toHaveAttribute('aria-disabled', 'true');
+      expect(editedStepper).toHaveStyle({ opacity: '0.45' });
+      expect(editedStepper?.querySelector('.scene-control__outline')).toHaveStyle({
+        stroke: DESIGN_TOKENS.color.accent,
+      });
+      expect(editedStepper?.querySelector('.scene-control__mark')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.ink,
         stroke: DESIGN_TOKENS.color.accent,
       });
     });
