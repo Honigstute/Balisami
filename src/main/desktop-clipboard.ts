@@ -64,8 +64,10 @@ export const writeDesktopClipboard = (
   });
 };
 
-export const readDesktopClipboard = (clipboard: SystemClipboardPort): DesktopClipboardReadValue =>
-  Object.freeze({
+export const readDesktopClipboard = (clipboard: SystemClipboardPort): DesktopClipboardReadValue => {
+  const text = clipboard.readText();
+  return Object.freeze({
     payload: decodeDesktopClipboardHtml(clipboard.readHTML()),
-    text: clipboard.readText().slice(0, DESKTOP_CLIPBOARD_LIMITS.textCharacters),
+    text: text.length <= DESKTOP_CLIPBOARD_LIMITS.textCharacters ? text : '',
   });
+};

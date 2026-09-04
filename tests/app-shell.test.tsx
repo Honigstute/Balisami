@@ -210,6 +210,26 @@ describe('application shell', () => {
     expect(readClipboard).toHaveBeenCalledOnce();
   });
 
+  it('pastes bounded external plain text as one selected Text Label', async () => {
+    const readClipboard = vi.fn<DesktopApi['readClipboard']>().mockResolvedValue({
+      payload: null,
+      text: 'External\r\nnotes',
+    });
+    installDesktopApi(createDesktopApi({ readClipboard }));
+    render(<App />);
+    await screen.findByText('No recent projects yet');
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    const canvas = await screen.findByRole('main', { name: 'Canvas viewport' });
+    const viewport = canvas.querySelector<HTMLElement>('.editor-viewport');
+    if (viewport === null) throw new Error('Editor viewport did not mount.');
+
+    fireEvent.keyDown(viewport, { code: 'KeyV', key: 'v', metaKey: true });
+
+    expect(await screen.findByRole('button', { name: 'Undo Paste text' })).toBeEnabled();
+    expect(screen.getByDisplayValue('External notes')).toBeInTheDocument();
+    expect(readClipboard).toHaveBeenCalledOnce();
+  });
+
   it('draws one registry-supported control as one exact undoable history entry', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,

@@ -127,6 +127,10 @@ import {
   serializePortableSelectionGraph,
   type PortableSelectionGraphPayload,
 } from '../editor/portable-selection-graph';
+import {
+  createPlainTextPasteCommand,
+  normalizePlainTextClipboardValue,
+} from '../editor/plain-text-paste';
 import { deleteSelectedElements, type SelectionDeleteSource } from '../editor/selection-delete';
 import {
   duplicateSelectedElements,
@@ -834,6 +838,41 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       selection.replace(plan.cloneIds, plan.primaryCloneId);
       return true;
     };
+    const pastePlainText = (value: unknown): boolean => {
+      const text = normalizePlainTextClipboardValue(value);
+      const currentDocument = session.getSnapshot().history?.document;
+      const canonicalBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
+      const boardId =
+        currentDocument === undefined || canonicalBoardId === undefined
+          ? undefined
+          : selectBoardPresentationId(currentDocument, canonicalBoardId);
+      const elementId = text === undefined ? undefined : allocateEditorElementId();
+      const viewport = camera.getViewportSnapshot();
+      const center = viewportPointToWorld(
+        createViewportPoint(viewport.width / 2, viewport.height / 2),
+        camera.getTransformSnapshot(),
+      );
+      if (
+        text === undefined ||
+        currentDocument === undefined ||
+        boardId === undefined ||
+        elementId === undefined
+      ) {
+        return false;
+      }
+      const command = createPlainTextPasteCommand(
+        currentDocument,
+        boardId,
+        elementId,
+        center,
+        text,
+      );
+      if (command === undefined) return false;
+      const result = session.dispatch(command, { label: 'Paste text' });
+      if (result?.ok !== true || !result.changed) return false;
+      selection.selectOnly(elementId);
+      return true;
+    };
     const pasteSelection = (): boolean => {
       if (desktopPastePending) return false;
       desktopPastePending = true;
@@ -852,7 +891,10 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           const portable = parsePortableSelectionClipboardPayload(value.payload);
           const payload =
             portable?.selection ?? parseSerializedSelectionClipboardPayload(value.payload);
-          if (payload === undefined) return;
+          if (payload === undefined) {
+            pastePlainText(value.text);
+            return;
+          }
           if (
             value.payload !== desktopClipboardPayload ||
             clipboard.getSnapshot().payload === undefined

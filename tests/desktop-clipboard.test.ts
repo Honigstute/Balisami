@@ -9,6 +9,7 @@ import {
   writeDesktopClipboard,
   type SystemClipboardPort,
 } from '../src/main/desktop-clipboard';
+import { DESKTOP_CLIPBOARD_LIMITS } from '../src/shared/desktop-api';
 
 const createClipboard = (html = '', text = ''): SystemClipboardPort => ({
   readHTML: () => html,
@@ -45,5 +46,10 @@ describe('desktop clipboard transport', () => {
       'External text',
     );
     expect(readDesktopClipboard(clipboard)).toEqual({ payload: null, text: 'External text' });
+  });
+
+  it('rejects oversized plain text instead of silently truncating it into a valid paste', () => {
+    const clipboard = createClipboard('', 'x'.repeat(DESKTOP_CLIPBOARD_LIMITS.textCharacters + 1));
+    expect(readDesktopClipboard(clipboard)).toEqual({ payload: null, text: '' });
   });
 });
