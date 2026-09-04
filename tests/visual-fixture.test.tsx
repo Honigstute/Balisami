@@ -81,6 +81,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=circleButton')).toBe('circleButton');
     expect(getRequestedVisualFixture('?visualFixture=comment')).toBe('comment');
     expect(getRequestedVisualFixture('?visualFixture=catalogTooltip')).toBe('catalogTooltip');
+    expect(getRequestedVisualFixture('?visualFixture=catalogCallout')).toBe('catalogCallout');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -586,6 +587,60 @@ describe('visual conformance fixture contract', () => {
       expect(
         view.container.querySelector('[data-scene-element-id="element_registrytooltipnw"]'),
       ).toHaveAttribute('aria-label', 'NW tooltip');
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders default and multiline Callouts with the exact selected inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogCallout');
+
+    expect(screen.getByRole('button', { name: 'Insert Callout' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.callout"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Callout' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '↔ Auto-Size' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Opacity' })).toHaveValue('0.72');
+    expect(screen.queryByRole('button', { name: 'Center' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="callout"]');
+      expect(controls).toHaveLength(2);
+      const defaultCallout = view.container.querySelector(
+        '[data-scene-element-id="element_registrycalloutdefault"]',
+      );
+      const editedCallout = view.container.querySelector(
+        '[data-scene-element-id="element_registrycalloutedited"]',
+      );
+      expect(defaultCallout).toHaveAttribute('aria-label', '1');
+      expect(defaultCallout?.querySelector('.scene-control__fill')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.wireframeCalloutFill,
+      });
+      expect(defaultCallout?.querySelector('.scene-control__outline')).toHaveAttribute(
+        'd',
+        expect.stringContaining('C'),
+      );
+      expect(editedCallout).toHaveAttribute('aria-label', 'Review this\nflow');
+      if (document.fonts !== undefined) {
+        expect(editedCallout?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

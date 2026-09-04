@@ -871,4 +871,53 @@ describe('control thumbnail projection', () => {
     expect(projections[3]?.primitiveBounds).toEqual({ height: 25, width: 87, x: 0, y: 0 });
     expect(projections[0]?.textLayout?.lines[0]?.text).toBe('a tooltip');
   });
+
+  it('projects Callout color, opacity, elliptical outline, and centered multiline text', () => {
+    const definition = getControlSpec(CONTROL_TYPES.callout);
+    if (definition === undefined) throw new Error('Callout definition is missing.');
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 112, 56.4),
+      definition,
+      identity: 'callout-edited',
+      properties: {
+        ...definition.defaultProperties,
+        bold: true,
+        color: '#ffcc00',
+        opacity: 0.55,
+        text: 'Review this\nflow',
+      },
+      textMeasurementService: {
+        measure: ({ fontSize, text }) => {
+          const lines = text.split('\n');
+          const lineHeight = fontSize * 1.4;
+          return {
+            baselineOffsets: lines.map((_, index) => fontSize + index * lineHeight),
+            height: lines.length * lineHeight,
+            lineCount: lines.length,
+            lineHeight,
+            lines,
+            width: 80,
+          };
+        },
+      },
+    });
+
+    expect(projection).toMatchObject({
+      fillColor: '#ffcc00',
+      fillRadiusX: 56,
+      fillRadiusY: 28.2,
+      opacity: 0.55,
+      primitiveBounds: { height: 56.4, width: 112, x: 0, y: 0 },
+      textLayout: {
+        fontWeight: 'bold',
+        lines: [
+          { baselineY: 23, text: 'Review this', x: 56 },
+          { baselineY: 41.2, text: 'flow', x: 56 },
+        ],
+        textAnchor: 'middle',
+      },
+    });
+    expect(projection.outlinePath).toContain('C');
+    expect(projection.outlinePath).not.toMatch(/NaN|Infinity/u);
+  });
 });

@@ -113,7 +113,7 @@ export const createControlSceneProjection = ({
       ? Object.freeze({ x: Math.min(14, bounds.width / 2), y: Math.min(14, bounds.height / 2) })
       : definition.scene.kind === 'search-box' && properties.shape === 'rounded'
         ? Object.freeze({ x: bounds.height / 2, y: bounds.height / 2 })
-        : definition.scene.kind === 'circle-button'
+        : definition.scene.kind === 'circle-button' || definition.scene.kind === 'callout'
           ? Object.freeze({ x: primitiveBounds.width / 2, y: primitiveBounds.height / 2 })
           : undefined;
   const parsedRows =

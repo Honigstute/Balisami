@@ -214,6 +214,74 @@ describe('board thumbnail projection', () => {
     });
   });
 
+  it('keeps edited Callout shape, text, and accessibility identical across surfaces', () => {
+    const input = createValidProjectDocumentInput();
+    const callout = getControlSpec(CONTROL_TYPES.callout);
+    const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+    if (callout === undefined || child === undefined) {
+      throw new Error('Callout cross-surface fixture is incomplete.');
+    }
+    child.controlType = callout.type;
+    child.controlVersion = callout.fileVersion;
+    child.frame = { x: 16, y: 24, width: 112, height: 56.4 };
+    child.properties = {
+      ...callout.defaultProperties,
+      bold: true,
+      color: '#ffcc00',
+      opacity: 0.55,
+      text: 'Review this\nflow',
+    };
+    child.assetIds = [];
+    input.assetsById = {};
+    const parsed = parseProjectDocument(input);
+    if (!parsed.ok) throw new Error('Callout cross-surface fixture is invalid.');
+    const textMeasurementService = {
+      measure: ({ fontSize, text }: { fontSize: number; text: string }) => {
+        const lines = text.split('\n');
+        const lineHeight = fontSize * 1.4;
+        return {
+          baselineOffsets: lines.map((_, index) => fontSize + index * lineHeight),
+          height: lines.length * lineHeight,
+          lineCount: lines.length,
+          lineHeight,
+          lines,
+          width: 80,
+        };
+      },
+    };
+
+    const thumbnail = createBoardThumbnailProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+    const presentation = createBoardPresentationProjection(
+      parsed.value,
+      DOCUMENT_FIXTURE_IDS.board,
+      textMeasurementService,
+    )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+    expect(thumbnail).toMatchObject({
+      fillColor: '#ffcc00',
+      hasFill: true,
+      hasOutline: true,
+      opacity: 0.55,
+      visualKind: 'callout',
+    });
+    expect(thumbnail?.outlinePath).toContain('C');
+    expect(presentation).toMatchObject({
+      accessibleName: 'Review this\nflow',
+      fillColor: thumbnail?.fillColor,
+      hasFill: thumbnail?.hasFill,
+      hasOutline: thumbnail?.hasOutline,
+      opacity: thumbnail?.opacity,
+      outlinePath: thumbnail?.outlinePath,
+      role: 'img',
+      textLayout: thumbnail?.textLayout,
+      visualKind: thumbnail?.visualKind,
+    });
+  });
+
   it('keeps styled disabled Text Area geometry and accessibility identical across surfaces', () => {
     const input = createValidProjectDocumentInput();
     const textArea = getControlSpec(CONTROL_TYPES.textArea);

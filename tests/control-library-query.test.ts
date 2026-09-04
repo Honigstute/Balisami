@@ -85,6 +85,7 @@ describe('control library query', () => {
       CONTROL_TYPES.circleButton,
       CONTROL_TYPES.comment,
       CONTROL_TYPES.tooltip,
+      CONTROL_TYPES.callout,
     ]);
     expect(queryControlLibrary({ category: 'Containers' }).map(({ type }) => type)).toContain(
       CONTROL_TYPES.fieldSet,
@@ -104,6 +105,9 @@ describe('control library query', () => {
     expect(queryControlLibrary({ query: 'fab' })[0]?.type).toBe(CONTROL_TYPES.circleButton);
     expect(queryControlLibrary({ query: 'sticky note' })[0]?.type).toBe(CONTROL_TYPES.comment);
     expect(queryControlLibrary({ query: 'hover help' })[0]?.type).toBe(CONTROL_TYPES.tooltip);
+    expect(queryControlLibrary({ query: 'numbered annotation' })[0]?.type).toBe(
+      CONTROL_TYPES.callout,
+    );
     expect(queryControlLibrary({ query: 'photo' })[0]?.type).toBe(CONTROL_TYPES.imagePlaceholder);
     expect(queryControlLibrary({ query: 'website' })[0]?.type).toBe(CONTROL_TYPES.browser);
     expect(queryControlLibrary({ query: '  BROWSER-window ' })[0]?.type).toBe(

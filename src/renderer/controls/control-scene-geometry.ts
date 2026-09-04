@@ -204,6 +204,9 @@ export const createControlSceneOutlinePath = (
       'circle-button-outline',
     );
   }
+  if (definition.scene.kind === 'callout') {
+    return createSeededEllipsePath(bounds, elementId, 'callout-outline');
+  }
   if (definition.scene.kind === 'field-set' && legend !== undefined) {
     const left = bounds.x;
     const right = bounds.x + bounds.width;
@@ -421,6 +424,26 @@ const createSeededCirclePath = (
       return createWorldPoint(
         center.x + Math.cos(angle) * radius,
         center.y + Math.sin(angle) * radius,
+      );
+    }),
+    elementId,
+    salt,
+    true,
+  );
+};
+
+/** A callout keeps the seeded hand-drawn contour while text Auto-Size may widen either axis. */
+const createSeededEllipsePath = (bounds: WorldRect, elementId: string, salt: string): string => {
+  const segmentCount = 12;
+  const center = createWorldPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  const radiusX = bounds.width * 0.48;
+  const radiusY = bounds.height * 0.48;
+  return createSeededPolylinePath(
+    Array.from({ length: segmentCount }, (_, index) => {
+      const angle = (index / segmentCount) * Math.PI * 2;
+      return createWorldPoint(
+        center.x + Math.cos(angle) * radiusX,
+        center.y + Math.sin(angle) * radiusY,
       );
     }),
     elementId,

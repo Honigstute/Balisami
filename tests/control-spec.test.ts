@@ -63,6 +63,7 @@ describe('control definition registry', () => {
       CONTROL_TYPES.circleButton,
       CONTROL_TYPES.comment,
       CONTROL_TYPES.tooltip,
+      CONTROL_TYPES.callout,
     ]);
     expect(new Set(definitions.map((definition) => definition.type)).size).toBe(definitions.length);
     expect(Object.isFrozen(definitions)).toBe(true);
@@ -118,6 +119,7 @@ describe('control definition registry', () => {
       'Circle Button',
       'Comment',
       'Tooltip',
+      'Callout',
     ]);
     for (const definition of listControlSpecs()) {
       expect(definition.migrations).toHaveLength(definition.fileVersion - 1);
@@ -1106,6 +1108,47 @@ describe('control definition registry', () => {
     expect(tooltip?.propertiesSchema.safeParse(tooltip.defaultProperties).success).toBe(true);
     expect(
       tooltip?.propertiesSchema.safeParse({ ...tooltip.defaultProperties, direction: 'top' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('owns the official Callout default and exact inspector vocabulary', () => {
+    const callout = getControlSpec(CONTROL_TYPES.callout);
+
+    expect(callout).toMatchObject({
+      accessibility: { nameProperty: 'text', role: 'img' },
+      autoSize: { axis: 'both', basis: 'text' },
+      capabilities: {
+        border: false,
+        fill: true,
+        icon: false,
+        link: false,
+        state: false,
+      },
+      defaultProperties: {
+        bold: false,
+        color: DESIGN_TOKENS.color.wireframeCalloutFill,
+        fontSize: 13,
+        italic: false,
+        opacity: 1,
+        text: '1',
+        underline: false,
+      },
+      defaultSize: { height: 39, width: 39 },
+      minimumSize: { height: 39, width: 39 },
+      scene: { colorTarget: 'fill', hitShape: { kind: 'ellipse' }, kind: 'callout' },
+    });
+    expect(callout?.inspector.flatMap((section) => section.fields)).toEqual([
+      expect.objectContaining({ kind: 'color', property: 'color' }),
+      expect.objectContaining({ kind: 'range', property: 'opacity' }),
+      expect.objectContaining({ kind: 'boolean', property: 'bold' }),
+      expect.objectContaining({ kind: 'boolean', property: 'italic' }),
+      expect.objectContaining({ kind: 'boolean', property: 'underline' }),
+      expect.objectContaining({ kind: 'number', property: 'fontSize' }),
+    ]);
+    expect(callout?.propertiesSchema.safeParse(callout.defaultProperties).success).toBe(true);
+    expect(
+      callout?.propertiesSchema.safeParse({ ...callout.defaultProperties, textAlignment: 'center' })
         .success,
     ).toBe(false);
   });
