@@ -16,7 +16,7 @@ const installDesktopApi = (desktopApi: DesktopApi): void => {
 const createDesktopApi = (overrides: Partial<DesktopApi> = {}): DesktopApi => {
   const document = createAssetFreeProjectDocument();
   return {
-    readClipboard: vi.fn().mockResolvedValue({ payload: null, text: '' }),
+    readClipboard: vi.fn().mockResolvedValue({ imagePngBytes: null, payload: null, text: '' }),
     writeClipboard: vi.fn().mockResolvedValue({ accepted: true }),
     discardProjectRecovery: vi.fn().mockResolvedValue({ status: 'cancelled' }),
     getRuntimeInfo: vi.fn().mockResolvedValue({
@@ -190,7 +190,7 @@ describe('application shell', () => {
       return Promise.resolve({ accepted: true });
     });
     const readClipboard = vi.fn<DesktopApi['readClipboard']>(() =>
-      Promise.resolve({ payload, text: 'Button' }),
+      Promise.resolve({ imagePngBytes: null, payload, text: 'Button' }),
     );
     installDesktopApi(createDesktopApi({ readClipboard, writeClipboard }));
     render(<App />);
@@ -212,6 +212,7 @@ describe('application shell', () => {
 
   it('pastes bounded external plain text as one selected Text Label', async () => {
     const readClipboard = vi.fn<DesktopApi['readClipboard']>().mockResolvedValue({
+      imagePngBytes: null,
       payload: null,
       text: 'External\r\nnotes',
     });
@@ -228,6 +229,53 @@ describe('application shell', () => {
     expect(await screen.findByRole('button', { name: 'Undo Paste text' })).toBeEnabled();
     expect(screen.getByDisplayValue('External notes')).toBeInTheDocument();
     expect(readClipboard).toHaveBeenCalledOnce();
+  });
+
+  it('prefers a bounded native image over fallback text and imports it atomically', async () => {
+    const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+    const readClipboard = vi.fn<DesktopApi['readClipboard']>().mockResolvedValue({
+      imagePngBytes: bytes,
+      payload: null,
+      text: 'Fallback text',
+    });
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(() => Promise.resolve({ close: vi.fn(), height: 120, width: 240 })),
+    );
+    const previousCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    const previousRevokeObjectUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: vi.fn(() => 'blob:clipboard-image') },
+      revokeObjectURL: { configurable: true, value: vi.fn() },
+    });
+    try {
+      installDesktopApi(createDesktopApi({ readClipboard }));
+      render(<App />);
+      await screen.findByText('No recent projects yet');
+      fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+      const canvas = await screen.findByRole('main', { name: 'Canvas viewport' });
+      const viewport = canvas.querySelector<HTMLElement>('.editor-viewport');
+      if (viewport === null) throw new Error('Editor viewport did not mount.');
+
+      fireEvent.keyDown(viewport, { code: 'KeyV', key: 'v', metaKey: true });
+
+      expect(await screen.findByRole('button', { name: 'Undo Import image' })).toBeEnabled();
+      expect(screen.getByRole('heading', { name: 'Image' })).toBeInTheDocument();
+      expect(screen.queryByDisplayValue('Fallback text')).not.toBeInTheDocument();
+      expect(readClipboard).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousCreateObjectUrl === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL');
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', previousCreateObjectUrl);
+      }
+      if (previousRevokeObjectUrl === undefined) {
+        Reflect.deleteProperty(URL, 'revokeObjectURL');
+      } else {
+        Object.defineProperty(URL, 'revokeObjectURL', previousRevokeObjectUrl);
+      }
+    }
   });
 
   it('draws one registry-supported control as one exact undoable history entry', async () => {

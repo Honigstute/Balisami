@@ -4,6 +4,7 @@ import {
   type RecentProjectSummary,
   type UserOperationResult,
 } from './user-operation';
+import { MAX_PROJECT_ASSET_BYTES } from './project-file-limits';
 
 export const DESKTOP_CHANNELS = {
   clipboardRead: 'desktop:clipboard-read',
@@ -39,6 +40,7 @@ export interface DesktopClipboardWriteRequest {
 }
 
 export interface DesktopClipboardReadValue {
+  readonly imagePngBytes: Uint8Array | null;
   readonly payload: string | null;
   readonly text: string;
 }
@@ -234,7 +236,11 @@ export const isDesktopClipboardWriteRequest = (
 
 export const isDesktopClipboardReadValue = (value: unknown): value is DesktopClipboardReadValue =>
   isRecord(value) &&
-  hasExactKeys(value, ['payload', 'text']) &&
+  hasExactKeys(value, ['imagePngBytes', 'payload', 'text']) &&
+  (value.imagePngBytes === null ||
+    (value.imagePngBytes instanceof Uint8Array &&
+      value.imagePngBytes.byteLength > 0 &&
+      value.imagePngBytes.byteLength <= MAX_PROJECT_ASSET_BYTES)) &&
   (value.payload === null ||
     isBoundedText(value.payload, DESKTOP_CLIPBOARD_LIMITS.payloadCharacters)) &&
   isBoundedPossiblyEmptyText(value.text, DESKTOP_CLIPBOARD_LIMITS.textCharacters);

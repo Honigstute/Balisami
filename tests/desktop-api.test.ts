@@ -53,8 +53,18 @@ describe('desktop API boundary validation', () => {
     expect(
       isDesktopClipboardWriteRequest({ payload: '{"formatVersion":1}', text: '', extra: true }),
     ).toBe(false);
-    expect(isDesktopClipboardReadValue({ payload: null, text: 'External text' })).toBe(true);
-    expect(isDesktopClipboardReadValue({ payload: 1, text: '' })).toBe(false);
+    expect(
+      isDesktopClipboardReadValue({ imagePngBytes: null, payload: null, text: 'External text' }),
+    ).toBe(true);
+    expect(
+      isDesktopClipboardReadValue({
+        imagePngBytes: Uint8Array.from([1]),
+        payload: null,
+        text: '',
+      }),
+    ).toBe(true);
+    expect(isDesktopClipboardReadValue({ imagePngBytes: null, payload: 1, text: '' })).toBe(false);
+    expect(isDesktopClipboardReadValue({ payload: null, text: '' })).toBe(false);
   });
 
   it('rejects unsupported runtime platforms and malformed values', () => {

@@ -58,8 +58,10 @@ import { ProjectHome } from '../projects/ProjectHome';
 import { useProjectAssetUrls } from '../projects/project-asset-urls';
 import {
   calculateImportedImageFrame,
+  createClipboardImageImportFile,
   createBrowserImageDecodeService,
   prepareImageImport,
+  type ImageImportFile,
 } from '../projects/image-import';
 import { BoardTrashDialog } from '../projects/BoardTrashDialog';
 import { BoardAlternateDiscardDialog } from '../projects/BoardAlternateDiscardDialog';
@@ -357,7 +359,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       selection.selectOnly(elementId);
       return true;
     };
-    const importImage = async (file: File, center: WorldPoint): Promise<void> => {
+    const importImage = async (file: ImageImportFile, center: WorldPoint): Promise<void> => {
       const assetId = allocateEditorAssetId();
       if (assetId === undefined) {
         noticeStore.report({
@@ -892,6 +894,15 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           const payload =
             portable?.selection ?? parseSerializedSelectionClipboardPayload(value.payload);
           if (payload === undefined) {
+            if (value.imagePngBytes !== null) {
+              const viewport = camera.getViewportSnapshot();
+              const center = viewportPointToWorld(
+                createViewportPoint(viewport.width / 2, viewport.height / 2),
+                camera.getTransformSnapshot(),
+              );
+              await importImage(createClipboardImageImportFile(value.imagePngBytes), center);
+              return;
+            }
             pastePlainText(value.text);
             return;
           }

@@ -6,6 +6,7 @@ const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...arguments_: unknown[]) => unknown>(),
   openExternal: vi.fn<(url: string) => Promise<void>>(),
   readHTML: vi.fn<() => string>(),
+  readImage: vi.fn(),
   readText: vi.fn<() => string>(),
   write: vi.fn(),
 }));
@@ -14,6 +15,7 @@ vi.mock('electron', () => ({
   app: { getVersion: () => '0.1.0', isPackaged: true },
   clipboard: {
     readHTML: electron.readHTML,
+    readImage: electron.readImage,
     readText: electron.readText,
     write: electron.write,
   },
@@ -37,6 +39,11 @@ describe('desktop external URL IPC', () => {
     electron.handlers.clear();
     electron.openExternal.mockReset().mockResolvedValue(undefined);
     electron.readHTML.mockReset().mockReturnValue('');
+    electron.readImage.mockReset().mockReturnValue({
+      getSize: () => ({ height: 0, width: 0 }),
+      isEmpty: () => true,
+      toPNG: () => new Uint8Array(),
+    });
     electron.readText.mockReset().mockReturnValue('');
     electron.write.mockReset();
     registerDesktopIpc({ developmentServerUrl: 'http://localhost:5173' });
@@ -55,6 +62,7 @@ describe('desktop external URL IPC', () => {
     electron.readHTML.mockReturnValue(written.html ?? '');
     electron.readText.mockReturnValue('Button');
     expect(readHandler?.(createEvent(TRUSTED_URL))).toEqual({
+      imagePngBytes: null,
       payload: request.payload,
       text: 'Button',
     });

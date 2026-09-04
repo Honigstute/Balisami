@@ -5,6 +5,11 @@ import {
   type DesktopClipboardReadValue,
   type DesktopClipboardWriteRequest,
 } from '../shared/desktop-api';
+import {
+  MAX_IMPORTED_IMAGE_DIMENSION,
+  MAX_IMPORTED_IMAGE_PIXELS,
+} from '../shared/image-import-limits';
+import { MAX_PROJECT_ASSET_BYTES } from '../shared/project-file-limits';
 
 const PAYLOAD_ATTRIBUTE = 'data-balsamic-selection-v1';
 const PAYLOAD_PATTERN = /data-balsamic-selection-v1="([A-Za-z0-9+/=]+)"/u;
@@ -15,9 +20,35 @@ const MAX_CLIPBOARD_HTML_CHARACTERS =
 
 export interface SystemClipboardPort {
   readonly readHTML: () => string;
+  readonly readImage: () => Readonly<{
+    getSize: () => Readonly<{ height: number; width: number }>;
+    isEmpty: () => boolean;
+    toPNG: () => Uint8Array;
+  }>;
   readonly readText: () => string;
   readonly write: (data: Readonly<{ html: string; text: string }>) => void;
 }
+
+const readBoundedPng = (clipboard: SystemClipboardPort): Uint8Array | null => {
+  const image = clipboard.readImage();
+  if (image.isEmpty()) return null;
+  const size = image.getSize();
+  if (
+    !Number.isSafeInteger(size.width) ||
+    !Number.isSafeInteger(size.height) ||
+    size.width <= 0 ||
+    size.height <= 0 ||
+    size.width > MAX_IMPORTED_IMAGE_DIMENSION ||
+    size.height > MAX_IMPORTED_IMAGE_DIMENSION ||
+    size.width * size.height > MAX_IMPORTED_IMAGE_PIXELS
+  ) {
+    return null;
+  }
+  const bytes = image.toPNG();
+  return bytes.byteLength > 0 && bytes.byteLength <= MAX_PROJECT_ASSET_BYTES
+    ? Uint8Array.from(bytes)
+    : null;
+};
 
 /**
  * Uses standard HTML + plain-text clipboard flavors atomically. Other apps see
@@ -67,6 +98,7 @@ export const writeDesktopClipboard = (
 export const readDesktopClipboard = (clipboard: SystemClipboardPort): DesktopClipboardReadValue => {
   const text = clipboard.readText();
   return Object.freeze({
+    imagePngBytes: readBoundedPng(clipboard),
     payload: decodeDesktopClipboardHtml(clipboard.readHTML()),
     text: text.length <= DESKTOP_CLIPBOARD_LIMITS.textCharacters ? text : '',
   });

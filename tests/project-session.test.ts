@@ -96,7 +96,8 @@ class FakeDesktopApi implements DesktopApi {
 
   constructor(readonly document: ProjectDocument) {}
 
-  readClipboard: DesktopApi['readClipboard'] = () => Promise.resolve({ payload: null, text: '' });
+  readClipboard: DesktopApi['readClipboard'] = () =>
+    Promise.resolve({ imagePngBytes: null, payload: null, text: '' });
 
   writeClipboard: DesktopApi['writeClipboard'] = () => Promise.resolve({ accepted: true });
 

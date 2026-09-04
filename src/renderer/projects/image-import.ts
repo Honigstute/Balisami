@@ -1,9 +1,12 @@
 import type { AssetId, AssetReference } from '../../domain';
+import {
+  MAX_IMPORTED_IMAGE_DIMENSION,
+  MAX_IMPORTED_IMAGE_PIXELS,
+} from '../../shared/image-import-limits';
 import { MAX_PROJECT_ASSET_BYTES } from '../../shared/project-file-limits';
 import { createWorldRect, type WorldPoint, type WorldRect } from '../editor/viewport-transform';
 
-export const MAX_IMPORTED_IMAGE_DIMENSION = 16_384;
-export const MAX_IMPORTED_IMAGE_PIXELS = 40_000_000;
+export { MAX_IMPORTED_IMAGE_DIMENSION, MAX_IMPORTED_IMAGE_PIXELS };
 export const MAX_IMPORTED_IMAGE_WORLD_SIZE = 480;
 export const MIN_IMPORTED_IMAGE_WORLD_SIZE = 24;
 
@@ -25,6 +28,17 @@ export interface ImageImportFile {
   readonly type: string;
   arrayBuffer(): Promise<ArrayBuffer>;
 }
+
+/** Adapts validated native clipboard PNG bytes to the existing import pipeline. */
+export const createClipboardImageImportFile = (bytes: Uint8Array): ImageImportFile => {
+  const ownedBytes = Uint8Array.from(bytes);
+  return Object.freeze({
+    arrayBuffer: () => Promise.resolve(ownedBytes.slice().buffer),
+    name: 'Pasted image.png',
+    size: ownedBytes.byteLength,
+    type: 'image/png',
+  });
+};
 
 export interface PreparedImageImport {
   readonly asset: AssetReference;
