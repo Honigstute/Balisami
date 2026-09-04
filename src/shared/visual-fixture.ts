@@ -31,6 +31,7 @@ export const VISUAL_FIXTURE_NAMES = Object.freeze([
   'catalogTooltip',
   'catalogCallout',
   'catalogPopover',
+  'catalogCurlyBraces',
   'radioButton',
   'dateChooser',
   'numericStepper',

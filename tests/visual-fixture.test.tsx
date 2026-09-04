@@ -83,6 +83,9 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=catalogTooltip')).toBe('catalogTooltip');
     expect(getRequestedVisualFixture('?visualFixture=catalogCallout')).toBe('catalogCallout');
     expect(getRequestedVisualFixture('?visualFixture=catalogPopover')).toBe('catalogPopover');
+    expect(getRequestedVisualFixture('?visualFixture=catalogCurlyBraces')).toBe(
+      'catalogCurlyBraces',
+    );
     expect(getRequestedVisualFixture('?visualFixture=radioButton')).toBe('radioButton');
     expect(getRequestedVisualFixture('?visualFixture=dateChooser')).toBe('dateChooser');
     expect(getRequestedVisualFixture('?visualFixture=numericStepper')).toBe('numericStepper');
@@ -689,6 +692,52 @@ describe('visual conformance fixture contract', () => {
         fill: DESIGN_TOKENS.color.accent,
         stroke: DESIGN_TOKENS.color.ink,
       });
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders both Curly Brace orientations and their exact direction inspector', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('catalogCurlyBraces');
+
+    expect(screen.getByRole('button', { name: 'Insert H.Curly Brace' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert V.Curly Brace' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.v-curly-brace"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'V.Curly Brace' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Text Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Right' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="curly-brace"]');
+      expect(controls).toHaveLength(4);
+      const selected = view.container.querySelector(
+        '[data-scene-element-id="element_registryvcurlyright"]',
+      );
+      expect(selected).toHaveAttribute('aria-label', 'Related settings\nand behavior');
+      expect(selected?.querySelector('.scene-control__mark')).toHaveStyle({
+        stroke: DESIGN_TOKENS.color.ink,
+      });
+      if (document.fonts !== undefined) {
+        expect(selected?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

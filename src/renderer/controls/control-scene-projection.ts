@@ -105,6 +105,7 @@ export const createControlSceneProjection = ({
   const contentBounds =
     definition.scene.kind === 'circle-button' ||
     definition.scene.kind === 'comment' ||
+    definition.scene.kind === 'curly-brace' ||
     definition.scene.kind === 'popover' ||
     definition.scene.kind === 'tooltip' ||
     definition.scene.trailingAdornment !== undefined

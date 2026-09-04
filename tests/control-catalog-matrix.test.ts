@@ -101,6 +101,10 @@ const TEST_EVIDENCE_BY_TYPE: Readonly<Record<string, string>> = Object.freeze({
     'common harness; exact default, text Auto-Size, color/opacity, inspector, and projection',
   'wireframe.popover':
     'common harness; exact intrinsic size, direction/position geometry, inspector, and cross-surface projection',
+  'wireframe.h-curly-brace':
+    'common harness; exact default, top/bottom direction, text bounds, inspector, and shared brace geometry',
+  'wireframe.v-curly-brace':
+    'common harness; exact default, left/right direction, text bounds, inspector, and shared brace geometry',
 });
 
 const code = (value: string): string => `\`${value}\``;

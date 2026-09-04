@@ -27,6 +27,7 @@ export type ControlVisualKind =
   | 'comment'
   | 'checkbox'
   | 'color-picker'
+  | 'curly-brace'
   | 'field-set'
   | 'image'
   | 'h-splitter'
@@ -238,6 +239,8 @@ export interface ControlRowsDefinition {
 export interface ControlSceneDefinition {
   /** Checkbox dimensions are world units and ignored by other scene primitives. */
   readonly checkbox?: Readonly<{ boxSize: number; gap: number }>;
+  /** One shared brace projection serves the horizontal and vertical annotation schemas. */
+  readonly curlyBrace?: Readonly<{ orientation: 'horizontal' | 'vertical' }>;
   /** Radio dimensions are world units and ignored by other scene primitives. */
   readonly radio?: Readonly<{ diameter: number; gap: number }>;
   /** Optional fixed trailing affordance that leaves the editable body as canonical geometry. */
@@ -724,6 +727,19 @@ export const assertControlDefinitionsConform = (
       }
     } else if (definition.scene.checkbox !== undefined) {
       throw new Error(`Control '${definition.type}' has unexpected checkbox geometry.`);
+    }
+    if (definition.scene.kind === 'curly-brace') {
+      const orientation = definition.scene.curlyBrace?.orientation;
+      const direction = definition.defaultProperties.direction;
+      if (
+        (orientation !== 'horizontal' && orientation !== 'vertical') ||
+        (orientation === 'horizontal' && direction !== 'top' && direction !== 'bottom') ||
+        (orientation === 'vertical' && direction !== 'left' && direction !== 'right')
+      ) {
+        throw new Error(`Control '${definition.type}' has invalid curly-brace geometry.`);
+      }
+    } else if (definition.scene.curlyBrace !== undefined) {
+      throw new Error(`Control '${definition.type}' has unexpected curly-brace geometry.`);
     }
 
     if (

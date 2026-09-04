@@ -33,6 +33,7 @@
     "catalogTooltip",
     "catalogCallout",
     "catalogPopover",
+    "catalogCurlyBraces",
     "radioButton",
     "dateChooser",
     "numericStepper",

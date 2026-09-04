@@ -914,6 +914,69 @@ describe('control thumbnail projection', () => {
     expect(projections[0]?.textLayout?.lines[0]?.text).toBe('Name: Thor');
   });
 
+  it('projects both Curly Brace orientations and all exact directions through one geometry contract', () => {
+    const horizontal = getControlSpec(CONTROL_TYPES.hCurlyBrace);
+    const vertical = getControlSpec(CONTROL_TYPES.vCurlyBrace);
+    if (horizontal === undefined || vertical === undefined) {
+      throw new Error('Curly Brace definitions are missing.');
+    }
+    const fixtures = [
+      [horizontal, createWorldRect(0, 0, 200, 80), 'top'],
+      [horizontal, createWorldRect(0, 0, 200, 80), 'bottom'],
+      [vertical, createWorldRect(0, 0, 180, 140), 'left'],
+      [vertical, createWorldRect(0, 0, 180, 140), 'right'],
+    ] as const;
+    const projections = fixtures.map(([definition, bounds, direction]) =>
+      createControlSceneProjection({
+        bounds,
+        definition,
+        identity: `curly-${direction}`,
+        properties: {
+          ...definition.defaultProperties,
+          direction,
+          textColor: DESIGN_TOKENS.color.accent,
+        },
+        textMeasurementService: measurementService,
+      }),
+    );
+
+    expect(new Set(projections.map(({ markPath }) => markPath))).toHaveLength(4);
+    for (const projection of projections) {
+      expect(projection).toMatchObject({
+        markFillColor: undefined,
+        markStrokeColor: DESIGN_TOKENS.color.ink,
+        outlinePath: '',
+        textLayout: { color: DESIGN_TOKENS.color.accent, textAnchor: 'middle' },
+      });
+      expect(projection.markPath).toContain('C');
+      expect(projection.markPath).not.toMatch(/NaN|Infinity/u);
+      expect(projection.textLayout?.lines.map(({ text }) => text)).toEqual([
+        'A paragraph of text. A second row of text.',
+      ]);
+    }
+    expect(projections.map(({ primitiveBounds }) => primitiveBounds)).toEqual([
+      { height: 49.6, width: 200, x: 0, y: 30.4 },
+      { height: 49.6, width: 200, x: 0, y: 0 },
+      { height: 140, width: 148, x: 32, y: 0 },
+      { height: 140, width: 148, x: 0, y: 0 },
+    ]);
+
+    for (const definition of [horizontal, vertical]) {
+      const dense = createControlSceneProjection({
+        bounds: createWorldRect(0, 0, definition.minimumSize.width, definition.minimumSize.height),
+        definition,
+        identity: `curly-dense-${definition.type}`,
+        properties: definition.defaultProperties,
+        textMeasurementService: measurementService,
+      });
+      expect(`${dense.markPath} ${JSON.stringify(dense.primitiveBounds)}`).not.toMatch(
+        /NaN|Infinity/u,
+      );
+      expect(dense.primitiveBounds.width).toBeGreaterThanOrEqual(0);
+      expect(dense.primitiveBounds.height).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it('projects Callout color, opacity, elliptical outline, and centered multiline text', () => {
     const definition = getControlSpec(CONTROL_TYPES.callout);
     if (definition === undefined) throw new Error('Callout definition is missing.');

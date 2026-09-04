@@ -84,6 +84,8 @@ export const CONTROL_TYPES = Object.freeze({
   tooltip: ControlTypeIdSchema.parse('wireframe.tooltip'),
   callout: ControlTypeIdSchema.parse('wireframe.callout'),
   popover: ControlTypeIdSchema.parse('wireframe.popover'),
+  hCurlyBrace: ControlTypeIdSchema.parse('wireframe.h-curly-brace'),
+  vCurlyBrace: ControlTypeIdSchema.parse('wireframe.v-curly-brace'),
 });
 
 export const FOUNDATION_CONTROL_TYPES = Object.freeze({
@@ -364,6 +366,22 @@ const popoverPropertiesSchema = z
     text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
   })
   .readonly();
+const hCurlyBracePropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    direction: z.enum(['top', 'bottom']),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
+const vCurlyBracePropertiesSchema = z
+  .strictObject({
+    ...textStyleSchemaShape,
+    direction: z.enum(['left', 'right']),
+    text: z.string().max(CONTROL_TEXT_POLICY.maximumLength),
+    textColor: sceneColorSchema,
+  })
+  .readonly();
 
 const createSize = (width: number, height: number): ControlSize => Object.freeze({ height, width });
 
@@ -513,6 +531,7 @@ const createScene = (
   style?: ControlSceneDefinition['style'],
   markStyle?: ControlSceneDefinition['markStyle'],
   extras: Readonly<{
+    curlyBrace?: ControlSceneDefinition['curlyBrace'];
     iconInset?: number;
     radio?: ControlSceneDefinition['radio'];
     trailingAdornment?: ControlSceneDefinition['trailingAdornment'];
@@ -521,6 +540,7 @@ const createScene = (
   Object.freeze({
     ...(checkbox === undefined ? {} : { checkbox: Object.freeze(checkbox) }),
     colorTarget,
+    ...(extras.curlyBrace === undefined ? {} : { curlyBrace: Object.freeze(extras.curlyBrace) }),
     hitShape: Object.freeze(hitShape),
     ...(extras.iconInset === undefined ? {} : { iconInset: extras.iconInset }),
     kind,
@@ -3687,6 +3707,162 @@ const CONTROL_DEFINITIONS: readonly ControlDefinition[] = Object.freeze([
     tags: ['bubble', 'callout', 'container', 'detail', 'overlay', 'popover'],
     thumbnail: createThumbnail('scene'),
     type: CONTROL_TYPES.popover,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Horizontal Curly Brace', 'img', 'text'),
+    aliases: ['brace', 'bracket', 'horizontal brace'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        0,
+        {
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      direction: 'top',
+      text: 'A paragraph of text.\nA second row of text.',
+      textColor: 'default',
+    },
+    defaultSize: createSize(200, 80),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Direction',
+            options: Object.freeze([
+              Object.freeze({ label: 'Top', value: 'top' }),
+              Object.freeze({ label: 'Bottom', value: 'bottom' }),
+            ]),
+            property: 'direction',
+          },
+        ]),
+        label: 'Brace',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(24, 20),
+    palette: createPalette('H.Curly Brace', 'Markup', 450),
+    propertiesSchema: hCurlyBracePropertiesSchema,
+    scene: createScene(
+      'curly-brace',
+      ['direction', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      undefined,
+      Object.freeze({ fillColor: null, strokeColor: DESIGN_TOKENS.color.ink }),
+      Object.freeze({ curlyBrace: Object.freeze({ orientation: 'horizontal' }) }),
+    ),
+    tags: ['annotation', 'brace', 'bracket', 'curly', 'horizontal', 'markup'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.hCurlyBrace,
+  }),
+  createDefinition({
+    accessibility: createAccessibility('Vertical Curly Brace', 'img', 'text'),
+    aliases: ['brace', 'bracket', 'vertical brace'],
+    autoSize: null,
+    capabilities: createCapabilities(
+      {
+        border: false,
+        fill: false,
+        grouping: 'leaf',
+        icon: false,
+        link: false,
+        resizeAxes: 'both',
+        state: false,
+      },
+      createText(
+        'center',
+        13,
+        0,
+        {
+          boldProperty: 'bold',
+          colorProperty: 'textColor',
+          fontSizeProperty: 'fontSize',
+          italicProperty: 'italic',
+          underlineProperty: 'underline',
+        },
+        'text',
+        'multiline',
+      ),
+    ),
+    defaultProperties: {
+      ...createTextStyleDefaults(13),
+      direction: 'left',
+      text: 'A paragraph of text.\nA second row of text.',
+      textColor: 'default',
+    },
+    defaultSize: createSize(180, 140),
+    export: createExport('scene'),
+    inspector: createInspectorSections([
+      Object.freeze({
+        fields: createInspectorFields([
+          { kind: 'color', label: 'Text Color', property: 'textColor' },
+        ]),
+        label: 'Color',
+      }),
+      Object.freeze({
+        fields: createInspectorFields([
+          {
+            kind: 'choice',
+            label: 'Direction',
+            options: Object.freeze([
+              Object.freeze({ label: 'Left', value: 'left' }),
+              Object.freeze({ label: 'Right', value: 'right' }),
+            ]),
+            property: 'direction',
+          },
+        ]),
+        label: 'Brace',
+      }),
+      Object.freeze({ fields: createTextStyleFields(false), label: 'Text' }),
+    ]),
+    maximumSize: null,
+    minimumSize: createSize(14, 24),
+    palette: createPalette('V.Curly Brace', 'Markup', 460),
+    propertiesSchema: vCurlyBracePropertiesSchema,
+    scene: createScene(
+      'curly-brace',
+      ['direction', 'text'],
+      undefined,
+      undefined,
+      'stroke',
+      undefined,
+      Object.freeze({ fillColor: null, strokeColor: DESIGN_TOKENS.color.ink }),
+      Object.freeze({ curlyBrace: Object.freeze({ orientation: 'vertical' }) }),
+    ),
+    tags: ['annotation', 'brace', 'bracket', 'curly', 'markup', 'vertical'],
+    thumbnail: createThumbnail('scene'),
+    type: CONTROL_TYPES.vCurlyBrace,
   }),
 ]);
 

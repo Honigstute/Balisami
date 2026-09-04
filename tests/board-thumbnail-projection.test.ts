@@ -281,6 +281,64 @@ describe('board thumbnail projection', () => {
     });
   });
 
+  it.each([
+    [CONTROL_TYPES.hCurlyBrace, 'bottom', { height: 64, width: 240 }],
+    [CONTROL_TYPES.vCurlyBrace, 'right', { height: 180, width: 136 }],
+  ] as const)(
+    'keeps edited %s brace geometry identical in navigator and presentation',
+    (controlType, direction, size) => {
+      const input = createValidProjectDocumentInput();
+      const brace = getControlSpec(controlType);
+      const child = input.elementsById[DOCUMENT_FIXTURE_IDS.child];
+      if (brace === undefined || child === undefined) {
+        throw new Error('Curly Brace cross-surface fixture is incomplete.');
+      }
+      child.controlType = brace.type;
+      child.controlVersion = brace.fileVersion;
+      child.frame = { x: 16, y: 24, ...size };
+      child.properties = {
+        ...brace.defaultProperties,
+        bold: true,
+        direction,
+        text: 'Related settings\nand behavior',
+        textColor: DESIGN_TOKENS.color.accent,
+      };
+      child.assetIds = [];
+      input.assetsById = {};
+      const parsed = parseProjectDocument(input);
+      if (!parsed.ok) throw new Error('Curly Brace cross-surface fixture is invalid.');
+
+      const thumbnail = createBoardThumbnailProjection(
+        parsed.value,
+        DOCUMENT_FIXTURE_IDS.board,
+      )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+      const presentation = createBoardPresentationProjection(
+        parsed.value,
+        DOCUMENT_FIXTURE_IDS.board,
+      )?.items.find((item) => item.id === DOCUMENT_FIXTURE_IDS.child);
+
+      expect(thumbnail).toMatchObject({
+        hasFill: false,
+        hasOutline: false,
+        markFillColor: undefined,
+        markStrokeColor: DESIGN_TOKENS.color.ink,
+        visualKind: 'curly-brace',
+      });
+      expect(thumbnail?.markPath).toContain('C');
+      expect(presentation).toMatchObject({
+        accessibleName: 'Related settings\nand behavior',
+        hasFill: false,
+        hasOutline: false,
+        markFillColor: thumbnail?.markFillColor,
+        markPath: thumbnail?.markPath,
+        markStrokeColor: thumbnail?.markStrokeColor,
+        role: 'img',
+        textLayout: thumbnail?.textLayout,
+        visualKind: 'curly-brace',
+      });
+    },
+  );
+
   it('keeps edited Callout shape, text, and accessibility identical across surfaces', () => {
     const input = createValidProjectDocumentInput();
     const callout = getControlSpec(CONTROL_TYPES.callout);
