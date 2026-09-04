@@ -119,6 +119,14 @@ import {
   planPortableSelectionPaste,
   serializePortableSelectionClipboardPayload,
 } from '../editor/portable-selection-clipboard';
+import {
+  capturePortableSelectionGraph,
+  createPortableSelectionGraphPlainText,
+  parsePortableSelectionGraph,
+  planPortableSelectionGraphPaste,
+  serializePortableSelectionGraph,
+  type PortableSelectionGraphPayload,
+} from '../editor/portable-selection-graph';
 import { deleteSelectedElements, type SelectionDeleteSource } from '../editor/selection-delete';
 import {
   duplicateSelectedElements,
@@ -630,20 +638,7 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
         duplicateSelectionSource,
       );
     };
-    const publishSelectionClipboard = (sourceDocument?: ProjectDocument): void => {
-      const payload = clipboard.getSnapshot().payload;
-      if (payload === undefined) return;
-      const currentDocument = sourceDocument ?? session.getSnapshot().history?.document;
-      const portable =
-        currentDocument === undefined
-          ? undefined
-          : createPortableSelectionClipboardPayload(currentDocument, payload, (assetId) =>
-              session.getAssetBytes(assetId),
-            );
-      const serialized =
-        portable === undefined
-          ? serializeSelectionClipboardPayload(payload)
-          : serializePortableSelectionClipboardPayload(portable);
+    const publishDesktopClipboard = (serialized: string | undefined, text: string): boolean => {
       if (serialized === undefined) {
         noticeStore.report({
           key: 'clipboard:size',
@@ -651,14 +646,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
           title: 'The selection is too large to copy',
           tone: 'warning',
         });
-        return;
+        return false;
       }
       desktopClipboardPayload = serialized;
       desktopClipboardPasteCount = 0;
       void window.balsamicDesktop
         .writeClipboard({
           payload: serialized,
-          text: createSelectionClipboardPlainText(payload),
+          text,
         })
         .catch(() => {
           noticeStore.report({
@@ -669,18 +664,50 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
             tone: 'warning',
           });
         });
+      return true;
+    };
+    const publishSelectionClipboard = (sourceDocument?: ProjectDocument): boolean => {
+      const payload = clipboard.getSnapshot().payload;
+      if (payload === undefined) return false;
+      const currentDocument = sourceDocument ?? session.getSnapshot().history?.document;
+      const portable =
+        currentDocument === undefined
+          ? undefined
+          : createPortableSelectionClipboardPayload(currentDocument, payload, (assetId) =>
+              session.getAssetBytes(assetId),
+            );
+      return publishDesktopClipboard(
+        portable === undefined
+          ? serializeSelectionClipboardPayload(payload)
+          : serializePortableSelectionClipboardPayload(portable),
+        createSelectionClipboardPlainText(payload),
+      );
     };
     const copySelection = (): boolean => {
       const currentDocument = session.getSnapshot().history?.document;
       if (currentDocument === undefined) return false;
+      const snapshot = selection.getSnapshot();
+      const graph = capturePortableSelectionGraph(
+        currentDocument,
+        snapshot.selectedIds,
+        snapshot.primaryId,
+        'copy',
+        (assetId) => session.getAssetBytes(assetId),
+      );
+      if (graph !== undefined) {
+        copySelectedElements(currentDocument, selection, model.listItemIds(), clipboard);
+        return publishDesktopClipboard(
+          serializePortableSelectionGraph(graph),
+          createPortableSelectionGraphPlainText(graph),
+        );
+      }
       const copied = copySelectedElements(
         currentDocument,
         selection,
         model.listItemIds(),
         clipboard,
       );
-      if (copied) publishSelectionClipboard();
-      return copied;
+      return copied && publishSelectionClipboard();
     };
     const cutSelectionSource: SelectionDeleteSource = {
       commit(commands) {
@@ -693,6 +720,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
     const cutSelection = (): boolean => {
       const currentDocument = session.getSnapshot().history?.document;
       if (currentDocument === undefined) return false;
+      const snapshot = selection.getSnapshot();
+      const graph = capturePortableSelectionGraph(
+        currentDocument,
+        snapshot.selectedIds,
+        snapshot.primaryId,
+        'cut',
+        (assetId) => session.getAssetBytes(assetId),
+      );
       const cut = cutSelectedElements(
         currentDocument,
         selection,
@@ -702,7 +737,14 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       );
       // The portable payload needs the source hierarchy to convert local frames
       // to board coordinates, so capture it from the accepted pre-cut snapshot.
-      if (cut) publishSelectionClipboard(currentDocument);
+      if (cut && graph !== undefined) {
+        publishDesktopClipboard(
+          serializePortableSelectionGraph(graph),
+          createPortableSelectionGraphPlainText(graph),
+        );
+      } else if (cut) {
+        publishSelectionClipboard(currentDocument);
+      }
       return cut;
     };
     const pasteSelectionSource: SelectionPasteSource = {
@@ -760,12 +802,53 @@ const ProjectWorkspace = ({ platform, quickAddShortcut, runtimeLabel }: ProjectW
       selection.replace(plan.cloneIds, plan.primaryCloneId);
       return true;
     };
+    const pastePortableGraph = async (payload: PortableSelectionGraphPayload): Promise<boolean> => {
+      const currentDocument = session.getSnapshot().history?.document;
+      const canonicalBoardId = activeBoard.getSnapshot() ?? currentDocument?.boardIds[0];
+      const boardId =
+        currentDocument === undefined || canonicalBoardId === undefined
+          ? undefined
+          : selectBoardPresentationId(currentDocument, canonicalBoardId);
+      if (currentDocument === undefined || boardId === undefined) return false;
+      const plan = planPortableSelectionGraphPaste(
+        currentDocument,
+        payload,
+        boardId,
+        desktopClipboardPasteCount,
+        allocateEditorElementId,
+        () => allocateEditorAssetId(),
+        () => allocateEditorComponentId(),
+      );
+      if (plan === undefined) return false;
+      const result = await session.dispatchTransactionWithAssets(plan.commands, plan.additions, {
+        label: plan.cloneIds.length === 1 ? 'Paste element' : 'Paste elements',
+      });
+      if (
+        result?.ok !== true ||
+        !result.changed ||
+        plan.cloneIds.some((id) => result.history.document.elementsById[id] === undefined)
+      ) {
+        return false;
+      }
+      desktopClipboardPasteCount += 1;
+      selection.replace(plan.cloneIds, plan.primaryCloneId);
+      return true;
+    };
     const pasteSelection = (): boolean => {
       if (desktopPastePending) return false;
       desktopPastePending = true;
       void window.balsamicDesktop
         .readClipboard()
         .then(async (value) => {
+          const graph = parsePortableSelectionGraph(value.payload);
+          if (graph !== undefined) {
+            if (value.payload !== desktopClipboardPayload) {
+              desktopClipboardPayload = value.payload ?? undefined;
+              desktopClipboardPasteCount = 0;
+            }
+            await pastePortableGraph(graph);
+            return;
+          }
           const portable = parsePortableSelectionClipboardPayload(value.payload);
           const payload =
             portable?.selection ?? parseSerializedSelectionClipboardPayload(value.payload);
