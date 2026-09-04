@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import visualFixtureContract from '../visual-fixture-contract.json';
 import { VisualConformanceFixture } from '../src/renderer/design/VisualConformanceFixture';
+import { DESIGN_TOKENS } from '../src/shared/design-tokens';
 import {
   VISUAL_FIXTURE_NAMES,
   getRequestedVisualFixture,
@@ -78,6 +79,7 @@ describe('visual conformance fixture contract', () => {
     expect(getRequestedVisualFixture('?visualFixture=textArea')).toBe('textArea');
     expect(getRequestedVisualFixture('?visualFixture=textHeadings')).toBe('textHeadings');
     expect(getRequestedVisualFixture('?visualFixture=circleButton')).toBe('circleButton');
+    expect(getRequestedVisualFixture('?visualFixture=comment')).toBe('comment');
     expect(getRequestedVisualFixture('?visualFixture=unknown')).toBeUndefined();
   });
 
@@ -486,6 +488,59 @@ describe('visual conformance fixture contract', () => {
           '[data-scene-element-id="element_registrycirclebuttonright"] .scene-control__link-hint[data-link-target="https://example.com/go"]',
         ),
       ).not.toBeNull();
+    });
+    expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
+      'data-selection-count',
+      '1',
+    );
+  });
+
+  it('renders the exact Comment default and an edited multiline sticky-note state', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const view = renderFixture('comment');
+
+    expect(screen.getByRole('button', { name: 'Insert Comment' })).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-inspector-control="wireframe.comment"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Comment' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '↔ Auto-Size' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Center' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Link type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'State' })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      const controls = view.container.querySelectorAll('[data-control-visual="comment"]');
+      expect(controls).toHaveLength(2);
+      const defaultComment = view.container.querySelector(
+        '[data-scene-element-id="element_registrycommentdefault"]',
+      );
+      const editedComment = view.container.querySelector(
+        '[data-scene-element-id="element_registrycommentedited"]',
+      );
+      expect(defaultComment).toHaveAttribute('aria-label', 'A comment');
+      expect(defaultComment?.querySelector('.scene-control__fill')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.wireframeCommentFill,
+      });
+      expect(defaultComment?.querySelector('.scene-control__mark')).toHaveStyle({
+        fill: DESIGN_TOKENS.color.wireframeCommentTape,
+        stroke: DESIGN_TOKENS.color.wireframeCommentTape,
+      });
+      expect(editedComment).toHaveAttribute('aria-label', 'Review this\nflow');
+      if (document.fonts !== undefined) {
+        expect(editedComment?.querySelectorAll('.scene-control__text tspan')).toHaveLength(2);
+      }
     });
     expect(view.container.querySelector('[data-selection-overlay="bounds"]')).toHaveAttribute(
       'data-selection-count',

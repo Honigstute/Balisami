@@ -793,4 +793,50 @@ describe('control thumbnail projection', () => {
       primitiveBounds: { height: 32, width: 32, x: 0, y: 24 },
     });
   });
+
+  it('projects Comment fill, tape, and top-aligned multiline text from one definition', () => {
+    const definition = getControlSpec(CONTROL_TYPES.comment);
+    if (definition === undefined) throw new Error('Comment definition is missing.');
+    const multilineMeasurementService: ControlTextMeasurementService = {
+      measure: ({ fontSize, text }) => {
+        const lines = text.replace(/\r\n?/gu, '\n').split('\n');
+        const lineHeight = fontSize * 1.4;
+        return {
+          baselineOffsets: lines.map((_, index) => fontSize + index * lineHeight),
+          height: lines.length * lineHeight,
+          lineCount: lines.length,
+          lineHeight,
+          lines,
+          width: Math.max(...lines.map((line) => line.length * fontSize * 0.5)),
+        };
+      },
+    };
+    const projection = createControlSceneProjection({
+      bounds: createWorldRect(0, 0, 109, 123),
+      definition,
+      identity: 'comment-default',
+      properties: {
+        ...definition.defaultProperties,
+        text: 'First\nSecond',
+      },
+      textMeasurementService: multilineMeasurementService,
+    });
+
+    expect(projection).toMatchObject({
+      fillColor: DESIGN_TOKENS.color.wireframeCommentFill,
+      markFillColor: DESIGN_TOKENS.color.wireframeCommentTape,
+      markStrokeColor: DESIGN_TOKENS.color.wireframeCommentTape,
+      outlinePath: '',
+      primitiveBounds: { height: 111, width: 109, x: 0, y: 12 },
+      textLayout: {
+        lines: [
+          { baselineY: 33, text: 'First', x: 8 },
+          { baselineY: 51.2, text: 'Second', x: 8 },
+        ],
+        textAnchor: 'start',
+      },
+    });
+    expect(projection.markPath).toContain('Z');
+    expect(projection.markPath).not.toContain('NaN');
+  });
 });

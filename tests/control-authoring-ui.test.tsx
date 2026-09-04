@@ -153,6 +153,7 @@ describe('alpha control authoring UI', () => {
       'Link',
       'Multiline Button',
       'Circle Button',
+      'Comment',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: `Insert ${label}` }));
     }
@@ -201,6 +202,7 @@ describe('alpha control authoring UI', () => {
       CONTROL_TYPES.link,
       CONTROL_TYPES.multilineButton,
       CONTROL_TYPES.circleButton,
+      CONTROL_TYPES.comment,
     ]);
   });
 

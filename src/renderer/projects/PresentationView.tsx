@@ -294,9 +294,12 @@ export const PresentationView = ({
                     <path
                       className="scene-control__mark"
                       d={item.markPath}
-                      style={
-                        item.strokeColor === undefined ? undefined : { stroke: item.strokeColor }
-                      }
+                      style={{
+                        ...(item.markFillColor === undefined ? {} : { fill: item.markFillColor }),
+                        ...(item.markStrokeColor === undefined && item.strokeColor === undefined
+                          ? {}
+                          : { stroke: item.markStrokeColor ?? item.strokeColor }),
+                      }}
                       vectorEffect="non-scaling-stroke"
                     />
                   ) : null}
